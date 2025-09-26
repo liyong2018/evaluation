@@ -4,6 +4,7 @@ F:\Evaluate\src\main\java\com\evaluate\service\IAlgorithmConfigService.java
 F:\Evaluate\src\main\java\com\evaluate\service\ISurveyDataService.java
 F:\Evaluate\src\main\java\com\evaluate\mapper\ReportMapper.java
 F:\Evaluate\src\main\java\com\evaluate\service\AlgorithmExecutionService.java
+F:\Evaluate\src\main\java\com\evaluate\dto\EvaluationRequest.java
 F:\Evaluate\src\main\java\com\evaluate\controller\WeightConfigController.java
 F:\Evaluate\src\main\java\com\evaluate\controller\SurveyDataController.java
 F:\Evaluate\src\main\java\com\evaluate\config\CorsConfig.java

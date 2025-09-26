@@ -85,6 +85,11 @@
         <el-table-column prop="fundingAmount" label="资金投入(万元)" width="120" />
         <el-table-column prop="materialValue" label="物资价值(万元)" width="120" />
         <el-table-column prop="hospitalBeds" label="医院床位" width="100" />
+        <el-table-column prop="firefighters" label="消防员数量" width="100" />
+        <el-table-column prop="volunteers" label="志愿者人数" width="100" />
+        <el-table-column prop="militiaReserve" label="民兵预备役" width="100" />
+        <el-table-column prop="trainingParticipants" label="培训参与人次" width="120" />
+        <el-table-column prop="shelterCapacity" label="避难场所容量" width="120" />
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
@@ -223,6 +228,60 @@
               />
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="消防员数量" prop="firefighters">
+              <el-input-number
+                v-model="formData.firefighters"
+                :min="0"
+                placeholder="请输入消防员数量"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="志愿者人数" prop="volunteers">
+              <el-input-number
+                v-model="formData.volunteers"
+                :min="0"
+                placeholder="请输入志愿者人数"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="民兵预备役" prop="militiaReserve">
+              <el-input-number
+                v-model="formData.militiaReserve"
+                :min="0"
+                placeholder="请输入民兵预备役人数"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="培训参与人次" prop="trainingParticipants">
+              <el-input-number
+                v-model="formData.trainingParticipants"
+                :min="0"
+                placeholder="请输入培训参与人次"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="避难场所容量" prop="shelterCapacity">
+              <el-input-number
+                v-model="formData.shelterCapacity"
+                :min="0"
+                placeholder="请输入避难场所容量"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
         </el-row>
       </el-form>
       <template #footer>
@@ -330,7 +389,12 @@ const formData = reactive({
   riskAssessment: '',
   fundingAmount: null,
   materialValue: null,
-  hospitalBeds: null
+  hospitalBeds: null,
+  firefighters: null,
+  volunteers: null,
+  militiaReserve: null,
+  trainingParticipants: null,
+  shelterCapacity: null
 })
 
 const formRules = {
@@ -417,7 +481,12 @@ const resetForm = () => {
     riskAssessment: '',
     fundingAmount: null,
     materialValue: null,
-    hospitalBeds: null
+    hospitalBeds: null,
+    firefighters: null,
+    volunteers: null,
+    militiaReserve: null,
+    trainingParticipants: null,
+    shelterCapacity: null
   })
   formRef.value?.resetFields()
 }
@@ -551,15 +620,76 @@ const handleImport = async () => {
 // 导出数据
 const exportData = async () => {
   try {
+    console.log('开始导出数据...')
     const response = await surveyDataApi.exportData()
-    if (response.success) {
+    console.log('导出响应:', response)
+    
+    // 检查响应是否成功
+    if (response && response.success && response.data) {
+      console.log('响应数据类型:', typeof response.data)
+      console.log('响应数据长度:', response.data.length)
+      
+      let byteArray: Uint8Array
+      
+      if (typeof response.data === 'string') {
+        // 如果是base64字符串，进行解码
+        try {
+          const byteCharacters = atob(response.data)
+          const byteNumbers = new Array(byteCharacters.length)
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i)
+          }
+          byteArray = new Uint8Array(byteNumbers)
+        } catch (e) {
+          console.error('Base64解码失败:', e)
+          ElMessage.error('数据格式错误')
+          return
+        }
+      } else if (Array.isArray(response.data)) {
+        // 如果是字节数组，直接转换
+        byteArray = new Uint8Array(response.data)
+      } else {
+        console.error('未知的数据格式:', response.data)
+        ElMessage.error('数据格式不支持')
+        return
+      }
+      
+      console.log('处理后的字节数组长度:', byteArray.length)
+      
+      if (byteArray.length === 0) {
+        ElMessage.error('导出的文件为空')
+        return
+      }
+      
+      // 创建blob对象
+      const blob = new Blob([byteArray], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
+      
+      console.log('Blob大小:', blob.size)
+      
+      // 创建下载链接
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `调查数据_${new Date().toISOString().slice(0, 10)}.xlsx`
+      
+      // 触发下载
+      document.body.appendChild(link)
+      link.click()
+      
+      // 清理
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
       ElMessage.success('导出成功')
     } else {
-      ElMessage.error(response.message || '导出失败')
+      console.error('导出失败，响应:', response)
+      ElMessage.error(response?.message || '导出失败：响应数据为空')
     }
   } catch (error) {
     console.error('导出失败:', error)
-    ElMessage.error('导出失败')
+    ElMessage.error('导出失败: ' + (error as Error).message)
   }
 }
 

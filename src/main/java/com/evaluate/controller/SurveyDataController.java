@@ -75,11 +75,14 @@ public class SurveyDataController {
     public Result<List<SurveyData>> searchSurveyData(
             @RequestParam(required = false) String surveyName,
             @RequestParam(required = false) String region,
-            @RequestParam(required = false) String year) {
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String keyword) {
         try {
-            // 简化搜索逻辑，根据surveyName查询
             List<SurveyData> list;
-            if (surveyName != null && !surveyName.isEmpty()) {
+            if (keyword != null && !keyword.isEmpty()) {
+                // 支持按关键词模糊搜索多个字段
+                list = surveyDataService.searchByKeyword(keyword);
+            } else if (surveyName != null && !surveyName.isEmpty()) {
                 list = surveyDataService.getBySurveyName(surveyName);
             } else if (region != null && !region.isEmpty()) {
                 list = surveyDataService.getBySurveyRegion(region);
@@ -167,6 +170,23 @@ public class SurveyDataController {
         } catch (Exception e) {
             log.error("导出调查数据失败", e);
             return Result.error("导出调查数据失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/export/all")
+    public Result<byte[]> exportAllSurveyData() {
+        try {
+            log.info("开始导出所有调查数据");
+            byte[] data = surveyDataService.exportAllToExcel();
+            log.info("导出完成，文件大小: {} 字节", data != null ? data.length : 0);
+            if (data == null || data.length == 0) {
+                log.warn("导出的文件数据为空");
+                return Result.error("导出的文件数据为空");
+            }
+            return Result.success(data);
+        } catch (Exception e) {
+            log.error("导出所有调查数据失败", e);
+            return Result.error("导出所有调查数据失败: " + e.getMessage());
         }
     }
 }

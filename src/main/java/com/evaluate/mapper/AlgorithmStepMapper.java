@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.evaluate.entity.AlgorithmStep;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
@@ -22,6 +23,7 @@ public interface AlgorithmStepMapper extends BaseMapper<AlgorithmStep> {
      * @param algorithmId 算法ID
      * @return 算法步骤列表
      */
+    @Select("SELECT id, algorithm_config_id, step_name, step_code, description, input_data, output_data, step_order, status, create_time FROM algorithm_step WHERE algorithm_config_id = #{algorithmId} ORDER BY step_order ASC")
     List<AlgorithmStep> selectByAlgorithmId(@Param("algorithmId") Long algorithmId);
 
     /**
@@ -30,6 +32,7 @@ public interface AlgorithmStepMapper extends BaseMapper<AlgorithmStep> {
      * @param algorithmId 算法ID
      * @return 启用的算法步骤列表
      */
+    @Select("SELECT id, algorithm_config_id, step_name, step_code, description, input_data, output_data, step_order, status, create_time FROM algorithm_step WHERE algorithm_config_id = #{algorithmId} AND status = 1 ORDER BY step_order ASC")
     List<AlgorithmStep> selectEnabledByAlgorithmId(@Param("algorithmId") Long algorithmId);
 
     /**

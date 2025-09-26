@@ -25,7 +25,7 @@ export const surveyDataApi = {
   
   // 搜索调查数据
   search: (keyword: string) => 
-    request.get('/api/survey-data/search', { params: { surveyName: keyword } }),
+    request.get('/api/survey-data/search', { params: { keyword: keyword } }),
   
   // 创建调查数据
   create: (data: any) => request.post('/api/survey-data', data),
@@ -52,9 +52,7 @@ export const surveyDataApi = {
   },
   
   // 导出Excel文件
-  exportData: () => request.get('/api/survey-data/export/all', {
-    responseType: 'blob'
-  })
+  exportData: () => request.get('/api/survey-data/export/all')
 }
 
 // 权重配置相关API
@@ -195,7 +193,17 @@ export const evaluationApi = {
   // 删除评估记录
   deleteResult: (id: number) => request.delete('/api/evaluation/results', { 
     params: { surveyId: id, algorithmId: 1, weightConfigId: 1 } 
-  })
+  }),
+
+  // 创建评估任务
+  create: (data: any) => request.post('/api/evaluation/create', data),
+
+  // 保存步骤结果
+  saveStepResult: (data: { evaluationId: number; stepId: number; result: any }) => 
+    request.post('/api/evaluation/step-result', data),
+
+  // 完成评估
+  finalize: (evaluationId: number) => request.post(`/api/evaluation/finalize/${evaluationId}`)
 }
 
 // 算法执行相关API
@@ -239,7 +247,16 @@ export const algorithmExecutionApi = {
     regions?: number[];
     parameters?: Record<string, any>;
     formula?: string;
-  }) => request.post('/api/algorithm/execution/step/calculate', data)
+  }) => request.post('/api/algorithm/execution/step/calculate', data),
+
+  // 执行单个算法步骤
+  executeStep: (data: {
+    evaluationId: number;
+    stepId: number;
+    algorithmId: number;
+    regionIds: string[];
+    parameters: Record<string, any>;
+  }) => request.post('/api/algorithm/execution/step/execute', data)
 }
 
 // 算法配置相关API

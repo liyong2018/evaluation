@@ -2,7 +2,7 @@
   <el-dialog
     v-model="visible"
     :title="dialogTitle"
-    width="80%"
+    width="90%"
     :before-close="handleClose"
     class="result-dialog"
   >
@@ -21,41 +21,94 @@
         </div>
       </div>
 
-      <!-- 计算结果表格 -->
-      <div class="result-table-section" v-if="resultData">
-        <h4>计算结果</h4>
-        <el-table
-          :data="resultData.tableData"
-          border
-          stripe
-          size="small"
-          max-height="400"
-          class="result-table"
-        >
-          <el-table-column
-            v-for="column in resultData.columns"
-            :key="column.prop"
-            :prop="column.prop"
-            :label="column.label"
-            :width="column.width"
-            :formatter="column.formatter"
-          />
-        </el-table>
+      <!-- 双表格显示 -->
+      <div v-if="resultData && resultData.isDualTable" class="dual-table-section">
+        <!-- 表格1：一级指标权重计算 -->
+        <div class="table-section">
+          <h4>一级指标权重计算</h4>
+          <div class="table-container">
+            <el-table
+              :data="resultData.table1Data"
+              border
+              stripe
+              size="small"
+              max-height="400"
+              class="result-table"
+              style="width: 100%; min-width: 1200px;"
+            >
+              <el-table-column
+                v-for="column in resultData.table1Columns"
+                :key="column.prop"
+                :prop="column.prop"
+                :label="column.label"
+                :width="column.width"
+                :show-overflow-tooltip="true"
+              />
+            </el-table>
+          </div>
+          
+          <!-- 统计信息已移除 -->
+        </div>
+
+        <!-- 表格2：乡镇减灾能力权重计算 -->
+        <div class="table-section" style="margin-top: 30px;">
+          <h4>乡镇减灾能力权重计算</h4>
+          <div class="table-container">
+            <el-table
+              :data="resultData.table2Data"
+              border
+              stripe
+              size="small"
+              max-height="400"
+              class="result-table"
+              style="width: 100%; min-width: 1200px;"
+            >
+              <el-table-column
+                v-for="column in resultData.table2Columns"
+                :key="column.prop"
+                :prop="column.prop"
+                :label="column.label"
+                :width="column.width"
+                :show-overflow-tooltip="true"
+              />
+            </el-table>
+          </div>
+          
+          <!-- 统计信息已移除 -->
+        </div>
       </div>
 
-      <!-- 统计信息 -->
-      <div class="summary-section" v-if="resultData && resultData.summary">
-        <h4>统计信息</h4>
-        <div class="summary-grid">
-          <div
-            v-for="(value, key) in resultData.summary"
-            :key="key"
-            class="summary-item"
+      <!-- 单表格显示（原有逻辑） -->
+      <div v-else-if="resultData && !resultData.isDualTable" class="result-table-section">
+        <h4>计算结果</h4>
+        <div class="table-container">
+          <el-table
+            :data="resultData.tableData"
+            border
+            stripe
+            size="small"
+            max-height="400"
+            class="result-table"
+            style="width: 100%; min-width: 1600px;"
           >
-            <span class="summary-label">{{ key }}:</span>
-            <span class="summary-value">{{ value }}</span>
-          </div>
+            <el-table-column
+              v-for="(column, index) in resultData.columns"
+              :key="column.prop"
+              :prop="column.prop"
+              :label="column.label"
+              :width="column.width"
+              :formatter="column.formatter"
+              :show-overflow-tooltip="true"
+            >
+              <template #header>
+                <span>{{ column.label }}</span>
+                <span v-if="index === resultData.columns.length - 1" style="color: red; font-size: 12px;">(第{{ index + 1 }}列)</span>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
+        
+        <!-- 统计信息已移除 -->
       </div>
 
       <!-- 空状态 -->
@@ -86,9 +139,19 @@ interface StepInfo {
 }
 
 interface ResultData {
-  tableData: any[]
-  columns: any[]
+  // 单表格数据结构
+  tableData?: any[]
+  columns?: any[]
   summary?: Record<string, any>
+  
+  // 双表格数据结构
+  isDualTable?: boolean
+  table1Data?: any[]
+  table1Columns?: any[]
+  table1Summary?: Record<string, any>
+  table2Data?: any[]
+  table2Columns?: any[]
+  table2Summary?: Record<string, any>
 }
 
 interface Props {
@@ -143,6 +206,14 @@ watch(
   () => props.resultData,
   (newData) => {
     console.log('ResultData changed:', newData)
+    if (newData && newData.columns) {
+      console.log('Columns count:', newData.columns.length)
+      console.log('Columns:', newData.columns.map(col => ({ prop: col.prop, label: col.label, width: col.width })))
+    }
+    if (newData && newData.tableData && newData.tableData.length > 0) {
+      console.log('First row data keys:', Object.keys(newData.tableData[0]))
+      console.log('Sample row data:', newData.tableData[0])
+    }
   },
   { deep: true, immediate: true }
 )
@@ -196,7 +267,6 @@ const exportResults = () => {
 const buildCSVContent = (): string => {
   if (!props.resultData) return ''
   
-  const { tableData, columns, summary } = props.resultData
   const lines: string[] = []
   
   // 添加步骤信息
@@ -212,26 +282,93 @@ const buildCSVContent = (): string => {
     lines.push('')
   }
   
-  // 添加表头
-  const headers = columns.map(col => col.label).join(',')
-  lines.push(headers)
-  
-  // 添加数据行
-  tableData.forEach(row => {
-    const values = columns.map(col => {
-      const value = row[col.prop]
-      return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
-    })
-    lines.push(values.join(','))
-  })
-  
-  // 添加统计信息
-  if (summary) {
-    lines.push('')
-    lines.push('统计信息')
-    Object.entries(summary).forEach(([key, value]) => {
-      lines.push(`${key},${value}`)
-    })
+  if (props.resultData.isDualTable) {
+    // 双表格数据导出
+    const { table1Data, table1Columns, table1Summary, table2Data, table2Columns, table2Summary } = props.resultData
+    
+    // 表格1
+    if (table1Data && table1Columns) {
+      lines.push('一级指标权重计算')
+      
+      // 表格1表头
+      const headers1 = table1Columns.map(col => col.label).join(',')
+      lines.push(headers1)
+      
+      // 表格1数据行
+      table1Data.forEach(row => {
+        const values = table1Columns.map(col => {
+          const value = row[col.prop]
+          return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
+        })
+        lines.push(values.join(','))
+      })
+      
+      // 表格1统计信息
+      if (table1Summary) {
+        lines.push('')
+        lines.push('表格1统计信息')
+        Object.entries(table1Summary).forEach(([key, value]) => {
+          lines.push(`${key},${value}`)
+        })
+      }
+      
+      lines.push('')
+      lines.push('')
+    }
+    
+    // 表格2
+    if (table2Data && table2Columns) {
+      lines.push('乡镇减灾能力权重计算')
+      
+      // 表格2表头
+      const headers2 = table2Columns.map(col => col.label).join(',')
+      lines.push(headers2)
+      
+      // 表格2数据行
+      table2Data.forEach(row => {
+        const values = table2Columns.map(col => {
+          const value = row[col.prop]
+          return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
+        })
+        lines.push(values.join(','))
+      })
+      
+      // 表格2统计信息
+      if (table2Summary) {
+        lines.push('')
+        lines.push('表格2统计信息')
+        Object.entries(table2Summary).forEach(([key, value]) => {
+          lines.push(`${key},${value}`)
+        })
+      }
+    }
+  } else {
+    // 单表格数据导出（原有逻辑）
+    const { tableData, columns, summary } = props.resultData
+    
+    if (tableData && columns) {
+      // 添加表头
+      const headers = columns.map(col => col.label).join(',')
+      lines.push(headers)
+      
+      // 添加数据行
+      tableData.forEach(row => {
+        const values = columns.map(col => {
+          const value = row[col.prop]
+          return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
+        })
+        lines.push(values.join(','))
+      })
+      
+      // 添加统计信息
+      if (summary) {
+        lines.push('')
+        lines.push('统计信息')
+        Object.entries(summary).forEach(([key, value]) => {
+          lines.push(`${key},${value}`)
+        })
+      }
+    }
   }
   
   return lines.join('\n')
@@ -288,6 +425,36 @@ const buildCSVContent = (): string => {
     }
   }
 
+  .dual-table-section {
+    .table-section {
+      margin-bottom: 20px;
+      
+      h4 {
+        margin: 0 0 12px 0;
+        color: #333;
+        font-size: 16px;
+        padding: 8px 12px;
+        background-color: #f0f9ff;
+        border-left: 4px solid #409eff;
+        border-radius: 4px;
+      }
+      
+      .table-container {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border: 1px solid #ebeef5;
+        border-radius: 4px;
+        margin-bottom: 16px;
+      }
+      
+      .result-table {
+        width: 100%;
+        min-width: 1200px;
+      }
+    }
+  }
+
   .result-table-section {
     margin-bottom: 20px;
     
@@ -297,8 +464,17 @@ const buildCSVContent = (): string => {
       font-size: 16px;
     }
     
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border: 1px solid #ebeef5;
+      border-radius: 4px;
+    }
+    
     .result-table {
       width: 100%;
+      min-width: 1600px;
     }
   }
 

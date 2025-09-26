@@ -10,7 +10,6 @@ com\evaluate\controller\IndexController.class
 com\evaluate\service\impl\AlgorithmConfigServiceImpl.class
 com\evaluate\service\AlgorithmManagementService.class
 com\evaluate\service\IAlgorithmConfigService.class
-com\evaluate\service\ISecondaryIndicatorResultService.class
 com\evaluate\config\CorsConfig.class
 com\evaluate\mapper\FormulaConfigMapper.class
 com\evaluate\entity\SurveyData.class
@@ -21,7 +20,6 @@ com\evaluate\controller\WeightConfigController.class
 com\evaluate\service\impl\AlgorithmManagementServiceImpl.class
 com\evaluate\service\IReportService.class
 com\evaluate\service\AlgorithmExecutionService.class
-com\evaluate\service\impl\EvaluationServiceImpl.class
 com\evaluate\service\impl\SurveyDataServiceImpl.class
 com\evaluate\service\IIndicatorWeightService.class
 com\evaluate\util\ExcelUtil$1.class
@@ -31,13 +29,10 @@ com\evaluate\service\RegionService.class
 com\evaluate\controller\AlgorithmConfigController.class
 com\evaluate\EvaluateApplication.class
 com\evaluate\mapper\ReportMapper.class
-com\evaluate\service\impl\PrimaryIndicatorResultServiceImpl.class
 com\evaluate\entity\SecondaryIndicatorResult.class
-com\evaluate\service\IPrimaryIndicatorResultService.class
 com\evaluate\entity\Region.class
 com\evaluate\service\impl\SurveyDataServiceImpl$1.class
 com\evaluate\controller\IndicatorWeightController.class
-com\evaluate\service\impl\SecondaryIndicatorResultServiceImpl.class
 com\evaluate\service\IWeightConfigService.class
 com\evaluate\entity\Report.class
 com\evaluate\controller\SurveyDataController.class
