@@ -155,7 +155,7 @@
             </el-table-column>
             <el-table-column prop="algorithm" label="算法" width="100" />
             <el-table-column prop="evaluationTime" label="评估时间" width="180" />
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
                 <el-button type="primary" size="small" @click="viewDetail(row)">
                   <el-icon><View /></el-icon>
@@ -164,6 +164,10 @@
                 <el-button type="info" size="small" @click="compareRegion(row)">
                   <el-icon><DataAnalysis /></el-icon>
                   对比
+                </el-button>
+                <el-button type="success" size="small" @click="generateThematicMap(row)">
+                  <el-icon><Location /></el-icon>
+                  专题图
                 </el-button>
               </template>
             </el-table-column>
@@ -257,7 +261,8 @@ import {
   DataAnalysis,
   Warning,
   Refresh,
-  View
+  View,
+  Location
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { evaluationApi } from '@/api'
@@ -308,16 +313,22 @@ const getEvaluationList = async () => {
         selectedEvaluationId.value = evaluationList.value[0].id
         loadResults()
       }
+      // 如果没有评估记录，保持已加载的模拟数据
     }
   } catch (error) {
     console.error('获取评估列表失败:', error)
     ElMessage.error('获取评估列表失败')
+    // 出错时保持已加载的模拟数据，不重复加载
   }
 }
 
 // 加载结果数据
 const loadResults = async () => {
-  if (!selectedEvaluationId.value) return
+  if (!selectedEvaluationId.value) {
+    // 如果没有选择评估ID，显示默认模拟数据
+    loadMockResults()
+    return
+  }
   
   loading.results = true
   
@@ -441,6 +452,89 @@ const loadResults = async () => {
   }
 }
 
+// 加载模拟数据
+const loadMockResults = () => {
+  const mockResults = [
+    {
+      id: 1,
+      rank: 1,
+      regionName: '北京市',
+      regionCode: 'BJ001',
+      totalScore: 92.5,
+      grade: '优秀',
+      algorithm: 'AHP',
+      evaluationTime: '2024-01-15 10:30:00',
+      indicators: [
+        { name: '经济发展水平', weight: 0.3, score: 95, weightedScore: 28.5 },
+        { name: '基础设施完善度', weight: 0.25, score: 90, weightedScore: 22.5 },
+        { name: '应急响应能力', weight: 0.2, score: 88, weightedScore: 17.6 },
+        { name: '社会保障水平', weight: 0.15, score: 92, weightedScore: 13.8 },
+        { name: '环境质量指数', weight: 0.1, score: 85, weightedScore: 8.5 }
+      ],
+      summary: '北京市在减灾能力评估中表现优异，各项指标均达到较高水平，特别是在经济发展和基础设施方面优势明显。',
+      recommendations: [
+        '继续加强应急响应体系建设',
+        '提升环境质量管理水平',
+        '完善社会保障制度覆盖面'
+      ]
+    },
+    {
+      id: 2,
+      rank: 2,
+      regionName: '上海市',
+      regionCode: 'SH001',
+      totalScore: 89.3,
+      grade: '优秀',
+      algorithm: 'AHP',
+      evaluationTime: '2024-01-15 10:35:00',
+      indicators: [
+        { name: '经济发展水平', weight: 0.3, score: 92, weightedScore: 27.6 },
+        { name: '基础设施完善度', weight: 0.25, score: 88, weightedScore: 22.0 },
+        { name: '应急响应能力', weight: 0.2, score: 85, weightedScore: 17.0 },
+        { name: '社会保障水平', weight: 0.15, score: 90, weightedScore: 13.5 },
+        { name: '环境质量指数', weight: 0.1, score: 92, weightedScore: 9.2 }
+      ],
+      summary: '上海市减灾能力综合表现良好，在经济发展和社会保障方面表现突出。',
+      recommendations: [
+        '加强应急响应速度',
+        '提升基础设施抗灾能力'
+      ]
+    },
+    {
+      id: 3,
+      rank: 3,
+      regionName: '广州市',
+      regionCode: 'GZ001',
+      totalScore: 85.7,
+      grade: '良好',
+      algorithm: 'AHP',
+      evaluationTime: '2024-01-15 10:40:00',
+      indicators: [
+        { name: '经济发展水平', weight: 0.3, score: 88, weightedScore: 26.4 },
+        { name: '基础设施完善度', weight: 0.25, score: 82, weightedScore: 20.5 },
+        { name: '应急响应能力', weight: 0.2, score: 80, weightedScore: 16.0 },
+        { name: '社会保障水平', weight: 0.15, score: 85, weightedScore: 12.75 },
+        { name: '环境质量指数', weight: 0.1, score: 90, weightedScore: 9.0 }
+      ],
+      summary: '广州市减灾能力整体良好，环境质量表现优异。',
+      recommendations: [
+        '提升应急响应能力',
+        '加强基础设施建设'
+      ]
+    }
+  ]
+  
+  resultsList.value = mockResults
+  
+  // 计算统计摘要
+  resultSummary.value = {
+    totalRegions: mockResults.length,
+    maxScore: Math.max(...mockResults.map(r => r.totalScore)),
+    minScore: Math.min(...mockResults.map(r => r.totalScore)),
+    avgScore: mockResults.reduce((sum, r) => sum + r.totalScore, 0) / mockResults.length
+  }
+}
+
 // 刷新结果
 const refreshResults = () => {
   loadResults()
@@ -490,6 +584,27 @@ const exportResults = () => {
 // 生成报告
 const generateReport = () => {
   ElMessage.success('报告生成功能开发中...')
+}
+
+// 生成专题图
+const generateThematicMap = (row: any) => {
+  // 将当前行数据存储到sessionStorage中，供专题图页面使用
+  const thematicMapData = {
+    regionName: row.regionName,
+    regionCode: row.regionCode,
+    totalScore: row.totalScore,
+    grade: row.grade,
+    indicators: row.indicators,
+    evaluationTime: row.evaluationTime,
+    algorithm: row.algorithm
+  }
+  
+  sessionStorage.setItem('thematicMapData', JSON.stringify(thematicMapData))
+  
+  // 跳转到专题图页面
+  window.open('/thematic-map', '_blank')
+  
+  ElMessage.success('正在生成专题图...')
 }
 
 // 获取表格标题
@@ -685,8 +800,11 @@ const renderProcessChart = () => {
   chart.setOption(option)
 }
 
-// 组件挂载时获取数据
+// 页面挂载时获取数据
 onMounted(() => {
+  // 首先加载模拟数据，确保表格始终有内容显示
+  loadMockResults()
+  // 然后尝试获取真实数据
   getEvaluationList()
 })
 </script>

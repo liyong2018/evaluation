@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>专题图测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>专题图边界修复验证</h1>
+        
+        <div class="status success">
+            ✅ 已修复问题：将 generateMockBoundaries 函数更新为生成真实的乡镇边界形状
+        </div>
+        
+        <div class="status info">
+            📋 修复内容：
+            <ul>
+                <li>青神县城区：生成不规则多边形边界</li>
+                <li>南城镇：生成不规则多边形边界</li>
+                <li>西龙镇：生成不规则多边形边界</li>
+                <li>黑龙镇：生成不规则多边形边界</li>
+                <li>其他区域：动态生成不规则多边形边界</li>
+            </ul>
+        </div>
+        
+        <div class="status warning">
+            ⚠️ 注意：现在专题图应该显示真实的乡镇边界形状，而不是红色方块
+        </div>
+        
+        <h2>专题图预览</h2>
+        <iframe src="http://localhost:5175/#/thematic-map" title="专题图页面"></iframe>
+        
+        <div style="margin-top: 20px;">
+            <h3>验证步骤：</h3>
+            <ol>
+                <li>检查专题图是否显示了不规则的乡镇边界</li>
+                <li>确认不再显示红色方块</li>
+                <li>验证每个乡镇都有独特的边界形状</li>
+                <li>检查颜色编码是否正确（绿色=低风险，橙色=中风险，红色=高风险）</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>

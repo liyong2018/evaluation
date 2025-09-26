@@ -70,6 +70,9 @@
         <el-button type="primary" @click="exportResults" :disabled="!resultData">
           导出结果
         </el-button>
+        <el-button type="success" @click="generateThematicMap" :disabled="!resultData">
+          生成专题图
+        </el-button>
       </div>
     </template>
   </el-dialog>
@@ -77,6 +80,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 interface StepInfo {
@@ -111,6 +115,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+const router = useRouter()
 
 const visible = ref(false)
 
@@ -189,6 +194,49 @@ const exportResults = () => {
   } catch (error) {
     console.error('导出失败:', error)
     ElMessage.error('导出失败')
+  }
+}
+
+// 生成专题图
+const generateThematicMap = () => {
+  if (!props.resultData) {
+    ElMessage.warning('暂无数据可生成专题图')
+    return
+  }
+
+  try {
+    // 从resultData中提取数据
+    const { tableData, columns, summary } = props.resultData
+    
+    // 构建专题图数据，匹配ThematicMap.vue期望的数据结构
+    const thematicData = {
+      id: Date.now(), // 生成唯一ID
+      regionName: props.stepInfo?.stepName || '评估区域',
+      evaluationTime: new Date().toLocaleString('zh-CN'),
+      algorithm: props.stepInfo?.stepCode || 'default',
+      totalScore: summary?.总分 || summary?.平均分 || '未知',
+      stepInfo: props.stepInfo,
+      formula: props.formula,
+      resultData: props.resultData,
+      tableData: tableData,
+      columns: columns,
+      summary: summary,
+      timestamp: new Date().toISOString(),
+      source: 'evaluation_calculation'
+    }
+    
+    console.log('存储专题图数据:', thematicData)
+    
+    // 将数据存储到 sessionStorage
+    sessionStorage.setItem('thematicMapData', JSON.stringify(thematicData))
+    
+    // 跳转到专题图页面
+    router.push('/thematic-map')
+    
+    ElMessage.success('正在跳转到专题图页面...')
+  } catch (error) {
+    console.error('生成专题图失败:', error)
+    ElMessage.error('生成专题图失败')
   }
 }
 

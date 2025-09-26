@@ -338,3 +338,48 @@ export const algorithmManagementApi = {
   // 导出算法配置
   export: (algorithmId: number) => request.get(`/api/algorithm/management/export/${algorithmId}`)
 }
+
+// 专题图相关API
+export const thematicMapApi = {
+  // 获取专题图数据
+  getThematicData: (params: {
+    reportId?: number;
+    regionIds?: number[];
+    surveyId?: number;
+    algorithmId?: number;
+  }) => request.get('/api/thematic-map/data', { params }),
+  
+  // 获取地区边界数据
+  getRegionBoundaries: (regionIds: number[]) => 
+    request.post('/api/thematic-map/boundaries', regionIds),
+  
+  // 保存专题图图片
+  saveMapImage: (data: {
+    imageData: string;
+    format: string;
+    reportId?: number;
+    title: string;
+    description?: string;
+  }) => request.post('/api/thematic-map/save-image', data),
+  
+  // 获取专题图历史记录
+  getMapHistory: (reportId?: number) => {
+    if (reportId) {
+      return request.get(`/api/thematic-map/history/${reportId}`)
+    } else {
+      return request.get('/api/thematic-map/history')
+    }
+  },
+  
+  // 删除专题图记录
+  deleteMapRecord: (id: number) => request.delete(`/api/thematic-map/${id}`),
+  
+  // 获取专题图配置
+  getMapConfig: () => request.get('/api/thematic-map/config'),
+  
+  // 更新专题图配置
+  updateMapConfig: (config: any) => request.put('/api/thematic-map/config', config),
+  
+  // 获取天地图配置
+  getTiandituConfig: () => request.get('/api/thematic-map/tianditu-config')
+}

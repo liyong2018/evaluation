@@ -36,6 +36,11 @@ const router = createRouter({
       path: '/algorithm-management',
       name: 'AlgorithmManagement',
       component: () => import('@/views/AlgorithmManagement.vue')
+    },
+    {
+      path: '/thematic-map',
+      name: 'ThematicMap',
+      component: () => import('@/views/ThematicMap.vue')
     }
   ]
 })
