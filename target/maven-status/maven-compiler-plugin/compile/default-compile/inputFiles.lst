@@ -50,7 +50,6 @@ D:\Evaluation\evaluation\src\main\java\com\evaluate\service\AlgorithmExecutionSe
 D:\Evaluation\evaluation\src\main\java\com\evaluate\mapper\WeightConfigMapper.java
 D:\Evaluation\evaluation\src\main\java\com\evaluate\service\ISurveyDataService.java
 D:\Evaluation\evaluation\src\main\java\com\evaluate\config\CorsConfig.java
-D:\Evaluation\evaluation\src\main\java\com\evaluate\controller\ThematicMapController.java
 D:\Evaluation\evaluation\src\main\java\com\evaluate\entity\Report.java
 D:\Evaluation\evaluation\src\main\java\com\evaluate\entity\PrimaryIndicatorResult.java
 D:\Evaluation\evaluation\src\main\java\com\evaluate\mapper\ReportMapper.java

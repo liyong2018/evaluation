@@ -51,4 +51,18 @@ public class IndexController {
         result.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
         return result;
     }
+    
+    /**
+     * 热重载测试接口
+     * @return 测试信息
+     */
+    @GetMapping("/hotreload-test")
+    public Map<String, Object> hotReloadTest() {
+        Map<String, Object> result = new HashMap<>();
+        result.put("message", "热重载功能测试成功！");
+        result.put("feature", "Spring Boot DevTools");
+        result.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        result.put("version", "v2.0 - 热重载测试版本");
+        return result;
+    }
 }
