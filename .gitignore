@@ -29,3 +29,4 @@ frontend/.vscode/*
 
 *.tsbuildinfo
 .trae
+target/
