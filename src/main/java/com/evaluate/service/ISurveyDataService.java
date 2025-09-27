@@ -92,4 +92,19 @@ public interface ISurveyDataService extends IService<SurveyData> {
      * @return 删除结果
      */
     boolean deleteSurveyDataAndResults(String surveyName);
+
+    /**
+     * 根据关键词模糊搜索调查数据
+     * 
+     * @param keyword 搜索关键词
+     * @return 调查数据列表
+     */
+    List<SurveyData> searchByKeyword(String keyword);
+
+    /**
+     * 导出所有调查数据到Excel
+     * 
+     * @return Excel文件字节数组
+     */
+    byte[] exportAllToExcel();
 }

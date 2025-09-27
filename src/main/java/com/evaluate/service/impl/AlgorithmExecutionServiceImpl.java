@@ -44,6 +44,9 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
     // 存储执行进度的Map
     private final Map<String, Map<String, Object>> executionProgressMap = new ConcurrentHashMap<>();
     
+    // 缓存步骤4的计算结果，避免步骤5重新计算
+    private final Map<String, Map<String, Double>> step4ResultsCache = new ConcurrentHashMap<>();
+    
     @Override
     public Map<String, Object> executeAlgorithm(
             AlgorithmConfig algorithmConfig, 
@@ -473,21 +476,46 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         
         Map<String, Object> result = new HashMap<>();
         
+        // 如果是步骤4，清理缓存以确保重新计算
+        if (stepIndex == 3) {
+            step4ResultsCache.clear();
+        }
+        
         try {
-            // 获取真实的调查数据并进行计算
-            List<Map<String, Object>> tableData = calculateRealStepData(stepIndex, regionIds, formula);
-            List<Map<String, Object>> columns = generateStepColumns(stepIndex);
-            Map<String, Object> summary = generateStepSummary(tableData, stepIndex);
+            if (stepIndex == 2) {
+                // 步骤2：二级指标定权 - 返回两个表格的数据结构
+                Map<String, Object> dualTableResult = calculateDualTableStepData(stepIndex, regionIds, formula);
+                result.putAll(dualTableResult);
+            } else {
+                // 其他步骤：返回单表格数据结构
+                List<Map<String, Object>> tableData = calculateRealStepData(stepIndex, regionIds, formula);
+                List<Map<String, Object>> columns = generateStepColumns(stepIndex);
+                // 统计信息已移除
+                
+                result.put("tableData", tableData);
+                result.put("columns", columns);
+                // summary字段已移除
+            }
             
-            result.put("tableData", tableData);
-            result.put("columns", columns);
-            result.put("summary", summary);
             result.put("stepId", stepId);
             result.put("stepIndex", stepIndex);
             result.put("formula", formula);
             result.put("calculationTime", System.currentTimeMillis());
             
-            log.info("步骤 {} 计算完成，生成 {} 条数据", stepIndex + 1, tableData.size());
+            // 根据不同的步骤类型记录日志
+            if (stepIndex == 2) {
+                // 双表格情况
+                List<Map<String, Object>> table1Data = (List<Map<String, Object>>) result.get("table1Data");
+                List<Map<String, Object>> table2Data = (List<Map<String, Object>>) result.get("table2Data");
+                int table1Size = table1Data != null ? table1Data.size() : 0;
+                int table2Size = table2Data != null ? table2Data.size() : 0;
+                log.info("步骤 {} 计算完成，生成双表格数据 - 表格1: {} 条，表格2: {} 条", stepIndex + 1, table1Size, table2Size);
+            } else {
+                // 单表格情况
+                List<Map<String, Object>> tableData = (List<Map<String, Object>>) result.get("tableData");
+                int dataSize = tableData != null ? tableData.size() : 0;
+                log.info("步骤 {} 计算完成，生成 {} 条数据", stepIndex + 1, dataSize);
+            }
             
         } catch (Exception e) {
             log.error("计算步骤结果失败", e);
@@ -495,6 +523,266 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         }
         
         return result;
+    }
+    
+    /**
+     * 计算双表格步骤数据（步骤2专用）
+     */
+    private Map<String, Object> calculateDualTableStepData(Integer stepIndex, List<String> regionIds, String formula) {
+        Map<String, Object> result = new HashMap<>();
+        
+        // 表格1：一级指标权重计算（8个指标的定权值）
+        List<Map<String, Object>> table1Data = new ArrayList<>();
+        List<Map<String, Object>> table1Columns = generateTable1Columns();
+        
+        // 表格2：乡镇减灾能力权重计算（8个指标乘以权重后的值）
+        List<Map<String, Object>> table2Data = new ArrayList<>();
+        List<Map<String, Object>> table2Columns = generateTable2Columns();
+        
+        // 获取权重配置
+        Map<String, Double> primaryWeights = getPrimaryIndicatorWeights(1L);
+        Map<String, Double> secondaryWeights = getSecondaryIndicatorWeights(1L);
+        
+        log.info("calculateDualTableStepData - 开始计算双表格数据");
+        log.info("calculateDualTableStepData - 一级权重配置: {}", primaryWeights);
+        log.info("calculateDualTableStepData - 二级权重配置: {}", secondaryWeights);
+        
+        // 获取所有地区的归一化值
+        Map<String, List<Double>> allIndicatorValues = collectAllIndicatorValues(regionIds);
+        
+        // 为每个地区生成两个表格的数据
+        for (String regionId : regionIds) {
+            String regionName = extractRegionNameFromId(regionId);
+            List<SurveyData> surveyDataList = surveyDataService.getBySurveyRegion(regionName);
+            
+            Map<String, Object> row1 = new HashMap<>();
+            Map<String, Object> row2 = new HashMap<>();
+            
+            row1.put("region", regionName);
+            row2.put("region", regionName);
+            
+            if (!surveyDataList.isEmpty()) {
+                SurveyData surveyData = surveyDataList.get(0);
+                
+                // 计算当前地区的8个指标原始值
+                double teamManagement = calculateIndicatorValue(surveyData.getManagementStaff(), surveyData.getPopulation());
+                double riskAssessment = "是".equals(surveyData.getRiskAssessment()) ? 1.0 : 0.0;
+                double financialInput = calculateIndicatorValueFromDouble(surveyData.getFundingAmount(), surveyData.getPopulation());
+                double materialReserve = calculateIndicatorValueFromDouble(surveyData.getMaterialValue(), surveyData.getPopulation());
+                double medicalSupport = calculateIndicatorValue(surveyData.getHospitalBeds(), surveyData.getPopulation());
+                int totalRescuePersonnel = (surveyData.getFirefighters() != null ? surveyData.getFirefighters() : 0) +
+                                          (surveyData.getVolunteers() != null ? surveyData.getVolunteers() : 0) +
+                                          (surveyData.getMilitiaReserve() != null ? surveyData.getMilitiaReserve() : 0);
+                double selfRescue = calculateIndicatorValue(totalRescuePersonnel, surveyData.getPopulation());
+                double publicAvoidance = calculateIndicatorValue(surveyData.getTrainingParticipants(), surveyData.getPopulation())/100;
+                double relocationCapacity = calculateIndicatorValue(surveyData.getShelterCapacity(), surveyData.getPopulation())/10000;
+                
+                // 计算归一化值
+                double teamManagementNorm = normalizeIndicatorValue(teamManagement, allIndicatorValues.get("teamManagement"));
+                double riskAssessmentNorm = normalizeIndicatorValue(riskAssessment, allIndicatorValues.get("riskAssessment"));
+                double financialInputNorm = normalizeIndicatorValue(financialInput, allIndicatorValues.get("financialInput"));
+                double materialReserveNorm = normalizeIndicatorValue(materialReserve, allIndicatorValues.get("materialReserve"));
+                double medicalSupportNorm = normalizeIndicatorValue(medicalSupport, allIndicatorValues.get("medicalSupport"));
+                double selfRescueNorm = normalizeIndicatorValue(selfRescue, allIndicatorValues.get("selfRescue"));
+                double publicAvoidanceNorm = normalizeIndicatorValue(publicAvoidance, allIndicatorValues.get("publicAvoidance"));
+                double relocationCapacityNorm = normalizeIndicatorValue(relocationCapacity, allIndicatorValues.get("relocationCapacity"));
+                
+                // 表格1：一级指标权重计算 - 定权公式：属性向量归一化 × 二级权重
+                double table1TeamManagement = teamManagementNorm * secondaryWeights.getOrDefault("teamManagement", 0.37);
+                double table1RiskAssessment = riskAssessmentNorm * secondaryWeights.getOrDefault("riskAssessment", 0.31);
+                double table1FinancialInput = financialInputNorm * secondaryWeights.getOrDefault("financialInput", 0.32);
+                double table1MaterialReserve = materialReserveNorm * secondaryWeights.getOrDefault("materialReserve", 0.51);
+                double table1MedicalSupport = medicalSupportNorm * secondaryWeights.getOrDefault("medicalSupport", 0.49);
+                double table1SelfRescue = selfRescueNorm * secondaryWeights.getOrDefault("selfRescue", 0.33);
+                double table1PublicAvoidance = publicAvoidanceNorm * secondaryWeights.getOrDefault("publicAvoidance", 0.33);
+                double table1RelocationCapacity = relocationCapacityNorm * secondaryWeights.getOrDefault("relocationCapacity", 0.34);
+                
+                row1.put("teamManagement", String.format("%.8f", table1TeamManagement));
+                row1.put("riskAssessment", String.format("%.8f", table1RiskAssessment));
+                row1.put("financialInput", String.format("%.8f", table1FinancialInput));
+                row1.put("materialReserve", String.format("%.8f", table1MaterialReserve));
+                row1.put("medicalSupport", String.format("%.8f", table1MedicalSupport));
+                row1.put("selfRescue", String.format("%.8f", table1SelfRescue));
+                row1.put("publicAvoidance", String.format("%.8f", table1PublicAvoidance));
+                row1.put("relocationCapacity", String.format("%.8f", table1RelocationCapacity));
+                
+                // 表格2：乡镇减灾能力权重计算 - 定权公式：属性向量归一化 × 一级权重 × 二级权重
+                double table2TeamManagement = teamManagementNorm * primaryWeights.getOrDefault("disasterManagement", 0.33) * secondaryWeights.getOrDefault("teamManagement", 0.37);
+                double table2RiskAssessment = riskAssessmentNorm * primaryWeights.getOrDefault("disasterManagement", 0.33) * secondaryWeights.getOrDefault("riskAssessment", 0.31);
+                double table2FinancialInput = financialInputNorm * primaryWeights.getOrDefault("disasterManagement", 0.33) * secondaryWeights.getOrDefault("financialInput", 0.32);
+                double table2MaterialReserve = materialReserveNorm * primaryWeights.getOrDefault("disasterPreparedness", 0.32) * secondaryWeights.getOrDefault("materialReserve", 0.51);
+                double table2MedicalSupport = medicalSupportNorm * primaryWeights.getOrDefault("disasterPreparedness", 0.32) * secondaryWeights.getOrDefault("medicalSupport", 0.49);
+                double table2SelfRescue = selfRescueNorm * primaryWeights.getOrDefault("selfRescueTransfer", 0.35) * secondaryWeights.getOrDefault("selfRescue", 0.33);
+                double table2PublicAvoidance = publicAvoidanceNorm * primaryWeights.getOrDefault("selfRescueTransfer", 0.35) * secondaryWeights.getOrDefault("publicAvoidance", 0.33);
+                double table2RelocationCapacity = relocationCapacityNorm * primaryWeights.getOrDefault("selfRescueTransfer", 0.35) * secondaryWeights.getOrDefault("relocationCapacity", 0.34);
+                
+                row2.put("teamManagement", String.format("%.8f", table2TeamManagement));
+                row2.put("riskAssessment", String.format("%.8f", table2RiskAssessment));
+                row2.put("financialInput", String.format("%.8f", table2FinancialInput));
+                row2.put("materialReserve", String.format("%.8f", table2MaterialReserve));
+                row2.put("medicalSupport", String.format("%.8f", table2MedicalSupport));
+                row2.put("selfRescue", String.format("%.8f", table2SelfRescue));
+                row2.put("publicAvoidance", String.format("%.8f", table2PublicAvoidance));
+                row2.put("relocationCapacity", String.format("%.8f", table2RelocationCapacity));
+                
+                log.info("地区 {} - 表格1计算完成，队伍管理能力: 归一化值={}, 二级权重={}, 结果={}", 
+                        regionName, teamManagementNorm, secondaryWeights.getOrDefault("teamManagement", 0.37), table1TeamManagement);
+                log.info("地区 {} - 表格2计算完成，队伍管理能力: 归一化值={}, 一级权重={}, 二级权重={}, 结果={}", 
+                        regionName, teamManagementNorm, primaryWeights.getOrDefault("disasterManagement", 0.33), 
+                        secondaryWeights.getOrDefault("teamManagement", 0.37), table2TeamManagement);
+                        
+            } else {
+                // 默认值
+                String[] indicators = {"teamManagement", "riskAssessment", "financialInput", "materialReserve", "medicalSupport", "selfRescue", "publicAvoidance", "relocationCapacity"};
+                for (String indicator : indicators) {
+                    row1.put(indicator, "0.00000000");
+                    row2.put(indicator, "0.00000000");
+                }
+            }
+            
+            table1Data.add(row1);
+            table2Data.add(row2);
+        }
+        
+        // 统计信息已移除
+        
+        // 构建返回结果
+        result.put("table1Data", table1Data);
+        result.put("table1Columns", table1Columns);
+        // table1Summary已移除
+        result.put("table2Data", table2Data);
+        result.put("table2Columns", table2Columns);
+        // table2Summary已移除
+        result.put("isDualTable", true);
+        
+        return result;
+    }
+    
+    /**
+     * 生成表格1的列配置（一级指标权重计算）
+     */
+    private List<Map<String, Object>> generateTable1Columns() {
+        List<Map<String, Object>> columns = new ArrayList<>();
+        
+        // 地区列
+        columns.add(createColumn("region", "地区", 120));
+        
+        // 8个指标列
+        columns.add(createColumn("teamManagement", "队伍管理能力", 120));
+        columns.add(createColumn("riskAssessment", "风险评估能力", 120));
+        columns.add(createColumn("financialInput", "财政投入能力", 120));
+        columns.add(createColumn("materialReserve", "物资储备能力", 120));
+        columns.add(createColumn("medicalSupport", "医疗保障能力", 120));
+        columns.add(createColumn("selfRescue", "自救互救能力", 120));
+        columns.add(createColumn("publicAvoidance", "公众避险能力", 120));
+        columns.add(createColumn("relocationCapacity", "转移安置能力", 120));
+        
+        return columns;
+    }
+    
+    /**
+     * 生成表格2的列配置（乡镇减灾能力权重计算）
+     */
+    private List<Map<String, Object>> generateTable2Columns() {
+        List<Map<String, Object>> columns = new ArrayList<>();
+        
+        // 地区列
+        columns.add(createColumn("region", "地区", 120));
+        
+        // 8个指标列（乘以权重后）
+        columns.add(createColumn("teamManagement", "队伍管理能力", 120));
+        columns.add(createColumn("riskAssessment", "风险评估能力", 120));
+        columns.add(createColumn("financialInput", "财政投入能力", 120));
+        columns.add(createColumn("materialReserve", "物资储备能力", 120));
+        columns.add(createColumn("medicalSupport", "医疗保障能力", 120));
+        columns.add(createColumn("selfRescue", "自救互救能力", 120));
+        columns.add(createColumn("publicAvoidance", "公众避险能力", 120));
+        columns.add(createColumn("relocationCapacity", "转移安置能力", 120));
+        
+        return columns;
+    }
+    
+    /**
+     * 获取指标权重配置
+     */
+    private Map<String, Double> getIndicatorWeights() {
+        Map<String, Double> weights = new HashMap<>();
+        
+        // 设置默认权重（可以从数据库或配置文件读取）
+        weights.put("teamManagement", 0.125);    // 队伍管理能力权重
+        weights.put("riskAssessment", 0.125);    // 风险评估能力权重
+        weights.put("financialInput", 0.125);    // 财政投入能力权重
+        weights.put("materialReserve", 0.125);   // 物资储备能力权重
+        weights.put("medicalSupport", 0.125);    // 医疗保障能力权重
+        weights.put("selfRescue", 0.125);        // 自救互救能力权重
+        weights.put("publicAvoidance", 0.125);   // 公众避险能力权重
+        weights.put("relocationCapacity", 0.125); // 转移安置能力权重
+        
+        return weights;
+    }
+    
+    /**
+     * 生成表格1的汇总信息
+     */
+    private Map<String, Object> generateTable1Summary(List<Map<String, Object>> tableData) {
+        Map<String, Object> summary = new HashMap<>();
+        
+        summary.put("数据条数", tableData.size());
+        summary.put("表格类型", "一级指标权重计算");
+        summary.put("计算方法", "定权公式：属性向量归一化 × 二级权重");
+        
+        if (!tableData.isEmpty()) {
+            double teamManagementSum = tableData.stream()
+                .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
+                .sum();
+            double avgTeamManagement = teamManagementSum / tableData.size();
+            
+            summary.put("平均定权值", String.format("%.8f", avgTeamManagement));
+            summary.put("最高定权值", String.format("%.8f", tableData.stream()
+                .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
+                .max().orElse(0.0)));
+            summary.put("最低定权值", String.format("%.8f", tableData.stream()
+                .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
+                .min().orElse(0.0)));
+        } else {
+            summary.put("平均定权值", "NaN");
+            summary.put("最高定权值", "0");
+            summary.put("最低定权值", "0");
+        }
+        
+        return summary;
+    }
+    
+    /**
+     * 生成表格2的汇总信息
+     */
+    private Map<String, Object> generateTable2Summary(List<Map<String, Object>> tableData) {
+        Map<String, Object> summary = new HashMap<>();
+        
+        summary.put("数据条数", tableData.size());
+        summary.put("表格类型", "乡镇减灾能力权重计算");
+        summary.put("计算方法", "定权公式：属性向量归一化 × 一级权重 × 二级权重");
+        
+        if (!tableData.isEmpty()) {
+            double teamManagementSum = tableData.stream()
+                .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
+                .sum();
+            double avgTeamManagement = teamManagementSum / tableData.size();
+            
+            summary.put("平均权重值", String.format("%.8f", avgTeamManagement));
+            summary.put("最高权重值", String.format("%.8f", tableData.stream()
+                .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
+                .max().orElse(0.0)));
+            summary.put("最低权重值", String.format("%.8f", tableData.stream()
+                .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
+                .min().orElse(0.0)));
+        } else {
+            summary.put("平均权重值", "NaN");
+            summary.put("最高权重值", "0");
+            summary.put("最低权重值", "0");
+        }
+        
+        return summary;
     }
     
     /**
@@ -604,34 +892,74 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                     row.put("selfRescue", String.format("%.8f", currentWeightedValues.get("selfRescue")));
                     row.put("publicAvoidance", String.format("%.8f", currentWeightedValues.get("publicAvoidance")));
                     row.put("relocationCapacity", String.format("%.8f", currentWeightedValues.get("relocationCapacity")));
-                } else if (stepIndex == 3) { // 优劣解算法计算一级指标
-                    // 获取所有地区的定权结果
+                } else if (stepIndex == 3) { // 步骤4：优劣解算法计算（显示4列：3个一级指标+1列综合减灾能力）
+                    // 获取所有地区的定权结果（步骤3表2的数据）
                     Map<String, Map<String, Double>> allWeightedValues = collectAllWeightedValues(regionIds);
                     
                     // 计算当前地区的定权值
                     Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds);
                     
                     // 使用TOPSIS算法计算3个一级指标
-                    Map<String, Double> primaryIndicators = calculateTOPSIS(currentWeightedValues, allWeightedValues);
+                    Map<String, Double> topsisResults = calculateTOPSIS(currentWeightedValues, allWeightedValues);
                     
-                    // 设置3个一级指标值
-                    row.put("disasterManagement", String.format("%.8f", primaryIndicators.get("disasterManagement")));
-                    row.put("disasterPreparedness", String.format("%.8f", primaryIndicators.get("disasterPreparedness")));
-                    row.put("selfRescueTransfer", String.format("%.8f", primaryIndicators.get("selfRescueTransfer")));
-                } else if (stepIndex == 4) { // 能力分级计算
-                    // 获取所有地区的一级指标结果
-                    Map<String, List<Double>> allPrimaryIndicators = collectAllPrimaryIndicators(regionIds);
+                    // 使用TOPSIS算法计算综合减灾能力值
+                    double comprehensiveCapability = calculateComprehensiveTOPSIS(currentWeightedValues, allWeightedValues);
                     
-                    // 计算当前地区的一级指标值
-                    Map<String, Double> currentPrimaryIndicators = calculateCurrentPrimaryIndicators(surveyData, regionIds);
+                    // 将步骤4的结果缓存起来，供步骤5使用
+                    Map<String, Double> step4Data = new HashMap<>(topsisResults);
+                    step4Data.put("comprehensiveCapability", comprehensiveCapability);
+                    step4ResultsCache.put(regionName, step4Data);
                     
-                    // 计算分级结果
-                    Map<String, String> grades = calculateCapabilityGrades(currentPrimaryIndicators, allPrimaryIndicators);
+                    // 设置4列：3个一级指标 + 1列综合减灾能力
+                    row.put("disasterManagement", String.format("%.8f", topsisResults.get("disasterManagement")));
+                    row.put("disasterPreparedness", String.format("%.8f", topsisResults.get("disasterPreparedness")));
+                    row.put("selfRescueTransfer", String.format("%.8f", topsisResults.get("selfRescueTransfer")));
+                    row.put("comprehensiveCapability", String.format("%.8f", comprehensiveCapability));
+                } else if (stepIndex == 4) { // 能力分级计算 - 直接使用步骤4的缓存数据进行分级
+                    // 从缓存中获取步骤4的原始数据（避免重新计算）
+                    Map<String, Double> step4Data = step4ResultsCache.get(regionName);
                     
-                    // 设置3个一级指标的分级结果
-                    row.put("disasterManagement", grades.get("disasterManagement"));
-                    row.put("disasterPreparedness", grades.get("disasterPreparedness"));
-                    row.put("selfRescueTransfer", grades.get("selfRescueTransfer"));
+                    // 如果缓存中没有数据，则先执行步骤4的计算
+                    if (step4Data == null) {
+                        // 获取所有地区的定权结果（步骤3表2的数据）
+                        Map<String, Map<String, Double>> allWeightedValues = collectAllWeightedValues(regionIds);
+                        
+                        // 计算当前地区的定权值
+                        Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds);
+                        
+                        // 使用TOPSIS算法计算3个一级指标
+                        Map<String, Double> topsisResults = calculateTOPSIS(currentWeightedValues, allWeightedValues);
+                        
+                        // 使用TOPSIS算法计算综合减灾能力值
+                        double comprehensiveCapability = calculateComprehensiveTOPSIS(currentWeightedValues, allWeightedValues);
+                        
+                        // 将步骤4的结果缓存起来，供步骤5使用
+                        step4Data = new HashMap<>(topsisResults);
+                        step4Data.put("comprehensiveCapability", comprehensiveCapability);
+                        step4ResultsCache.put(regionName, step4Data);
+                    }
+                    
+                    // 获取所有地区的步骤4数据用于分级计算（从缓存中获取）
+                    Map<String, List<Double>> allStep4Values = collectAllStep4ValuesFromCache(regionIds);
+                    
+                    // 基于步骤4的数据进行分级（不修改原始数值）
+                    Map<String, String> grades = calculateCapabilityGrades(step4Data, allStep4Values);
+                    
+                    // 计算综合减灾能力分级（基于步骤4的综合减灾能力值）
+                    double comprehensiveCapability = step4Data.get("comprehensiveCapability");
+                    String comprehensiveGrade = calculateComprehensiveGrade(comprehensiveCapability, allStep4Values.get("comprehensiveCapability"));
+                    
+                    // 设置4列数据：保持步骤4的原始数值 + 添加分级信息
+                    row.put("disasterManagement", String.format("%.8f", step4Data.get("disasterManagement")));
+                    row.put("disasterPreparedness", String.format("%.8f", step4Data.get("disasterPreparedness")));
+                    row.put("selfRescueTransfer", String.format("%.8f", step4Data.get("selfRescueTransfer")));
+                    row.put("comprehensiveCapability", String.format("%.8f", comprehensiveCapability));
+                    
+                    // 添加分级列（如果需要在前端显示）
+                    row.put("disasterManagementGrade", grades.get("disasterManagement"));
+                    row.put("disasterPreparednessGrade", grades.get("disasterPreparedness"));
+                    row.put("selfRescueTransferGrade", grades.get("selfRescueTransfer"));
+                    row.put("comprehensiveCapabilityGrade", comprehensiveGrade);
                 } else { // 其他步骤
                     double value = calculateIndicatorValue(surveyData.getManagementStaff(), surveyData.getPopulation());
                     double weight = 0.25; // 固定权重
@@ -654,8 +982,18 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                     row.put("publicAvoidance", "0.00000000");
                     row.put("relocationCapacity", "0.00000000");
                 } else {
-                    if (stepIndex == 1 || stepIndex == 2) {
-                        // 步骤2：属性向量归一化 和 步骤3：二级指标定权 - 8个指标默认值
+                    if (stepIndex == 1) {
+                        // 步骤2：属性向量归一化 - 8个指标默认值
+                        row.put("teamManagement", "0.00000000");
+                        row.put("riskAssessment", "0.00000000");
+                        row.put("financialInput", "0.00000000");
+                        row.put("materialReserve", "0.00000000");
+                        row.put("medicalSupport", "0.00000000");
+                        row.put("selfRescue", "0.00000000");
+                        row.put("publicAvoidance", "0.00000000");
+                        row.put("relocationCapacity", "0.00000000");
+                    } else if (stepIndex == 2) {
+                        // 步骤3：二级指标定权 - 8个指标默认值
                         row.put("teamManagement", "0.00000000");
                         row.put("riskAssessment", "0.00000000");
                         row.put("financialInput", "0.00000000");
@@ -665,15 +1003,21 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                         row.put("publicAvoidance", "0.00000000");
                         row.put("relocationCapacity", "0.00000000");
                     } else if (stepIndex == 3) {
-                        // 步骤4：优劣解算法 - 3个一级指标默认值
+                        // 步骤4：优劣解算法 - 4列默认值（3个一级指标 + 1列综合减灾能力）
                         row.put("disasterManagement", "0.00000000");
                         row.put("disasterPreparedness", "0.00000000");
                         row.put("selfRescueTransfer", "0.00000000");
+                        row.put("comprehensiveCapability", "0.00000000");
                     } else if (stepIndex == 4) {
-                        // 步骤5：能力分级计算 - 3个一级指标分级默认值
-                        row.put("disasterManagement", "中等");
-                        row.put("disasterPreparedness", "中等");
-                        row.put("selfRescueTransfer", "中等");
+                        // 步骤5：能力分级计算 - 4列原始数值默认值（与步骤4相同）+ 分级信息
+                        row.put("disasterManagement", "0.00000000");
+                        row.put("disasterPreparedness", "0.00000000");
+                        row.put("selfRescueTransfer", "0.00000000");
+                        row.put("comprehensiveCapability", "0.00000000");
+                        row.put("disasterManagementGrade", "中等");
+                        row.put("disasterPreparednessGrade", "中等");
+                        row.put("selfRescueTransferGrade", "中等");
+                        row.put("comprehensiveCapabilityGrade", "中等");
                     } else {
                         // 其他步骤的默认值
                         row.put("value", "0.00");
@@ -865,6 +1209,131 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
     }
     
     /**
+     * 获取步骤4的原始数据（不重新计算）
+     */
+    private Map<String, Double> getStep4DataForRegion(SurveyData surveyData, List<String> regionIds) {
+        // 获取所有地区的定权结果（步骤3表2的数据）
+        Map<String, Map<String, Double>> allWeightedValues = collectAllWeightedValues(regionIds);
+        
+        // 计算当前地区的定权值
+        Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds);
+        
+        // 使用TOPSIS算法计算3个一级指标
+        Map<String, Double> topsisResults = calculateTOPSIS(currentWeightedValues, allWeightedValues);
+        
+        // 使用TOPSIS算法计算综合减灾能力值
+        double comprehensiveCapability = calculateComprehensiveTOPSIS(currentWeightedValues, allWeightedValues);
+        
+        // 返回步骤4的完整数据
+        Map<String, Double> step4Data = new HashMap<>(topsisResults);
+        step4Data.put("comprehensiveCapability", comprehensiveCapability);
+        
+        return step4Data;
+    }
+    
+    /**
+     * 收集所有地区的步骤4数据
+     */
+    private Map<String, List<Double>> collectAllStep4Values(List<String> regionIds) {
+        Map<String, List<Double>> allValues = new HashMap<>();
+        allValues.put("disasterManagement", new ArrayList<>());
+        allValues.put("disasterPreparedness", new ArrayList<>());
+        allValues.put("selfRescueTransfer", new ArrayList<>());
+        allValues.put("comprehensiveCapability", new ArrayList<>());
+        
+        for (String regionId : regionIds) {
+            String regionName = extractRegionNameFromId(regionId);
+            List<SurveyData> surveyDataList = surveyDataService.getBySurveyRegion(regionName);
+            
+            if (!surveyDataList.isEmpty()) {
+                SurveyData surveyData = surveyDataList.get(0);
+                
+                // 获取当前地区的步骤4数据
+                Map<String, Double> step4Data = getStep4DataForRegion(surveyData, regionIds);
+                
+                // 添加到对应的列表中
+                allValues.get("disasterManagement").add(step4Data.get("disasterManagement"));
+                allValues.get("disasterPreparedness").add(step4Data.get("disasterPreparedness"));
+                allValues.get("selfRescueTransfer").add(step4Data.get("selfRescueTransfer"));
+                allValues.get("comprehensiveCapability").add(step4Data.get("comprehensiveCapability"));
+            } else {
+                // 如果没有数据，添加0值
+                allValues.get("disasterManagement").add(0.0);
+                allValues.get("disasterPreparedness").add(0.0);
+                allValues.get("selfRescueTransfer").add(0.0);
+                allValues.get("comprehensiveCapability").add(0.0);
+            }
+        }
+        
+        return allValues;
+    }
+    
+    /**
+     * 从缓存中收集所有地区的步骤4数据（避免重新计算）
+     */
+    private Map<String, List<Double>> collectAllStep4ValuesFromCache(List<String> regionIds) {
+        Map<String, List<Double>> allValues = new HashMap<>();
+        allValues.put("disasterManagement", new ArrayList<>());
+        allValues.put("disasterPreparedness", new ArrayList<>());
+        allValues.put("selfRescueTransfer", new ArrayList<>());
+        allValues.put("comprehensiveCapability", new ArrayList<>());
+        
+        for (String regionId : regionIds) {
+            String regionName = extractRegionNameFromId(regionId);
+            
+            // 从缓存中获取步骤4数据
+            Map<String, Double> step4Data = step4ResultsCache.get(regionName);
+            
+            if (step4Data != null) {
+                // 添加到对应的列表中
+                allValues.get("disasterManagement").add(step4Data.get("disasterManagement"));
+                allValues.get("disasterPreparedness").add(step4Data.get("disasterPreparedness"));
+                allValues.get("selfRescueTransfer").add(step4Data.get("selfRescueTransfer"));
+                allValues.get("comprehensiveCapability").add(step4Data.get("comprehensiveCapability"));
+            } else {
+                // 如果缓存中没有数据，添加0值
+                allValues.get("disasterManagement").add(0.0);
+                allValues.get("disasterPreparedness").add(0.0);
+                allValues.get("selfRescueTransfer").add(0.0);
+                allValues.get("comprehensiveCapability").add(0.0);
+            }
+        }
+        
+        return allValues;
+    }
+    
+    /**
+     * 计算综合减灾能力分级
+     */
+    private String calculateComprehensiveGrade(double value, List<Double> allValues) {
+        if (allValues == null || allValues.isEmpty()) {
+            return "中等";
+        }
+        
+        // 过滤掉null值
+        List<Double> validValues = allValues.stream()
+            .filter(v -> v != null)
+            .collect(Collectors.toList());
+            
+        if (validValues.isEmpty()) {
+            return "中等";
+        }
+        
+        // 计算均值和样本标准差（STDEV.S）
+        double mean = validValues.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+        if (validValues.size() <= 1) {
+            // 样本数量不足，无法计算样本标准差
+            return "中等";
+        }
+        // 样本标准差：除以(n-1)
+        double variance = validValues.stream().mapToDouble(v -> Math.pow(v - mean, 2)).sum() / (validValues.size() - 1);
+        double stdDev = Math.sqrt(variance);
+        
+        // 根据复杂的IF条件进行分级
+        return calculateGrade(value, mean, stdDev);
+    }
+    
+    /**
      * 计算能力分级
      */
     private Map<String, String> calculateCapabilityGrades(Map<String, Double> currentValues, Map<String, List<Double>> allValues) {
@@ -872,12 +1341,30 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         
         // 为每个一级指标计算分级
         for (String indicator : Arrays.asList("disasterManagement", "disasterPreparedness", "selfRescueTransfer")) {
-            double currentValue = currentValues.get(indicator);
+            Double currentValueObj = currentValues.get(indicator);
+            double currentValue = currentValueObj != null ? currentValueObj : 0.0;
             List<Double> values = allValues.get(indicator);
             
-            // 计算均值和标准差
-            double mean = values.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
-            double variance = values.stream().mapToDouble(v -> Math.pow(v - mean, 2)).average().orElse(0.0);
+            if (values == null || values.isEmpty()) {
+                grades.put(indicator, "中等");
+                continue;
+            }
+            
+            // 过滤掉null值
+            List<Double> validValues = values.stream()
+                .filter(v -> v != null)
+                .collect(Collectors.toList());
+                
+            if (validValues.size() <= 1) {
+                // 样本数量不足，无法计算样本标准差
+                grades.put(indicator, "中等");
+                continue;
+            }
+            
+            // 计算均值和样本标准差（STDEV.S）
+            double mean = validValues.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+            // 样本标准差：除以(n-1)
+            double variance = validValues.stream().mapToDouble(v -> Math.pow(v - mean, 2)).sum() / (validValues.size() - 1);
             double stdDev = Math.sqrt(variance);
             
             // 根据复杂的IF条件进行分级
@@ -890,39 +1377,104 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
     
     /**
      * 根据均值和标准差计算分级
+     * 严格按照用户提供的Excel公式实现：
+     * IF(均值μ<=0.5*标准差σ,IF(BI3>=均值μ+1.5*标准差σ,"强",IF(BI3>=均值μ+0.5*标准差σ,"较强","中等")),
+     * IF(均值μ<=1.5*标准差σ,IF(BI3>=均值μ+1.5*标准差σ,"强",IF(BI3>=均值μ+0.5*标准差σ,"较强",IF(BI3>=均值μ-0.5*标准差σ,"中等","较弱"))),
+     * IF(BI3>=均值μ+1.5*标准差σ,"强",IF(BI3>=均值μ+0.5*标准差σ,"较强",IF(BI3>=均值μ-0.5*标准差σ,"中等",IF(BI3>=均值μ-1.5*标准差σ,"较弱","弱"))))))
      */
     private String calculateGrade(double value, double mean, double stdDev) {
+        // 第一层IF：判断均值μ是否<=0.5*标准差σ
         if (mean <= 0.5 * stdDev) {
+            // 均值μ<=0.5*标准差σ的情况
             if (value >= mean + 1.5 * stdDev) {
                 return "强";
             } else if (value >= mean + 0.5 * stdDev) {
                 return "较强";
             } else {
                 return "中等";
-            }
-        } else if (mean <= 1.5 * stdDev) {
-            if (value >= mean + 1.5 * stdDev) {
-                return "强";
-            } else if (value >= mean + 0.5 * stdDev) {
-                return "较强";
-            } else if (value >= mean - 0.5 * stdDev) {
-                return "中等";
-            } else {
-                return "较弱";
             }
         } else {
-            if (value >= mean + 1.5 * stdDev) {
-                return "强";
-            } else if (value >= mean + 0.5 * stdDev) {
-                return "较强";
-            } else if (value >= mean - 0.5 * stdDev) {
-                return "中等";
-            } else if (value >= mean - 1.5 * stdDev) {
-                return "较弱";
+            // 均值μ>0.5*标准差σ的情况，进入第二层IF：判断均值μ是否<=1.5*标准差σ
+            if (mean <= 1.5 * stdDev) {
+                // 均值μ<=1.5*标准差σ的情况
+                if (value >= mean + 1.5 * stdDev) {
+                    return "强";
+                } else if (value >= mean + 0.5 * stdDev) {
+                    return "较强";
+                } else if (value >= mean - 0.5 * stdDev) {
+                    return "中等";
+                } else {
+                    return "较弱";
+                }
             } else {
-                return "弱";
+                // 均值μ>1.5*标准差σ的情况
+                if (value >= mean + 1.5 * stdDev) {
+                    return "强";
+                } else if (value >= mean + 0.5 * stdDev) {
+                    return "较强";
+                } else if (value >= mean - 0.5 * stdDev) {
+                    return "中等";
+                } else if (value >= mean - 1.5 * stdDev) {
+                    return "较弱";
+                } else {
+                    return "弱";
+                }
             }
         }
+    }
+    
+    /**
+     * 获取一级指标权重配置
+     */
+    private Map<String, Double> getPrimaryIndicatorWeights(Long configId) {
+        Map<String, Double> weights = new HashMap<>();
+        
+        try {
+            // 获取一级指标权重配置
+            List<IndicatorWeight> indicatorWeights = indicatorWeightService.getByConfigIdAndLevel(configId, 1);
+            
+            log.info("getPrimaryIndicatorWeights - 从数据库获取到 {} 条一级权重配置记录", indicatorWeights.size());
+            
+            // 将指标权重映射到对应的字段名
+            for (IndicatorWeight weight : indicatorWeights) {
+                String indicatorCode = weight.getIndicatorCode();
+                Double weightValue = weight.getWeight();
+                
+                log.info("getPrimaryIndicatorWeights - 处理权重配置: indicatorCode={}, weightValue={}", indicatorCode, weightValue);
+                
+                // 根据指标代码映射到对应的字段名
+                switch (indicatorCode) {
+                    case "L1_DISASTER_MANAGEMENT":
+                        weights.put("disasterManagement", weightValue);
+                        log.info("getPrimaryIndicatorWeights - 映射 L1_DISASTER_MANAGEMENT -> disasterManagement: {}", weightValue);
+                        break;
+                    case "L1_DISASTER_PREPAREDNESS":
+                        weights.put("disasterPreparedness", weightValue);
+                        log.info("getPrimaryIndicatorWeights - 映射 L1_DISASTER_PREPAREDNESS -> disasterPreparedness: {}", weightValue);
+                        break;
+                    case "L1_SELF_RESCUE_TRANSFER":
+                        weights.put("selfRescueTransfer", weightValue);
+                        log.info("getPrimaryIndicatorWeights - 映射 L1_SELF_RESCUE_TRANSFER -> selfRescueTransfer: {}", weightValue);
+                        break;
+                    default:
+                        log.warn("getPrimaryIndicatorWeights - 未识别的一级指标代码: {}", indicatorCode);
+                        break;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("获取一级指标权重配置失败，使用默认权重: {}", e.getMessage());
+        }
+        
+        // 如果没有获取到权重配置，使用默认权重
+        if (weights.isEmpty()) {
+            log.warn("getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重");
+            weights.put("disasterManagement", 0.33);
+            weights.put("disasterPreparedness", 0.32);
+            weights.put("selfRescueTransfer", 0.35);
+        }
+        
+        log.info("getPrimaryIndicatorWeights - 最终一级权重配置: {}", weights);
+        return weights;
     }
     
     /**
@@ -1035,7 +1587,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             columns.add(createColumn("selfRescue", "自救互救能力", 120));
             columns.add(createColumn("publicAvoidance", "公众避险能力", 120));
             columns.add(createColumn("relocationCapacity", "转移安置能力", 120));
-        } else if (stepIndex == 2) { // 二级指标定权 - 8个指标定权值
+        } else if (stepIndex == 2) { // 二级指标定权 - 8个指标定权值（分为两个表格）
             columns.add(createColumn("teamManagement", "队伍管理能力", 120));
             columns.add(createColumn("riskAssessment", "风险评估能力", 120));
             columns.add(createColumn("financialInput", "财政投入能力", 120));
@@ -1044,14 +1596,22 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             columns.add(createColumn("selfRescue", "自救互救能力", 120));
             columns.add(createColumn("publicAvoidance", "公众避险能力", 120));
             columns.add(createColumn("relocationCapacity", "转移安置能力", 120));
-        } else if (stepIndex == 3) { // 优劣解算法 - 3个一级指标
+        } else if (stepIndex == 3) { // 步骤4：优劣解算法 - 显示4列（3个一级指标 + 1列综合减灾能力）
             columns.add(createColumn("disasterManagement", "灾害管理能力", 150));
             columns.add(createColumn("disasterPreparedness", "灾害备灾能力", 150));
             columns.add(createColumn("selfRescueTransfer", "自救转移能力", 150));
-        } else if (stepIndex == 4) { // 能力分级计算 - 3个一级指标分级
-            columns.add(createColumn("disasterManagement", "灾害管理能力", 150));
-            columns.add(createColumn("disasterPreparedness", "灾害备灾能力", 150));
-            columns.add(createColumn("selfRescueTransfer", "自救转移能力", 150));
+            columns.add(createColumn("comprehensiveCapability", "乡镇（街道）减灾能力", 200));
+        } else if (stepIndex == 4) { // 能力分级计算 - 显示8列（4列原始值+4列分级）
+            // 前4列：原始数值
+            columns.add(createColumn("disasterManagement", "灾害管理能力值", 130));
+            columns.add(createColumn("disasterPreparedness", "灾害备灾能力值", 130));
+            columns.add(createColumn("selfRescueTransfer", "自救转移能力值", 130));
+            columns.add(createColumn("comprehensiveCapability", "综合减灾能力值", 130));
+            // 后4列：分级数据
+            columns.add(createColumn("disasterManagementGrade", "灾害管理分级", 120));
+            columns.add(createColumn("disasterPreparednessGrade", "灾害备灾分级", 120));
+            columns.add(createColumn("selfRescueTransferGrade", "自救转移分级", 120));
+            columns.add(createColumn("comprehensiveCapabilityGrade", "综合能力分级", 120));
         } else { // 其他步骤
             columns.add(createColumn("value", "数值", 100));
             columns.add(createColumn("weight", "权重", 100));
@@ -1074,135 +1634,11 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
     }
     
     /**
-     * 生成步骤汇总信息
+     * 生成步骤汇总信息 - 已移除所有统计信息
      */
     private Map<String, Object> generateStepSummary(List<Map<String, Object>> tableData, Integer stepIndex) {
-        Map<String, Object> summary = new HashMap<>();
-        
-        summary.put("数据条数", tableData.size());
-        
-        if (stepIndex == 0 || stepIndex == 1 || stepIndex == 2) {
-            // 步骤0、步骤1和步骤2都是8个指标的统计信息
-            if (!tableData.isEmpty()) {
-                // 计算队伍管理能力的统计信息
-                double teamManagementSum = tableData.stream()
-                    .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
-                    .sum();
-                double avgTeamManagement = teamManagementSum / tableData.size();
-                
-                if (stepIndex == 0) {
-                    summary.put("平均分", String.format("%.8f", avgTeamManagement));
-                    summary.put("最高分", String.format("%.8f", tableData.stream()
-                        .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
-                        .max().orElse(0.0)));
-                    summary.put("最低分", String.format("%.8f", tableData.stream()
-                        .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
-                        .min().orElse(0.0)));
-                } else if (stepIndex == 1) {
-                    // stepIndex == 1: 属性向量归一化
-                    summary.put("平均归一化值", String.format("%.8f", avgTeamManagement));
-                    summary.put("最高归一化值", String.format("%.8f", tableData.stream()
-                        .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
-                        .max().orElse(0.0)));
-                    summary.put("最低归一化值", String.format("%.8f", tableData.stream()
-                        .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
-                        .min().orElse(0.0)));
-                } else {
-                    // stepIndex == 2: 二级指标定权
-                    summary.put("平均定权值", String.format("%.8f", avgTeamManagement));
-                    summary.put("最高定权值", String.format("%.8f", tableData.stream()
-                        .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
-                        .max().orElse(0.0)));
-                    summary.put("最低定权值", String.format("%.8f", tableData.stream()
-                        .mapToDouble(row -> Double.parseDouble(row.get("teamManagement").toString()))
-                        .min().orElse(0.0)));
-                }
-            } else {
-                if (stepIndex == 0) {
-                    summary.put("平均分", "NaN");
-                    summary.put("最高分", "0");
-                    summary.put("最低分", "0");
-                } else if (stepIndex == 1) {
-                    summary.put("平均归一化值", "NaN");
-                    summary.put("最高归一化值", "0");
-                    summary.put("最低归一化值", "0");
-                } else {
-                    summary.put("平均定权值", "NaN");
-                    summary.put("最高定权值", "0");
-                    summary.put("最低定权值", "0");
-                }
-            }
-        } else if (stepIndex == 3) {
-            // 步骤3：优劣解算法 - 3个一级指标统计信息
-            if (!tableData.isEmpty()) {
-                // 计算灾害管理能力的统计信息
-                double disasterManagementSum = tableData.stream()
-                    .mapToDouble(row -> Double.parseDouble(row.get("disasterManagement").toString()))
-                    .sum();
-                double avgDisasterManagement = disasterManagementSum / tableData.size();
-                
-                summary.put("平均一级指标值", String.format("%.8f", avgDisasterManagement));
-                summary.put("最高一级指标值", String.format("%.8f", tableData.stream()
-                    .mapToDouble(row -> Double.parseDouble(row.get("disasterManagement").toString()))
-                    .max().orElse(0.0)));
-                summary.put("最低一级指标值", String.format("%.8f", tableData.stream()
-                    .mapToDouble(row -> Double.parseDouble(row.get("disasterManagement").toString()))
-                    .min().orElse(0.0)));
-            } else {
-                summary.put("平均一级指标值", "NaN");
-                summary.put("最高一级指标值", "0");
-                summary.put("最低一级指标值", "0");
-            }
-        } else if (stepIndex == 4) {
-            // 步骤4：能力分级计算 - 分级统计信息
-            if (!tableData.isEmpty()) {
-                // 统计各个等级的数量
-                Map<String, Long> gradeCount = new HashMap<>();
-                
-                // 统计灾害管理能力分级
-                Map<String, Long> disasterManagementGrades = tableData.stream()
-                    .collect(Collectors.groupingBy(
-                        row -> row.get("disasterManagement").toString(),
-                        Collectors.counting()
-                    ));
-                
-                summary.put("灾害管理能力分级统计", disasterManagementGrades);
-                summary.put("强等级数量", disasterManagementGrades.getOrDefault("强", 0L));
-                summary.put("较强等级数量", disasterManagementGrades.getOrDefault("较强", 0L));
-                summary.put("中等等级数量", disasterManagementGrades.getOrDefault("中等", 0L));
-                summary.put("较弱等级数量", disasterManagementGrades.getOrDefault("较弱", 0L));
-                summary.put("弱等级数量", disasterManagementGrades.getOrDefault("弱", 0L));
-            } else {
-                summary.put("灾害管理能力分级统计", new HashMap<>());
-                summary.put("强等级数量", 0L);
-                summary.put("较强等级数量", 0L);
-                summary.put("中等等级数量", 0L);
-                summary.put("较弱等级数量", 0L);
-                summary.put("弱等级数量", 0L);
-            }
-        } else {
-            // 其他步骤：计算得分的统计信息
-            if (!tableData.isEmpty()) {
-                double scoreSum = tableData.stream()
-                    .mapToDouble(row -> Double.parseDouble(row.get("score").toString()))
-                    .sum();
-                double avgScore = scoreSum / tableData.size();
-                
-                summary.put("平均得分", String.format("%.2f", avgScore));
-                summary.put("最高得分", String.format("%.2f", tableData.stream()
-                    .mapToDouble(row -> Double.parseDouble(row.get("score").toString()))
-                    .max().orElse(0.0)));
-                summary.put("最低得分", String.format("%.2f", tableData.stream()
-                    .mapToDouble(row -> Double.parseDouble(row.get("score").toString()))
-                    .min().orElse(0.0)));
-            } else {
-                summary.put("平均得分", "NaN");
-                summary.put("最高得分", "0");
-                summary.put("最低得分", "0");
-            }
-        }
-        
-        return summary;
+        // 完全移除统计信息，返回null
+        return null;
     }
     
     /**
@@ -1214,11 +1650,11 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         // 获取所有地区的归一化值
         Map<String, List<Double>> allIndicatorValues = collectAllIndicatorValues(regionIds);
         
-        // 获取二级权重配置
-        Map<String, Double> indicatorWeights = getSecondaryIndicatorWeights(1L);
+        // 获取一级权重配置和二级权重配置
+        Map<String, Double> primaryWeights = getPrimaryIndicatorWeights(1L);
+        Map<String, Double> secondaryWeights = getSecondaryIndicatorWeights(1L);
         
-        log.info("collectAllWeightedValues - 开始计算所有地区的定权值，地区数量: {}", regionIds.size());
-        log.info("collectAllWeightedValues - 二级权重配置: {}", indicatorWeights);
+        // 计算所有地区的定权值
         
         for (int i = 0; i < regionIds.size(); i++) {
             String regionId = regionIds.get(i);
@@ -1226,36 +1662,89 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             
             Map<String, Double> weightedValues = new HashMap<>();
             
-            // 计算每个指标的定权值：归一化值 × 二级权重指标
-            for (String indicator : Arrays.asList("teamManagement", "riskAssessment", "financialInput", 
-                    "materialReserve", "medicalSupport", "selfRescue", "publicAvoidance", "relocationCapacity")) {
+            // 根据用户提供的正确公式计算定权值：属性向量归一化值 × 对应一级权重 × 对应二级权重
+            
+            // 获取当前地区的8个指标原始值
+            List<Double> teamManagementValues = allIndicatorValues.get("teamManagement");
+            List<Double> riskAssessmentValues = allIndicatorValues.get("riskAssessment");
+            List<Double> financialInputValues = allIndicatorValues.get("financialInput");
+            List<Double> materialReserveValues = allIndicatorValues.get("materialReserve");
+            List<Double> medicalSupportValues = allIndicatorValues.get("medicalSupport");
+            List<Double> selfRescueValues = allIndicatorValues.get("selfRescue");
+            List<Double> publicAvoidanceValues = allIndicatorValues.get("publicAvoidance");
+            List<Double> relocationCapacityValues = allIndicatorValues.get("relocationCapacity");
+            
+            if (i < teamManagementValues.size()) {
+                // 1. 队伍管理能力(定权) = 队伍管理能力(归一化) × 灾害管理能力一级权重 × 队伍管理能力二级权重
+                double teamManagementNorm = normalizeIndicatorValue(teamManagementValues.get(i), teamManagementValues);
+                double teamManagementPrimaryWeight = primaryWeights.getOrDefault("disasterManagement", 0.33);
+                double teamManagementSecondaryWeight = secondaryWeights.getOrDefault("teamManagement", 0.37);
+                double teamManagementWeighted = teamManagementNorm * teamManagementPrimaryWeight * teamManagementSecondaryWeight;
+                weightedValues.put("teamManagement", teamManagementWeighted);
                 
-                List<Double> values = allIndicatorValues.get(indicator);
-                if (values != null && i < values.size()) {
-                    double originalValue = values.get(i);
-                    double normalizedValue = normalizeIndicatorValue(originalValue, values);
-                    double weight = indicatorWeights.getOrDefault(indicator, 0.33);
-                    double weightedValue = normalizedValue * weight;
-                    weightedValues.put(indicator, weightedValue);
-                    
-                    // 为物资储备能力添加详细日志
-                    if ("materialReserve".equals(indicator)) {
-                        log.info("collectAllWeightedValues - 地区: {}, 物资储备能力: 原始值={}, 归一化值={}, 权重={}, 定权值={}", 
-                                regionName, originalValue, normalizedValue, weight, weightedValue);
-                    }
-                } else {
-                    weightedValues.put(indicator, 0.0);
-                }
+                // 2. 风险评估能力(定权) = 风险评估能力(归一化) × 灾害管理能力一级权重 × 风险评估能力二级权重
+                double riskAssessmentNorm = normalizeIndicatorValue(riskAssessmentValues.get(i), riskAssessmentValues);
+                double riskAssessmentPrimaryWeight = primaryWeights.getOrDefault("disasterManagement", 0.33);
+                double riskAssessmentSecondaryWeight = secondaryWeights.getOrDefault("riskAssessment", 0.31);
+                double riskAssessmentWeighted = riskAssessmentNorm * riskAssessmentPrimaryWeight * riskAssessmentSecondaryWeight;
+                weightedValues.put("riskAssessment", riskAssessmentWeighted);
+                
+                // 3. 财政投入能力(定权) = 财政投入能力(归一化) × 灾害管理能力一级权重 × 财政投入能力二级权重
+                double financialInputNorm = normalizeIndicatorValue(financialInputValues.get(i), financialInputValues);
+                double financialInputPrimaryWeight = primaryWeights.getOrDefault("disasterManagement", 0.33);
+                double financialInputSecondaryWeight = secondaryWeights.getOrDefault("financialInput", 0.32);
+                double financialInputWeighted = financialInputNorm * financialInputPrimaryWeight * financialInputSecondaryWeight;
+                weightedValues.put("financialInput", financialInputWeighted);
+                
+                // 4. 物资储备能力(定权) = 物资储备能力(归一化) × 灾害备灾能力一级权重 × 物资储备能力二级权重
+                double materialReserveNorm = normalizeIndicatorValue(materialReserveValues.get(i), materialReserveValues);
+                double materialReservePrimaryWeight = primaryWeights.getOrDefault("disasterPreparedness", 0.32);
+                double materialReserveSecondaryWeight = secondaryWeights.getOrDefault("materialReserve", 0.51);
+                double materialReserveWeighted = materialReserveNorm * materialReservePrimaryWeight * materialReserveSecondaryWeight;
+                weightedValues.put("materialReserve", materialReserveWeighted);
+                
+                // 物资储备能力定权计算完成
+                
+                // 5. 医疗保障能力(定权) = 医疗保障能力(归一化) × 灾害备灾能力一级权重 × 医疗保障能力二级权重
+                double medicalSupportNorm = normalizeIndicatorValue(medicalSupportValues.get(i), medicalSupportValues);
+                double medicalSupportPrimaryWeight = primaryWeights.getOrDefault("disasterPreparedness", 0.32);
+                double medicalSupportSecondaryWeight = secondaryWeights.getOrDefault("medicalSupport", 0.49);
+                double medicalSupportWeighted = medicalSupportNorm * medicalSupportPrimaryWeight * medicalSupportSecondaryWeight;
+                weightedValues.put("medicalSupport", medicalSupportWeighted);
+                
+                // 6. 自救互救能力(定权) = 自救互救能力(归一化) × 自救转移能力一级权重 × 自救互救能力二级权重
+                double selfRescueNorm = normalizeIndicatorValue(selfRescueValues.get(i), selfRescueValues);
+                double selfRescuePrimaryWeight = primaryWeights.getOrDefault("selfRescueTransfer", 0.35);
+                double selfRescueSecondaryWeight = secondaryWeights.getOrDefault("selfRescue", 0.33);
+                double selfRescueWeighted = selfRescueNorm * selfRescuePrimaryWeight * selfRescueSecondaryWeight;
+                weightedValues.put("selfRescue", selfRescueWeighted);
+                
+                // 7. 公众避险能力(定权) = 公众避险能力(归一化) × 自救转移能力一级权重 × 公众避险能力二级权重
+                double publicAvoidanceNorm = normalizeIndicatorValue(publicAvoidanceValues.get(i), publicAvoidanceValues);
+                double publicAvoidancePrimaryWeight = primaryWeights.getOrDefault("selfRescueTransfer", 0.35);
+                double publicAvoidanceSecondaryWeight = secondaryWeights.getOrDefault("publicAvoidance", 0.33);
+                double publicAvoidanceWeighted = publicAvoidanceNorm * publicAvoidancePrimaryWeight * publicAvoidanceSecondaryWeight;
+                weightedValues.put("publicAvoidance", publicAvoidanceWeighted);
+                
+                // 8. 转移安置能力(定权) = 转移安置能力(归一化) × 自救转移能力一级权重 × 转移安置能力二级权重
+                double relocationCapacityNorm = normalizeIndicatorValue(relocationCapacityValues.get(i), relocationCapacityValues);
+                double relocationCapacityPrimaryWeight = primaryWeights.getOrDefault("selfRescueTransfer", 0.35);
+                double relocationCapacitySecondaryWeight = secondaryWeights.getOrDefault("relocationCapacity", 0.34);
+                double relocationCapacityWeighted = relocationCapacityNorm * relocationCapacityPrimaryWeight * relocationCapacitySecondaryWeight;
+                weightedValues.put("relocationCapacity", relocationCapacityWeighted);
+            } else {
+                // 如果没有数据，设置默认值
+                weightedValues.put("teamManagement", 0.0);
+                weightedValues.put("riskAssessment", 0.0);
+                weightedValues.put("financialInput", 0.0);
+                weightedValues.put("materialReserve", 0.0);
+                weightedValues.put("medicalSupport", 0.0);
+                weightedValues.put("selfRescue", 0.0);
+                weightedValues.put("publicAvoidance", 0.0);
+                weightedValues.put("relocationCapacity", 0.0);
             }
             
             allWeightedValues.put(regionName, weightedValues);
-            log.info("collectAllWeightedValues - 地区: {} 的所有定权值: {}", regionName, weightedValues);
-        }
-        
-        // 输出物资储备能力的所有值用于调试
-        log.info("collectAllWeightedValues - 所有地区物资储备能力定权值:");
-        for (Map.Entry<String, Map<String, Double>> entry : allWeightedValues.entrySet()) {
-            log.info("  地区: {}, 物资储备能力定权值: {}", entry.getKey(), entry.getValue().get("materialReserve"));
         }
         
         return allWeightedValues;
@@ -1270,11 +1759,11 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         // 获取所有地区的归一化值
         Map<String, List<Double>> allIndicatorValues = collectAllIndicatorValues(regionIds);
         
-        // 获取二级权重配置
-        Map<String, Double> indicatorWeights = getSecondaryIndicatorWeights(1L);
+        // 获取一级权重配置和二级权重配置
+        Map<String, Double> primaryWeights = getPrimaryIndicatorWeights(1L);
+        Map<String, Double> secondaryWeights = getSecondaryIndicatorWeights(1L);
         
-        log.info("calculateCurrentWeightedValues - 开始计算当前地区定权值");
-        log.info("calculateCurrentWeightedValues - 二级权重配置: {}", indicatorWeights);
+        // 计算当前地区定权值
         
         // 计算当前地区的8个指标原始值
         double teamManagement = calculateIndicatorValue(surveyData.getManagementStaff(), surveyData.getPopulation());
@@ -1289,40 +1778,65 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         double publicAvoidance = calculateIndicatorValue(surveyData.getTrainingParticipants(), surveyData.getPopulation())/100;
         double relocationCapacity = calculateIndicatorValue(surveyData.getShelterCapacity(), surveyData.getPopulation())/10000;
         
-        log.info("calculateCurrentWeightedValues - 当前地区原始指标值: 物资储备能力={}, 医疗保障能力={}", materialReserve, medicalSupport);
+        // 当前地区原始指标值计算完成
         
-        // 计算归一化值并乘以权重
+        // 根据用户提供的正确公式计算定权值：属性向量归一化值 × 对应一级权重 × 对应二级权重
+        
+        // 1. 队伍管理能力(定权) = 队伍管理能力(归一化) × 灾害管理能力一级权重 × 队伍管理能力二级权重
+        double teamManagementNorm = normalizeIndicatorValue(teamManagement, allIndicatorValues.get("teamManagement"));
+        double teamManagementPrimaryWeight = primaryWeights.getOrDefault("disasterManagement", 0.33);
+        double teamManagementSecondaryWeight = secondaryWeights.getOrDefault("teamManagement", 0.37);
+        double teamManagementWeighted = teamManagementNorm * teamManagementPrimaryWeight * teamManagementSecondaryWeight;
+        currentWeightedValues.put("teamManagement", teamManagementWeighted);
+        
+        // 2. 风险评估能力(定权) = 风险评估能力(归一化) × 灾害管理能力一级权重 × 风险评估能力二级权重
+        double riskAssessmentNorm = normalizeIndicatorValue(riskAssessment, allIndicatorValues.get("riskAssessment"));
+        double riskAssessmentPrimaryWeight = primaryWeights.getOrDefault("disasterManagement", 0.33);
+        double riskAssessmentSecondaryWeight = secondaryWeights.getOrDefault("riskAssessment", 0.31);
+        double riskAssessmentWeighted = riskAssessmentNorm * riskAssessmentPrimaryWeight * riskAssessmentSecondaryWeight;
+        currentWeightedValues.put("riskAssessment", riskAssessmentWeighted);
+        
+        // 3. 财政投入能力(定权) = 财政投入能力(归一化) × 灾害管理能力一级权重 × 财政投入能力二级权重
+        double financialInputNorm = normalizeIndicatorValue(financialInput, allIndicatorValues.get("financialInput"));
+        double financialInputPrimaryWeight = primaryWeights.getOrDefault("disasterManagement", 0.33);
+        double financialInputSecondaryWeight = secondaryWeights.getOrDefault("financialInput", 0.32);
+        double financialInputWeighted = financialInputNorm * financialInputPrimaryWeight * financialInputSecondaryWeight;
+        currentWeightedValues.put("financialInput", financialInputWeighted);
+        
+        // 4. 物资储备能力(定权) = 物资储备能力(归一化) × 灾害备灾能力一级权重 × 物资储备能力二级权重
         double materialReserveNorm = normalizeIndicatorValue(materialReserve, allIndicatorValues.get("materialReserve"));
-        double materialReserveWeight = indicatorWeights.getOrDefault("materialReserve", 0.51);
-        double materialReserveWeighted = materialReserveNorm * materialReserveWeight;
-        
-        log.info("calculateCurrentWeightedValues - 物资储备能力计算: 原始值={}, 归一化值={}, 权重={}, 定权值={}", 
-                materialReserve, materialReserveNorm, materialReserveWeight, materialReserveWeighted);
-        
-        currentWeightedValues.put("teamManagement", 
-            normalizeIndicatorValue(teamManagement, allIndicatorValues.get("teamManagement")) * 
-            indicatorWeights.getOrDefault("teamManagement", 0.37));
-        currentWeightedValues.put("riskAssessment", 
-            normalizeIndicatorValue(riskAssessment, allIndicatorValues.get("riskAssessment")) * 
-            indicatorWeights.getOrDefault("riskAssessment", 0.31));
-        currentWeightedValues.put("financialInput", 
-            normalizeIndicatorValue(financialInput, allIndicatorValues.get("financialInput")) * 
-            indicatorWeights.getOrDefault("financialInput", 0.32));
+        double materialReservePrimaryWeight = primaryWeights.getOrDefault("disasterPreparedness", 0.32);
+        double materialReserveSecondaryWeight = secondaryWeights.getOrDefault("materialReserve", 0.51);
+        double materialReserveWeighted = materialReserveNorm * materialReservePrimaryWeight * materialReserveSecondaryWeight;
         currentWeightedValues.put("materialReserve", materialReserveWeighted);
-        currentWeightedValues.put("medicalSupport", 
-            normalizeIndicatorValue(medicalSupport, allIndicatorValues.get("medicalSupport")) * 
-            indicatorWeights.getOrDefault("medicalSupport", 0.49));
-        currentWeightedValues.put("selfRescue", 
-            normalizeIndicatorValue(selfRescue, allIndicatorValues.get("selfRescue")) * 
-            indicatorWeights.getOrDefault("selfRescue", 0.33));
-        currentWeightedValues.put("publicAvoidance", 
-            normalizeIndicatorValue(publicAvoidance, allIndicatorValues.get("publicAvoidance")) * 
-            indicatorWeights.getOrDefault("publicAvoidance", 0.33));
-        currentWeightedValues.put("relocationCapacity", 
-            normalizeIndicatorValue(relocationCapacity, allIndicatorValues.get("relocationCapacity")) * 
-            indicatorWeights.getOrDefault("relocationCapacity", 0.34));
         
-        log.info("calculateCurrentWeightedValues - 当前地区所有定权值: {}", currentWeightedValues);
+        // 5. 医疗保障能力(定权) = 医疗保障能力(归一化) × 灾害备灾能力一级权重 × 医疗保障能力二级权重
+        double medicalSupportNorm = normalizeIndicatorValue(medicalSupport, allIndicatorValues.get("medicalSupport"));
+        double medicalSupportPrimaryWeight = primaryWeights.getOrDefault("disasterPreparedness", 0.32);
+        double medicalSupportSecondaryWeight = secondaryWeights.getOrDefault("medicalSupport", 0.49);
+        double medicalSupportWeighted = medicalSupportNorm * medicalSupportPrimaryWeight * medicalSupportSecondaryWeight;
+        currentWeightedValues.put("medicalSupport", medicalSupportWeighted);
+        
+        // 6. 自救互救能力(定权) = 自救互救能力(归一化) × 自救转移能力一级权重 × 自救互救能力二级权重
+        double selfRescueNorm = normalizeIndicatorValue(selfRescue, allIndicatorValues.get("selfRescue"));
+        double selfRescuePrimaryWeight = primaryWeights.getOrDefault("selfRescueTransfer", 0.35);
+        double selfRescueSecondaryWeight = secondaryWeights.getOrDefault("selfRescue", 0.33);
+        double selfRescueWeighted = selfRescueNorm * selfRescuePrimaryWeight * selfRescueSecondaryWeight;
+        currentWeightedValues.put("selfRescue", selfRescueWeighted);
+        
+        // 7. 公众避险能力(定权) = 公众避险能力(归一化) × 自救转移能力一级权重 × 公众避险能力二级权重
+        double publicAvoidanceNorm = normalizeIndicatorValue(publicAvoidance, allIndicatorValues.get("publicAvoidance"));
+        double publicAvoidancePrimaryWeight = primaryWeights.getOrDefault("selfRescueTransfer", 0.35);
+        double publicAvoidanceSecondaryWeight = secondaryWeights.getOrDefault("publicAvoidance", 0.33);
+        double publicAvoidanceWeighted = publicAvoidanceNorm * publicAvoidancePrimaryWeight * publicAvoidanceSecondaryWeight;
+        currentWeightedValues.put("publicAvoidance", publicAvoidanceWeighted);
+        
+        // 8. 转移安置能力(定权) = 转移安置能力(归一化) × 自救转移能力一级权重 × 转移安置能力二级权重
+        double relocationCapacityNorm = normalizeIndicatorValue(relocationCapacity, allIndicatorValues.get("relocationCapacity"));
+        double relocationCapacityPrimaryWeight = primaryWeights.getOrDefault("selfRescueTransfer", 0.35);
+        double relocationCapacitySecondaryWeight = secondaryWeights.getOrDefault("relocationCapacity", 0.34);
+        double relocationCapacityWeighted = relocationCapacityNorm * relocationCapacityPrimaryWeight * relocationCapacitySecondaryWeight;
+        currentWeightedValues.put("relocationCapacity", relocationCapacityWeighted);
         
         return currentWeightedValues;
     }
@@ -1352,25 +1866,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             minValues.put(indicator, min);
         }
         
-        // 添加详细日志输出
-        log.info("TOPSIS算法计算 - 当前地区定权值: {}", currentWeightedValues);
-        log.info("TOPSIS算法计算 - 各指标最大值: {}", maxValues);
-        log.info("TOPSIS算法计算 - 各指标最小值: {}", minValues);
-        
-        // 详细输出所有地区的物资储备能力定权值用于调试
-        log.info("TOPSIS算法计算 - 所有地区的物资储备能力定权值详情:");
-        for (Map.Entry<String, Map<String, Double>> entry : allWeightedValues.entrySet()) {
-            String regionName = entry.getKey();
-            Double materialReserveValue = entry.getValue().get("materialReserve");
-            log.info("  地区: {}, 物资储备能力定权值: {}", regionName, materialReserveValue);
-        }
-        
-        // 验证物资储备能力最大值计算
-        double calculatedMaxMaterialReserve = allWeightedValues.values().stream()
-            .mapToDouble(values -> values.getOrDefault("materialReserve", 0.0))
-            .max().orElse(0.0);
-        log.info("TOPSIS算法计算 - 计算得出的物资储备能力最大值: {}", calculatedMaxMaterialReserve);
-        log.info("TOPSIS算法计算 - 与前端显示值0.4431的差异: {}", Math.abs(calculatedMaxMaterialReserve - 0.4431));
+        // TOPSIS算法计算（移除调试日志）
         
         // 计算3个一级指标的TOPSIS值
         
@@ -1392,9 +1888,6 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             disasterManagement = disasterManagementNegative / (disasterManagementNegative + disasterManagementPositive);
         }
         
-        log.info("灾害管理能力计算 - 正理想解距离: {}, 负理想解距离: {}, 相对贴近度: {}", 
-                disasterManagementPositive, disasterManagementNegative, disasterManagement);
-        
         // 2. 灾害备灾能力（物资储备+医疗保障）
         double materialReserveCurrent = currentWeightedValues.get("materialReserve");
         double medicalSupportCurrent = currentWeightedValues.get("medicalSupport");
@@ -1402,11 +1895,6 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         double medicalSupportMax = maxValues.get("medicalSupport");
         double materialReserveMin = minValues.get("materialReserve");
         double medicalSupportMin = minValues.get("medicalSupport");
-        
-        log.info("灾害备灾能力计算 - 物资储备能力: 当前值={}, 最大值={}, 最小值={}", 
-                materialReserveCurrent, materialReserveMax, materialReserveMin);
-        log.info("灾害备灾能力计算 - 医疗保障能力: 当前值={}, 最大值={}, 最小值={}", 
-                medicalSupportCurrent, medicalSupportMax, medicalSupportMin);
         
         double disasterPreparednessPositive = Math.sqrt(
             Math.pow(materialReserveMax - materialReserveCurrent, 2) +
@@ -1417,27 +1905,13 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             Math.pow(medicalSupportMin - medicalSupportCurrent, 2)
         );
         
-        log.info("灾害备灾能力计算 - 正理想解距离计算: sqrt(({}-{})^2 + ({}-{})^2) = sqrt({} + {}) = {}", 
-                materialReserveMax, materialReserveCurrent, medicalSupportMax, medicalSupportCurrent,
-                Math.pow(materialReserveMax - materialReserveCurrent, 2),
-                Math.pow(medicalSupportMax - medicalSupportCurrent, 2),
-                disasterPreparednessPositive);
-        
-        log.info("灾害备灾能力计算 - 负理想解距离计算: sqrt(({}-{})^2 + ({}-{})^2) = sqrt({} + {}) = {}", 
-                materialReserveMin, materialReserveCurrent, medicalSupportMin, medicalSupportCurrent,
-                Math.pow(materialReserveMin - materialReserveCurrent, 2),
-                Math.pow(medicalSupportMin - medicalSupportCurrent, 2),
-                disasterPreparednessNegative);
+        // 计算灾害备灾能力的TOPSIS值
         
         // 防止除零错误
         double disasterPreparedness = 0.0;
         if (disasterPreparednessNegative + disasterPreparednessPositive > 0) {
             disasterPreparedness = disasterPreparednessNegative / (disasterPreparednessNegative + disasterPreparednessPositive);
         }
-        
-        log.info("灾害备灾能力计算 - 正理想解距离: {}, 负理想解距离: {}, 相对贴近度: {} / ({} + {}) = {}", 
-                disasterPreparednessPositive, disasterPreparednessNegative, 
-                disasterPreparednessNegative, disasterPreparednessNegative, disasterPreparednessPositive, disasterPreparedness);
         
         // 3. 自救转移能力（自救互救+公众避险+转移安置）
         double selfRescueTransferPositive = Math.sqrt(
@@ -1457,16 +1931,71 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             selfRescueTransfer = selfRescueTransferNegative / (selfRescueTransferNegative + selfRescueTransferPositive);
         }
         
-        log.info("自救转移能力计算 - 正理想解距离: {}, 负理想解距离: {}, 相对贴近度: {}", 
-                selfRescueTransferPositive, selfRescueTransferNegative, selfRescueTransfer);
-        
         primaryIndicators.put("disasterManagement", disasterManagement);
         primaryIndicators.put("disasterPreparedness", disasterPreparedness);
         primaryIndicators.put("selfRescueTransfer", selfRescueTransfer);
         
-        log.info("TOPSIS算法计算结果 - 灾害管理能力: {}, 灾害备灾能力: {}, 自救转移能力: {}", 
-                disasterManagement, disasterPreparedness, selfRescueTransfer);
-        
         return primaryIndicators;
+    }
+    
+    /**
+     * 使用TOPSIS算法计算综合减灾能力值（单一值）
+     * 根据用户要求的计算逻辑：
+     * 1. 计算乡镇（街道）减灾能力优（与最大值的欧氏距离）
+     * 2. 计算乡镇（街道）减灾能力劣（与最小值的欧氏距离）
+     * 3. 计算综合减灾能力值 = 劣距离 / (劣距离 + 优距离)
+     */
+    private double calculateComprehensiveTOPSIS(Map<String, Double> currentWeightedValues, 
+                                               Map<String, Map<String, Double>> allWeightedValues) {
+        
+        // 计算各指标的最大值和最小值
+        Map<String, Double> maxValues = new HashMap<>();
+        Map<String, Double> minValues = new HashMap<>();
+        
+        String[] indicators = {"teamManagement", "riskAssessment", "financialInput", 
+                              "materialReserve", "medicalSupport", "selfRescue", 
+                              "publicAvoidance", "relocationCapacity"};
+        
+        for (String indicator : indicators) {
+            double max = allWeightedValues.values().stream()
+                .mapToDouble(values -> values.getOrDefault(indicator, 0.0))
+                .max().orElse(0.0);
+            double min = allWeightedValues.values().stream()
+                .mapToDouble(values -> values.getOrDefault(indicator, 0.0))
+                .min().orElse(0.0);
+            
+            maxValues.put(indicator, max);
+            minValues.put(indicator, min);
+        }
+        
+        // 综合TOPSIS算法计算（移除调试日志）
+        
+        // 1. 计算乡镇（街道）减灾能力优（与最大值的欧氏距离）
+        double positiveDistance = 0.0;
+        for (String indicator : indicators) {
+            double currentValue = currentWeightedValues.getOrDefault(indicator, 0.0);
+            double maxValue = maxValues.get(indicator);
+            positiveDistance += Math.pow(maxValue - currentValue, 2);
+        }
+        positiveDistance = Math.sqrt(positiveDistance);
+        
+        // 2. 计算乡镇（街道）减灾能力劣（与最小值的欧氏距离）
+        double negativeDistance = 0.0;
+        for (String indicator : indicators) {
+            double currentValue = currentWeightedValues.getOrDefault(indicator, 0.0);
+            double minValue = minValues.get(indicator);
+            negativeDistance += Math.pow(minValue - currentValue, 2);
+        }
+        negativeDistance = Math.sqrt(negativeDistance);
+        
+        // 3. 计算综合减灾能力值 = 劣距离 / (劣距离 + 优距离)
+        double comprehensiveCapability = 0.0;
+        if (negativeDistance + positiveDistance > 0) {
+            comprehensiveCapability = negativeDistance / (negativeDistance + positiveDistance);
+        }
+        
+        // 返回综合减灾能力值
+        
+        return comprehensiveCapability;
     }
 }

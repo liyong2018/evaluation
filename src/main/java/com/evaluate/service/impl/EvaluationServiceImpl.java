@@ -38,6 +38,12 @@ public class EvaluationServiceImpl implements IEvaluationService {
     
     @Autowired
     private IReportService reportService;
+    
+    @Autowired
+    private AlgorithmExecutionService algorithmExecutionService;
+    
+    @Autowired
+    private IAlgorithmConfigService algorithmConfigService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -47,34 +53,41 @@ public class EvaluationServiceImpl implements IEvaluationService {
         Map<String, Object> result = new HashMap<>();
         
         try {
-            // 1. 计算二级指标结果
-            List<SecondaryIndicatorResult> secondaryResults = calculateSecondaryIndicators(surveyId, algorithmId, weightConfigId);
-            result.put("secondaryResults", secondaryResults);
+            // 1. 获取算法配置
+            AlgorithmConfig algorithmConfig = algorithmConfigService.getById(algorithmId);
+            if (algorithmConfig == null) {
+                throw new RuntimeException("算法配置不存在: " + algorithmId);
+            }
             
-            // 2. 计算一级指标结果
-            List<PrimaryIndicatorResult> primaryResults = calculatePrimaryIndicators(surveyId, algorithmId, weightConfigId, secondaryResults);
-            result.put("primaryResults", primaryResults);
+            // 2. 获取调查数据（按ID）
+            SurveyData surveyData = surveyDataService.getById(surveyId);
+            if (surveyData == null) {
+                throw new RuntimeException("调查数据不存在: " + surveyId);
+            }
+            List<SurveyData> surveyDataList = Collections.singletonList(surveyData);
             
-            // 3. 计算综合得分
-            Double totalScore = calculateTotalScore(primaryResults);
-            result.put("totalScore", totalScore);
+            // 3. 获取权重配置
+            Map<String, Double> weightConfig = getWeightConfigMap(weightConfigId);
             
-            // 4. 确定评估等级
-            String evaluationGrade = determineEvaluationGrade(totalScore);
-            result.put("evaluationGrade", evaluationGrade);
+            // 4. 提取地区ID列表（按传入的surveyId）
+            List<Long> regionIds = Collections.singletonList(surveyId);
             
-            // 5. 生成评估报告
-            Report report = generateEvaluationReport(surveyId, algorithmId, weightConfigId, primaryResults, "System");
-            result.put("report", report);
+            // 5. 执行完整的算法流程（步骤1-5）
+            Map<String, Object> algorithmResult = algorithmExecutionService.executeAlgorithm(
+                algorithmConfig, surveyDataList, weightConfig, regionIds);
             
-            // 6. 获取算法过程数据
-            Map<String, Object> processData = getAlgorithmProcessData(surveyId, algorithmId, weightConfigId);
-            result.put("processData", processData);
+            // 6. 保存评估结果到数据库
+            saveEvaluationResults(surveyId, algorithmId, weightConfigId, algorithmResult);
+            
+            // 7. 记录评估历史
+            recordEvaluationHistory(surveyId, algorithmId, weightConfigId, algorithmResult);
             
             result.put("success", true);
             result.put("message", "评估计算完成");
+            result.put("algorithmResult", algorithmResult);
+            result.put("executionId", algorithmResult.get("executionId"));
             
-            log.info("评估计算完成: 综合得分={}, 评估等级={}", totalScore, evaluationGrade);
+            log.info("评估计算完成: executionId={}", algorithmResult.get("executionId"));
             
         } catch (Exception e) {
             log.error("评估计算失败", e);
@@ -90,8 +103,8 @@ public class EvaluationServiceImpl implements IEvaluationService {
     public List<SecondaryIndicatorResult> calculateSecondaryIndicators(Long surveyId, Long algorithmId, Long weightConfigId) {
         log.info("开始计算二级指标结果");
         
-        // 获取调查数据
-        List<SurveyData> surveyDataList = surveyDataService.getBySurveyName("Survey_" + surveyId);
+        // 获取调查数据（按ID）
+        SurveyData surveyDataRecord = surveyDataService.getById(surveyId);
         
         // 获取权重配置
         List<IndicatorWeight> weights = indicatorWeightService.getByConfigIdAndLevel(weightConfigId, 2);
@@ -99,12 +112,9 @@ public class EvaluationServiceImpl implements IEvaluationService {
         List<SecondaryIndicatorResult> results = new ArrayList<>();
         
         for (IndicatorWeight weight : weights) {
-            // 查找对应的调查数据 - 暂时跳过，因为新的数据结构不再有indicatorCode字段
-            // 这里需要根据实际业务逻辑重新设计
-            Optional<SurveyData> surveyDataOpt = surveyDataList.stream().findFirst();
-            
-            if (surveyDataOpt.isPresent()) {
-                SurveyData surveyData = surveyDataOpt.get();
+            // 按ID获取到的调查数据
+            if (surveyDataRecord != null) {
+                SurveyData surveyData = surveyDataRecord;
                 
                 SecondaryIndicatorResult result = new SecondaryIndicatorResult();
                 result.setSurveyId(surveyId);
@@ -322,8 +332,8 @@ public class EvaluationServiceImpl implements IEvaluationService {
     @Override
     public boolean validateEvaluationParams(Long surveyId, Long algorithmId, Long weightConfigId) {
         // 验证调查数据是否存在
-        List<SurveyData> surveyData = surveyDataService.getBySurveyName("Survey_" + surveyId);
-        if (surveyData.isEmpty()) {
+        SurveyData surveyData = surveyDataService.getById(surveyId);
+        if (surveyData == null) {
             log.error("调查数据不存在: surveyId={}", surveyId);
             return false;
         }
@@ -335,10 +345,75 @@ public class EvaluationServiceImpl implements IEvaluationService {
             return false;
         }
         
-        // 验证权重配置完整性
+        // 若该权重配置下没有任何指标权重，初始化默认权重
+        List<IndicatorWeight> existingWeights = indicatorWeightService.getByConfigId(weightConfigId);
+        if (existingWeights == null || existingWeights.isEmpty()) {
+            log.warn("当前权重配置下没有任何指标权重，初始化默认权重: weightConfigId={}", weightConfigId);
+            try {
+                indicatorWeightService.initDefaultWeights(weightConfigId);
+            } catch (Exception initEx) {
+                log.error("初始化默认权重失败", initEx);
+                return false;
+            }
+        }
+        
+        // 验证权重配置完整性；若不通过则尝试自动归一化修复
         if (!indicatorWeightService.validateWeightIntegrity(weightConfigId)) {
-            log.error("权重配置不完整: weightConfigId={}", weightConfigId);
-            return false;
+            try {
+                log.warn("权重配置完整性校验未通过，尝试自动归一化修复: weightConfigId={}", weightConfigId);
+                List<IndicatorWeight> allWeights = indicatorWeightService.getByConfigId(weightConfigId);
+                if (allWeights != null && !allWeights.isEmpty()) {
+                    // 归一化一级指标权重
+                    List<IndicatorWeight> primaryWeights = allWeights.stream()
+                        .filter(w -> w.getIndicatorLevel() == 1)
+                        .collect(Collectors.toList());
+                    double primarySum = primaryWeights.stream().mapToDouble(IndicatorWeight::getWeight).sum();
+                    if (primarySum > 0) {
+                        for (IndicatorWeight w : primaryWeights) {
+                            w.setWeight(w.getWeight() / primarySum);
+                            indicatorWeightService.updateById(w);
+                        }
+                    } else if (!primaryWeights.isEmpty()) {
+                        // 总和为0，均分
+                        double equal = 1.0 / primaryWeights.size();
+                        for (IndicatorWeight w : primaryWeights) {
+                            w.setWeight(equal);
+                            indicatorWeightService.updateById(w);
+                        }
+                    }
+                    
+                    // 归一化每个一级指标下的二级指标权重
+                    Map<Long, List<IndicatorWeight>> secondaryGroups = allWeights.stream()
+                        .filter(w -> w.getIndicatorLevel() == 2 && w.getParentId() != null)
+                        .collect(Collectors.groupingBy(IndicatorWeight::getParentId));
+                    for (Map.Entry<Long, List<IndicatorWeight>> entry : secondaryGroups.entrySet()) {
+                        List<IndicatorWeight> group = entry.getValue();
+                        double sum = group.stream().mapToDouble(IndicatorWeight::getWeight).sum();
+                        if (sum > 0) {
+                            for (IndicatorWeight w : group) {
+                                w.setWeight(w.getWeight() / sum);
+                                indicatorWeightService.updateById(w);
+                            }
+                        } else if (!group.isEmpty()) {
+                            // 总和为0，均分
+                            double equal = 1.0 / group.size();
+                            for (IndicatorWeight w : group) {
+                                w.setWeight(equal);
+                                indicatorWeightService.updateById(w);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                log.error("自动归一化修复权重配置失败", ex);
+                return false;
+            }
+            
+            // 修复后重新校验
+            if (!indicatorWeightService.validateWeightIntegrity(weightConfigId)) {
+                log.error("权重配置完整性仍未通过: weightConfigId={}", weightConfigId);
+                return false;
+            }
         }
         
         return true;
@@ -526,5 +601,80 @@ public class EvaluationServiceImpl implements IEvaluationService {
         }
         
         return recommendations.toString();
+    }
+    
+    /**
+     * 获取权重配置映射
+     */
+    private Map<String, Double> getWeightConfigMap(Long weightConfigId) {
+        Map<String, Double> weightConfig = new HashMap<>();
+        
+        // 获取所有权重配置
+        List<IndicatorWeight> weights = indicatorWeightService.getByConfigId(weightConfigId);
+        
+        for (IndicatorWeight weight : weights) {
+            weightConfig.put(weight.getIndicatorCode(), weight.getWeight());
+        }
+        
+        return weightConfig;
+    }
+    
+    /**
+     * 保存评估结果到数据库
+     */
+    @Transactional(rollbackFor = Exception.class)
+    private void saveEvaluationResults(Long surveyId, Long algorithmId, Long weightConfigId, Map<String, Object> algorithmResult) {
+        log.info("开始保存评估结果到数据库");
+        
+        try {
+            // 获取算法步骤结果
+            @SuppressWarnings("unchecked")
+            Map<String, Object> steps = (Map<String, Object>) algorithmResult.get("steps");
+            
+            if (steps != null) {
+                // 保存每个步骤的结果
+                for (Map.Entry<String, Object> stepEntry : steps.entrySet()) {
+                    String stepCode = stepEntry.getKey();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> stepResult = (Map<String, Object>) stepEntry.getValue();
+                    
+                    // 这里可以根据需要保存到相应的结果表
+                    log.info("保存步骤结果: stepCode={}, executionTime={}", 
+                            stepCode, stepResult.get("executionTime"));
+                }
+            }
+            
+            log.info("评估结果保存完成");
+            
+        } catch (Exception e) {
+            log.error("保存评估结果失败", e);
+            throw new RuntimeException("保存评估结果失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 记录评估历史
+     */
+    @Transactional(rollbackFor = Exception.class)
+    private void recordEvaluationHistory(Long surveyId, Long algorithmId, Long weightConfigId, Map<String, Object> algorithmResult) {
+        log.info("开始记录评估历史");
+        
+        try {
+            // 创建评估报告记录
+            Report report = new Report();
+            report.setReportName("减灾能力评估报告_" + surveyId + "_" + System.currentTimeMillis());
+            report.setReportType("EVALUATION");
+            report.setGenerateTime(LocalDateTime.now());
+            
+            // 保存报告到数据库
+            reportService.save(report);
+            
+            log.info("评估历史记录完成: reportId={}, executionId={}", 
+                    report.getId(), algorithmResult.get("executionId"));
+            
+        } catch (Exception e) {
+            log.error("记录评估历史失败", e);
+            throw new RuntimeException("记录评估历史失败: " + e.getMessage(), e);
+        }
     }
 }

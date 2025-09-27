@@ -133,7 +133,9 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             // 创建标题行
             Row headerRow = sheet.createRow(0);
             String[] headers = {"行政区代码", "省名称", "市名称", "县名称", "乡镇名称", 
-                              "常住人口", "管理人员", "风险评估", "资金投入", "物资价值"};
+                              "常住人口", "管理人员", "风险评估", "资金投入", "物资价值", 
+                              "医院床位", "消防员数量", "志愿者人数", "民兵预备役", 
+                              "培训参与人次", "避难场所容量"};
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
@@ -154,6 +156,12 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                 row.createCell(7).setCellValue(data.getRiskAssessment());
                 row.createCell(8).setCellValue(data.getFundingAmount() != null ? data.getFundingAmount() : 0);
                 row.createCell(9).setCellValue(data.getMaterialValue() != null ? data.getMaterialValue() : 0);
+                row.createCell(10).setCellValue(data.getHospitalBeds() != null ? data.getHospitalBeds() : 0);
+                row.createCell(11).setCellValue(data.getFirefighters() != null ? data.getFirefighters() : 0);
+                row.createCell(12).setCellValue(data.getVolunteers() != null ? data.getVolunteers() : 0);
+                row.createCell(13).setCellValue(data.getMilitiaReserve() != null ? data.getMilitiaReserve() : 0);
+                row.createCell(14).setCellValue(data.getTrainingParticipants() != null ? data.getTrainingParticipants() : 0);
+                row.createCell(15).setCellValue(data.getShelterCapacity() != null ? data.getShelterCapacity() : 0);
             }
             
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -208,6 +216,90 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
         return remove(wrapper);
     }
 
+    @Override
+    public List<SurveyData> searchByKeyword(String keyword) {
+        log.info("开始根据关键词搜索数据，关键词: '{}'", keyword);
+        
+        QueryWrapper<SurveyData> wrapper = new QueryWrapper<>();
+        wrapper.and(w -> w
+            .like("region_code", keyword)
+            .or().like("province", keyword)
+            .or().like("city", keyword)
+            .or().like("county", keyword)
+            .or().like("township", keyword)
+        );
+        
+        List<SurveyData> result = list(wrapper);
+        log.info("搜索完成，找到 {} 条数据", result.size());
+        return result;
+    }
+
+    @Override
+    public byte[] exportAllToExcel() {
+        log.info("开始导出所有数据到Excel");
+        List<SurveyData> dataList = list(); // 获取所有数据
+        log.info("获取到 {} 条数据", dataList.size());
+        
+        if (dataList.isEmpty()) {
+            log.warn("没有数据可导出");
+            throw new RuntimeException("没有数据可导出");
+        }
+        
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("调查数据");
+            
+            // 创建标题行
+            Row headerRow = sheet.createRow(0);
+            String[] headers = {"行政区代码", "省名称", "市名称", "县名称", "乡镇名称", 
+                              "常住人口", "管理人员", "风险评估", "资金投入", "物资价值", 
+                              "医院床位", "消防员数量", "志愿者人数", "民兵预备役", 
+                              "培训参与人次", "避难场所容量"};
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+            }
+            
+            // 填充数据
+            for (int i = 0; i < dataList.size(); i++) {
+                SurveyData data = dataList.get(i);
+                Row row = sheet.createRow(i + 1);
+                
+                row.createCell(0).setCellValue(data.getRegionCode() != null ? data.getRegionCode() : "");
+                row.createCell(1).setCellValue(data.getProvince() != null ? data.getProvince() : "");
+                row.createCell(2).setCellValue(data.getCity() != null ? data.getCity() : "");
+                row.createCell(3).setCellValue(data.getCounty() != null ? data.getCounty() : "");
+                row.createCell(4).setCellValue(data.getTownship() != null ? data.getTownship() : "");
+                row.createCell(5).setCellValue(data.getPopulation() != null ? data.getPopulation() : 0);
+                row.createCell(6).setCellValue(data.getManagementStaff() != null ? data.getManagementStaff() : 0);
+                row.createCell(7).setCellValue(data.getRiskAssessment() != null ? data.getRiskAssessment() : "");
+                row.createCell(8).setCellValue(data.getFundingAmount() != null ? data.getFundingAmount() : 0.0);
+                row.createCell(9).setCellValue(data.getMaterialValue() != null ? data.getMaterialValue() : 0.0);
+                row.createCell(10).setCellValue(data.getHospitalBeds() != null ? data.getHospitalBeds() : 0);
+                row.createCell(11).setCellValue(data.getFirefighters() != null ? data.getFirefighters() : 0);
+                row.createCell(12).setCellValue(data.getVolunteers() != null ? data.getVolunteers() : 0);
+                row.createCell(13).setCellValue(data.getMilitiaReserve() != null ? data.getMilitiaReserve() : 0);
+                row.createCell(14).setCellValue(data.getTrainingParticipants() != null ? data.getTrainingParticipants() : 0);
+                row.createCell(15).setCellValue(data.getShelterCapacity() != null ? data.getShelterCapacity() : 0);
+            }
+            
+            // 自动调整列宽
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            
+            // 转换为字节数组
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            workbook.write(outputStream);
+            byte[] result = outputStream.toByteArray();
+            log.info("Excel文件生成成功，大小: {} 字节", result.length);
+            return result;
+            
+        } catch (Exception e) {
+            log.error("导出Excel失败", e);
+            throw new RuntimeException("导出Excel失败: " + e.getMessage());
+        }
+    }
+
     /**
      * 解析Excel行数据为SurveyData对象
      */
@@ -241,6 +333,36 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             Cell materialCell = row.getCell(9);
             if (materialCell != null) {
                 data.setMaterialValue(materialCell.getNumericCellValue());
+            }
+            
+            Cell hospitalBedsCell = row.getCell(10);
+            if (hospitalBedsCell != null) {
+                data.setHospitalBeds((int) hospitalBedsCell.getNumericCellValue());
+            }
+            
+            Cell firefightersCell = row.getCell(11);
+            if (firefightersCell != null) {
+                data.setFirefighters((int) firefightersCell.getNumericCellValue());
+            }
+            
+            Cell volunteersCell = row.getCell(12);
+            if (volunteersCell != null) {
+                data.setVolunteers((int) volunteersCell.getNumericCellValue());
+            }
+            
+            Cell militiaReserveCell = row.getCell(13);
+            if (militiaReserveCell != null) {
+                data.setMilitiaReserve((int) militiaReserveCell.getNumericCellValue());
+            }
+            
+            Cell trainingParticipantsCell = row.getCell(14);
+            if (trainingParticipantsCell != null) {
+                data.setTrainingParticipants((int) trainingParticipantsCell.getNumericCellValue());
+            }
+            
+            Cell shelterCapacityCell = row.getCell(15);
+            if (shelterCapacityCell != null) {
+                data.setShelterCapacity((int) shelterCapacityCell.getNumericCellValue());
             }
             
             return data;
