@@ -9589,3 +9589,732 @@ java.lang.Error: Unresolved compilation problem:
 	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659)
 	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61)
 	at java.base/java.lang.Thread.run(Thread.java:842)
+2025-09-27 18:15:44.762 [main] INFO  com.evaluate.EvaluateApplication - Starting EvaluateApplication using Java 17.0.14 on DESKTOP-KC2OIL3 with PID 124288 (D:\Evaluation\evaluation\target\classes started by admin in D:\Evaluation\evaluation)
+2025-09-27 18:15:44.763 [main] DEBUG com.evaluate.EvaluateApplication - Running with Spring Boot v2.7.18, Spring v5.3.31
+2025-09-27 18:15:44.764 [main] INFO  com.evaluate.EvaluateApplication - No active profile set, falling back to 1 default profile: "default"
+2025-09-27 18:15:45.554 [main] INFO  o.s.boot.web.embedded.tomcat.TomcatWebServer - Tomcat initialized with port(s): 8081 (http)
+2025-09-27 18:15:45.563 [main] INFO  org.apache.catalina.core.StandardService - Starting service [Tomcat]
+2025-09-27 18:15:45.564 [main] INFO  org.apache.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/9.0.83]
+2025-09-27 18:15:45.633 [main] INFO  o.a.c.core.ContainerBase.[Tomcat].[localhost].[/] - Initializing Spring embedded WebApplicationContext
+2025-09-27 18:15:45.634 [main] INFO  o.s.b.w.s.c.ServletWebServerApplicationContext - Root WebApplicationContext: initialization completed in 826 ms
+2025-09-27 18:15:46.301 [main] INFO  o.s.boot.web.embedded.tomcat.TomcatWebServer - Tomcat started on port(s): 8081 (http) with context path ''
+2025-09-27 18:15:46.307 [main] INFO  com.evaluate.EvaluateApplication - Started EvaluateApplication in 1.883 seconds (JVM running for 2.127)
+2025-09-27 18:19:39.935 [main] INFO  com.evaluate.EvaluateApplication - Starting EvaluateApplication using Java 17.0.14 on DESKTOP-KC2OIL3 with PID 83124 (D:\Evaluation\evaluation\target\classes started by admin in D:\Evaluation\evaluation)
+2025-09-27 18:19:39.936 [main] DEBUG com.evaluate.EvaluateApplication - Running with Spring Boot v2.7.18, Spring v5.3.31
+2025-09-27 18:19:39.937 [main] INFO  com.evaluate.EvaluateApplication - No active profile set, falling back to 1 default profile: "default"
+2025-09-27 18:19:40.601 [main] INFO  o.s.boot.web.embedded.tomcat.TomcatWebServer - Tomcat initialized with port(s): 8081 (http)
+2025-09-27 18:19:40.608 [main] INFO  org.apache.catalina.core.StandardService - Starting service [Tomcat]
+2025-09-27 18:19:40.608 [main] INFO  org.apache.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/9.0.83]
+2025-09-27 18:19:40.665 [main] INFO  o.a.c.core.ContainerBase.[Tomcat].[localhost].[/] - Initializing Spring embedded WebApplicationContext
+2025-09-27 18:19:40.665 [main] INFO  o.s.b.w.s.c.ServletWebServerApplicationContext - Root WebApplicationContext: initialization completed in 695 ms
+2025-09-27 18:19:41.238 [main] INFO  o.s.boot.web.embedded.tomcat.TomcatWebServer - Tomcat started on port(s): 8081 (http) with context path ''
+2025-09-27 18:19:41.243 [main] INFO  com.evaluate.EvaluateApplication - Started EvaluateApplication in 1.585 seconds (JVM running for 1.789)
+2025-09-27 18:21:15.199 [main] INFO  com.evaluate.EvaluateApplication - Starting EvaluateApplication using Java 17.0.14 on DESKTOP-KC2OIL3 with PID 58148 (D:\Evaluation\evaluation\target\classes started by admin in D:\Evaluation\evaluation)
+2025-09-27 18:21:15.201 [main] DEBUG com.evaluate.EvaluateApplication - Running with Spring Boot v2.7.18, Spring v5.3.31
+2025-09-27 18:21:15.201 [main] INFO  com.evaluate.EvaluateApplication - No active profile set, falling back to 1 default profile: "default"
+2025-09-27 18:21:15.862 [main] INFO  o.s.boot.web.embedded.tomcat.TomcatWebServer - Tomcat initialized with port(s): 8081 (http)
+2025-09-27 18:21:15.868 [main] INFO  org.apache.catalina.core.StandardService - Starting service [Tomcat]
+2025-09-27 18:21:15.868 [main] INFO  org.apache.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/9.0.83]
+2025-09-27 18:21:15.925 [main] INFO  o.a.c.core.ContainerBase.[Tomcat].[localhost].[/] - Initializing Spring embedded WebApplicationContext
+2025-09-27 18:21:15.926 [main] INFO  o.s.b.w.s.c.ServletWebServerApplicationContext - Root WebApplicationContext: initialization completed in 694 ms
+2025-09-27 18:21:16.478 [main] INFO  o.s.boot.web.embedded.tomcat.TomcatWebServer - Tomcat started on port(s): 8081 (http) with context path ''
+2025-09-27 18:21:16.484 [main] INFO  com.evaluate.EvaluateApplication - Started EvaluateApplication in 1.57 seconds (JVM running for 1.783)
+2025-09-27 18:22:13.215 [http-nio-8081-exec-1] INFO  o.a.c.core.ContainerBase.[Tomcat].[localhost].[/] - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2025-09-27 18:22:13.216 [http-nio-8081-exec-1] INFO  org.springframework.web.servlet.DispatcherServlet - Initializing Servlet 'dispatcherServlet'
+2025-09-27 18:22:13.216 [http-nio-8081-exec-1] INFO  org.springframework.web.servlet.DispatcherServlet - Completed initialization in 0 ms
+2025-09-27 18:22:13.294 [http-nio-8081-exec-1] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+2025-09-27 18:22:13.440 [http-nio-8081-exec-1] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.
+2025-09-27 18:22:49.139 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:49.156 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.166 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:49.167 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:49.180 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.190 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:49.192 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:49.200 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.209 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.210 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:49.219 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.230 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.231 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:49.241 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.256 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.259 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:49.277 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.283 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.284 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:49.290 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.295 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.296 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:49.303 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.309 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.332 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:49.332 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:49.333 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:49.334 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:49.334 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:49.334 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:49.335 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:49.335 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:49.335 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:49.343 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:49.344 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:49.344 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:49.345 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:49.345 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:49.345 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:49.346 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:49.346 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:49.346 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:49.346 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:49.346 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:49.347 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:49.347 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:49.347 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:49.348 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:49.348 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:49.348 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:49.348 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:49.354 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:49.361 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.367 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:49.367 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:49.374 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.380 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.380 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:49.385 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.392 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.393 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:49.399 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.404 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.404 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:49.412 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.416 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.417 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:49.424 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.431 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.431 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:49.437 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.443 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.448 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:49.448 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:49.448 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:49.448 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:49.448 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:49.449 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:49.449 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:49.449 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:49.450 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:49.459 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:49.459 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:49.459 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:49.460 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:49.460 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:49.461 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:49.461 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:49.462 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:49.462 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:49.463 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:49.464 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:49.464 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:49.465 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:49.466 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:49.467 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:49.467 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:49.468 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:49.468 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:49.480 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:49.486 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.490 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.491 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:49.498 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.505 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:49.505 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:49.511 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.518 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.519 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:49.524 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.536 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.536 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:49.542 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.551 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.552 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:49.556 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.564 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.565 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:49.570 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.574 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.574 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:49.581 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.586 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.591 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:49.592 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:49.592 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:49.592 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:49.592 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:49.592 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:49.592 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:49.592 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:49.592 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:49.599 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:49.599 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:49.599 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:49.599 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:49.600 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:49.600 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:49.600 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:49.600 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:49.600 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:49.600 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:49.600 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:49.601 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:49.601 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:49.601 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:49.601 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:49.601 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:49.601 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:49.601 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:49.602 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:49.607 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.613 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:49.613 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:49.618 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.622 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.622 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:49.633 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.640 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.640 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:49.648 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.654 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.654 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:49.661 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.670 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.670 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:49.674 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.678 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.678 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:49.682 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.685 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.691 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:49.691 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:49.691 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:49.692 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:49.692 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:49.692 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:49.692 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:49.692 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:49.692 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:49.701 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:49.701 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:49.702 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:49.702 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:49.702 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:49.703 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:49.703 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:49.703 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:49.704 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:49.704 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:49.704 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:49.704 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:49.704 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:49.704 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:49.704 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:49.704 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:49.705 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:49.705 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:49.706 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:49.710 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.718 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.718 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:49.722 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.727 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:49.728 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:49.733 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.739 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.740 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:49.748 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.753 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.753 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:49.758 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.766 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.767 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:49.773 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.780 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.781 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:49.787 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.794 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.796 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:49.805 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.809 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.816 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:49.817 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:49.818 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:49.818 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:49.818 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:49.819 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:49.819 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:49.819 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:49.819 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:49.827 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:49.828 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:49.828 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:49.828 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:49.830 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:49.831 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:49.832 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:49.834 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:49.835 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:49.835 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:49.836 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:49.837 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:49.837 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:49.838 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:49.838 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:49.839 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:49.839 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:49.840 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:49.841 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:49.850 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.857 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:49.857 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:49.866 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.873 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.874 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:49.882 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.887 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.888 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:49.894 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.901 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.901 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:49.907 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.915 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.916 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:49.922 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.932 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.933 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:49.941 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.949 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:49.957 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:49.957 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:49.957 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:49.957 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:49.957 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:49.958 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:49.958 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:49.958 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:49.958 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:49.967 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:49.967 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:49.967 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:49.967 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:49.968 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:49.968 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:49.968 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:49.968 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:49.969 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:49.969 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:49.969 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:49.970 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:49.970 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:49.970 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:49.970 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:49.971 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:49.971 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:49.971 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:49.973 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:49.980 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.983 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:49.984 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:49.991 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:49.999 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:49.999 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:50.007 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.013 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.014 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:50.020 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.027 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.028 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:50.037 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.057 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.060 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:50.071 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.085 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.086 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:50.100 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.108 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.109 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:50.116 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.124 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.140 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:50.141 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:50.141 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:50.142 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:50.142 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:50.142 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:50.142 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:50.142 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:50.144 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:50.160 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:50.164 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:50.164 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:50.165 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:50.165 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:50.166 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:50.166 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:50.166 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:50.166 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:50.166 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:50.167 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:50.167 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:50.168 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:50.168 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:50.168 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:50.168 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:50.169 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:50.169 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:50.170 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:50.181 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.189 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:50.190 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:50.196 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.202 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.202 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:50.206 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.212 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.213 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:50.217 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.222 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.223 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:50.232 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.237 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.237 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:50.246 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.251 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.252 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:50.256 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.261 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.269 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:50.269 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:50.269 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:50.269 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:50.270 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:50.270 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:50.270 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:50.270 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:50.270 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:50.282 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:50.283 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:50.283 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:50.283 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:50.284 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:50.285 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:50.285 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:50.285 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:50.285 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:50.285 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:50.286 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:50.286 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:50.286 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:50.286 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:50.287 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:50.287 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:50.287 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:50.288 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:50.289 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:50.294 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.298 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.299 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:50.303 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.309 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:50.309 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:50.316 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.320 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.320 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:50.325 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.331 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.331 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:50.336 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.341 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.341 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:50.347 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.351 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.351 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:50.354 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.358 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.358 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:50.364 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.370 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.373 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:50.373 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:50.374 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:50.374 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:50.374 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:50.374 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:50.374 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:50.375 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:50.375 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:50.383 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:50.383 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:50.383 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:50.383 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:50.384 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:50.384 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:50.384 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:50.384 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:50.384 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:50.384 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:50.385 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:50.385 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:50.385 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:50.386 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:50.386 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:50.386 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:50.386 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:50.386 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:50.386 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:50.391 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.397 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:50.397 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:50.402 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.408 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.408 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:50.415 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.421 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.421 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:50.429 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.435 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.436 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:50.443 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.450 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.451 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:50.458 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.463 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.463 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:50.472 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.479 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.489 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:50.489 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:50.489 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:50.490 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:50.490 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:50.490 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:50.490 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:50.491 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:50.491 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:50.502 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:50.502 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:50.502 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:50.502 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:50.503 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:50.503 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:50.503 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:50.504 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:50.504 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:50.504 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:50.505 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:50.505 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:50.505 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:50.506 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:50.506 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:50.506 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:50.507 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:50.507 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:50.508 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:50.575 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.597 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.597 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:50.620 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.637 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:50.639 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:50.648 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.653 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.653 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:50.667 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.676 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.676 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:50.681 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.686 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.686 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:50.692 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.704 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.705 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:50.711 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.716 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.716 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:50.722 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.726 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.732 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:50.732 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:50.733 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:50.734 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:50.734 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:50.734 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:50.734 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:50.735 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:50.735 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:50.746 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:50.746 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:50.746 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:50.747 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:50.747 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:50.747 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:50.748 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:50.748 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:50.748 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:50.748 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:50.749 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:50.749 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:50.749 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:50.750 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:50.750 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:50.751 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:50.751 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:50.752 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:50.753 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:50.768 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.774 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:50.775 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:50.786 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.791 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.791 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:50.796 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.801 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.801 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:50.807 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.815 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.815 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:50.819 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.823 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.824 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:50.830 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.835 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.836 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:50.842 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.847 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.852 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:50.852 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:50.852 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:50.852 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:50.853 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:50.853 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:50.854 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:50.854 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:50.854 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:50.861 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:50.861 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:50.862 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:50.863 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:50.863 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:50.863 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:50.864 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:50.864 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:50.864 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:50.865 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:50.865 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:50.865 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:50.865 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:50.865 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:50.866 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:50.866 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:50.866 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:50.866 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:50.867 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:50.875 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.883 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.883 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:50.892 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.911 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:50.911 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:50.919 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.925 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.925 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:50.931 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.936 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.937 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:50.942 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.949 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.950 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:50.955 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.960 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:50.960 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:50.965 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.971 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.971 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:50.979 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:50.985 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:50.992 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:50.992 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:50.992 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:50.993 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:50.993 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:50.994 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:50.994 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:50.994 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:50.995 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:51.004 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:51.005 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:51.005 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:51.005 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:51.005 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:51.006 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:51.006 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:51.006 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:51.007 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:51.007 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:51.007 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:51.008 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:51.008 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:51.008 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:51.008 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:51.009 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:51.009 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:51.009 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:51.010 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '青竹街道'
+2025-09-27 18:22:51.017 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:51.022 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '青竹街道' 查询到 2 条调查数据
+2025-09-27 18:22:51.022 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '汉阳镇'
+2025-09-27 18:22:51.029 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:51.036 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '汉阳镇' 查询到 1 条调查数据
+2025-09-27 18:22:51.036 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '瑞峰镇'
+2025-09-27 18:22:51.043 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:51.051 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '瑞峰镇' 查询到 1 条调查数据
+2025-09-27 18:22:51.052 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '西龙镇'
+2025-09-27 18:22:51.059 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:51.070 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '西龙镇' 查询到 1 条调查数据
+2025-09-27 18:22:51.071 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '高台镇'
+2025-09-27 18:22:51.079 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:51.085 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '高台镇' 查询到 1 条调查数据
+2025-09-27 18:22:51.085 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '白果乡'
+2025-09-27 18:22:51.091 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:51.097 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '白果乡' 查询到 1 条调查数据
+2025-09-27 18:22:51.098 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 开始查询地区数据，输入参数: '罗波乡'
+2025-09-27 18:22:51.105 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 数据库中所有township值: [东华门街道, 汉阳镇, 瑞峰镇, 白果乡, 罗波乡, 西龙镇, 青竹街道, 高台镇]
+2025-09-27 18:22:51.111 [http-nio-8081-exec-3] INFO  com.evaluate.service.impl.SurveyDataServiceImpl - 精确匹配乡镇名称 '罗波乡' 查询到 1 条调查数据
+2025-09-27 18:22:51.117 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 从数据库获取到 3 条一级权重配置记录
+2025-09-27 18:22:51.118 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_MANAGEMENT, weightValue=0.33
+2025-09-27 18:22:51.118 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_MANAGEMENT
+2025-09-27 18:22:51.118 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_PREPARATION, weightValue=0.32
+2025-09-27 18:22:51.118 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_PREPARATION
+2025-09-27 18:22:51.119 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 处理权重配置: indicatorCode=L1_SELF_RESCUE, weightValue=0.35
+2025-09-27 18:22:51.119 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未识别的一级指标代码: L1_SELF_RESCUE
+2025-09-27 18:22:51.119 [http-nio-8081-exec-3] WARN  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重
+2025-09-27 18:22:51.119 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getPrimaryIndicatorWeights - 最终一级权重配置: {disasterPreparedness=0.32, selfRescueTransfer=0.35, disasterManagement=0.33}
+2025-09-27 18:22:51.127 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 从数据库获取到 8 条权重配置记录
+2025-09-27 18:22:51.128 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MANAGEMENT_CAPABILITY, weightValue=0.37
+2025-09-27 18:22:51.128 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MANAGEMENT_CAPABILITY -> teamManagement: 0.37
+2025-09-27 18:22:51.129 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MATERIAL, weightValue=0.51
+2025-09-27 18:22:51.129 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MATERIAL -> materialReserve: 0.51
+2025-09-27 18:22:51.129 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_SELF_RESCUE, weightValue=0.33
+2025-09-27 18:22:51.129 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_SELF_RESCUE -> selfRescue: 0.33
+2025-09-27 18:22:51.130 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RISK_ASSESSMENT, weightValue=0.31
+2025-09-27 18:22:51.131 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RISK_ASSESSMENT -> riskAssessment: 0.31
+2025-09-27 18:22:51.131 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_MEDICAL, weightValue=0.49
+2025-09-27 18:22:51.131 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_MEDICAL -> medicalSupport: 0.49
+2025-09-27 18:22:51.131 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_PUBLIC_AVOIDANCE, weightValue=0.33
+2025-09-27 18:22:51.132 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_PUBLIC_AVOIDANCE -> publicAvoidance: 0.33
+2025-09-27 18:22:51.132 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_FUNDING, weightValue=0.32
+2025-09-27 18:22:51.132 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_FUNDING -> financialInput: 0.32
+2025-09-27 18:22:51.133 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 处理权重配置: indicatorCode=L2_RELOCATION, weightValue=0.34
+2025-09-27 18:22:51.133 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 映射 L2_RELOCATION -> relocationCapacity: 0.34
+2025-09-27 18:22:51.134 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - getSecondaryIndicatorWeights - 最终权重配置: {selfRescue=0.33, financialInput=0.32, teamManagement=0.37, riskAssessment=0.31, materialReserve=0.51, medicalSupport=0.49, publicAvoidance=0.33, relocationCapacity=0.34}
+2025-09-27 18:22:51.134 [http-nio-8081-exec-3] INFO  c.e.service.impl.AlgorithmExecutionServiceImpl - 步骤 5 计算完成，生成 7 条数据
