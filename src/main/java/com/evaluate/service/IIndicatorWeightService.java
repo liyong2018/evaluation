@@ -144,4 +144,10 @@ public interface IIndicatorWeightService extends IService<IndicatorWeight> {
      * @return 验证结果
      */
     boolean validateIndicatorWeight(IndicatorWeight indicatorWeight);
+
+    List<IndicatorWeight> getSecondaryWeights(Long weightConfigId);
+
+    List<IndicatorWeight> getPrimaryWeights(Long weightConfigId);
+
+    List<IndicatorWeight> getChildWeights(Long weightConfigId, Long parentId);
 }

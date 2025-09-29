@@ -31,79 +31,68 @@ public class SecondaryIndicatorResult implements Serializable {
     /**
      * 调查数据ID
      */
-    @TableField("survey_id")
-    private Long surveyId;
+    @TableField("survey_data_id")
+    private Long surveyDataId;
 
     /**
-     * 算法配置ID
+     * 配置ID
      */
-    @TableField("algorithm_id")
-    private Long algorithmId;
+    @TableField("config_id")
+    private Long configId;
+
+    // 二级指标原始计算值
+    @TableField("management_capability")
+    private Double managementCapability;
+
+    @TableField("risk_assessment_capability")
+    private Double riskAssessmentCapability;
+
+    @TableField("funding_capability")
+    private Double fundingCapability;
+
+    @TableField("material_capability")
+    private Double materialCapability;
+
+    @TableField("medical_capability")
+    private Double medicalCapability;
+
+    @TableField("self_rescue_capability")
+    private Double selfRescueCapability;
+
+    @TableField("public_avoidance_capability")
+    private Double publicAvoidanceCapability;
+
+    @TableField("relocation_capability")
+    private Double relocationCapability;
+
+    // 二级指标归一化值
+    @TableField("management_normalized")
+    private Double managementNormalized;
+
+    @TableField("risk_assessment_normalized")
+    private Double riskAssessmentNormalized;
+
+    @TableField("funding_normalized")
+    private Double fundingNormalized;
+
+    @TableField("material_normalized")
+    private Double materialNormalized;
+
+    @TableField("medical_normalized")
+    private Double medicalNormalized;
+
+    @TableField("self_rescue_normalized")
+    private Double selfRescueNormalized;
+
+    @TableField("public_avoidance_normalized")
+    private Double publicAvoidanceNormalized;
+
+    @TableField("relocation_normalized")
+    private Double relocationNormalized;
 
     /**
-     * 权重配置ID
+     * 计算时间
      */
-    @TableField("weight_config_id")
-    private Long weightConfigId;
-
-    /**
-     * 二级指标代码
-     */
-    @TableField("indicator_code")
-    private String indicatorCode;
-
-    /**
-     * 二级指标名称
-     */
-    @TableField("indicator_name")
-    private String indicatorName;
-
-    /**
-     * 原始值
-     */
-    @TableField("original_value")
-    private Double originalValue;
-
-    /**
-     * 归一化值
-     */
-    @TableField("normalized_value")
-    private Double normalizedValue;
-
-    /**
-     * 权重值
-     */
-    @TableField("weight_value")
-    private Double weightValue;
-
-    /**
-     * 加权值
-     */
-    @TableField("weighted_value")
-    private Double weightedValue;
-
-    /**
-     * 计算过程数据(JSON格式)
-     */
-    @TableField("process_data")
-    private String processData;
-
-    /**
-     * 创建时间
-     */
-    @TableField(value = "create_time", fill = FieldFill.INSERT)
-    private LocalDateTime createTime;
-
-    /**
-     * 更新时间
-     */
-    @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updateTime;
-
-    /**
-     * 是否删除(0-未删除，1-已删除)
-     */
-    @TableLogic
-    @TableField("is_deleted")
-    private Integer isDeleted;
+    @TableField("calculate_time")
+    private LocalDateTime calculateTime;
 }

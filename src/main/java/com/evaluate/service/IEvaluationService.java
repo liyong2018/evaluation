@@ -31,9 +31,10 @@ public interface IEvaluationService {
      * @param surveyId 调查数据ID
      * @param algorithmId 算法配置ID
      * @param weightConfigId 权重配置ID
+     * @param algorithmResult 算法结果
      * @return 二级指标结果列表
      */
-    List<SecondaryIndicatorResult> calculateSecondaryIndicators(Long surveyId, Long algorithmId, Long weightConfigId);
+    List<SecondaryIndicatorResult> calculateSecondaryIndicators(Long surveyId, Long algorithmId, Long weightConfigId, Map<String, Object> algorithmResult);
 
     /**
      * 计算一级指标结果
@@ -150,4 +151,11 @@ public interface IEvaluationService {
      * @return 删除结果
      */
     boolean deleteEvaluationResults(Long surveyId, Long algorithmId, Long weightConfigId);
+
+    /**
+     * 保存评估结果到数据库
+     * 
+     * @param evaluationId 评估ID
+     */
+    void saveEvaluationResults(Long evaluationId);
 }

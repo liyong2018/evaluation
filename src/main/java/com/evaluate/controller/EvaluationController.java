@@ -28,12 +28,15 @@ public class EvaluationController {
             @RequestParam Long surveyId,
             @RequestParam Long algorithmId,
             @RequestParam Long weightConfigId) {
+        log.info("开始评估计算，surveyId: {}, algorithmId: {}, weightConfigId: {}", surveyId, algorithmId, weightConfigId);
         try {
             if (!evaluationService.validateEvaluationParams(surveyId, algorithmId, weightConfigId)) {
+                log.error("评估参数验证失败");
                 return Result.error("评估参数验证失败");
             }
             
             Map<String, Object> result = evaluationService.performEvaluation(surveyId, algorithmId, weightConfigId);
+            log.info("评估计算成功，结果: {}", result);
             return Result.success(result);
         } catch (Exception e) {
             log.error("执行评估计算失败", e);

@@ -1,6 +1,16 @@
 package com.evaluate.service.impl;
 
+import java.lang.reflect.Method;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.evaluate.entity.*;
+import com.evaluate.mapper.EvaluationMapper;
+import com.evaluate.mapper.PrimaryIndicatorResultMapper;
+import com.evaluate.mapper.SecondaryIndicatorResultMapper;
+import com.evaluate.mapper.SurveyDataMapper;
+import com.evaluate.service.IAlgorithmConfigService;
+import com.evaluate.service.IIndicatorWeightService;
+import com.evaluate.service.IReportService;
+import javax.annotation.Resource;
 import com.evaluate.service.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,29 +31,37 @@ import java.util.stream.Collectors;
 @Service
 public class EvaluationServiceImpl implements IEvaluationService {
 
+    @Resource
+    private SurveyDataMapper surveyDataMapper;
+    @Resource
+    private IIndicatorWeightService indicatorWeightService;
+    @Resource
+    private IAlgorithmConfigService algorithmService;
+    @Resource
+    private IReportService reportService;
+    @Resource
+    private EvaluationMapper evaluationMapper;
+
+    @Resource
+    private SecondaryIndicatorResultMapper secondaryIndicatorResultMapper;
+    @Resource
+    private PrimaryIndicatorResultMapper primaryIndicatorResultMapper;
+    @Resource
+    private ISecondaryIndicatorResultService secondaryIndicatorResultService;
+    @Resource
+    private IPrimaryIndicatorResultService primaryIndicatorResultService;
+
     @Autowired
     private ISurveyDataService surveyDataService;
-    
+
     @Autowired
     private IWeightConfigService weightConfigService;
-    
+
     @Autowired
-    private IIndicatorWeightService indicatorWeightService;
-    
-    @Autowired
-    private ISecondaryIndicatorResultService secondaryIndicatorResultService;
-    
-    @Autowired
-    private IPrimaryIndicatorResultService primaryIndicatorResultService;
-    
-    @Autowired
-    private IReportService reportService;
-    
+    private AlgorithmConfigServiceImpl algorithmConfigService;
+
     @Autowired
     private AlgorithmExecutionService algorithmExecutionService;
-    
-    @Autowired
-    private IAlgorithmConfigService algorithmConfigService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -53,46 +71,53 @@ public class EvaluationServiceImpl implements IEvaluationService {
         Map<String, Object> result = new HashMap<>();
         
         try {
-            // 1. 获取算法配置
+            log.info("开始执行评估流程，调查ID: {}", surveyId);
+
+            log.info("步骤 1: 获取算法配置");
             AlgorithmConfig algorithmConfig = algorithmConfigService.getById(algorithmId);
             if (algorithmConfig == null) {
                 throw new RuntimeException("算法配置不存在: " + algorithmId);
             }
-            
-            // 2. 获取调查数据（按ID）
+            log.info("成功获取算法配置");
+
+            log.info("步骤 2: 获取调查数据");
             SurveyData surveyData = surveyDataService.getById(surveyId);
             if (surveyData == null) {
                 throw new RuntimeException("调查数据不存在: " + surveyId);
             }
             List<SurveyData> surveyDataList = Collections.singletonList(surveyData);
-            
-            // 3. 获取权重配置
+            log.info("成功获取调查数据，共 {} 条", surveyDataList.size());
+
+            log.info("步骤 3: 获取权重配置");
             Map<String, Double> weightConfig = getWeightConfigMap(weightConfigId);
-            
+            log.info("成功获取权重配置，共 {} 个权重", weightConfig.size());
+
             // 4. 提取地区ID列表（按传入的surveyId）
             List<Long> regionIds = Collections.singletonList(surveyId);
-            
-            // 5. 执行完整的算法流程（步骤1-5）
+
+            log.info("步骤 5: 开始执行算法流程...");
             Map<String, Object> algorithmResult = algorithmExecutionService.executeAlgorithm(
                 algorithmConfig, surveyDataList, weightConfig, regionIds);
-            
-            // 6. 保存评估结果到数据库
+            log.info("算法流程执行完毕. Result: {}", algorithmResult);
+
+            log.info("步骤 6: 开始保存评估结果...");
             saveEvaluationResults(surveyId, algorithmId, weightConfigId, algorithmResult);
-            
-            // 7. 记录评估历史
+            log.info("评估结果保存完毕.");
+
+            log.info("步骤 7: 开始记录评估历史...");
             recordEvaluationHistory(surveyId, algorithmId, weightConfigId, algorithmResult);
-            
+            log.info("评估历史记录完毕.");
+
             result.put("success", true);
             result.put("message", "评估计算完成");
             result.put("algorithmResult", algorithmResult);
             result.put("executionId", algorithmResult.get("executionId"));
-            
+
             log.info("评估计算完成: executionId={}", algorithmResult.get("executionId"));
-            
+
         } catch (Exception e) {
             log.error("评估计算失败", e);
-            result.put("success", false);
-            result.put("message", "评估计算失败: " + e.getMessage());
+            throw new RuntimeException("评估计算失败", e);
         }
         
         return result;
@@ -100,138 +125,190 @@ public class EvaluationServiceImpl implements IEvaluationService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public List<SecondaryIndicatorResult> calculateSecondaryIndicators(Long surveyId, Long algorithmId, Long weightConfigId) {
-        log.info("开始计算二级指标结果");
+    public List<SecondaryIndicatorResult> calculateSecondaryIndicators(Long surveyId, Long algorithmId, Long weightConfigId, Map<String, Object> algorithmResult) {
+        log.info("开始计算二级指标，调查ID: {}, 算法ID: {}, 权重配置ID: {}", surveyId, algorithmId, weightConfigId);
         
-        // 获取调查数据（按ID）
-        SurveyData surveyDataRecord = surveyDataService.getById(surveyId);
+        // 创建二级指标结果对象
+        SecondaryIndicatorResult result = new SecondaryIndicatorResult();
+        result.setSurveyDataId(surveyId);
+        result.setConfigId(weightConfigId);
         
-        // 获取权重配置
-        List<IndicatorWeight> weights = indicatorWeightService.getByConfigIdAndLevel(weightConfigId, 2);
-        
-        List<SecondaryIndicatorResult> results = new ArrayList<>();
-        
-        for (IndicatorWeight weight : weights) {
-            // 按ID获取到的调查数据
-            if (surveyDataRecord != null) {
-                SurveyData surveyData = surveyDataRecord;
+        // 从算法结果中提取二级指标值
+        if (algorithmResult != null && algorithmResult.containsKey("table1Data")) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> table1Data = (List<Map<String, Object>>) algorithmResult.get("table1Data");
+            
+            if (!table1Data.isEmpty()) {
+                Map<String, Object> firstRow = table1Data.get(0);
                 
-                SecondaryIndicatorResult result = new SecondaryIndicatorResult();
-                result.setSurveyId(surveyId);
-                result.setAlgorithmId(algorithmId);
-                result.setWeightConfigId(weightConfigId);
-                result.setIndicatorCode(weight.getIndicatorCode());
-                result.setIndicatorName(weight.getIndicatorName());
-                // 根据指标代码获取对应的数值 - 需要重新设计映射逻辑
-                Double originalValue = getIndicatorValueByCode(surveyData, weight.getIndicatorCode());
-                result.setOriginalValue(originalValue);
-                
-                // 数据归一化
-                Double normalizedValue = normalizeValue(originalValue);
-                result.setNormalizedValue(normalizedValue);
-                
-                // 设置权重值
-                result.setWeightValue(weight.getWeight());
-                
-                // 计算加权值
-                Double weightedValue = normalizedValue * weight.getWeight();
-                result.setWeightedValue(weightedValue);
-                
-                // 生成过程数据
-                Map<String, Object> processData = new HashMap<>();
-                processData.put("step1_original", originalValue);
-                processData.put("step2_normalized", normalizedValue);
-                processData.put("step3_weight", weight.getWeight());
-                processData.put("step4_weighted", weightedValue);
-                result.setProcessData(processData.toString());
-                
-                result.setCreateTime(LocalDateTime.now());
-                result.setUpdateTime(LocalDateTime.now());
-                
-                results.add(result);
+                // 设置二级指标原始计算值
+                result.setManagementCapability(parseDouble(firstRow.get("teamManagement")));
+                result.setRiskAssessmentCapability(parseDouble(firstRow.get("riskAssessment")));
+                result.setFundingCapability(parseDouble(firstRow.get("financialInput")));
+                result.setMaterialCapability(parseDouble(firstRow.get("materialReserve")));
+                result.setMedicalCapability(parseDouble(firstRow.get("medicalSupport")));
+                result.setSelfRescueCapability(parseDouble(firstRow.get("selfRescue")));
+                result.setPublicAvoidanceCapability(parseDouble(firstRow.get("publicAvoidance")));
+                result.setRelocationCapability(parseDouble(firstRow.get("relocationCapacity")));
             }
         }
         
-        // 批量保存结果
-        secondaryIndicatorResultService.batchSave(results);
+        // 从算法结果中提取归一化值
+        if (algorithmResult != null && algorithmResult.containsKey("table2Data")) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> table2Data = (List<Map<String, Object>>) algorithmResult.get("table2Data");
+            
+            if (!table2Data.isEmpty()) {
+                Map<String, Object> firstRow = table2Data.get(0);
+                
+                // 设置二级指标归一化值
+                result.setManagementNormalized(parseDouble(firstRow.get("teamManagement")));
+                result.setRiskAssessmentNormalized(parseDouble(firstRow.get("riskAssessment")));
+                result.setFundingNormalized(parseDouble(firstRow.get("financialInput")));
+                result.setMaterialNormalized(parseDouble(firstRow.get("materialReserve")));
+                result.setMedicalNormalized(parseDouble(firstRow.get("medicalSupport")));
+                result.setSelfRescueNormalized(parseDouble(firstRow.get("selfRescue")));
+                result.setPublicAvoidanceNormalized(parseDouble(firstRow.get("publicAvoidance")));
+                result.setRelocationNormalized(parseDouble(firstRow.get("relocationCapacity")));
+            }
+        }
         
-        log.info("二级指标计算完成，共计算{}个指标", results.size());
+        result.setCalculateTime(LocalDateTime.now());
+        
+        // 保存结果
+        List<SecondaryIndicatorResult> results = new ArrayList<>();
+        results.add(result);
+        secondaryIndicatorResultService.saveBatch(results);
+        
+        log.info("二级指标计算完成，保存了1条记录");
         return results;
+    }
+    
+    /**
+     * 解析 Double 值的辅助方法
+     */
+    private Double parseDouble(Object value) {
+        if (value == null) {
+            return 0.0;
+        }
+        if (value instanceof Double) {
+            return (Double) value;
+        }
+        if (value instanceof String) {
+            try {
+                return Double.parseDouble((String) value);
+            } catch (NumberFormatException e) {
+                log.warn("无法解析数值: {}", value);
+                return 0.0;
+            }
+        }
+        return 0.0;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<PrimaryIndicatorResult> calculatePrimaryIndicators(Long surveyId, Long algorithmId, Long weightConfigId, List<SecondaryIndicatorResult> secondaryResults) {
-        log.info("开始计算一级指标结果");
+        log.info("开始计算一级指标");
         
-        // 获取一级指标权重配置
-        List<IndicatorWeight> primaryWeights = indicatorWeightService.getByConfigIdAndLevel(weightConfigId, 1);
+        if (secondaryResults == null || secondaryResults.isEmpty()) {
+            log.warn("二级指标结果为空，无法计算一级指标");
+            return new ArrayList<>();
+        }
         
         List<PrimaryIndicatorResult> results = new ArrayList<>();
         
+        // 从二级指标结果中获取第一个结果（假设每次评估只有一个结果）
+        SecondaryIndicatorResult secondaryResult = secondaryResults.get(0);
+        
+        // 获取权重配置
+        List<IndicatorWeight> primaryWeights = indicatorWeightService.getPrimaryWeights(weightConfigId);
+        
+        // 计算三个一级指标的能力值
+        double managementCapability = 0.0;
+        double preparationCapability = 0.0;
+        double selfRescueCapability = 0.0;
+        
+        // 根据权重配置计算各一级指标
         for (IndicatorWeight primaryWeight : primaryWeights) {
-            // 获取该一级指标下的所有二级指标
-            List<IndicatorWeight> childWeights = indicatorWeightService.getByParentId(primaryWeight.getId());
+            String indicatorCode = primaryWeight.getIndicatorCode();
+            List<IndicatorWeight> childWeights = indicatorWeightService.getChildWeights(weightConfigId, primaryWeight.getId());
             
-            // 计算一级指标值（二级指标加权平均）
             double totalWeightedValue = 0.0;
             double totalWeight = 0.0;
             
-            Map<String, Object> processData = new HashMap<>();
-            List<Map<String, Object>> childProcessData = new ArrayList<>();
-            
+            // 根据二级指标权重计算加权平均值
             for (IndicatorWeight childWeight : childWeights) {
-                Optional<SecondaryIndicatorResult> secondaryResultOpt = secondaryResults.stream()
-                    .filter(result -> childWeight.getIndicatorCode().equals(result.getIndicatorCode()))
-                    .findFirst();
+                String childCode = childWeight.getIndicatorCode();
+                Double normalizedValue = getSecondaryIndicatorNormalizedValue(secondaryResult, childCode);
                 
-                if (secondaryResultOpt.isPresent()) {
-                    SecondaryIndicatorResult secondaryResult = secondaryResultOpt.get();
-                    totalWeightedValue += secondaryResult.getWeightedValue();
+                if (normalizedValue != null) {
+                    totalWeightedValue += normalizedValue * childWeight.getWeight();
                     totalWeight += childWeight.getWeight();
-                    
-                    Map<String, Object> childData = new HashMap<>();
-                    childData.put("indicatorCode", childWeight.getIndicatorCode());
-                    childData.put("indicatorName", childWeight.getIndicatorName());
-                    childData.put("weightedValue", secondaryResult.getWeightedValue());
-                    childData.put("weight", childWeight.getWeight());
-                    childProcessData.add(childData);
                 }
             }
             
             // 计算一级指标值
-            Double calculatedValue = totalWeight > 0 ? totalWeightedValue / totalWeight : 0.0;
+            double calculatedValue = totalWeight > 0 ? totalWeightedValue / totalWeight : 0.0;
             
-            PrimaryIndicatorResult result = new PrimaryIndicatorResult();
-            result.setSurveyId(surveyId);
-            result.setAlgorithmId(algorithmId);
-            result.setWeightConfigId(weightConfigId);
-            result.setIndicatorCode(primaryWeight.getIndicatorCode());
-            result.setIndicatorName(primaryWeight.getIndicatorName());
-            result.setCalculatedValue(calculatedValue);
-            result.setWeightValue(primaryWeight.getWeight());
-            result.setWeightedValue(calculatedValue * primaryWeight.getWeight());
-            
-            // 生成过程数据
-            processData.put("primaryIndicator", primaryWeight.getIndicatorName());
-            processData.put("childIndicators", childProcessData);
-            processData.put("totalWeightedValue", totalWeightedValue);
-            processData.put("totalWeight", totalWeight);
-            processData.put("calculatedValue", calculatedValue);
-            processData.put("finalWeightedValue", result.getWeightedValue());
-            result.setProcessData(processData.toString());
-            
-            result.setCreateTime(LocalDateTime.now());
-            result.setUpdateTime(LocalDateTime.now());
-            
-            results.add(result);
+            // 根据指标代码分配到对应的一级指标
+            switch (indicatorCode) {
+                case "A":
+                    managementCapability = calculatedValue;
+                    break;
+                case "B":
+                    preparationCapability = calculatedValue;
+                    break;
+                case "C":
+                    selfRescueCapability = calculatedValue;
+                    break;
+            }
         }
         
-        // 批量保存结果
-        primaryIndicatorResultService.batchSave(results);
+        // 创建一个结果记录
+        PrimaryIndicatorResult result = new PrimaryIndicatorResult();
+        result.setSurveyId(surveyId);
+        result.setAlgorithmId(algorithmId);
+        result.setWeightConfigId(weightConfigId);
         
-        log.info("一级指标计算完成，共计算{}个指标", results.size());
+        // 设置三个一级指标的能力值
+        result.setLevel1Management(managementCapability);
+        result.setLevel1Preparation(preparationCapability);
+        result.setLevel1SelfRescue(selfRescueCapability);
+        
+        // 计算综合减灾能力
+        Double overallCapability = (result.getLevel1Management() + result.getLevel1Preparation() + result.getLevel1SelfRescue()) / 3.0;
+        result.setOverallCapability(overallCapability);
+        
+        // 设置能力分级
+        result.setManagementGrade(determineCapabilityGrade(result.getLevel1Management()));
+        result.setPreparationGrade(determineCapabilityGrade(result.getLevel1Preparation()));
+        result.setSelfRescueGrade(determineCapabilityGrade(result.getLevel1SelfRescue()));
+        result.setOverallGrade(determineCapabilityGrade(overallCapability));
+        
+        result.setCreateTime(LocalDateTime.now());
+        result.setUpdateTime(LocalDateTime.now());
+        
+        results.add(result);
+        
+        // 保存一级指标结果
+        primaryIndicatorResultService.saveBatch(results);
+        
+        log.info("一级指标计算完成");
         return results;
+    }
+    
+    /**
+     * 根据指标代码获取二级指标的归一化值
+     */
+    private Double getSecondaryIndicatorNormalizedValue(SecondaryIndicatorResult result, String indicatorCode) {
+        try {
+            String fieldName = "a" + indicatorCode.substring(1) + "Normalized";
+            Method method = result.getClass().getMethod("get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1));
+            return (Double) method.invoke(result);
+        } catch (Exception e) {
+            log.error("获取二级指标归一化值失败，指标代码: {}", indicatorCode, e);
+            return null;
+        }
     }
 
     @Override
@@ -276,9 +353,11 @@ public class EvaluationServiceImpl implements IEvaluationService {
             return 0.0;
         }
         
+        // 使用综合减灾能力作为总分
         double totalScore = primaryResults.stream()
-            .mapToDouble(result -> result.getWeightedValue() != null ? result.getWeightedValue() : 0.0)
-            .sum();
+            .mapToDouble(result -> result.getOverallCapability() != null ? result.getOverallCapability() : 0.0)
+            .average()
+            .orElse(0.0);
         
         // 转换为百分制
         return totalScore * 100;
@@ -504,8 +583,8 @@ public class EvaluationServiceImpl implements IEvaluationService {
             
             return true;
         } catch (Exception e) {
-            log.error("删除评估结果失败", e);
-            return false;
+            log.error("评估计算失败", e);
+            throw new RuntimeException("评估计算失败", e);
         }
     }
 
@@ -523,7 +602,40 @@ public class EvaluationServiceImpl implements IEvaluationService {
     }
 
     /**
+     * 归一化单个值（带最小值和最大值参数）
+     */
+    private Double normalizeValue(Double value, Double minValue, Double maxValue) {
+        if (value == null) {
+            return 0.0;
+        }
+        
+        if (minValue == null || maxValue == null || minValue.equals(maxValue)) {
+            return normalizeValue(value);
+        }
+        
+        // 使用最小-最大归一化
+        return Math.min(Math.max((value - minValue) / (maxValue - minValue), 0.0), 1.0);
+    }
+
+    /**
      * 根据指标代码获取对应的数值
+     */
+    private Double getIndicatorValueByCode(Map<String, Object> surveyData, String indicatorCode) {
+        if (surveyData == null || indicatorCode == null) {
+            return 0.0;
+        }
+        
+        // 根据指标代码映射到对应的字段值
+        Object value = surveyData.get(indicatorCode);
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        
+        return 0.0;
+    }
+
+    /**
+     * 根据指标代码获取对应的数值（兼容旧版本）
      */
     private Double getIndicatorValueByCode(SurveyData surveyData, String indicatorCode) {
         if (surveyData == null || indicatorCode == null) {
@@ -595,8 +707,14 @@ public class EvaluationServiceImpl implements IEvaluationService {
         
         // 针对得分较低的指标提出具体建议
         for (PrimaryIndicatorResult result : primaryResults) {
-            if (result.getCalculatedValue() < 0.6) {
-                recommendations.append("建议重点关注").append(result.getIndicatorName()).append("的改善。");
+            if (result.getLevel1Management() != null && result.getLevel1Management() < 0.6) {
+                recommendations.append("建议重点关注灾害管理能力的改善。");
+            }
+            if (result.getLevel1Preparation() != null && result.getLevel1Preparation() < 0.6) {
+                recommendations.append("建议重点关注灾害备灾能力的改善。");
+            }
+            if (result.getLevel1SelfRescue() != null && result.getLevel1SelfRescue() < 0.6) {
+                recommendations.append("建议重点关注自救转移能力的改善。");
             }
         }
         
@@ -619,36 +737,377 @@ public class EvaluationServiceImpl implements IEvaluationService {
         return weightConfig;
     }
     
-    /**
-     * 保存评估结果到数据库
-     */
     @Transactional(rollbackFor = Exception.class)
     private void saveEvaluationResults(Long surveyId, Long algorithmId, Long weightConfigId, Map<String, Object> algorithmResult) {
         log.info("开始保存评估结果到数据库");
         
         try {
-            // 获取算法步骤结果
-            @SuppressWarnings("unchecked")
-            Map<String, Object> steps = (Map<String, Object>) algorithmResult.get("steps");
+            // 1. 计算二级指标结果
+            List<SecondaryIndicatorResult> secondaryResults = calculateSecondaryIndicators(surveyId, algorithmId, weightConfigId, algorithmResult);
             
-            if (steps != null) {
-                // 保存每个步骤的结果
-                for (Map.Entry<String, Object> stepEntry : steps.entrySet()) {
-                    String stepCode = stepEntry.getKey();
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> stepResult = (Map<String, Object>) stepEntry.getValue();
-                    
-                    // 这里可以根据需要保存到相应的结果表
-                    log.info("保存步骤结果: stepCode={}, executionTime={}", 
-                            stepCode, stepResult.get("executionTime"));
-                }
-            }
+            // 2. 计算一级指标结果
+            List<PrimaryIndicatorResult> primaryResults = calculatePrimaryIndicators(surveyId, algorithmId, weightConfigId, secondaryResults);
             
-            log.info("评估结果保存完成");
+            // 3. 计算一级指标能力值和分级
+            Map<String, Double> level1Capabilities = calculateLevel1Capabilities(secondaryResults);
+            Map<String, String> grades = calculateGrades(level1Capabilities);
+            
+            // 4. 计算综合减灾能力
+            double overallCapability = calculateOverallCapability(level1Capabilities);
+            String overallGrade = calculateOverallGrade(overallCapability);
+            
+            // 5. 更新一级指标结果中的能力值和分级信息
+            // 由于PrimaryIndicatorResult结构已更改，这部分代码不再需要
+            
+            // 6. 传递给专题图生成
+            generateThematicMap(surveyId, primaryResults, overallCapability, overallGrade);
+            
+            log.info("评估结果保存完成，综合能力: {}, 综合分级: {}", overallCapability, overallGrade);
             
         } catch (Exception e) {
             log.error("保存评估结果失败", e);
-            throw new RuntimeException("保存评估结果失败: " + e.getMessage(), e);
+            throw new RuntimeException("保存评估结果失败", e);
+        }
+    }
+    
+    /**
+     * 计算一级指标能力值
+     */
+    private Map<String, Double> calculateLevel1Capabilities(List<SecondaryIndicatorResult> secondaryResults) {
+        Map<String, Double> capabilities = new HashMap<>();
+        
+        if (secondaryResults == null || secondaryResults.isEmpty()) {
+            capabilities.put("management", 0.0);
+            capabilities.put("preparation", 0.0);
+            capabilities.put("selfRescue", 0.0);
+            return capabilities;
+        }
+        
+        // 从第一个结果中计算各一级指标的平均值
+        SecondaryIndicatorResult result = secondaryResults.get(0);
+        
+        // 计算管理能力 (A1-A33)
+        double managementSum = 0.0;
+        int managementCount = 0;
+        for (int i = 1; i <= 33; i++) {
+            Double value = getSecondaryIndicatorNormalizedValue(result, "A" + i);
+            if (value != null) {
+                managementSum += value;
+                managementCount++;
+            }
+        }
+        capabilities.put("management", managementCount > 0 ? managementSum / managementCount : 0.0);
+        
+        // 计算准备能力 (A34-A66)
+        double preparationSum = 0.0;
+        int preparationCount = 0;
+        for (int i = 34; i <= 66; i++) {
+            Double value = getSecondaryIndicatorNormalizedValue(result, "A" + i);
+            if (value != null) {
+                preparationSum += value;
+                preparationCount++;
+            }
+        }
+        capabilities.put("preparation", preparationCount > 0 ? preparationSum / preparationCount : 0.0);
+        
+        // 计算自救能力 (A67-A100)
+        double selfRescueSum = 0.0;
+        int selfRescueCount = 0;
+        for (int i = 67; i <= 100; i++) {
+            Double value = getSecondaryIndicatorNormalizedValue(result, "A" + i);
+            if (value != null) {
+                selfRescueSum += value;
+                selfRescueCount++;
+            }
+        }
+        capabilities.put("selfRescue", selfRescueCount > 0 ? selfRescueSum / selfRescueCount : 0.0);
+
+        return capabilities;
+    }
+
+    /**
+     * 计算分级
+     */
+    private Map<String, String> calculateGrades(Map<String, Double> capabilities) {
+        Map<String, String> grades = new HashMap<>();
+        
+        for (Map.Entry<String, Double> entry : capabilities.entrySet()) {
+            String category = entry.getKey();
+            Double value = entry.getValue();
+            
+            String grade;
+            if (value >= 0.8) {
+                grade = "极强";
+            } else if (value >= 0.6) {
+                grade = "较强";
+            } else if (value >= 0.4) {
+                grade = "中等";
+            } else if (value >= 0.2) {
+                grade = "较弱";
+            } else {
+                grade = "极弱";
+            }
+            
+            grades.put(category, grade);
+        }
+        
+        return grades;
+    }
+
+    /**
+     * 计算综合减灾能力
+     */
+    private double calculateOverallCapability(Map<String, Double> capabilities) {
+        // 使用等权重计算综合能力
+        double sum = capabilities.values().stream()
+            .mapToDouble(Double::doubleValue)
+            .sum();
+        return capabilities.size() > 0 ? sum / capabilities.size() : 0.0;
+    }
+
+    /**
+     * 计算综合减灾能力分级
+     */
+    private String calculateOverallGrade(double overallCapability) {
+        if (overallCapability >= 0.8) {
+            return "极强";
+        } else if (overallCapability >= 0.6) {
+            return "较强";
+        } else if (overallCapability >= 0.4) {
+            return "中等";
+        } else if (overallCapability >= 0.2) {
+            return "较弱";
+        } else {
+            return "极弱";
+        }
+    }
+
+    /**
+     * 确定能力分级
+     */
+    private String determineCapabilityGrade(Double capability) {
+        if (capability == null) {
+            return "极弱";
+        }
+        
+        if (capability >= 0.8) {
+            return "极强";
+        } else if (capability >= 0.6) {
+            return "较强";
+        } else if (capability >= 0.4) {
+            return "中等";
+        } else if (capability >= 0.2) {
+            return "较弱";
+        } else {
+            return "极弱";
+        }
+    }
+
+    /**
+     * 生成专题图和报告
+     */
+    private void generateThematicMap(Long surveyId, List<PrimaryIndicatorResult> primaryResults, double overallCapability, String overallGrade) {
+        try {
+            // 这里可以调用专题图生成服务
+            // 暂时记录日志
+            log.info("开始生成专题图，调查ID: {}, 综合能力: {}, 综合分级: {}", 
+                surveyId, overallCapability, overallGrade);
+            
+            // TODO: 实际的专题图生成逻辑
+            
+        } catch (Exception e) {
+            log.error("生成专题图失败，调查ID: {}", surveyId, e);
+            // 不抛出异常，避免影响主流程
+        }
+    }
+    
+    /**
+     * 保存评估结果到数据库（新版本）
+     */
+    @Override
+    public void saveEvaluationResults(Long evaluationId) {
+        try {
+            // 获取评估记录
+            Evaluation evaluation = evaluationMapper.selectById(evaluationId);
+            if (evaluation == null) {
+                throw new RuntimeException("评估记录不存在");
+            }
+
+            // 获取二级指标结果
+            List<SecondaryIndicatorResult> secondaryResults = secondaryIndicatorResultMapper.selectList(
+                new QueryWrapper<SecondaryIndicatorResult>()
+                    .eq("evaluation_id", evaluationId)
+            );
+
+            if (secondaryResults.isEmpty()) {
+                throw new RuntimeException("未找到二级指标结果数据");
+            }
+
+            // 计算一级指标能力值
+            Map<String, Double> level1Capabilities = calculateLevel1CapabilitiesForEvaluation(secondaryResults);
+            
+            // 计算分级
+            Map<String, String> grades = calculateGradesForEvaluation(level1Capabilities);
+            
+            // 计算综合减灾能力
+            double overallCapability = calculateOverallCapabilityForEvaluation(level1Capabilities);
+            String overallGrade = calculateOverallGradeForEvaluation(overallCapability);
+
+            // 保存到primary_indicator_result表
+            PrimaryIndicatorResult primaryResult = new PrimaryIndicatorResult();
+            primaryResult.setEvaluationId(evaluationId);
+            primaryResult.setSecondaryResultId(secondaryResults.get(0).getId()); // 关联第一个二级指标结果
+            primaryResult.setLevel1Management(level1Capabilities.get("management"));
+            primaryResult.setLevel1Preparation(level1Capabilities.get("preparation"));
+            primaryResult.setLevel1SelfRescue(level1Capabilities.get("selfRescue"));
+            primaryResult.setManagementGrade(grades.get("management"));
+            primaryResult.setPreparationGrade(grades.get("preparation"));
+            primaryResult.setSelfRescueGrade(grades.get("selfRescue"));
+            primaryResult.setOverallCapability(overallCapability);
+            primaryResult.setOverallGrade(overallGrade);
+            primaryResult.setCreateTime(LocalDateTime.now());
+            primaryResult.setUpdateTime(LocalDateTime.now());
+
+            primaryIndicatorResultMapper.insert(primaryResult);
+
+            // 传递给专题图生成
+            generateThematicMapForEvaluation(evaluationId, primaryResult);
+
+            log.info("评估结果保存成功，评估ID: {}", evaluationId);
+
+        } catch (Exception e) {
+            log.error("保存评估结果失败，评估ID: {}", evaluationId, e);
+            throw new RuntimeException("保存评估结果失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 计算一级指标能力值（用于评估）
+     */
+    private Map<String, Double> calculateLevel1CapabilitiesForEvaluation(List<SecondaryIndicatorResult> secondaryResults) {
+        Map<String, Double> capabilities = new HashMap<>();
+        
+        if (secondaryResults == null || secondaryResults.isEmpty()) {
+            capabilities.put("management", 0.0);
+            capabilities.put("preparation", 0.0);
+            capabilities.put("selfRescue", 0.0);
+            return capabilities;
+        }
+        
+        // 从第一个结果中计算各一级指标的平均值
+        SecondaryIndicatorResult result = secondaryResults.get(0);
+        
+        // 计算管理能力 (A1-A33)
+        double managementSum = 0.0;
+        int managementCount = 0;
+        for (int i = 1; i <= 33; i++) {
+            Double value = getSecondaryIndicatorNormalizedValue(result, "A" + i);
+            if (value != null) {
+                managementSum += value;
+                managementCount++;
+            }
+        }
+        capabilities.put("management", managementCount > 0 ? managementSum / managementCount : 0.0);
+        
+        // 计算准备能力 (A34-A66)
+        double preparationSum = 0.0;
+        int preparationCount = 0;
+        for (int i = 34; i <= 66; i++) {
+            Double value = getSecondaryIndicatorNormalizedValue(result, "A" + i);
+            if (value != null) {
+                preparationSum += value;
+                preparationCount++;
+            }
+        }
+        capabilities.put("preparation", preparationCount > 0 ? preparationSum / preparationCount : 0.0);
+        
+        // 计算自救能力 (A67-A100)
+        double selfRescueSum = 0.0;
+        int selfRescueCount = 0;
+        for (int i = 67; i <= 100; i++) {
+            Double value = getSecondaryIndicatorNormalizedValue(result, "A" + i);
+            if (value != null) {
+                selfRescueSum += value;
+                selfRescueCount++;
+            }
+        }
+        capabilities.put("selfRescue", selfRescueCount > 0 ? selfRescueSum / selfRescueCount : 0.0);
+
+        return capabilities;
+    }
+
+    /**
+     * 计算分级（用于评估）
+     */
+    private Map<String, String> calculateGradesForEvaluation(Map<String, Double> capabilities) {
+        Map<String, String> grades = new HashMap<>();
+        
+        for (Map.Entry<String, Double> entry : capabilities.entrySet()) {
+            String category = entry.getKey();
+            Double value = entry.getValue();
+            
+            String grade;
+            if (value >= 0.8) {
+                grade = "极强";
+            } else if (value >= 0.6) {
+                grade = "较强";
+            } else if (value >= 0.4) {
+                grade = "中等";
+            } else if (value >= 0.2) {
+                grade = "较弱";
+            } else {
+                grade = "极弱";
+            }
+            
+            grades.put(category, grade);
+        }
+        
+        return grades;
+    }
+
+    /**
+     * 计算综合减灾能力（用于评估）
+     */
+    private double calculateOverallCapabilityForEvaluation(Map<String, Double> capabilities) {
+        // 使用等权重计算综合能力
+        double sum = capabilities.values().stream()
+            .mapToDouble(Double::doubleValue)
+            .sum();
+        return capabilities.size() > 0 ? sum / capabilities.size() : 0.0;
+    }
+
+    /**
+     * 计算综合减灾能力分级（用于评估）
+     */
+    private String calculateOverallGradeForEvaluation(double overallCapability) {
+        if (overallCapability >= 0.8) {
+            return "极强";
+        } else if (overallCapability >= 0.6) {
+            return "较强";
+        } else if (overallCapability >= 0.4) {
+            return "中等";
+        } else if (overallCapability >= 0.2) {
+            return "较弱";
+        } else {
+            return "极弱";
+        }
+    }
+
+    /**
+     * 为评估生成专题图和报告
+     */
+    private void generateThematicMapForEvaluation(Long evaluationId, PrimaryIndicatorResult primaryResult) {
+        try {
+            // 这里可以调用专题图生成服务
+            // 暂时记录日志
+            log.info("开始生成专题图，评估ID: {}, 综合能力: {}, 综合分级: {}", 
+                evaluationId, primaryResult.getOverallCapability(), primaryResult.getOverallGrade());
+            
+            // TODO: 实际的专题图生成逻辑
+            
+        } catch (Exception e) {
+            log.error("生成专题图失败，评估ID: {}", evaluationId, e);
+            // 不抛出异常，避免影响主流程
         }
     }
     

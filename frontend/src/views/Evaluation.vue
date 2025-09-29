@@ -162,7 +162,7 @@
             </div>
             
             <!-- 通用参数配置 -->
-            <div class="common-parameters">
+            <!-- <div class="common-parameters">
               <h5>通用参数配置：</h5>
               <el-row :gutter="20">
                 <el-col :span="8">
@@ -227,7 +227,7 @@
                   </el-form-item>
                 </el-col>
               </el-row>
-            </div>
+            </div> -->
           </el-card>
         </el-form-item>
         
@@ -245,14 +245,14 @@
             <el-icon><VideoPlay /></el-icon>
             开始评估
           </el-button>
-          <el-button type="success" @click="validateParameters">
+          <!-- <el-button type="success" @click="validateParameters">
             <el-icon><Check /></el-icon>
             验证参数
           </el-button>
           <el-button type="info" @click="handlePreviewData">
             <el-icon><View /></el-icon>
             预览数据
-          </el-button>
+          </el-button> -->
         </el-form-item>
       </el-form>
     </el-card>
@@ -286,7 +286,7 @@
     </el-card>
 
     <!-- 评估历史 -->
-    <el-card class="history-card">
+    <!-- <el-card class="history-card">
       <template #header>
         <div class="card-header">
           <span>评估历史</span>
@@ -338,7 +338,7 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </el-card> -->
 
     <!-- 数据预览对话框 -->
     <el-dialog v-model="dialogVisible.preview" title="数据预览" width="80%">
@@ -769,97 +769,41 @@ const handlePreviewData = async () => {
 // 开始评估
 const startEvaluation = async () => {
   if (!evaluationFormRef.value) return
-  
+
   await evaluationFormRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     // 验证必需参数
     if (!evaluationForm.algorithmId) {
       ElMessage.error('请选择评估算法')
       return
     }
-    
+
     if (!evaluationForm.weightConfigId) {
       ElMessage.error('请选择权重配置')
       return
     }
-    
+
     if (!evaluationForm.regions || evaluationForm.regions.length === 0) {
       ElMessage.error('请选择评估地区')
       return
     }
-    
-    loading.evaluation = true
-    evaluationProgress.visible = true
-    evaluationProgress.percentage = 0
-    evaluationProgress.status = 'success'
-    evaluationProgress.message = '正在初始化评估...'
-    evaluationProgress.detail = ''
-    
-    try {
-      // 获取算法步骤
-      if (algorithmSteps.value.length === 0) {
-        await getAlgorithmSteps(evaluationForm.algorithmId)
+
+    // 获取算法步骤
+    if (algorithmSteps.value.length === 0) {
+      await getAlgorithmSteps(evaluationForm.algorithmId)
+    }
+
+    if (algorithmSteps.value.length > 0) {
+      // 找到第5步并执行
+      const step5 = algorithmSteps.value[4]
+      if (step5) {
+        await calculateStepResult(step5, 4)
+      } else {
+        ElMessage.error('未找到第5步的配置')
       }
-      
-      if (algorithmSteps.value.length === 0) {
-        throw new Error('未找到算法步骤配置')
-      }
-      
-      // 使用现有的API接口进行评估计算
-      evaluationProgress.percentage = 20
-      evaluationProgress.message = '正在执行评估计算...'
-      evaluationProgress.detail = '使用算法进行数据计算'
-      
-      // 调用评估计算API - 确保所有参数都有有效值
-      const calculationParams = {
-        surveyId: 1, // 使用默认的调查数据ID
-        algorithmId: Number(evaluationForm.algorithmId),
-        weightConfigId: Number(evaluationForm.weightConfigId)
-      }
-      
-      console.log('评估计算参数:', calculationParams)
-      console.log('选择的地区:', evaluationForm.regions)
-      console.log('算法参数:', evaluationForm.parameters)
-      
-      // 验证参数有效性
-      if (!calculationParams.algorithmId || !calculationParams.weightConfigId) {
-        throw new Error('参数验证失败：算法ID或权重配置ID无效')
-      }
-      
-      const response = await evaluationApi.calculate(calculationParams)
-      
-      if (!response.success) {
-        throw new Error(response.message || '评估计算失败')
-      }
-      
-      // 模拟进度更新
-      const progressSteps = [
-        { percentage: 40, message: '正在处理数据...', detail: '数据预处理和验证' },
-        { percentage: 60, message: '正在执行算法...', detail: `使用${selectedAlgorithm.value?.configName || '选定'}算法计算` },
-        { percentage: 80, message: '正在生成结果...', detail: '计算评估得分和排名' },
-        { percentage: 100, message: '评估完成', detail: '结果已保存，可以查看详细报告' }
-      ]
-      
-      for (const step of progressSteps) {
-        await new Promise(resolve => setTimeout(resolve, 800))
-        evaluationProgress.percentage = step.percentage
-        evaluationProgress.message = step.message
-        evaluationProgress.detail = step.detail
-      }
-      
-      evaluationProgress.status = 'success'
-      ElMessage.success('评估执行成功')
-      getEvaluationHistory()
-      
-    } catch (error) {
-      console.error('评估执行失败:', error)
-      evaluationProgress.status = 'exception'
-      evaluationProgress.message = '评估失败'
-      evaluationProgress.detail = error.message || '系统错误，请稍后重试'
-      ElMessage.error(error.message || '评估执行失败')
-    } finally {
-      loading.evaluation = false
+    } else {
+      ElMessage.error('未找到算法步骤配置')
     }
   })
 }
@@ -1574,7 +1518,7 @@ onMounted(() => {
 
 .page-header {
   margin-bottom: 24px;
-  text-align: center;
+  text-align: left;
 }
 
 .page-header h1 {

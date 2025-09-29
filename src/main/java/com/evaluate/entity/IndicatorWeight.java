@@ -70,6 +70,12 @@ public class IndicatorWeight implements Serializable {
     @TableField("sort_order")
     private Integer sortOrder;
 
+    @TableField("min_value")
+    private Double minValue;
+
+    @TableField("max_value")
+    private Double maxValue;
+
     /**
      * 创建时间
      */

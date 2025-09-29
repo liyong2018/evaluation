@@ -56,28 +56,8 @@
 
     <!-- 系统信息和快捷操作 -->
     <el-row :gutter="20" class="main-content">
-      <!-- 系统信息 -->
-      <el-col :span="12">
-        <el-card class="info-card">
-          <template #header>
-            <div class="card-header">
-              <span>系统信息</span>
-              <el-button type="text" @click="refreshSystemInfo">
-                <el-icon><Refresh /></el-icon>
-              </el-button>
-            </div>
-          </template>
-          <div v-loading="loading.systemInfo">
-            <div class="info-item" v-for="(value, key) in systemInfo" :key="key">
-              <span class="info-label">{{ getInfoLabel(key) }}:</span>
-              <span class="info-value">{{ value }}</span>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-
       <!-- 快捷操作 -->
-      <el-col :span="12">
+      <el-col :span="24">
         <el-card class="action-card">
           <template #header>
             <span>快捷操作</span>
@@ -293,7 +273,7 @@ onMounted(() => {
 }
 
 .card-header {
-  display: flex;
+  /* display: flex; */
   justify-content: space-between;
   align-items: center;
 }

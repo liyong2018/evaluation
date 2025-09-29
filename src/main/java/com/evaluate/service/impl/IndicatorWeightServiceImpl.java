@@ -259,6 +259,25 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         return true;
     }
 
+    @Override
+    public List<IndicatorWeight> getSecondaryWeights(Long weightConfigId) {
+        return getByConfigIdAndLevel(weightConfigId, 2);
+    }
+
+    @Override
+    public List<IndicatorWeight> getPrimaryWeights(Long weightConfigId) {
+        return getByConfigIdAndLevel(weightConfigId, 1);
+    }
+
+    @Override
+    public List<IndicatorWeight> getChildWeights(Long weightConfigId, Long parentId) {
+        QueryWrapper<IndicatorWeight> wrapper = new QueryWrapper<>();
+        wrapper.eq("config_id", weightConfigId)
+               .eq("parent_id", parentId)
+               .orderByAsc("sort_order");
+        return list(wrapper);
+    }
+
     /**
      * 创建默认权重配置
      */

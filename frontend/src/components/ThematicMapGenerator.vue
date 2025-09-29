@@ -138,6 +138,7 @@ const thematicLayer = ref<L.LayerGroup | null>(null)
 
 const mapConfig = ref({
   title: '四川省雅安市青神县乡镇减灾能力评估专题图',
+  mainTitle: '减灾能力分级计算减灾能力评估报告',
   subtitle: `数据来源：减灾能力评估系统 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`,
   showTitle: true,
   showLegend: true,
@@ -233,14 +234,14 @@ const initMap = () => {
   console.log('地图实例创建成功:', map.value)
   
   // 添加天地图底图
-  const baseLayer = L.tileLayer.chinaProvider('TianDiTu.Normal.Map', {
+  const baseLayer = L.tileLayer.chinaProvider('TianDiTu.Terrain.Map', {
     key: '0252639b1589bd33a54817f48d982093',
     attribution: '© 天地图'
   })
   baseLayer.addTo(map.value)
   
   // 添加天地图标注
-  const labelLayer = L.tileLayer.chinaProvider('TianDiTu.Normal.Annotion', {
+  const labelLayer = L.tileLayer.chinaProvider('TianDiTu.Terrain.Annotion', {
     key: '0252639b1589bd33a54817f48d982093'
   })
   labelLayer.addTo(map.value)
@@ -268,7 +269,7 @@ const loadDataFromSession = () => {
           const totalScore = parseFloat(row.totalScore || row.总分 || row.综合得分 || row.score || 0)
           
           // 直接使用二维表中的灾害管理能力字段，不再根据分数计算
-          const capabilityLevel = row.disasterManagement || row.灾害管理能力 || row.management_grade || '中等'
+          const capabilityLevel = row.comprehensiveCapability || row.综合能力分级 || row.management_grade || '中等'
           
           return {
             name: regionName,
@@ -350,8 +351,12 @@ const loadThematicData = async () => {
           const regionName = evaluationRow.region || evaluationRow.地区名称 || evaluationRow.name || `区域${index + 1}`
           const totalScore = parseFloat(evaluationRow.totalScore || evaluationRow.总分 || evaluationRow.综合得分 || evaluationRow.score || 0)
           
-          // 直接使用二维表中的灾害管理能力字段，不再根据分数计算
-          const capabilityLevel = evaluationRow.disasterManagement || evaluationRow.灾害管理能力 || evaluationRow.management_grade || '中等'
+          // 直接使用二维表中的综合能力分级字段（优先使用第5步的分级结果）
+          const capabilityLevel = evaluationRow.comprehensiveCapabilityGrade || 
+                                 evaluationRow.综合能力分级 || 
+                                 evaluationRow.totalGrade ||
+                                 evaluationRow.comprehensiveCapability || 
+                                 evaluationRow.management_grade || '中等'
           
           // 尝试找到匹配的边界特征，使用更精确的匹配逻辑
           const matchingFeature = boundaries.features.find((feature: any) => {
@@ -411,19 +416,27 @@ const loadThematicData = async () => {
               
               const totalScore = parseFloat(evaluationRow?.totalScore || evaluationRow?.总分 || evaluationRow?.综合得分 || evaluationRow?.score || 0)
               
+              // 优先使用第5步的分级结果
+              const capabilityLevel = evaluationRow?.comprehensiveCapabilityGrade || 
+                                     evaluationRow?.综合能力分级 || 
+                                     evaluationRow?.totalGrade ||
+                                     evaluationRow?.disasterManagement || 
+                                     evaluationRow?.灾害管理能力 || 
+                                     evaluationRow?.management_grade || '中等'
+              
               return {
                 regionId: index + 1,
                 regionName: featureRegionName,
                 county: feature.properties?.COUNTY || '青神县',
                 score: totalScore,
                 totalScore: totalScore, // 添加totalScore字段
-                capabilityLevel: evaluationRow?.disasterManagement || evaluationRow?.灾害管理能力 || evaluationRow?.management_grade || '中等',
+                capabilityLevel: capabilityLevel,
                 geometry: feature.geometry,
                 properties: feature.properties,
                 details: {
-                  disasterPreventionCapability: parseFloat(evaluationRow?.disasterPreventionCapability || evaluationRow?.灾害预防能力 || evaluationRow?.防灾能力 || 0),
-                  emergencyResponseCapability: parseFloat(evaluationRow?.emergencyResponseCapability || evaluationRow?.应急响应能力 || evaluationRow?.应急能力 || 0),
-                  recoveryReconstructionCapability: parseFloat(evaluationRow?.recoveryReconstructionCapability || evaluationRow?.恢复重建能力 || evaluationRow?.重建能力 || 0)
+                  disasterPreventionCapability: parseFloat(evaluationRow?.disasterManagement || evaluationRow?.灾害管理能力值 || evaluationRow?.disasterPreventionCapability || evaluationRow?.灾害预防能力 || evaluationRow?.防灾能力 || 0),
+                  emergencyResponseCapability: parseFloat(evaluationRow?.disasterPreparedness || evaluationRow?.灾害备灾能力值 || evaluationRow?.emergencyResponseCapability || evaluationRow?.应急响应能力 || evaluationRow?.应急能力 || 0),
+                  recoveryReconstructionCapability: parseFloat(evaluationRow?.selfRescueTransfer || evaluationRow?.自救转移能力值 || evaluationRow?.recoveryReconstructionCapability || evaluationRow?.恢复重建能力 || evaluationRow?.重建能力 || 0)
                 }
               }
             })
@@ -697,13 +710,14 @@ const renderThematicLayer = (data: any) => {
           <h4 style="margin: 0 0 10px 0; color: #333;">${feature.properties?.COUNTY || '未知县'} - ${featureRegionName || '未知乡镇'}</h4>
           <p style="margin: 5px 0;"><strong>灾害管理能力:</strong> <span style="color: ${color}; font-weight: bold;">${getCapabilityText(capabilityLevel)}</span></p>
           <p style="margin: 5px 0;"><strong>评估分数:</strong> ${scoreValue.toFixed(2)}</p>
+          <p style="margin: 5px 0;"><strong>综合减灾能力值:</strong> ${scoreValue.toFixed(2)}</p>
           <p style="margin: 5px 0;"><strong>行政区划:</strong> ${feature.properties?.CITY || '未知市州'}</p>
           <p style="margin: 5px 0;"><strong>面积:</strong> ${feature.properties?.Shape_Area ? (feature.properties.Shape_Area * 100000000).toFixed(2) + ' 平方米' : 'N/A'}</p>
           ${thematicInfo.details ? `
           <hr style="margin: 10px 0;">
-          <p style="margin: 5px 0;"><strong>灾害预防能力:</strong> ${thematicInfo.details.disasterPreventionCapability || 'N/A'}</p>
-          <p style="margin: 5px 0;"><strong>应急响应能力:</strong> ${thematicInfo.details.emergencyResponseCapability || 'N/A'}</p>
-          <p style="margin: 5px 0;"><strong>恢复重建能力:</strong> ${thematicInfo.details.recoveryReconstructionCapability || 'N/A'}</p>
+          <p style="margin: 5px 0;"><strong>灾害预防能力:</strong> ${thematicInfo.details.disasterPreventionCapability}</p>
+          <p style="margin: 5px 0;"><strong>应急响应能力:</strong> ${thematicInfo.details.emergencyResponseCapability}</p>
+          <p style="margin: 5px 0;"><strong>恢复重建能力:</strong> ${thematicInfo.details.recoveryReconstructionCapability}</p>
           ` : ''}
         </div>
       `)
@@ -893,8 +907,26 @@ const getStatistics = () => {
   
   currentThematicData.value.forEach(item => {
     stats.total++
-    // 直接使用capabilityLevel字段进行统计
-    const level = item.capabilityLevel || item.level || '未知'
+    
+    // 优先使用第5步的分级结果（综合能力分级）
+    let level = item.comprehensiveCapabilityGrade || item.综合能力分级 || item.capabilityLevel
+    
+    // 如果没有分级结果，尝试从其他字段获取
+    if (!level) {
+      level = item.comprehensiveCapability || item.level || '未知'
+      
+      // 如果comprehensiveCapability是数值，需要根据数值范围判断等级
+      if (typeof level === 'number' || (typeof level === 'string' && !isNaN(parseFloat(level)))) {
+        const numValue = typeof level === 'number' ? level : parseFloat(level)
+        // 根据TOPSIS算法结果的数值范围进行分级（0-1之间）
+        if (numValue >= 0.8) level = '强'
+        else if (numValue >= 0.6) level = '较强'
+        else if (numValue >= 0.4) level = '中等'
+        else if (numValue >= 0.2) level = '较弱'
+        else level = '弱'
+      }
+    }
+    
     console.log(`区域: ${item.regionName}, 能力等级: ${level}`)
     
     switch (level) {
@@ -914,14 +946,8 @@ const getStatistics = () => {
         stats.veryWeak++
         break
       default:
-        console.warn(`未知的能力等级: ${level}`)
-        // 如果没有capabilityLevel，则根据分数计算
-        const score = item.totalScore || item.score || 0
-        if (score >= 90) stats.strong++
-        else if (score >= 80) stats.mediumStrong++
-        else if (score >= 70) stats.medium++
-        else if (score >= 60) stats.weak++
-        else stats.veryWeak++
+        console.warn(`未知的能力等级: ${level}，将归类为中等`)
+        stats.medium++
     }
   })
   
@@ -978,12 +1004,23 @@ const exportAsWord = async () => {
       sections: [{
         properties: {},
         children: [
-          // 标题
+          // 主标题
+          new Paragraph({
+            children: [{
+              text: mapConfig.value.mainTitle,
+              bold: true,
+              size: 36
+            }],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 600 }
+          }),
+          
+          // 副标题
           new Paragraph({
             children: [{
               text: mapConfig.value.title,
               bold: true,
-              size: 32
+              size: 28
             }],
             alignment: AlignmentType.CENTER,
             spacing: { after: 400 }
@@ -1079,9 +1116,15 @@ const exportAsWord = async () => {
               // 详细数据表头
               new TableRow({
                 children: [
-                  new TableCell({ children: [new Paragraph({ text: '乡镇名称', alignment: AlignmentType.CENTER })] }),
-                  new TableCell({ children: [new Paragraph({ text: '评估得分', alignment: AlignmentType.CENTER })] }),
-                  new TableCell({ children: [new Paragraph({ text: '能力等级', alignment: AlignmentType.CENTER })] })
+                  new TableCell({ children: [new Paragraph({ text: '地区', alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ text: '灾害管理能力值', alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ text: '灾害备灾能力值', alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ text: '自救转移能力值', alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ text: '综合减灾能力值', alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ text: '灾害管理分级', alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ text: '灾害备灾分级', alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ text: '自救转移分级', alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ text: '综合能力分级', alignment: AlignmentType.CENTER })] })
                 ]
               }),
               // 详细数据行
@@ -1089,8 +1132,14 @@ const exportAsWord = async () => {
                 new TableRow({
                   children: [
                     new TableCell({ children: [new Paragraph({ text: item.name || item.regionName || '未知', alignment: AlignmentType.CENTER })] }),
-                    new TableCell({ children: [new Paragraph({ text: (item.score || 0).toFixed(2), alignment: AlignmentType.CENTER })] }),
-                    new TableCell({ children: [new Paragraph({ text: item.capabilityLevel || '中等', alignment: AlignmentType.CENTER })] })
+                    new TableCell({ children: [new Paragraph({ text: (item.details?.disasterPreventionCapability || 0).toFixed(4), alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ text: (item.details?.emergencyResponseCapability || 0).toFixed(4), alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ text: (item.details?.recoveryReconstructionCapability || 0).toFixed(4), alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ text: (item.score || 0).toFixed(4), alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ text: item.details?.disasterManagementGrade || item.disasterManagementGrade || '中等', alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ text: item.details?.disasterPreparednessGrade || item.disasterPreparednessGrade || '中等', alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ text: item.details?.selfRescueTransferGrade || item.selfRescueTransferGrade || '中等', alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ text: item.details?.comprehensiveCapabilityGrade || item.comprehensiveCapabilityGrade || item.capabilityLevel || '中等', alignment: AlignmentType.CENTER })] })
                   ]
                 })
               )
@@ -1398,8 +1447,8 @@ onMounted(async () => {
 .thematic-map-container {
   position: relative;
   width: 100%;
-  height: 100vh;
-  min-height: 600px;
+  height: 800px;
+  min-height: 800px;
   background: #fff;
   
   // 全屏模式

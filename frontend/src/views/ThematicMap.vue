@@ -5,60 +5,7 @@
       <p class="page-description">基于减灾能力评估数据生成专业的专题图，支持多种格式导出</p>
     </div>
     
-    <div class="page-content">
-      <!-- 配置面板 -->
-      <div class="config-panel">
-        <el-card class="config-card">
-          <template #header>
-            <div class="card-header">
-              <span>专题图配置</span>
-            </div>
-          </template>
-          
-          <el-form :model="mapSettings" label-width="100px" size="default">
-            <el-form-item label="报告ID">
-              <el-input-number 
-                v-model="mapSettings.reportId" 
-                :min="1" 
-                placeholder="请输入报告ID"
-                style="width: 200px"
-              />
-            </el-form-item>
-            
-            <el-form-item label="地图标题">
-              <el-input 
-                v-model="mapSettings.title" 
-                placeholder="请输入专题图标题"
-                style="width: 300px"
-              />
-            </el-form-item>
-            
-            <el-form-item label="副标题">
-              <el-input 
-                v-model="mapSettings.subtitle" 
-                placeholder="请输入副标题"
-                style="width: 300px"
-              />
-            </el-form-item>
-            
-            <el-form-item label="显示要素">
-              <el-checkbox-group v-model="mapSettings.displayElements">
-                <el-checkbox label="title">标题</el-checkbox>
-                <el-checkbox label="legend">图例</el-checkbox>
-                <el-checkbox label="scale">比例尺</el-checkbox>
-                <el-checkbox label="compass">指北针</el-checkbox>
-                <el-checkbox label="border">边框</el-checkbox>
-              </el-checkbox-group>
-            </el-form-item>
-            
-            <el-form-item>
-              <el-button type="primary" @click="generateMap">生成专题图</el-button>
-              <el-button @click="resetSettings">重置配置</el-button>
-            </el-form-item>
-          </el-form>
-        </el-card>
-      </div>
-      
+    <div class="page-content">    
       <!-- 专题图显示区域 -->
       <div class="map-display-area">
         <el-card class="map-card">
@@ -380,7 +327,7 @@ const loadDataFromSession = () => {
   }
   
   .page-content {
-    display: grid;
+    // display: grid;
     grid-template-columns: 350px 1fr;
     gap: 20px;
     margin-bottom: 20px;
@@ -393,10 +340,10 @@ const loadDataFromSession = () => {
     
     .map-display-area {
       .map-card {
-        height: 600px;
+        // height: 600px;
         
         .map-container {
-          height: 520px;
+          // height: 400px;
           position: relative;
           
           .empty-map {

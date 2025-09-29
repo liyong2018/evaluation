@@ -47,40 +47,64 @@ public class PrimaryIndicatorResult implements Serializable {
     private Long weightConfigId;
 
     /**
-     * 一级指标代码
+     * 评估记录ID
      */
-    @TableField("indicator_code")
-    private String indicatorCode;
+    @TableField("evaluation_id")
+    private Long evaluationId;
 
     /**
-     * 一级指标名称
+     * 二级指标结果ID
      */
-    @TableField("indicator_name")
-    private String indicatorName;
+    @TableField("secondary_result_id")
+    private Long secondaryResultId;
 
     /**
-     * 计算值
+     * 灾害管理能力
      */
-    @TableField("calculated_value")
-    private Double calculatedValue;
+    @TableField("level1_management")
+    private Double level1Management;
 
     /**
-     * 权重值
+     * 灾害备灾能力
      */
-    @TableField("weight_value")
-    private Double weightValue;
+    @TableField("level1_preparation")
+    private Double level1Preparation;
 
     /**
-     * 加权值
+     * 自救转移能力
      */
-    @TableField("weighted_value")
-    private Double weightedValue;
+    @TableField("level1_self_rescue")
+    private Double level1SelfRescue;
 
     /**
-     * 计算过程数据(JSON格式)
+     * 灾害管理能力分级
      */
-    @TableField("process_data")
-    private String processData;
+    @TableField("management_grade")
+    private String managementGrade;
+
+    /**
+     * 灾害备灾能力分级
+     */
+    @TableField("preparation_grade")
+    private String preparationGrade;
+
+    /**
+     * 自救转移能力分级
+     */
+    @TableField("self_rescue_grade")
+    private String selfRescueGrade;
+
+    /**
+     * 综合减灾能力数值
+     */
+    @TableField("overall_capability")
+    private Double overallCapability;
+
+    /**
+     * 综合减灾能力分级
+     */
+    @TableField("overall_grade")
+    private String overallGrade;
 
     /**
      * 创建时间

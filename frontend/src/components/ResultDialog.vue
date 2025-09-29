@@ -102,7 +102,6 @@
             >
               <template #header>
                 <span>{{ column.label }}</span>
-                <span v-if="index === resultData.columns.length - 1" style="color: red; font-size: 12px;">(第{{ index + 1 }}列)</span>
               </template>
             </el-table-column>
           </el-table>

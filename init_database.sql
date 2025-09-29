@@ -5,14 +5,25 @@
 -- 使用evaluate_db数据库
 USE evaluate_db;
 
+-- 删除已存在的表
+DROP TABLE IF EXISTS report;
+DROP TABLE IF EXISTS primary_indicator_result;
+DROP TABLE IF EXISTS secondary_indicator_result;
+DROP TABLE IF EXISTS formula_config;
+DROP TABLE IF EXISTS algorithm_step;
+DROP TABLE IF EXISTS algorithm_config;
+DROP TABLE IF EXISTS indicator_weight;
+DROP TABLE IF EXISTS weight_config;
+DROP TABLE IF EXISTS survey_data;
+
 -- 1. 创建调查数据表
 CREATE TABLE survey_data (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     region_code VARCHAR(20) NOT NULL COMMENT '行政区代码',
-    province VARCHAR(50) NOT NULL COMMENT '省名称',
-    city VARCHAR(50) NOT NULL COMMENT '市名称', 
-    county VARCHAR(50) NOT NULL COMMENT '县名称',
-    township VARCHAR(100) NOT NULL COMMENT '乡镇名称',
+    province VARCHAR(255) NOT NULL COMMENT '省名称',
+    city VARCHAR(255) NOT NULL COMMENT '市名称', 
+    county VARCHAR(255) NOT NULL COMMENT '县名称',
+    township VARCHAR(255) NOT NULL COMMENT '乡镇名称',
     population BIGINT NOT NULL COMMENT '常住人口数量',
     management_staff INT NOT NULL COMMENT '本级灾害管理工作人员总数',
     risk_assessment VARCHAR(10) NOT NULL COMMENT '是否开展风险评估',
@@ -24,7 +35,9 @@ CREATE TABLE survey_data (
     militia_reserve INT NOT NULL COMMENT '民兵预备役人数',
     training_participants INT NOT NULL COMMENT '应急管理培训和演练参与人次',
     shelter_capacity INT NOT NULL COMMENT '本级灾害应急避难场所容量',
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted TINYINT(1) DEFAULT 0
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- 创建索引
@@ -36,8 +49,10 @@ CREATE INDEX idx_survey_data_create_time ON survey_data(create_time DESC);
 CREATE TABLE weight_config (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     config_name VARCHAR(100) NOT NULL COMMENT '配置名称',
-    description VARCHAR(255) COMMENT '配置描述',
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    description TEXT COMMENT '描述',
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted TINYINT(1) DEFAULT 0
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- 3. 创建指标权重表
@@ -48,6 +63,8 @@ CREATE TABLE indicator_weight (
     indicator_name VARCHAR(100) NOT NULL COMMENT '指标名称',
     indicator_level INT NOT NULL COMMENT '指标级别(1-一级指标,2-二级指标)',
     weight DECIMAL(5,4) NOT NULL COMMENT '权重值',
+    min_value DECIMAL(10,4) DEFAULT 0.0 COMMENT '最小值',
+    max_value DECIMAL(10,4) DEFAULT 100.0 COMMENT '最大值',
     parent_id BIGINT COMMENT '父指标ID',
     sort_order INT DEFAULT 0 COMMENT '排序序号',
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -117,7 +134,7 @@ CREATE TABLE secondary_indicator_result (
     funding_capability DECIMAL(10,6) COMMENT '财政投入能力原始值',
     material_capability DECIMAL(10,6) COMMENT '物资储备能力原始值',
     medical_capability DECIMAL(10,6) COMMENT '医疗保障能力原始值',
-    self_rescue_capability DECIMAL(10,6) COMMENT '自救互救能力原始值',
+    self_rescue_capability DECIMAL(10,6) COMMENT 'selves互救能力原始值',
     public_avoidance_capability DECIMAL(10,6) COMMENT '公众避险能力原始值',
     relocation_capability DECIMAL(10,6) COMMENT '转移安置能力原始值',
     
@@ -127,7 +144,7 @@ CREATE TABLE secondary_indicator_result (
     funding_normalized DECIMAL(10,6) COMMENT '财政投入能力归一化值',
     material_normalized DECIMAL(10,6) COMMENT '物资储备能力归一化值',
     medical_normalized DECIMAL(10,6) COMMENT '医疗保障能力归一化值',
-    self_rescue_normalized DECIMAL(10,6) COMMENT '自救互救能力归一化值',
+    self_rescue_normalized DECIMAL(10,6) COMMENT 'selves互救能力归一化值',
     public_avoidance_normalized DECIMAL(10,6) COMMENT '公众避险能力归一化值',
     relocation_normalized DECIMAL(10,6) COMMENT '转移安置能力归一化值',
     
@@ -188,13 +205,13 @@ CREATE INDEX idx_report_time ON report(generate_time DESC);
 
 -- 初始化调查数据
 INSERT INTO survey_data (region_code, province, city, county, township, management_staff, population, risk_assessment, funding_amount, material_value, hospital_beds, firefighters, volunteers, militia_reserve, training_participants, shelter_capacity) VALUES
-('511425001', '四川省', '眉山市', '青神县', '青竹街道', 2, 102379, '是', 20, 9, 1010, 26, 1126, 182, 280, 500),
-('511425102', '四川省', '眉山市', '青神县', '汉阳镇', 2, 6335, '是', 70, 3, 22, 5, 322, 7, 900, 1200),
-('511425108', '四川省', '眉山市', '青神县', '瑞峰镇', 52, 8227, '是', 63, 20, 36, 0, 373, 24, 1658, 780),
-('511425110', '四川省', '眉山市', '青神县', '西龙镇', 2, 14051, '是', 20, 7, 22, 0, 81, 55, 320, 500),
-('511425112', '四川省', '眉山市', '青神县', '高台镇', 4, 13786, '是', 93, 2, 28, 0, 702, 348, 672, 1500),
-('511425217', '四川省', '眉山市', '青神县', '白果乡', 2, 13523, '是', 20, 8, 34, 0, 2, 65, 320, 1000),
-('511425218', '四川省', '眉山市', '青神县', '罗波乡', 12, 9689, '是', 150, 10, 30, 0, 94, 106, 300, 5000);
+('511425001', '四川', '眉山', '青神', '青竹', 2, 102379, '是', 20, 9, 1010, 26, 1126, 182, 280, 500),
+('511425102', '四川', '眉山', '青神', '汉阳', 2, 6335, '是', 70, 3, 22, 5, 322, 7, 900, 1200),
+('511425108', '四川', '眉山', '青神', '瑞峰', 52, 8227, '是', 63, 20, 36, 0, 373, 24, 1658, 780),
+('511425110', '四川', '眉山', '青神', '西龙', 2, 14051, '是', 20, 7, 22, 0, 81, 55, 320, 500),
+('511425112', '四川', '眉山', '青神', '高台', 4, 13786, '是', 93, 2, 28, 0, 702, 348, 672, 1500),
+('511425217', '四川', '眉山', '青神', '白果', 2, 13523, '是', 20, 8, 34, 0, 2, 65, 320, 1000),
+('511425218', '四川', '眉山', '青神', '罗波', 12, 9689, '是', 150, 10, 30, 0, 94, 106, 300, 5000);
 
 -- 初始化默认权重配置
 INSERT INTO weight_config (config_name, description) 
@@ -218,9 +235,9 @@ INSERT INTO indicator_weight (config_id, indicator_code, indicator_name, indicat
 (1, 'L2_MATERIAL', '物资储备能力', 2, 0.51, 2, 1),
 (1, 'L2_MEDICAL', '医疗保障能力', 2, 0.49, 2, 2);
 
--- 二级指标(自救转移能力下的子指标)
+-- 二级指标(selves互救能力下的子指标)
 INSERT INTO indicator_weight (config_id, indicator_code, indicator_name, indicator_level, weight, parent_id, sort_order) VALUES
-(1, 'L2_SELF_RESCUE', '自救互救能力', 2, 0.33, 3, 1),
+(1, 'L2_SELF_RESCUE', 'selves互救能力', 2, 0.33, 3, 1),
 (1, 'L2_PUBLIC_AVOIDANCE', '公众避险能力', 2, 0.33, 3, 2),
 (1, 'L2_RELOCATION', '转移安置能力', 2, 0.34, 3, 3);
 
@@ -244,7 +261,7 @@ INSERT INTO formula_config (algorithm_step_id, formula_name, formula_expression,
 (1, '财政投入能力计算', '(funding_amount/population)*10000', '["funding_amount","population"]', 'funding_capability', '财政投入能力=(防灾减灾救灾资金投入总金额/常住人口数量)*10000'),
 (1, '物资储备能力计算', '(material_value/population)*10000', '["material_value","population"]', 'material_capability', '物资储备能力=(现有储备物资装备折合金额/常住人口数量)*10000'),
 (1, '医疗保障能力计算', '(hospital_beds/population)*10000', '["hospital_beds","population"]', 'medical_capability', '医疗保障能力=(实有住院床位数/常住人口数量)*10000'),
-(1, '自救互救能力计算', '((firefighters+volunteers+militia_reserve)/population)*10000', '["firefighters","volunteers","militia_reserve","population"]', 'self_rescue_capability', '自救互救能力=(消防员数量+志愿者人数+民兵预备役人数)/常住人口数量)*10000'),
+(1, 'selves互救能力计算', '((firefighters+volunteers+militia_reserve)/population)*10000', '["firefighters","volunteers","militia_reserve","population"]', 'self_rescue_capability', '自救互救能力=(消防员数量+志愿者人数+民兵预备役人数)/常住人口数量)*10000'),
 (1, '公众避险能力计算', '(training_participants/population)*10000', '["training_participants","population"]', 'public_avoidance_capability', '公众避险能力=(应急管理培训和演练参与人次/常住人口数量)*10000'),
 (1, '转移安置能力计算', '(shelter_capacity/population)*10000', '["shelter_capacity","population"]', 'relocation_capability', '转移安置能力=(本级灾害应急避难场所容量/常住人口数量)*10000'),
 -- 归一化公式
