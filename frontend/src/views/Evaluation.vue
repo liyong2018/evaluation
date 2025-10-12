@@ -47,6 +47,18 @@
         
         <el-row :gutter="20">
           <el-col :span="12">
+            <el-form-item label="评估模型" prop="modelId">
+              <el-select v-model="evaluationForm.modelId" placeholder="选择评估模型" @change="handleModelChange">
+                <el-option
+                  v-for="model in evaluationModels"
+                  :key="model.id"
+                  :label="model.modelName"
+                  :value="model.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="评估算法" prop="algorithmId">
               <el-select v-model="evaluationForm.algorithmId" placeholder="选择评估算法">
                 <el-option
@@ -58,7 +70,6 @@
               </el-select>
             </el-form-item>
           </el-col>
-
         </el-row>
         
         <el-row :gutter="20">
@@ -95,7 +106,18 @@
             
             <!-- 算法步骤和公式展示 -->
             <div class="algorithm-steps">
-              <h5>算法步骤和公式：</h5>
+              <div class="steps-header">
+                <h5>算法步骤和公式：</h5>
+                <el-button 
+                  type="success" 
+                  size="small" 
+                  @click="viewAllStepsResults"
+                  :disabled="!evaluationForm.algorithmId || !evaluationForm.regions || evaluationForm.regions.length === 0"
+                >
+                  <el-icon><DataAnalysis /></el-icon>
+                  查看所有步骤结果
+                </el-button>
+              </div>
               <div v-if="algorithmSteps.length > 0" class="steps-horizontal-container">
                 <div v-for="(step, index) in algorithmSteps" :key="step.id" class="step-item-horizontal">
                   <div class="step-layout">
@@ -378,7 +400,7 @@ import {
   Download,
   Delete
 } from '@element-plus/icons-vue'
-import { evaluationApi, weightConfigApi, surveyDataApi, regionApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi } from '@/api'
+import { evaluationApi, weightConfigApi, surveyDataApi, regionApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi } from '@/api'
 import ResultDialog from '@/components/ResultDialog.vue'
 
 // 处理ResizeObserver警告
@@ -401,6 +423,7 @@ const selectedAlgorithm = computed(() => {
 const evaluationFormRef = ref<FormInstance>()
 const weightConfigs = ref<any[]>([])
 const algorithmConfigs = ref<any[]>([])
+const evaluationModels = ref<any[]>([])
 const algorithmSteps = ref<any[]>([])
 const regionTreeData = ref<any[]>([])
 const evaluationHistory = ref<any[]>([])
@@ -430,6 +453,7 @@ const formulaTooltip = reactive({
 
 const evaluationForm = reactive({
   name: '',
+  modelId: null,
   weightConfigId: null,
   algorithmId: null,
   dataSource: 'REGION',
@@ -459,8 +483,7 @@ const evaluationProgress = reactive({
 
 const evaluationRules = {
   name: [{ required: true, message: '请输入评估名称', trigger: 'blur' }],
-  weightConfigId: [{ required: true, message: '请选择权重配置', trigger: 'change' }],
-  algorithmId: [{ required: true, message: '请选择评估算法', trigger: 'change' }]
+  weightConfigId: [{ required: true, message: '请选择权重配置', trigger: 'change' }]
 }
 
 // 获取权重配置列表
@@ -485,6 +508,9 @@ const getRegionTreeData = async () => {
       const regionMap = new Map()
       
       // 处理调查数据，提取地区信息
+      // 同时创建一个映射，用于查找 regionCode
+      const idToRegionCodeMap = new Map()
+      
       response.data.forEach(item => {
         // 省级
         if (item.province && !regionMap.has(item.province)) {
@@ -556,6 +582,7 @@ const getRegionTreeData = async () => {
               name: item.township.replace(/^township_/, ''),
               value: `township_${townshipKey}`,
               level: 4,
+              regionCode: item.regionCode,  // 添加 regionCode
               children: []
             }
             
@@ -566,9 +593,15 @@ const getRegionTreeData = async () => {
             if (countyNode) {
               countyNode.children.push(townshipNode)
             }
+            
+            // 保存 ID 到 regionCode 的映射
+            idToRegionCodeMap.set(`township_${townshipKey}`, item.regionCode)
           }
         }
       })
+      
+      // 将映射保存到全局变量
+      window.__regionCodeMap = idToRegionCodeMap
       
       // 提取省级节点作为根节点
       const treeData = []
@@ -601,6 +634,29 @@ const getAlgorithmConfigs = async () => {
     console.error('获取算法配置失败:', error)
     ElMessage.error('获取算法配置失败')
   }
+}
+
+// 获取评估模型列表
+const getEvaluationModels = async () => {
+  try {
+    const response = await modelManagementApi.getAllModels()
+    if (response.success) {
+      // 只显示启用的模型
+      evaluationModels.value = (response.data || []).filter((model: any) => model.status === 1)
+    } else {
+      ElMessage.error(response.message || '获取评估模型失败')
+    }
+  } catch (error) {
+    console.error('获取评估模型失败:', error)
+    ElMessage.error('获取评估模型失败')
+  }
+}
+
+// 处理模型变化
+const handleModelChange = (modelId: number) => {
+  console.log('模型变化:', modelId)
+  // 如果需要，可以清空算法选择
+  // evaluationForm.algorithmId = null
 }
 
 // 获取算法步骤和公式
@@ -705,6 +761,7 @@ const refreshHistory = () => {
 const resetEvaluationForm = () => {
   Object.assign(evaluationForm, {
     name: '',
+    modelId: null,
     weightConfigId: null,
     algorithmId: null,
     dataSource: 'REGION',
@@ -774,11 +831,6 @@ const startEvaluation = async () => {
     if (!valid) return
 
     // 验证必需参数
-    if (!evaluationForm.algorithmId) {
-      ElMessage.error('请选择评估算法')
-      return
-    }
-
     if (!evaluationForm.weightConfigId) {
       ElMessage.error('请选择权重配置')
       return
@@ -789,23 +841,146 @@ const startEvaluation = async () => {
       return
     }
 
-    // 获取算法步骤
-    if (algorithmSteps.value.length === 0) {
-      await getAlgorithmSteps(evaluationForm.algorithmId)
-    }
-
-    if (algorithmSteps.value.length > 0) {
-      // 找到第5步并执行
-      const step5 = algorithmSteps.value[4]
-      if (step5) {
-        await calculateStepResult(step5, 4)
-      } else {
-        ElMessage.error('未找到第5步的配置')
-      }
+    // 如果选择了模型，使用模型执行
+    if (evaluationForm.modelId) {
+      await executeModelEvaluation()
+    } else if (evaluationForm.algorithmId) {
+      // 否则使用算法执行
+      await executeAlgorithmEvaluation()
     } else {
-      ElMessage.error('未找到算法步骤配置')
+      ElMessage.error('请选择评估模型或评估算法')
     }
   })
+}
+
+// 执行模型评估
+const executeModelEvaluation = async () => {
+  loading.evaluation = true
+  evaluationProgress.visible = true
+  evaluationProgress.percentage = 0
+  evaluationProgress.status = 'success'
+  evaluationProgress.message = '正在执行评估模型...'
+
+  try {
+    // 提取地区代码（从选择的ID中提取region_code）
+    const regionCodes = evaluationForm.regions.map((regionId: string) => {
+      // regionId格式可能是 "township_province_city_county_township"
+      // 我们需要提取实际的region_code
+      return extractRegionCode(regionId)
+    })
+
+    evaluationProgress.percentage = 20
+    evaluationProgress.detail = '加载模型配置...'
+
+    // 调用模型执行 API
+    const response = await evaluationApi.executeModel(
+      evaluationForm.modelId,
+      regionCodes,
+      evaluationForm.weightConfigId
+    )
+
+    evaluationProgress.percentage = 80
+
+    if (response.success && response.data) {
+      evaluationProgress.percentage = 90
+      evaluationProgress.detail = '生成结果表格...'
+
+      // 生成结果表格
+      const tableResponse = await evaluationApi.generateResultTable(response.data)
+
+      if (tableResponse.success && tableResponse.data) {
+        evaluationProgress.percentage = 100
+        evaluationProgress.status = 'success'
+        evaluationProgress.message = '评估执行完成'
+        evaluationProgress.detail = ''
+
+        // 显示结果
+        displayModelResults(tableResponse.data)
+        ElMessage.success('评估执行成功')
+      } else {
+        throw new Error(tableResponse.message || '生成结果表格失败')
+      }
+    } else {
+      throw new Error(response.message || '模型执行失败')
+    }
+  } catch (error: any) {
+    console.error('执行评估模型失败:', error)
+    evaluationProgress.percentage = 100
+    evaluationProgress.status = 'exception'
+    evaluationProgress.message = '评估执行失败'
+    evaluationProgress.detail = error.message || '未知错误'
+    ElMessage.error(error.message || '执行评估模型失败')
+  } finally {
+    loading.evaluation = false
+  }
+}
+
+// 执行算法评估（原有逻辑）
+const executeAlgorithmEvaluation = async () => {
+  // 获取算法步骤
+  if (algorithmSteps.value.length === 0) {
+    await getAlgorithmSteps(evaluationForm.algorithmId)
+  }
+
+  if (algorithmSteps.value.length > 0) {
+    // 找到第5步并执行
+    const step5 = algorithmSteps.value[4]
+    if (step5) {
+      await calculateStepResult(step5, 4)
+    } else {
+      ElMessage.error('未找到第5步的配置')
+    }
+  } else {
+    ElMessage.error('未找到算法步骤配置')
+  }
+}
+
+// 提取地区代码
+const extractRegionCode = (regionId: string): string => {
+  // 使用全局映射查找 regionCode
+  const regionCodeMap = (window as any).__regionCodeMap
+  if (regionCodeMap && regionCodeMap.has(regionId)) {
+    return regionCodeMap.get(regionId)
+  }
+  
+  // 如果没有找到映射，尝试移除前缀
+  const parts = regionId.split('_')
+  if (parts.length > 1) {
+    return parts.slice(1).join('_')
+  }
+  return regionId
+}
+
+// 显示模型结果
+const displayModelResults = (tableData: any[]) => {
+  // 生成表格列配置
+  const columns: any[] = []
+  if (tableData.length > 0) {
+    const firstRow = tableData[0]
+    Object.keys(firstRow).forEach(key => {
+      columns.push({
+        prop: key,
+        label: key === 'regionCode' ? '地区代码' : key === 'regionName' ? '地区名称' : key,
+        width: 120
+      })
+    })
+  }
+
+  // 设置弹窗数据并显示
+  currentStepInfo.value = {
+    stepNumber: 0,
+    stepName: '模型评估结果',
+    description: '基于配置模型的评估结果',
+    stepCode: 'model_result',
+    formula: '',
+    formulaName: '',
+    formulaDescription: ''
+  }
+  currentCalculationResult.value = {
+    tableData: tableData,
+    columns: columns
+  }
+  resultDialogVisible.value = true
 }
 
 // 查看结果
@@ -928,6 +1103,97 @@ const monitorExecutionProgress = async (executionId: string) => {
   
   // 开始监控
   checkProgress()
+}
+
+// 查看所有步骤的结果
+const viewAllStepsResults = async () => {
+  if (!evaluationForm.algorithmId) {
+    ElMessage.warning('请先选择算法')
+    return
+  }
+  
+  if (!evaluationForm.regions || evaluationForm.regions.length === 0) {
+    ElMessage.warning('请先选择地区')
+    return
+  }
+  
+  try {
+    // 提取地区代码
+    const regionCodes = evaluationForm.regions.map(regionId => extractRegionCode(regionId))
+    
+    console.log('=== 开始获取所有步骤结果 ===', {
+      algorithmId: evaluationForm.algorithmId,
+      regionCodes,
+      weightConfigId: evaluationForm.weightConfigId
+    })
+    
+    // 首先获取算法步骤信息
+    const stepsResponse = await algorithmStepExecutionApi.getAlgorithmSteps(evaluationForm.algorithmId)
+    if (!stepsResponse.success || !stepsResponse.data.steps) {
+      ElMessage.error('获取算法步骤信息失败')
+      return
+    }
+    
+    const algorithmSteps = stepsResponse.data.steps
+    console.log('获取到算法步骤:', algorithmSteps)
+    
+    // 执行所有步骤获取结果
+    const stepResultPromises = algorithmSteps.map(async (step: any) => {
+      try {
+        const response = await algorithmStepExecutionApi.executeStep(
+          evaluationForm.algorithmId!,
+          step.stepOrder,
+          {
+            regionCodes,
+            weightConfigId: evaluationForm.weightConfigId
+          }
+        )
+        
+        if (response.success) {
+          return response.data
+        } else {
+          console.error(`步骤${step.stepOrder}执行失败:`, response.message)
+          return null
+        }
+      } catch (error) {
+        console.error(`步骤${step.stepOrder}执行异常:`, error)
+        return null
+      }
+    })
+    
+    const stepResults = await Promise.all(stepResultPromises)
+    const validStepResults = stepResults.filter(result => result !== null)
+    
+    if (validStepResults.length === 0) {
+      ElMessage.error('所有步骤执行失败')
+      return
+    }
+    
+    console.log('获取到的步骤结果:', validStepResults)
+    
+    // 设置弹窗数据
+    currentStepInfo.value = {
+      stepNumber: 0,
+      stepName: '算法步骤执行结果',
+      description: `共执行了 ${validStepResults.length} 个步骤`,
+      stepCode: 'multi_steps',
+      formula: '',
+      formulaName: '',
+      formulaDescription: ''
+    }
+    
+    currentCalculationResult.value = {
+      isMultiStep: true,
+      stepResults: validStepResults
+    }
+    
+    resultDialogVisible.value = true
+    ElMessage.success(`成功获取 ${validStepResults.length} 个步骤的结果`)
+    
+  } catch (error) {
+    console.error('获取步骤结果失败:', error)
+    ElMessage.error('获取步骤结果失败')
+  }
 }
 
 // 计算步骤结果
@@ -1504,6 +1770,7 @@ watch(() => evaluationForm.algorithmId, (newAlgorithmId) => {
 onMounted(() => {
   getWeightConfigs()
   getAlgorithmConfigs()
+  getEvaluationModels()
   getRegionTreeData()
   getEvaluationHistory()
 })
@@ -1575,9 +1842,16 @@ onMounted(() => {
   position: relative;
 }
 
+.steps-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
 .algorithm-steps h5 {
   color: #374151;
-  margin-bottom: 16px;
+  margin: 0;
   font-size: 16px;
   font-weight: 600;
 }

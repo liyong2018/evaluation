@@ -17,6 +17,7 @@
             <el-menu-item index="/dashboard">系统首页</el-menu-item>
             <el-menu-item index="/data-management">数据管理</el-menu-item>
             <el-menu-item index="/weight-config">权重配置</el-menu-item>
+            <el-menu-item index="/model-management">模型管理</el-menu-item>
             <el-menu-item index="/evaluation">评估计算</el-menu-item>
             <!-- <el-menu-item index="/results">结果展示</el-menu-item> -->
             <el-menu-item index="/thematic-map">专题图</el-menu-item>

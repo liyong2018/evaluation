@@ -21,6 +21,48 @@
         </div>
       </div>
 
+      <!-- 步骤分组控制 -->
+      <div v-if="resultData && resultData.isMultiStep" class="step-control-section">
+        <div class="step-selector">
+          <h4>选择查看步骤</h4>
+          <el-select 
+            v-model="selectedStepOrder" 
+            placeholder="选择步骤"
+            @change="handleStepChange"
+            style="width: 200px;"
+          >
+            <el-option
+              v-for="step in resultData.stepResults"
+              :key="step.stepOrder"
+              :label="`步骤${step.stepOrder}: ${step.stepName}`"
+              :value="step.stepOrder"
+            />
+          </el-select>
+        </div>
+        
+        <!-- 列显示/隐藏控制 -->
+        <div class="column-control" v-if="currentStepData">
+          <h4>列显示控制</h4>
+          <div class="column-checkboxes">
+            <el-checkbox-group v-model="visibleColumns">
+              <el-checkbox 
+                v-for="column in allColumns" 
+                :key="column.prop"
+                :label="column.prop"
+                :disabled="column.prop === 'regionCode' || column.prop === 'regionName'"
+              >
+                {{ column.label }}
+              </el-checkbox>
+            </el-checkbox-group>
+          </div>
+          <div class="column-actions">
+            <el-button size="small" @click="selectAllColumns">全选</el-button>
+            <el-button size="small" @click="unselectAllColumns">取消全选</el-button>
+            <el-button size="small" @click="resetColumns">重置</el-button>
+          </div>
+        </div>
+      </div>
+
       <!-- 双表格显示 -->
       <div v-if="resultData && resultData.isDualTable" class="dual-table-section">
         <!-- 表格1：一级指标权重计算 -->
@@ -110,6 +152,43 @@
         <!-- 统计信息已移除 -->
       </div>
 
+      <!-- 多步骤结果显示 -->
+      <div v-if="resultData && resultData.isMultiStep" class="multi-step-section">
+        <div v-if="currentStepData" class="current-step-result">
+          <h4>{{ currentStepData.stepName }} - 计算结果</h4>
+          <p class="step-description">{{ currentStepData.description }}</p>
+          
+          <div class="table-container">
+            <el-table
+              :data="currentStepData.tableData"
+              border
+              stripe
+              size="small"
+              max-height="400"
+              class="result-table"
+              style="width: 100%; min-width: 1200px;"
+            >
+              <el-table-column
+                v-for="column in filteredColumns"
+                :key="column.prop"
+                :prop="column.prop"
+                :label="column.label"
+                :width="column.width || 120"
+                :show-overflow-tooltip="true"
+              >
+                <template #header>
+                  <span>{{ column.label }}</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+        
+        <div v-else class="no-step-selected">
+          <el-empty description="请选择要查看的步骤" :image-size="80" />
+        </div>
+      </div>
+
       <!-- 空状态 -->
       <div v-if="!resultData" class="empty-state">
         <el-empty description="暂无计算结果" />
@@ -141,6 +220,18 @@ interface StepInfo {
   stepCode: string
 }
 
+interface StepResult {
+  stepId: number
+  stepName: string
+  stepOrder: number
+  stepCode: string
+  description: string
+  executionResult: any
+  tableData: any[]
+  success: boolean
+  executionTime: string
+}
+
 interface ResultData {
   // 单表格数据结构
   tableData?: any[]
@@ -155,6 +246,11 @@ interface ResultData {
   table2Data?: any[]
   table2Columns?: any[]
   table2Summary?: Record<string, any>
+  
+  // 多步骤数据结构
+  isMultiStep?: boolean
+  stepResults?: StepResult[]
+  selectedStep?: number
 }
 
 interface Props {
@@ -180,13 +276,32 @@ const emit = defineEmits<Emits>()
 const router = useRouter()
 
 const visible = ref(false)
+const selectedStepOrder = ref<number>(1)
+const visibleColumns = ref<string[]>([])
+const allColumns = ref<any[]>([])
 
 // 计算对话框标题
 const dialogTitle = computed(() => {
+  if (props.resultData?.isMultiStep) {
+    return '算法步骤执行结果'
+  }
   if (props.stepInfo) {
     return `${props.stepInfo.stepName} - 计算结果`
   }
   return '计算结果'
+})
+
+// 当前步骤数据
+const currentStepData = computed(() => {
+  if (!props.resultData?.isMultiStep || !props.resultData.stepResults) {
+    return null
+  }
+  return props.resultData.stepResults.find(step => step.stepOrder === selectedStepOrder.value)
+})
+
+// 过滤后的列
+const filteredColumns = computed(() => {
+  return allColumns.value.filter(column => visibleColumns.value.includes(column.prop))
 })
 
 // 监听props变化
@@ -200,6 +315,12 @@ watch(
         formula: props.formula,
         resultData: props.resultData
       })
+      
+      // 初始化多步骤数据
+      if (props.resultData?.isMultiStep && props.resultData.stepResults) {
+        selectedStepOrder.value = props.resultData.stepResults[0]?.stepOrder || 1
+        initializeColumns()
+      }
     }
   },
   { immediate: true }
@@ -230,6 +351,70 @@ watch(visible, (newVal) => {
 // 关闭对话框
 const handleClose = () => {
   visible.value = false
+}
+
+// 处理步骤切换
+const handleStepChange = (stepOrder: number) => {
+  selectedStepOrder.value = stepOrder
+  initializeColumns()
+}
+
+// 初始化列配置
+const initializeColumns = () => {
+  if (!currentStepData.value?.tableData || currentStepData.value.tableData.length === 0) {
+    allColumns.value = []
+    visibleColumns.value = []
+    return
+  }
+  
+  // 从表格数据中推断列配置
+  const firstRow = currentStepData.value.tableData[0]
+  const columns: any[] = []
+  
+  Object.keys(firstRow).forEach(key => {
+    columns.push({
+      prop: key,
+      label: getColumnLabel(key),
+      width: getColumnWidth(key)
+    })
+  })
+  
+  allColumns.value = columns
+  visibleColumns.value = columns.map(col => col.prop) // 默认全部显示
+}
+
+// 获取列标签
+const getColumnLabel = (key: string) => {
+  const labelMap: Record<string, string> = {
+    'regionCode': '地区代码',
+    'regionName': '地区名称'
+  }
+  return labelMap[key] || key
+}
+
+// 获取列宽度
+const getColumnWidth = (key: string) => {
+  if (key === 'regionCode') return 150
+  if (key === 'regionName') return 120
+  return 120
+}
+
+// 选中所有列
+const selectAllColumns = () => {
+  visibleColumns.value = allColumns.value.map(col => col.prop)
+}
+
+// 取消选中所有列
+const unselectAllColumns = () => {
+  // 保留必需的列
+  visibleColumns.value = allColumns.value
+    .filter(col => col.prop === 'regionCode' || col.prop === 'regionName')
+    .map(col => col.prop)
+}
+
+// 重置列显示
+const resetColumns = () => {
+  visibleColumns.value = allColumns.value.map(col => col.prop)
 }
 
 // 导出结果
@@ -556,6 +741,100 @@ const buildCSVContent = (): string => {
           color: #409eff;
         }
       }
+    }
+  }
+
+  .step-control-section {
+    margin-bottom: 20px;
+    padding: 16px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    
+    .step-selector {
+      margin-bottom: 16px;
+      
+      h4 {
+        margin: 0 0 8px 0;
+        color: #333;
+        font-size: 14px;
+        font-weight: 600;
+      }
+    }
+    
+    .column-control {
+      h4 {
+        margin: 0 0 12px 0;
+        color: #333;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      
+      .column-checkboxes {
+        max-height: 200px;
+        overflow-y: auto;
+        margin-bottom: 12px;
+        padding: 8px;
+        border: 1px solid #e4e7ed;
+        border-radius: 4px;
+        background-color: white;
+        
+        .el-checkbox-group {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 8px;
+        }
+        
+        .el-checkbox {
+          margin-right: 0;
+        }
+      }
+      
+      .column-actions {
+        display: flex;
+        gap: 8px;
+        
+        .el-button {
+          flex: 1;
+        }
+      }
+    }
+  }
+  
+  .multi-step-section {
+    margin-bottom: 20px;
+    
+    .current-step-result {
+      h4 {
+        margin: 0 0 8px 0;
+        color: #409eff;
+        font-size: 16px;
+      }
+      
+      .step-description {
+        margin: 0 0 16px 0;
+        color: #666;
+        font-size: 14px;
+        font-style: italic;
+      }
+      
+      .table-container {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border: 1px solid #ebeef5;
+        border-radius: 4px;
+      }
+      
+      .result-table {
+        width: 100%;
+        min-width: 1200px;
+      }
+    }
+    
+    .no-step-selected {
+      padding: 40px;
+      text-align: center;
     }
   }
 

@@ -41,6 +41,11 @@ const router = createRouter({
       path: '/thematic-map',
       name: 'ThematicMap',
       component: () => import('@/views/ThematicMap.vue')
+    },
+    {
+      path: '/model-management',
+      name: 'ModelManagement',
+      component: () => import('@/views/ModelManagement.vue')
     }
   ]
 })

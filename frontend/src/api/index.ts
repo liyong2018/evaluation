@@ -203,7 +203,17 @@ export const evaluationApi = {
     request.post('/api/evaluation/step-result', data),
 
   // 完成评估
-  finalize: (evaluationId: number) => request.post(`/api/evaluation/finalize/${evaluationId}`)
+  finalize: (evaluationId: number) => request.post(`/api/evaluation/finalize/${evaluationId}`),
+
+  // 执行评估模型（基于模型配置）
+  executeModel: (modelId: number, regionCodes: string[], weightConfigId: number) => 
+    request.post('/api/evaluation/execute-model', regionCodes, {
+      params: { modelId, weightConfigId }
+    }),
+
+  // 生成评估结果二维表
+  generateResultTable: (executionResults: any) => 
+    request.post('/api/evaluation/generate-table', executionResults)
 }
 
 // 算法执行相关API
@@ -399,4 +409,90 @@ export const thematicMapApi = {
   
   // 获取天地图配置
   getTiandituConfig: () => request.get('/api/thematic-map/tianditu-config')
+}
+
+// 算法步骤执行相关API
+export const algorithmStepExecutionApi = {
+  // 获取算法步骤信息
+  getAlgorithmSteps: (algorithmId: number) => 
+    request.get(`/api/algorithm-step-execution/${algorithmId}/steps`),
+  
+  // 执行单个步骤
+  executeStep: (algorithmId: number, stepOrder: number, data: {
+    regionCodes: string[];
+    weightConfigId?: number;
+  }) => 
+    request.post(`/api/algorithm-step-execution/${algorithmId}/step/${stepOrder}/execute`, data),
+  
+  // 批量执行步骤（直到指定步骤）
+  executeStepsUpTo: (algorithmId: number, upToStepOrder: number, data: {
+    regionCodes: string[];
+    weightConfigId?: number;
+  }) => 
+    request.post(`/api/algorithm-step-execution/${algorithmId}/steps/execute-up-to/${upToStepOrder}`, data),
+  
+  // 获取算法详细信息
+  getAlgorithmDetail: (algorithmId: number) => 
+    request.get(`/api/algorithm-step-execution/${algorithmId}/detail`),
+  
+  // 获取算法列表
+  getAlgorithms: () => 
+    request.get('/api/algorithm-step-execution/algorithms'),
+  
+  // 验证执行参数
+  validateParams: (algorithmId: number, data: {
+    regionCodes: string[];
+    weightConfigId?: number;
+  }) => 
+    request.post(`/api/algorithm-step-execution/${algorithmId}/validate-params`, data)
+}
+
+// 模型管理相关API
+export const modelManagementApi = {
+  // 获取所有评估模型
+  getAllModels: () => request.get('/api/model-management/models'),
+  
+  // 根据ID获取评估模型
+  getModelById: (id: number) => request.get(`/api/model-management/models/${id}`),
+  
+  // 创建评估模型
+  createModel: (data: any) => request.post('/api/model-management/models', data),
+  
+  // 更新评估模型
+  updateModel: (data: any) => request.put('/api/model-management/models', data),
+  
+  // 删除评估模型
+  deleteModel: (id: number) => request.delete(`/api/model-management/models/${id}`),
+  
+  // 获取模型步骤
+  getModelSteps: (modelId: number) => request.get(`/api/model-management/models/${modelId}/steps`),
+  
+  // 创建模型步骤
+  createModelStep: (data: any) => request.post('/api/model-management/steps', data),
+  
+  // 更新模型步骤
+  updateModelStep: (data: any) => request.put('/api/model-management/steps', data),
+  
+  // 删除模型步骤
+  deleteModelStep: (id: number) => request.delete(`/api/model-management/steps/${id}`),
+  
+  // 获取步骤算法
+  getStepAlgorithms: (stepId: number) => request.get(`/api/model-management/steps/${stepId}/algorithms`),
+  
+  // 创建步骤算法
+  createStepAlgorithm: (data: any) => request.post('/api/model-management/algorithms', data),
+  
+  // 更新步骤算法
+  updateStepAlgorithm: (data: any) => request.put('/api/model-management/algorithms', data),
+  
+  // 删除步骤算法
+  deleteStepAlgorithm: (id: number) => request.delete(`/api/model-management/algorithms/${id}`),
+  
+  // 验证QLExpress表达式
+  validateQLExpression: (data: { expression: string; context?: any }) => 
+    request.post('/api/model-management/validate-expression', data),
+  
+  // 测试QLExpress表达式
+  testQLExpression: (data: { expression: string; context: any }) => 
+    request.post('/api/model-management/test-expression', data)
 }
