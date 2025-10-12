@@ -296,7 +296,20 @@ const currentStepData = computed(() => {
   if (!props.resultData?.isMultiStep || !props.resultData.stepResults) {
     return null
   }
-  return props.resultData.stepResults.find(step => step.stepOrder === selectedStepOrder.value)
+  const stepResult = props.resultData.stepResults.find(step => step.stepOrder === selectedStepOrder.value)
+  if (!stepResult) {
+    return null
+  }
+  
+  // 确保返回的数据包含 tableData 字段
+  console.log('Current step result:', {
+    stepOrder: stepResult.stepOrder,
+    stepName: stepResult.stepName,
+    hasTableData: !!stepResult.tableData,
+    tableDataLength: stepResult.tableData?.length
+  })
+  
+  return stepResult
 })
 
 // 过滤后的列
@@ -330,14 +343,28 @@ watch(
 watch(
   () => props.resultData,
   (newData) => {
-    console.log('ResultData changed:', newData)
-    if (newData && newData.columns) {
-      console.log('Columns count:', newData.columns.length)
-      console.log('Columns:', newData.columns.map(col => ({ prop: col.prop, label: col.label, width: col.width })))
-    }
-    if (newData && newData.tableData && newData.tableData.length > 0) {
-      console.log('First row data keys:', Object.keys(newData.tableData[0]))
-      console.log('Sample row data:', newData.tableData[0])
+    console.log('=== ResultDialog: ResultData changed ===')
+    console.log('Data type detection:', {
+      isMultiStep: !!newData?.isMultiStep,
+      isDualTable: !!newData?.isDualTable,
+      hasTableData: !!newData?.tableData,
+      hasStepResults: !!newData?.stepResults,
+      stepResultsLength: newData?.stepResults?.length
+    })
+    
+    if (newData?.isMultiStep) {
+      console.log('Multi-step mode detected!')
+      console.log('Step results:', newData.stepResults)
+    } else if (newData?.isDualTable) {
+      console.log('Dual table mode detected!')
+    } else if (newData?.tableData) {
+      console.log('Single table mode detected!')
+      if (newData.columns) {
+        console.log('Columns count:', newData.columns.length)
+      }
+      if (newData.tableData.length > 0) {
+        console.log('First row data keys:', Object.keys(newData.tableData[0]))
+      }
     }
   },
   { deep: true, immediate: true }
@@ -362,6 +389,7 @@ const handleStepChange = (stepOrder: number) => {
 // 初始化列配置
 const initializeColumns = () => {
   if (!currentStepData.value?.tableData || currentStepData.value.tableData.length === 0) {
+    console.log('No table data available for columns initialization')
     allColumns.value = []
     visibleColumns.value = []
     return
@@ -370,6 +398,8 @@ const initializeColumns = () => {
   // 从表格数据中推断列配置
   const firstRow = currentStepData.value.tableData[0]
   const columns: any[] = []
+  
+  console.log('Initializing columns from first row:', Object.keys(firstRow))
   
   Object.keys(firstRow).forEach(key => {
     columns.push({
@@ -381,6 +411,11 @@ const initializeColumns = () => {
   
   allColumns.value = columns
   visibleColumns.value = columns.map(col => col.prop) // 默认全部显示
+  
+  console.log('Columns initialized:', {
+    totalColumns: columns.length,
+    visibleColumns: visibleColumns.value.length
+  })
 }
 
 // 获取列标签

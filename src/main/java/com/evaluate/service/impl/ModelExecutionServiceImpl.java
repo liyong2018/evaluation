@@ -447,6 +447,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 风险评估（驼峰和下划线两种命名）
         context.put("riskAssessment", surveyData.getRiskAssessment());
         context.put("risk_assessment", surveyData.getRiskAssessment());
+        context.put("是否开展风险评估", surveyData.getRiskAssessment());  // 中文变量名
         
         // 资金投入（驼峰和下划线两种命名）
         context.put("fundingAmount", surveyData.getFundingAmount());

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>功能检查 - 步骤结果展示</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #409eff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #409eff;
+            margin-top: 30px;
+        }
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 12px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-left: 4px solid #409eff;
+            border-radius: 4px;
+        }
+        .checklist li:before {
+            content: '☐';
+            margin-right: 10px;
+            font-size: 18px;
+        }
+        .code {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .step {
+            background: #e9ecef;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 6px;
+        }
+        .step-number {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: #409eff;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        button {
+            background: #409eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #66b1ff;
+        }
+        .screenshot {
+            border: 2px solid #ddd;
+            padding: 10px;
+            margin: 15px 0;
+            background: #f8f9fa;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .path {
+            font-family: 'Courier New', monospace;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #e83e8c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 步骤结果功能检查指南</h1>
+        
+        <div class="success">
+            <strong>✅ 功能已实现!</strong> 
+            按照以下步骤可以查看和验证功能。
+        </div>
+
+        <h2>📍 第一步：访问正确的页面</h2>
+        <div class="step">
+            <span class="step-number">1</span>
+            <strong>在浏览器中打开：</strong>
+            <div class="code">
+                http://localhost:5175/#/evaluation
+            </div>
+            <button onclick="window.open('http://localhost:5175/#/evaluation', '_blank')">
+                打开评估计算页面
+            </button>
+        </div>
+
+        <h2>🎯 第二步：配置评估参数</h2>
+        <div class="step">
+            <span class="step-number">2</span>
+            <strong>在页面上依次选择：</strong>
+            <ul class="checklist">
+                <li>选择权重配置（任意一个）</li>
+                <li>选择评估算法（建议选择"标准减灾能力评估算法"）</li>
+                <li>选择地区（至少勾选一个地区）</li>
+            </ul>
+        </div>
+
+        <h2>👀 第三步：找到"查看所有步骤结果"按钮</h2>
+        <div class="step">
+            <span class="step-number">3</span>
+            <strong>向下滚动到"算法步骤和公式"部分</strong>
+            <div class="info">
+                <p><strong>按钮位置：</strong></p>
+                <p>在"算法步骤和公式："标题的右侧，有一个绿色的按钮，上面写着"查看所有步骤结果"</p>
+            </div>
+            
+            <div class="screenshot">
+                <p><strong>按钮外观示意：</strong></p>
+                <div style="text-align: left; display: inline-block;">
+                    <div style="background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h5 style="margin: 0; color: #374151;">算法步骤和公式：</h5>
+                            <button style="background: #67c23a; padding: 8px 15px; border-radius: 4px; border: none; color: white; cursor: pointer;">
+                                📊 查看所有步骤结果
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2>🎉 第四步：查看弹窗功能</h2>
+        <div class="step">
+            <span class="step-number">4</span>
+            <strong>点击按钮后，会弹出一个对话框，包含：</strong>
+            
+            <div class="info" style="margin-top: 15px;">
+                <h3 style="margin-top: 0;">对话框内容结构：</h3>
+                
+                <p><strong>1️⃣ 步骤选择器</strong></p>
+                <ul>
+                    <li>标题："选择查看步骤"</li>
+                    <li>下拉菜单显示所有算法步骤</li>
+                    <li>例如：步骤1: 评估指标赋值，步骤2: 属性向量归一化...</li>
+                </ul>
+
+                <p><strong>2️⃣ 列显示控制</strong></p>
+                <ul>
+                    <li>标题："列显示控制"</li>
+                    <li>复选框列表，显示该步骤的所有数据列</li>
+                    <li>三个按钮："全选"、"取消全选"、"重置"</li>
+                </ul>
+
+                <p><strong>3️⃣ 结果表格</strong></p>
+                <ul>
+                    <li>显示当前选中步骤的二维表格数据</li>
+                    <li>只显示勾选的列</li>
+                    <li>切换步骤时表格会自动更新</li>
+                </ul>
+            </div>
+        </div>
+
+        <h2>🐛 如果看不到按钮？</h2>
+        <div class="warning">
+            <h3 style="margin-top: 0;">可能的原因和解决方法：</h3>
+            
+            <p><strong>原因1：页面未刷新</strong></p>
+            <ul>
+                <li>按 <code>Ctrl + F5</code> 强制刷新页面</li>
+                <li>或按 <code>Ctrl + Shift + R</code>（Chrome浏览器）</li>
+            </ul>
+
+            <p><strong>原因2：算法或地区未选择</strong></p>
+            <ul>
+                <li>按钮只有在选择了算法和地区后才会启用（从灰色变为绿色）</li>
+                <li>确保已选择评估算法和至少一个地区</li>
+            </ul>
+
+            <p><strong>原因3：浏览器缓存</strong></p>
+            <ul>
+                <li>清除浏览器缓存后重新访问</li>
+                <li>或使用无痕/隐私模式打开页面</li>
+            </ul>
+        </div>
+
+        <h2>🔧 调试方法</h2>
+        <div class="step">
+            <span class="step-number">5</span>
+            <strong>打开浏览器开发者工具检查：</strong>
+            
+            <ol>
+                <li>按 <code>F12</code> 打开开发者工具</li>
+                <li>切换到 <code>Console</code> 标签</li>
+                <li>点击"查看所有步骤结果"按钮</li>
+                <li>查看是否有以下日志：
+                    <div class="code" style="margin: 10px 0;">
+=== 开始获取所有步骤结果 ===<br>
+获取到算法步骤: [...]<br>
+获取到的步骤结果: [...]
+                    </div>
+                </li>
+                <li>切换到 <code>Network</code> 标签，查看API请求</li>
+            </ol>
+        </div>
+
+        <h2>📁 相关文件位置</h2>
+        <div class="info">
+            <p><strong>前端文件：</strong></p>
+            <ul>
+                <li>评估页面：<span class="path">frontend/src/views/Evaluation.vue</span></li>
+                <li>结果对话框：<span class="path">frontend/src/components/ResultDialog.vue</span></li>
+                <li>API接口：<span class="path">frontend/src/api/index.ts</span></li>
+            </ul>
+
+            <p><strong>后端接口：</strong></p>
+            <ul>
+                <li>控制器：<span class="path">src/main/java/com/evaluate/controller/AlgorithmStepExecutionController.java</span></li>
+                <li>服务：<span class="path">src/main/java/com/evaluate/service/impl/ModelExecutionServiceImpl.java</span></li>
+            </ul>
+        </div>
+
+        <h2>✅ 功能验证清单</h2>
+        <ul class="checklist">
+            <li>能看到"算法步骤和公式"部分</li>
+            <li>能看到右侧的绿色"查看所有步骤结果"按钮</li>
+            <li>选择算法和地区后，按钮变为可点击状态</li>
+            <li>点击按钮后弹出对话框</li>
+            <li>对话框标题显示"算法步骤执行结果"</li>
+            <li>看到"选择查看步骤"下拉菜单</li>
+            <li>看到"列显示控制"区域</li>
+            <li>看到复选框列表和控制按钮</li>
+            <li>底部显示二维表格</li>
+            <li>切换步骤时表格内容更新</li>
+            <li>勾选/取消列时表格列变化</li>
+        </ul>
+
+        <div class="success" style="margin-top: 30px;">
+            <h3 style="margin-top: 0;">💡 小提示</h3>
+            <p>如果您仍然看不到功能，请截图您当前看到的界面，并告诉我：</p>
+            <ul>
+                <li>您选择的算法名称</li>
+                <li>您选择的地区</li>
+                <li>浏览器控制台是否有错误信息</li>
+            </ul>
+            <p>这样我可以更准确地帮您定位问题！</p>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+            <button onclick="window.open('http://localhost:5175/#/evaluation', '_blank')" style="font-size: 16px; padding: 12px 30px;">
+                🚀 现在就去查看功能
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 自动检查前端服务是否运行
+        fetch('http://localhost:5175/')
+            .then(response => {
+                if (response.ok) {
+                    console.log('✅ 前端服务正常运行');
+                }
+            })
+            .catch(error => {
+                alert('⚠️ 警告：无法连接到前端服务 (http://localhost:5175)\\n\\n请确保前端开发服务器正在运行！');
+            });
+
+        // 自动检查后端服务
+        fetch('http://localhost:8081/health')
+            .then(response => {
+                if (response.ok) {
+                    console.log('✅ 后端服务正常运行');
+                }
+            })
+            .catch(error => {
+                console.warn('⚠️ 后端服务可能未运行 (http://localhost:8081)');
+            });
+    </script>
+</body>
+</html>

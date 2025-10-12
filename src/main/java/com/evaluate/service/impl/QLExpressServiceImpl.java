@@ -115,6 +115,9 @@ public class QLExpressServiceImpl implements QLExpressService {
             runner.addFunctionOfClassMethod("SUMSQ", MathFunctions.class, "SUMSQ", new Class[]{Object[].class}, null);
             runner.addFunctionOfClassMethod("SUM", MathFunctions.class, "SUM", new Class[]{Object[].class}, null);
             
+            // 添加条件函数 - 支持Object类型的条件，会自动转换为布尔值
+            runner.addFunctionOfClassMethod("IF", MathFunctions.class, "IF", new Class[]{Object.class, Object.class, Object.class}, null);
+            
             log.info("自定义函数初始化完成");
         } catch (Exception e) {
             log.error("自定义函数初始化失败", e);
@@ -271,6 +274,49 @@ public class QLExpressServiceImpl implements QLExpressService {
             }
             
             return sum;
+        }
+        
+        /**
+         * IF条件函数
+         * 用法: IF(条件, 真值, 假值)
+         * 示例: IF(a > 0, a, 0) 或 IF(risk_assessment == "是", 1, 0)
+         * 
+         * @param condition 条件表达式（可以是布尔值、数字或字符串）
+         * @param trueValue 条件为真时返回的值
+         * @param falseValue 条件为假时返回的值
+         * @return 根据条件返回相应的值
+         */
+        public static Object IF(Object condition, Object trueValue, Object falseValue) {
+            // 将条件转换为布尔值
+            boolean boolCondition = toBoolean(condition);
+            return boolCondition ? trueValue : falseValue;
+        }
+        
+        /**
+         * 将任意类型的值转换为布尔值
+         */
+        private static boolean toBoolean(Object value) {
+            if (value == null) {
+                return false;
+            }
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            }
+            if (value instanceof Number) {
+                return ((Number) value).doubleValue() != 0;
+            }
+            if (value instanceof String) {
+                String str = (String) value;
+                // 空字符串认为false
+                if (str.isEmpty()) {
+                    return false;
+                }
+                // "true", "yes", "1", "是" 等认为true
+                str = str.toLowerCase().trim();
+                return str.equals("true") || str.equals("yes") || str.equals("1") || str.equals("是");
+            }
+            // 其他类型，非空则为true
+            return true;
         }
     }
 }

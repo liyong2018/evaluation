@@ -1170,6 +1170,16 @@ const viewAllStepsResults = async () => {
     }
     
     console.log('获取到的步骤结果:', validStepResults)
+    console.log('每个步骤结果的详细信息:')
+    validStepResults.forEach((result, index) => {
+      console.log(`步骤${index + 1}:`, {
+        stepOrder: result.stepOrder,
+        stepName: result.stepName,
+        hasTableData: !!result.tableData,
+        tableDataLength: result.tableData?.length,
+        keys: Object.keys(result)
+      })
+    })
     
     // 设置弹窗数据
     currentStepInfo.value = {
@@ -1182,10 +1192,18 @@ const viewAllStepsResults = async () => {
       formulaDescription: ''
     }
     
-    currentCalculationResult.value = {
+    const multiStepData = {
       isMultiStep: true,
       stepResults: validStepResults
     }
+    
+    console.log('准备传递给ResultDialog的数据:', {
+      isMultiStep: multiStepData.isMultiStep,
+      stepResultsCount: multiStepData.stepResults.length,
+      firstStepKeys: Object.keys(multiStepData.stepResults[0])
+    })
+    
+    currentCalculationResult.value = multiStepData
     
     resultDialogVisible.value = true
     ElMessage.success(`成功获取 ${validStepResults.length} 个步骤的结果`)
