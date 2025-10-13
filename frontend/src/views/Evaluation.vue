@@ -367,7 +367,7 @@
       <el-table :data="previewData" stripe border max-height="400">
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="name" label="地区名称" width="150" />
-        <el-table-column prop="region" label="区域" width="120" />
+        <el-table-column prop="regionName" label="区域" width="120" />
         <el-table-column prop="population" label="人口" width="120" />
         <el-table-column prop="area" label="面积" width="120" />
         <el-table-column prop="gdp" label="GDP" width="120" />
@@ -383,6 +383,8 @@
       :step-info="currentStepInfo"
       :result-data="currentCalculationResult"
       :formula="currentStepInfo?.formula"
+      :model-id="evaluationForm.modelId"
+      :algorithm-id="evaluationForm.algorithmId"
       @export="handleExportResult"
     />
   </div>
@@ -883,23 +885,25 @@ const executeModelEvaluation = async () => {
 
     if (response.success && response.data) {
       evaluationProgress.percentage = 90
-      evaluationProgress.detail = '生成结果表格...'
+      
+      console.log('=== execute-model 返回的数据 ===')
+      console.log('response.data:', response.data)
+      console.log('数据结构:', {
+        hasColumns: !!response.data?.columns,
+        hasTableData: !!response.data?.tableData,
+        columnsLength: response.data?.columns?.length,
+        tableDataLength: response.data?.tableData?.length,
+        sampleColumns: response.data?.columns?.slice(0, 3)
+      })
+      
+      evaluationProgress.percentage = 100
+      evaluationProgress.status = 'success'
+      evaluationProgress.message = '评估执行完成'
+      evaluationProgress.detail = ''
 
-      // 生成结果表格
-      const tableResponse = await evaluationApi.generateResultTable(response.data)
-
-      if (tableResponse.success && tableResponse.data) {
-        evaluationProgress.percentage = 100
-        evaluationProgress.status = 'success'
-        evaluationProgress.message = '评估执行完成'
-        evaluationProgress.detail = ''
-
-        // 显示结果
-        displayModelResults(tableResponse.data)
-        ElMessage.success('评估执行成功')
-      } else {
-        throw new Error(tableResponse.message || '生成结果表格失败')
-      }
+      // 直接使用 execute-model 返回的数据（已包含 columns 和 tableData）
+      displayModelResults(response.data)
+      ElMessage.success('评估执行成功')
     } else {
       throw new Error(response.message || '模型执行失败')
     }
@@ -952,11 +956,29 @@ const extractRegionCode = (regionId: string): string => {
 }
 
 // 显示模型结果
-const displayModelResults = (tableData: any[]) => {
-  // 生成表格列配置
-  const columns: any[] = []
-  if (tableData.length > 0) {
-    const firstRow = tableData[0]
+const displayModelResults = (resultData: any) => {
+  console.log('=== displayModelResults 接收的数据 ===')
+  console.log('resultData 结构:', {
+    hasTableData: !!resultData?.tableData,
+    hasColumns: !!resultData?.columns,
+    tableDataLength: resultData?.tableData?.length,
+    columnsLength: resultData?.columns?.length,
+    columnsDetail: resultData?.columns
+  })
+  
+  // 使用后端返回的 columns（已包含 stepOrder）
+  // 如果后端没有返回 columns，则从 tableData 推断
+  let columns: any[] = []
+  
+  if (resultData?.columns && Array.isArray(resultData.columns) && resultData.columns.length > 0) {
+    // 直接使用后端返回的 columns（保留 stepOrder 等字段）
+    columns = resultData.columns
+    console.log('✓ 使用后端返回的 columns:', columns.length)
+    console.log('带 stepOrder 的列数量:', columns.filter(c => c.stepOrder !== undefined).length)
+  } else if (resultData?.tableData && resultData.tableData.length > 0) {
+    // 后端没有返回 columns，从 tableData 推断
+    console.log('⚠ 后端未返回 columns，从 tableData 推断')
+    const firstRow = resultData.tableData[0]
     Object.keys(firstRow).forEach(key => {
       columns.push({
         prop: key,
@@ -964,6 +986,8 @@ const displayModelResults = (tableData: any[]) => {
         width: 120
       })
     })
+  } else {
+    console.error('❌ 无法获取列配置，resultData:', resultData)
   }
 
   // 设置弹窗数据并显示
@@ -976,10 +1000,18 @@ const displayModelResults = (tableData: any[]) => {
     formulaName: '',
     formulaDescription: ''
   }
+  
   currentCalculationResult.value = {
-    tableData: tableData,
+    tableData: resultData?.tableData || resultData || [],
     columns: columns
   }
+  
+  console.log('✓ 传递给 ResultDialog 的数据:', {
+    tableDataLength: currentCalculationResult.value.tableData.length,
+    columnsLength: currentCalculationResult.value.columns.length,
+    columnsWithStepOrder: currentCalculationResult.value.columns.filter(c => c.stepOrder !== undefined).length
+  })
+  
   resultDialogVisible.value = true
 }
 
@@ -1480,7 +1512,7 @@ const generateMockStepResult = (step: any, index: number) => {
       
       // 表格1：一级指标权重计算（原始定权值）
       const table1Row = {
-        region: regions[i],
+        regionName: regions[i],
         teamManagement: teamMgmtWeighted.toFixed(8),
         riskAssessment: riskAssessWeighted.toFixed(8),
         financialInput: financialWeighted.toFixed(8),
@@ -1493,7 +1525,7 @@ const generateMockStepResult = (step: any, index: number) => {
       
       // 表格2：乡镇减灾能力权重计算（定权值乘以对应权重）
       const table2Row = {
-        region: regions[i],
+        regionName: regions[i],
         teamManagement: (teamMgmtWeighted * indicatorWeights.teamManagement).toFixed(8),
         riskAssessment: (riskAssessWeighted * indicatorWeights.riskAssessment).toFixed(8),
         financialInput: (financialWeighted * indicatorWeights.financialInput).toFixed(8),
@@ -1510,7 +1542,7 @@ const generateMockStepResult = (step: any, index: number) => {
     
     // 表格列配置（两个表格使用相同的列配置）
     const tableColumns = [
-      { prop: 'region', label: '地区', width: 120 },
+      { prop: 'regionName', label: '地区', width: 120 },
       { prop: 'teamManagement', label: '队伍管理能力', width: 120 },
       { prop: 'riskAssessment', label: '风险评估能力', width: 120 },
       { prop: 'financialInput', label: '财政投入能力', width: 120 },
@@ -1542,7 +1574,7 @@ const generateMockStepResult = (step: any, index: number) => {
     // 步骤4：优劣解算法计算（基于步骤3表2数据增加第4列）
     for (let i = 0; i < regions.length; i++) {
       mockData.push({
-        region: regions[i],
+        regionName: regions[i],
         // 步骤3表2的8个指标定权值
         teamManagement: (Math.random() * 0.1).toFixed(8),
         riskAssessment: (Math.random() * 0.1).toFixed(8),
@@ -1562,7 +1594,7 @@ const generateMockStepResult = (step: any, index: number) => {
     return {
       tableData: mockData,
       columns: [
-        { prop: 'region', label: '地区', width: 100 },
+        { prop: 'regionName', label: '地区', width: 100 },
         // 步骤3表2的8个指标定权值列
         { prop: 'teamManagement', label: '队伍管理能力', width: 110 },
         { prop: 'riskAssessment', label: '风险评估能力', width: 110 },
@@ -1585,7 +1617,7 @@ const generateMockStepResult = (step: any, index: number) => {
     for (let i = 0; i < regions.length; i++) {
       const abilityValue = Math.random() * 0.8 + 0.1
       mockData.push({
-        region: regions[i],
+        regionName: regions[i],
         disasterMgmtAbility: (Math.random() * 0.8 + 0.1).toFixed(4), // 灾害管理能力值
         disasterPrepAbility: (Math.random() * 0.8 + 0.1).toFixed(4), // 灾害备灾能力值
         selfRescueAbility: (Math.random() * 0.8 + 0.1).toFixed(4), // 自救转移能力值
@@ -1600,7 +1632,7 @@ const generateMockStepResult = (step: any, index: number) => {
     return {
       tableData: mockData,
       columns: [
-        { prop: 'region', label: '地区', width: 100 },
+        { prop: 'regionName', label: '地区', width: 100 },
         { prop: 'disasterMgmtAbility', label: '灾害管理能力值', width: 120 },
         { prop: 'disasterPrepAbility', label: '灾害备灾能力值', width: 120 },
         { prop: 'selfRescueAbility', label: '自救转移能力值', width: 120 },
@@ -1615,7 +1647,7 @@ const generateMockStepResult = (step: any, index: number) => {
   } else if (step.stepName.includes('指标计算')) {
     for (let i = 0; i < regions.length; i++) {
       mockData.push({
-        region: regions[i],
+        regionName: regions[i],
         indicator1: (Math.random() * 0.8 + 0.2).toFixed(3),
         indicator2: (Math.random() * 0.8 + 0.2).toFixed(3),
         indicator3: (Math.random() * 0.8 + 0.2).toFixed(3),
@@ -1626,7 +1658,7 @@ const generateMockStepResult = (step: any, index: number) => {
     return {
       tableData: mockData,
       columns: [
-        { prop: 'region', label: '地区', width: 120 },
+        { prop: 'regionName', label: '地区', width: 120 },
         { prop: 'indicator1', label: '指标1', width: 100 },
         { prop: 'indicator2', label: '指标2', width: 100 },
         { prop: 'indicator3', label: '指标3', width: 100 },
@@ -1644,7 +1676,7 @@ const generateMockStepResult = (step: any, index: number) => {
       // 强制生成定权数据
       for (let i = 0; i < regions.length; i++) {
         const mockRowData = {
-          region: regions[i],
+          regionName: regions[i],
           teamManagement: (Math.random() * 0.1).toFixed(6),
           riskAssessment: (Math.random() * 0.1).toFixed(6),
           financialInput: (Math.random() * 0.1).toFixed(6),
@@ -1659,7 +1691,7 @@ const generateMockStepResult = (step: any, index: number) => {
       }
       
       const forceColumns = [
-        { prop: 'region', label: '地区', width: 100 },
+        { prop: 'regionName', label: '地区', width: 100 },
         { prop: 'teamManagement', label: '队伍管理能力', width: 110 },
         { prop: 'riskAssessment', label: '风险评估能力', width: 110 },
         { prop: 'financialInput', label: '财政投入能力', width: 110 },
@@ -1687,7 +1719,7 @@ const generateMockStepResult = (step: any, index: number) => {
     // 其他步骤的通用模拟数据
     for (let i = 0; i < regions.length; i++) {
       mockData.push({
-        region: regions[i],
+        regionName: regions[i],
         value: (Math.random() * 100).toFixed(2),
         weight: (Math.random() * 0.3 + 0.1).toFixed(3),
         score: (Math.random() * 90 + 10).toFixed(2)
@@ -1697,7 +1729,7 @@ const generateMockStepResult = (step: any, index: number) => {
     return {
       tableData: mockData,
       columns: [
-        { prop: 'region', label: '地区', width: 120 },
+        { prop: 'regionName', label: '地区', width: 120 },
         { prop: 'value', label: '数值', width: 100 },
         { prop: 'weight', label: '权重', width: 100 },
         { prop: 'score', label: '得分', width: 100 }

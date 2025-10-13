@@ -1,12 +1,15 @@
 package com.evaluate.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.evaluate.entity.AlgorithmConfig;
 import com.evaluate.entity.AlgorithmStep;
 import com.evaluate.entity.FormulaConfig;
 import com.evaluate.entity.IndicatorWeight;
 import com.evaluate.entity.SurveyData;
+import com.evaluate.entity.Region;
 import com.evaluate.mapper.AlgorithmStepMapper;
 import com.evaluate.mapper.FormulaConfigMapper;
+import com.evaluate.mapper.RegionMapper;
 import com.evaluate.service.AlgorithmExecutionService;
 import com.evaluate.service.IIndicatorWeightService;
 import com.evaluate.service.ISurveyDataService;
@@ -31,6 +34,9 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
     
     @Autowired
     private FormulaConfigMapper formulaConfigMapper;
+    
+    @Autowired
+    private RegionMapper regionMapper;
     
     @Autowired
     private RegionService regionService;
@@ -558,8 +564,8 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             Map<String, Object> row1 = new HashMap<>();
             Map<String, Object> row2 = new HashMap<>();
             
-            row1.put("region", regionName);
-            row2.put("region", regionName);
+            row1.put("regionName", regionName);
+            row2.put("regionName", regionName);
             
             if (!surveyDataList.isEmpty()) {
                 SurveyData surveyData = surveyDataList.get(0);
@@ -797,7 +803,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             
             // 从字符串ID中提取地区名称
             String regionName = extractRegionNameFromId(regionId);
-            row.put("region", regionName);
+            row.put("regionName", regionName);
             
             // 根据地区名称获取调查数据
             List<SurveyData> surveyDataList = surveyDataService.getBySurveyRegion(regionName);
@@ -1063,16 +1069,44 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             return "未知地区";
         }
         
-        // 如果是township_开头的格式
-        if (regionId.startsWith("township_")) {
-            String[] parts = regionId.split("_");
-            if (parts.length >= 5) {
-                // 返回最后一部分（乡镇名称）
-                return parts[parts.length - 1];
+        // 首先尝试通过regionCode从survey_data表查询获取中文名称
+        try {
+            // 如果regionId本身就是regionCode，直接查询survey_data表
+            List<SurveyData> surveyDataList = surveyDataService.getBySurveyRegion(regionId);
+            if (!surveyDataList.isEmpty()) {
+                SurveyData surveyData = surveyDataList.get(0);
+                if (surveyData.getTownship() != null && !surveyData.getTownship().isEmpty()) {
+                    return surveyData.getTownship();
+                }
             }
+            
+            // 尝试通过regionCode直接查询
+            QueryWrapper<SurveyData> wrapper = new QueryWrapper<>();
+            wrapper.eq("region_code", regionId);
+            SurveyData surveyData = surveyDataService.getOne(wrapper);
+            if (surveyData != null && surveyData.getTownship() != null) {
+                return surveyData.getTownship();
+            }
+            
+            // 如果是township_开头的格式，提取regionCode
+            if (regionId.startsWith("township_")) {
+                String[] parts = regionId.split("_");
+                if (parts.length >= 5) {
+                    // 尝试通过SurveyData查找对应的regionCode
+                    String regionName = parts[parts.length - 1];
+                    List<SurveyData> surveyDataByName = surveyDataService.getBySurveyRegion(regionName);
+                    if (!surveyDataByName.isEmpty()) {
+                        return surveyDataByName.get(0).getTownship();
+                    }
+                    // 如果找不到对应的数据，返回提取的名称
+                    return regionName;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("查询地区名称失败，regionId: {}, 错误: {}", regionId, e.getMessage());
         }
         
-        // 如果不是预期格式，直接返回原字符串
+        // 如果不是预期格式或查询失败，直接返回原字符串
         return regionId;
     }
     
@@ -1564,7 +1598,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         
         // 地区列（所有步骤都有）
         Map<String, Object> regionColumn = new HashMap<>();
-        regionColumn.put("prop", "region");
+        regionColumn.put("prop", "regionName");
         regionColumn.put("label", "地区");
         regionColumn.put("width", 120);
         columns.add(regionColumn);

@@ -454,6 +454,9 @@ export const modelManagementApi = {
   
   // 根据ID获取评估模型
   getModelById: (id: number) => request.get(`/api/model-management/models/${id}`),
+
+  // 获取模型详情（包含步骤与算法）
+  getModelDetail: (modelId: number) => request.get(`/api/model-management/models/${modelId}/detail`),
   
   // 创建评估模型
   createModel: (data: any) => request.post('/api/model-management/models', data),

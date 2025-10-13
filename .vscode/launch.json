@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-EvaluateApplication<disaster-reduction-evaluation>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.evaluate.EvaluateApplication",
+            "projectName": "disaster-reduction-evaluation",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

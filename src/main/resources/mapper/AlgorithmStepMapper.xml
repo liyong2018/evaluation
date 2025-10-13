@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.evaluate.mapper.AlgorithmStepMapper">
+
+    <!-- 批量插入算法步骤 -->
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO algorithm_step (
+            algorithm_config_id, 
+            step_name, 
+            step_code, 
+            description, 
+            input_data, 
+            output_data, 
+            step_order, 
+            status, 
+            create_time
+        ) VALUES
+        <foreach collection="stepList" item="step" separator=",">
+            (
+                #{step.algorithmConfigId},
+                #{step.stepName},
+                #{step.stepCode},
+                #{step.stepDescription},
+                #{step.inputData},
+                #{step.outputData},
+                #{step.stepOrder},
+                #{step.status},
+                #{step.createTime}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 根据算法ID删除所有步骤 -->
+    <delete id="deleteByAlgorithmId" parameterType="java.lang.Long">
+        DELETE FROM algorithm_step WHERE algorithm_config_id = #{algorithmId}
+    </delete>
+
+    <!-- 更新步骤顺序 -->
+    <update id="updateStepOrder">
+        UPDATE algorithm_step 
+        SET step_order = #{stepOrder}
+        WHERE id = #{id}
+    </update>
+
+    <!-- 批量更新步骤启用状态 -->
+    <update id="batchUpdateEnabled" parameterType="java.util.List">
+        <foreach collection="stepList" item="step" separator=";">
+            UPDATE algorithm_step 
+            SET status = #{step.status}
+            WHERE id = #{step.id}
+        </foreach>
+    </update>
+
+</mapper>

@@ -6,6 +6,7 @@ import com.evaluate.mapper.*;
 import com.evaluate.service.ModelExecutionService;
 import com.evaluate.service.QLExpressService;
 import com.evaluate.service.SpecialAlgorithmService;
+import com.evaluate.service.ISurveyDataService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.Collections;
 
 /**
  * 模型执行服务实现类
@@ -50,6 +53,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
     @Autowired
     private SpecialAlgorithmService specialAlgorithmService;
+
+    @Autowired
+    private ISurveyDataService surveyDataService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -96,6 +102,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         // 5. 按顺序执行每个步骤
         Map<String, Object> stepResults = new HashMap<>();
+        Map<Integer, List<String>> stepOutputParams = new LinkedHashMap<>();  // 记录每个步骤的输出参数名称
+        
         for (ModelStep step : steps) {
             log.info("执行步骤: {} - {}, order={}", step.getStepCode(), step.getStepName(), step.getStepOrder());
             
@@ -103,6 +111,15 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 // 执行单个步骤
                 Map<String, Object> stepResult = executeStep(step.getId(), regionCodes, globalContext);
                 stepResults.put(step.getStepCode(), stepResult);
+                
+                // 记录该步骤的输出参数（用于后面生成 columns）
+                @SuppressWarnings("unchecked")
+                Map<String, String> outputToAlgorithmName = 
+                        (Map<String, String>) stepResult.get("outputToAlgorithmName");
+                if (outputToAlgorithmName != null) {
+                    stepOutputParams.put(step.getStepOrder(), new ArrayList<>(outputToAlgorithmName.values()));
+                    log.debug("步骤{} 的输出参数: {}", step.getStepOrder(), outputToAlgorithmName.values());
+                }
                 
                 // 将步骤结果合并到全局上下文（供后续步骤使用）
                 globalContext.put("step_" + step.getStepCode(), stepResult);
@@ -114,12 +131,21 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
 
+        // 生成二维表数据
+        List<Map<String, Object>> tableData = generateResultTable(
+                Collections.singletonMap("stepResults", stepResults));
+        
+        // 生成 columns 数组（包含所有步骤的 stepOrder 信息）
+        List<Map<String, Object>> columns = generateColumnsWithAllSteps(tableData, stepOutputParams);
+
         // 6. 构建最终结果
         Map<String, Object> result = new HashMap<>();
         result.put("modelId", modelId);
         result.put("modelName", model.getModelName());
         result.put("executionTime", new Date());
         result.put("stepResults", stepResults);
+        result.put("tableData", tableData);
+        result.put("columns", columns);
         result.put("success", true);
 
         log.info("评估模型执行完成");
@@ -309,8 +335,22 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             row.put("regionCode", regionCode);
             
             // 获取地区名称
-            Region region = regionMapper.selectByCode(regionCode);
-            String regionName = region != null ? region.getName() : regionCode;
+            String regionName = regionCode;
+            
+            // 首先尝试从survey_data表获取地区名称
+            QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
+            surveyQuery.eq("region_code", regionCode);
+            SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
+            if (surveyData != null && surveyData.getTownship() != null) {
+                regionName = surveyData.getTownship();
+            } else {
+                // 如果survey_data中没有找到，再尝试region表
+                Region region = regionMapper.selectByCode(regionCode);
+                if (region != null) {
+                    regionName = region.getName();
+                }
+            }
+            
             row.put("regionName", regionName);
             log.debug("地区 {} 映射为: {}", regionCode, regionName);
 
@@ -528,20 +568,24 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             // 4. 执行目标步骤
             Map<String, Object> stepExecutionResult = executeAlgorithmStepInternal(targetStep, regionCodes, globalContext);
 
-            // 5. 生成该步骤的2D表格数据
-            List<Map<String, Object>> tableData = generateStepResultTable(stepExecutionResult, regionCodes);
+        // 5. 生成该步骤的2D表格数据
+        List<Map<String, Object>> tableData = generateStepResultTable(stepExecutionResult, regionCodes);
 
-            // 6. 构建返回结果
-            Map<String, Object> result = new HashMap<>();
-            result.put("stepId", targetStep.getId());
-            result.put("stepName", targetStep.getStepName());
-            result.put("stepOrder", stepOrder);
-            result.put("stepCode", targetStep.getStepCode());
-            result.put("description", targetStep.getStepDescription());
-            result.put("executionResult", stepExecutionResult);
-            result.put("tableData", tableData);
-            result.put("success", true);
-            result.put("executionTime", new Date());
+        // 生成 columns 数组（包含 stepOrder 信息）
+        List<Map<String, Object>> columns = generateColumnsWithStepOrder(tableData, stepOrder);
+
+        // 6. 构建返回结果
+        Map<String, Object> result = new HashMap<>();
+        result.put("stepId", targetStep.getId());
+        result.put("stepName", targetStep.getStepName());
+        result.put("stepOrder", stepOrder);
+        result.put("stepCode", targetStep.getStepCode());
+        result.put("description", targetStep.getStepDescription());
+        result.put("executionResult", stepExecutionResult);
+        result.put("tableData", tableData);
+        result.put("columns", columns);
+        result.put("success", true);
+        result.put("executionTime", new Date());
 
             log.info("算法步骤 {} 执行完成，生成 {} 行表格数据", stepOrder, tableData.size());
             return result;
@@ -874,6 +918,121 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
         
         return tableData;
+    }
+
+    /**
+     * 从表格数据和步骤输出参数生成 columns 数组，每列标记所属步骤
+     * 
+     * @param tableData 表格数据
+     * @param stepOutputParams 步骤序号 -> 输出参数名称列表的映射
+     * @return columns 数组
+     */
+    private List<Map<String, Object>> generateColumnsWithAllSteps(
+            List<Map<String, Object>> tableData, 
+            Map<Integer, List<String>> stepOutputParams) {
+        
+        List<Map<String, Object>> columns = new ArrayList<>();
+        
+        if (tableData == null || tableData.isEmpty()) {
+            log.debug("表格数据为空，返回空的 columns 数组");
+            return columns;
+        }
+        
+        // 从第一行数据提取所有列名
+        Map<String, Object> firstRow = tableData.get(0);
+        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region"));
+        
+        // 创建反向映射：列名 -> 步骤序号
+        Map<String, Integer> columnToStepOrder = new HashMap<>();
+        for (Map.Entry<Integer, List<String>> entry : stepOutputParams.entrySet()) {
+            Integer stepOrder = entry.getKey();
+            List<String> outputNames = entry.getValue();
+            for (String outputName : outputNames) {
+                columnToStepOrder.put(outputName, stepOrder);
+            }
+        }
+        
+        log.info("开始生成 columns 数组（全模型），总列数: {}", firstRow.size());
+        log.debug("列名到步骤序号的映射: {}", columnToStepOrder);
+        
+        for (String columnName : firstRow.keySet()) {
+            Map<String, Object> column = new LinkedHashMap<>();
+            column.put("prop", columnName);
+            column.put("label", columnName);
+            
+            // 设置列宽
+            if ("regionCode".equals(columnName)) {
+                column.put("width", 150);
+            } else if ("regionName".equals(columnName) || "region".equals(columnName)) {
+                column.put("width", 120);
+            } else {
+                column.put("width", 120);
+                // 非基础列添加 stepOrder
+                Integer stepOrder = columnToStepOrder.get(columnName);
+                if (stepOrder != null) {
+                    column.put("stepOrder", stepOrder);
+                    log.debug("列 {} 标记为步骤 {}", columnName, stepOrder);
+                } else {
+                    log.warn("列 {} 未找到对应的步骤序号", columnName);
+                }
+            }
+            
+            columns.add(column);
+        }
+        
+        log.info("完成 columns 数组生成（全模型），共 {} 列，其中 {} 列包含 stepOrder", 
+                columns.size(), columns.stream().filter(c -> c.containsKey("stepOrder")).count());
+        
+        return columns;
+    }
+
+    /**
+     * 从表格数据生成 columns 数组，并为非基础列添加 stepOrder
+     * 
+     * @param tableData 表格数据
+     * @param stepOrder 当前步骤序号
+     * @return columns 数组
+     */
+    private List<Map<String, Object>> generateColumnsWithStepOrder(
+            List<Map<String, Object>> tableData, Integer stepOrder) {
+        
+        List<Map<String, Object>> columns = new ArrayList<>();
+        
+        if (tableData == null || tableData.isEmpty()) {
+            log.debug("表格数据为空，返回空的 columns 数组");
+            return columns;
+        }
+        
+        // 从第一行数据提取所有列名
+        Map<String, Object> firstRow = tableData.get(0);
+        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region"));
+        
+        log.info("开始生成 columns 数组，步骤序号: {}, 列数: {}", stepOrder, firstRow.size());
+        
+        for (String columnName : firstRow.keySet()) {
+            Map<String, Object> column = new LinkedHashMap<>();
+            column.put("prop", columnName);
+            column.put("label", columnName);  // 使用中文名称作为 label
+            
+            // 设置列宽
+            if ("regionCode".equals(columnName)) {
+                column.put("width", 150);
+            } else if ("regionName".equals(columnName) || "region".equals(columnName)) {
+                column.put("width", 120);
+            } else {
+                column.put("width", 120);
+                // 非基础列添加 stepOrder
+                column.put("stepOrder", stepOrder);
+                log.debug("列 {} 标记为步骤 {}", columnName, stepOrder);
+            }
+            
+            columns.add(column);
+        }
+        
+        log.info("完成 columns 数组生成，共 {} 列，其中 {} 列包含 stepOrder", 
+                columns.size(), columns.stream().filter(c -> c.containsKey("stepOrder")).count());
+        
+        return columns;
     }
 
     @Autowired

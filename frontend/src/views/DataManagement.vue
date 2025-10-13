@@ -24,12 +24,17 @@
               </el-input>
             </el-col>
             <el-col :span="6">
-              <el-select v-model="searchForm.region" placeholder="选择地区" clearable>
-                <el-option label="全部地区" value="" />
+              <el-select
+                v-model="searchForm.selectedRegion"
+                placeholder="选择地区"
+                clearable
+                filterable
+              >
+                <el-option label="全部地区" :value="null" />
                 <el-option
-                  v-for="region in regionOptions"
-                  :key="region"
-                  :label="region"
+                  v-for="region in regionSelectOptions"
+                  :key="region.code"
+                  :label="`${region.name} (${region.code})`"
                   :value="region"
                 />
               </el-select>
@@ -75,6 +80,11 @@
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="regionCode" label="地区代码" width="120" />
+        <el-table-column label="区域名称" width="160">
+          <template #default="{ row }">
+            {{ getRegionName(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="province" label="省份" width="100" />
         <el-table-column prop="city" label="市" width="100" />
         <el-table-column prop="county" label="县" width="100" />
@@ -334,7 +344,7 @@ import {
   Delete,
   UploadFilled
 } from '@element-plus/icons-vue'
-import { surveyDataApi } from '@/api'
+import { surveyDataApi, regionApi } from '@/api'
 
 // 修复ResizeObserver错误
 const originalError = console.error
@@ -348,11 +358,14 @@ console.error = (...args: any[]) => {
 // 响应式数据
 const tableData = ref<any[]>([])
 const selectedRows = ref<any[]>([])
-const regionOptions = ref<string[]>(['华北地区', '华东地区', '华南地区', '华中地区', '西南地区', '西北地区', '东北地区'])
+// 代码->名称映射表（一次性从后端加载）
+const regionNameMap = ref<Record<string, string>>({})
+// 下拉选项（从后端获取），包含代码与名称
+const regionSelectOptions = ref<Array<{ code: string; name: string }>>([])
 
 const searchForm = reactive({
   keyword: '',
-  region: ''
+  selectedRegion: null as null | { code: string; name: string }
 })
 
 const pagination = reactive({
@@ -406,6 +419,41 @@ const formRules = {
   population: [{ required: true, message: '请输入人口数量', trigger: 'blur' }]
 }
 
+// 加载地区名称映射
+const loadRegionNameMap = async () => {
+  try {
+    console.info('[DataManagement] loadRegionNameMap -> request /api/region/all')
+    const res = await regionApi.getAllEnabledRegions()
+    if (res?.success && Array.isArray(res.data)) {
+      const map: Record<string, string> = {}
+      const options: Array<{ code: string; name: string }> = []
+      for (const r of res.data) {
+        if (r?.code) {
+          map[String(r.code).trim()] = r.name || String(r.code).trim()
+          options.push({ code: String(r.code).trim(), name: r.name || String(r.code).trim() })
+        }
+      }
+      regionNameMap.value = map
+      regionSelectOptions.value = options
+      console.info('[DataManagement] loadRegionNameMap -> loaded', options.length)
+    } else {
+      console.warn('[DataManagement] loadRegionNameMap -> response invalid', res)
+    }
+  } catch (e) {
+    console.warn('加载地区名称映射失败:', e)
+  }
+}
+
+// 根据代码获取地区名称（带鲁棒回退）
+const getRegionName = (row?: any) => {
+  const code = row?.regionCode
+  if (!code && !row) return '-'
+  const key = (code != null ? String(code) : '').trim()
+  const mapped = key ? regionNameMap.value[key] : ''
+  // 回退顺序：映射 -> 行内乡镇/县/市/省 -> 原始代码 -> '-'
+  return mapped || row?.township || row?.county || row?.city || row?.province || key || '-'
+}
+
 // 获取数据列表
 const getDataList = async () => {
   loading.table = true
@@ -414,6 +462,17 @@ const getDataList = async () => {
     if (response.success) {
       tableData.value = response.data || []
       pagination.total = tableData.value.length
+      // 如果下拉选项还未加载成功，基于现有表格构建一个临时选项集
+      if (!regionSelectOptions.value?.length && tableData.value?.length) {
+        const uniq = new Map<string, string>()
+        for (const row of tableData.value) {
+          const code = String(row.regionCode || '').trim()
+          if (!code) continue
+          const name = row.township || row.county || row.city || row.province || code
+          if (!uniq.has(code)) uniq.set(code, name)
+        }
+        regionSelectOptions.value = Array.from(uniq.entries()).map(([code, name]) => ({ code, name }))
+      }
     } else {
       ElMessage.error(response.message || '获取数据失败')
     }
@@ -427,7 +486,7 @@ const getDataList = async () => {
 
 // 搜索
 const handleSearch = async () => {
-  if (!searchForm.keyword && !searchForm.region) {
+  if (!searchForm.keyword && !searchForm.selectedRegion) {
     getDataList()
     return
   }
@@ -437,8 +496,9 @@ const handleSearch = async () => {
     let response
     if (searchForm.keyword) {
       response = await surveyDataApi.search(searchForm.keyword)
-    } else if (searchForm.region) {
-      response = await surveyDataApi.getByRegion(searchForm.region)
+    } else if (searchForm.selectedRegion) {
+      // 后端当前按名称查询（township/county/city/province 模糊匹配）
+      response = await surveyDataApi.getByRegion(searchForm.selectedRegion.name)
     }
     
     if (response?.success) {
@@ -694,8 +754,18 @@ const exportData = async () => {
 }
 
 // 组件挂载时获取数据
-onMounted(() => {
-  getDataList()
+onMounted(async () => {
+  console.info('[DataManagement] onMounted -> start loadRegionNameMap')
+  await loadRegionNameMap()
+  console.info('[DataManagement] onMounted -> loadRegionNameMap done, start getDataList')
+  await getDataList()
+  console.info('[DataManagement] onMounted -> getDataList done')
+  // 暴露到 window 便于调试（仅开发时使用）
+  try {
+    ;(window as any).app = (window as any).app || {}
+    ;(window as any).app.regionNameMap = regionNameMap.value
+    ;(window as any).app.reloadRegions = loadRegionNameMap
+  } catch {}
 })
 </script>
 
