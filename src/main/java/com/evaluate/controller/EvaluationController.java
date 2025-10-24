@@ -4,6 +4,8 @@ import com.evaluate.common.Result;
 import com.evaluate.service.IEvaluationService;
 import com.evaluate.service.ModelExecutionService;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,6 +22,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/evaluation")
 public class EvaluationController {
+
+    private static final Logger log = LoggerFactory.getLogger(EvaluationController.class);
 
     @Autowired
     private IEvaluationService evaluationService;

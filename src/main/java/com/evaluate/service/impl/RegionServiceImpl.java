@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 地区组织机构服务实现类
@@ -25,7 +27,9 @@ public class RegionServiceImpl implements RegionService {
     public List<Region> getRegionTree() {
         // 获取所有启用的地区
         List<Region> allRegions = regionMapper.selectAllEnabled();
-        
+
+        log.info("开始构建地区树结构，共{}个地区", allRegions.size());
+
         // 构建树形结构
         return buildRegionTree(allRegions, null);
     }
@@ -67,6 +71,8 @@ public class RegionServiceImpl implements RegionService {
     /**
      * 构建地区树形结构
      */
+    private static final Logger log = LoggerFactory.getLogger(RegionServiceImpl.class);
+
     private List<Region> buildRegionTree(List<Region> allRegions, Long parentId) {
         List<Region> result = new ArrayList<>();
         

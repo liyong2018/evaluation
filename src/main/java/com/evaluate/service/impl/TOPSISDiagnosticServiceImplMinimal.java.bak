@@ -1,0 +1,67 @@
+package com.evaluate.service.impl;
+
+import com.evaluate.dto.topsis.TOPSISAlgorithmConfig;
+import com.evaluate.dto.topsis.TOPSISDiagnosticReport;
+import com.evaluate.dto.topsis.TOPSISRepairResult;
+import com.evaluate.service.TOPSISDiagnosticService;
+import com.evaluate.service.UnifiedTOPSISCalculator;
+import com.evaluate.service.TOPSISConfigurationAnalyzer;
+import com.evaluate.dto.topsis.TOPSISCalculationMetrics;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
+
+/**
+ * TOPSIS诊断服务简化实现类 - 仅包含基本功能
+ *
+ * @author System
+ * @since 2025-01-01
+ */
+@Service
+public class TOPSISDiagnosticServiceImplMinimal implements TOPSISDiagnosticService {
+
+    private static final Logger log = org.slf4j.LoggerFactory.getLogger(TOPSISDiagnosticServiceImplMinimal.class);
+
+    @Autowired
+    private UnifiedTOPSISCalculator topsisCalculator;
+
+    @Override
+    public TOPSISDiagnosticReport diagnose(Long modelId, List<String> regionCodes, Long weightConfigId) {
+        log.info("开始诊断TOPSIS计算问题 - 模型ID: {}, 区域数量: {}, 权重配置ID: {}",
+                modelId, regionCodes.size(), weightConfigId);
+
+        long startTime = System.currentTimeMillis();
+
+        // 简化版本 - 只执行基本计算
+        try {
+            Map<String, Map<String, Double>> distances = topsisCalculator.calculateDistances(null);
+
+            // 构建简单的诊断报告
+            TOPSISDiagnosticReport report = TOPSISDiagnosticReport.builder()
+                .status("SUCCESS")
+                .modelId(modelId)
+                .regionCodes(regionCodes)
+                .weightConfigId(weightConfigId)
+                .issues(Collections.emptyList())
+                .recommendations(List.of("简化诊断服务运行成功"))
+                .calculationTimeMs(System.currentTimeMillis() - startTime)
+                .build();
+
+            return report;
+        } catch (Exception e) {
+            log.error("TOPSIS计算失败", e);
+            return TOPSISDiagnosticReport.builder()
+                    .status("FAILED")
+                    .modelId(modelId)
+                    .regionCodes(regionCodes)
+                    .weightConfigId(weightConfigId)
+                    .issues(List.of("计算失败: " + e.getMessage()))
+                    .recommendations(List.of("检查输入数据"))
+                    .calculationTimeMs(System.currentTimeMillis() - startTime)
+                    .build();
+        }
+    }
+}

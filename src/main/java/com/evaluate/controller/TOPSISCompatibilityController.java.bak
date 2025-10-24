@@ -1,0 +1,276 @@
+package com.evaluate.controller;
+
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.evaluate.service.TOPSISCompatibilityService;
+import com.evaluate.service.TOPSISConfigMigrationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * TOPSIS兼容性管理控制器
+ * 
+ * 提供TOPSIS计算器兼容性管理和配置迁移的API接口
+ * 
+ * @author System
+ * @since 2025-01-01
+ */
+@RestController
+@RequestMapping("/api/topsis/compatibility")
+public class TOPSISCompatibilityController {
+
+    private static final Logger log = LoggerFactory.getLogger(TOPSISCompatibilityController.class);
+
+    
+    @Autowired
+    private TOPSISCompatibilityService compatibilityService;
+    
+    @Autowired
+    private TOPSISConfigMigrationService migrationService;
+    
+    /**
+     * 获取当前计算器策略
+     */
+    @GetMapping("/strategy")
+    public ResponseEntity<Map<String, Object>> getCalculatorStrategy() {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("strategy", compatibilityService.getCalculatorStrategy());
+            response.put("availableStrategies", TOPSISCompatibilityService.CalculatorStrategy.values());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("获取计算器策略失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * 设置计算器策略
+     */
+    @PostMapping("/strategy")
+    public ResponseEntity<Map<String, Object>> setCalculatorStrategy(
+            @RequestBody Map<String, String> request) {
+        try {
+            String strategyName = request.get("strategy");
+            TOPSISCompatibilityService.CalculatorStrategy strategy = 
+                    TOPSISCompatibilityService.CalculatorStrategy.valueOf(strategyName.toUpperCase());
+            
+            compatibilityService.setCalculatorStrategy(strategy);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("strategy", strategy);
+            response.put("message", "计算器策略已更新");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (IllegalArgumentException e) {
+            log.error("无效的计算器策略: {}", request.get("strategy"));
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", "无效的策略类型");
+            return ResponseEntity.badRequest().body(response);
+            
+        } catch (Exception e) {
+            log.error("设置计算器策略失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * 验证计算器一致性
+     */
+    @PostMapping("/validate")
+    public ResponseEntity<Map<String, Object>> validateCalculatorConsistency(
+            @RequestBody Map<String, Object> request) {
+        try {
+            Long modelId = Long.valueOf(request.get("modelId").toString());
+            String stepCode = request.get("stepCode").toString();
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Double>> weightedData = 
+                    (Map<String, Map<String, Double>>) request.get("weightedData");
+            
+            Map<String, Object> validation = compatibilityService.validateCalculatorConsistency(
+                    weightedData, modelId, stepCode);
+            
+            return ResponseEntity.ok(validation);
+            
+        } catch (Exception e) {
+            log.error("验证计算器一致性失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * 分析现有TOPSIS配置
+     */
+    @GetMapping("/migration/analyze")
+    public ResponseEntity<Map<String, Object>> analyzeConfigurations() {
+        try {
+            Map<String, Object> analysis = migrationService.analyzeExistingConfigurations();
+            return ResponseEntity.ok(analysis);
+            
+        } catch (Exception e) {
+            log.error("分析TOPSIS配置失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * 迁移指定配置
+     */
+    @PostMapping("/migration/migrate")
+    public ResponseEntity<Map<String, Object>> migrateConfiguration(
+            @RequestBody Map<String, Object> request) {
+        try {
+            Long modelId = Long.valueOf(request.get("modelId").toString());
+            String stepCode = request.get("stepCode").toString();
+            
+            @SuppressWarnings("unchecked")
+            List<String> indicators = (List<String>) request.get("indicators");
+            
+            Map<String, Object> result = migrationService.migrateConfiguration(modelId, stepCode, indicators);
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("迁移TOPSIS配置失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * 批量迁移所有配置
+     */
+    @PostMapping("/migration/migrate-all")
+    public ResponseEntity<Map<String, Object>> migrateAllConfigurations() {
+        try {
+            Map<String, Object> result = migrationService.migrateAllConfigurations();
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("批量迁移TOPSIS配置失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * 验证迁移后的配置
+     */
+    @PostMapping("/migration/validate")
+    public ResponseEntity<Map<String, Object>> validateMigratedConfiguration(
+            @RequestBody Map<String, Object> request) {
+        try {
+            Long modelId = Long.valueOf(request.get("modelId").toString());
+            String stepCode = request.get("stepCode").toString();
+            
+            Map<String, Object> validation = migrationService.validateMigratedConfiguration(modelId, stepCode);
+            return ResponseEntity.ok(validation);
+            
+        } catch (Exception e) {
+            log.error("验证迁移配置失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * 修复配置错误
+     */
+    @PostMapping("/migration/repair")
+    public ResponseEntity<Map<String, Object>> repairConfiguration(
+            @RequestBody Map<String, Object> request) {
+        try {
+            Long modelId = Long.valueOf(request.get("modelId").toString());
+            String stepCode = request.get("stepCode").toString();
+            
+            @SuppressWarnings("unchecked")
+            List<String> issues = (List<String>) request.get("issues");
+            
+            Map<String, Object> result = migrationService.repairConfiguration(modelId, stepCode, issues);
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("修复TOPSIS配置失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * 回滚配置迁移
+     */
+    @PostMapping("/migration/rollback")
+    public ResponseEntity<Map<String, Object>> rollbackMigration(
+            @RequestBody Map<String, Object> request) {
+        try {
+            Long modelId = Long.valueOf(request.get("modelId").toString());
+            String stepCode = request.get("stepCode").toString();
+            
+            Map<String, Object> result = migrationService.rollbackMigration(modelId, stepCode);
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("回滚TOPSIS配置失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * 获取迁移历史记录
+     */
+    @GetMapping("/migration/history")
+    public ResponseEntity<Map<String, Object>> getMigrationHistory() {
+        try {
+            List<Map<String, Object>> history = migrationService.getMigrationHistory();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("history", history);
+            response.put("totalRecords", history.size());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("获取迁移历史失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+}

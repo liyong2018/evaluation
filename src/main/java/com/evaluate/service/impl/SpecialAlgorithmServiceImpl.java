@@ -37,6 +37,9 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             case "TOPSIS_NEGATIVE":
                 return calculateTopsisNegative(params, currentRegionCode, allRegionData);
                 
+            case "TOPSIS_SCORE":
+                return calculateTopsisScore(params, currentRegionCode, allRegionData);
+                
             case "GRADE":
                 return calculateGrade(params, currentRegionCode, allRegionData);
                 
@@ -85,9 +88,18 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
                 .mapToDouble(v -> v * v)
                 .sum();
         double denominator = Math.sqrt(sumSquares);
-        
+
         if (denominator == 0) {
-            log.warn("分母为0，返回0: indicator={}", indicatorName);
+            log.warn("分母为0，所有值都是0或接近0，直接返回当前值: indicator={}", indicatorName);
+            // 当分母为0时，说明所有地区的该指标值都是0或接近0
+            // 这种情况下，归一化没有意义，直接返回当前区域的值
+            Map<String, Object> currentData = allRegionData.get(currentRegionCode);
+            if (currentData != null) {
+                Object currentValue = currentData.get(indicatorName);
+                if (currentValue != null) {
+                    return toDouble(currentValue);
+                }
+            }
             return 0.0;
         }
         
@@ -259,6 +271,73 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         log.debug("TOPSIS劣解距离: region={}, distance={}", currentRegionCode, distance);
         
         return distance;
+    }
+
+    /**
+     * 计算TOPSIS得分
+     * 公式：TOPSIS_SCORE = D- / (D+ + D-)
+     * 
+     * @param params 参数格式："POSITIVE_IDEAL_FIELD,NEGATIVE_IDEAL_FIELD"
+     * @param currentRegionCode 当前区域代码
+     * @param allRegionData 所有区域数据
+     * @return TOPSIS得分（0-1之间）
+     */
+    public Double calculateTopsisScore(
+            String params,
+            String currentRegionCode,
+            Map<String, Map<String, Object>> allRegionData) {
+        
+        log.info("[TOPSIS得分] 开始计算: params={}, region={}", params, currentRegionCode);
+        
+        // 1. 解析参数：正理想解字段名,负理想解字段名
+        String[] fields = params.split(",");
+        if (fields.length != 2) {
+            log.error("TOPSIS_SCORE参数格式错误，应为: POSITIVE_FIELD,NEGATIVE_FIELD，实际: {}", params);
+            return 0.0;
+        }
+        
+        String positiveField = fields[0].trim();
+        String negativeField = fields[1].trim();
+        
+        // 2. 获取当前区域数据
+        Map<String, Object> currentData = allRegionData.get(currentRegionCode);
+        if (currentData == null) {
+            log.warn("未找到当前区域数据: {}", currentRegionCode);
+            return 0.0;
+        }
+        
+        // 3. 获取正理想解距离 D+
+        Object positiveValue = currentData.get(positiveField);
+        if (positiveValue == null) {
+            log.warn("未找到正理想解距离: region={}, field={}", currentRegionCode, positiveField);
+            return 0.0;
+        }
+        double dPositive = toDouble(positiveValue);
+        
+        // 4. 获取负理想解距离 D-
+        Object negativeValue = currentData.get(negativeField);
+        if (negativeValue == null) {
+            log.warn("未找到负理想解距离: region={}, field={}", currentRegionCode, negativeField);
+            return 0.0;
+        }
+        double dNegative = toDouble(negativeValue);
+        
+        // 5. 计算TOPSIS得分：D- / (D+ + D-)
+        double denominator = dPositive + dNegative;
+        if (denominator == 0) {
+            log.warn("TOPSIS得分分母为0: D+={}, D-={}", dPositive, dNegative);
+            return 0.0;
+        }
+        
+        double score = dNegative / denominator;
+        
+        log.info("[TOPSIS得分] region={}, D+={}, D-={}, score={}", 
+                currentRegionCode, 
+                String.format("%.8f", dPositive), 
+                String.format("%.8f", dNegative), 
+                String.format("%.8f", score));
+        
+        return score;
     }
 
     @Override

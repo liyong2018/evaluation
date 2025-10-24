@@ -73,6 +73,20 @@ public interface SpecialAlgorithmService {
     );
 
     /**
+     * TOPSIS得分计算：D- / (D+ + D-)
+     * 
+     * @param params 参数格式："POSITIVE_IDEAL_FIELD,NEGATIVE_IDEAL_FIELD"
+     * @param currentRegionCode 当前区域代码
+     * @param allRegionData 所有区域的数据
+     * @return TOPSIS得分（0-1之间）
+     */
+    Double calculateTopsisScore(
+            String params,
+            String currentRegionCode,
+            Map<String, Map<String, Object>> allRegionData
+    );
+
+    /**
      * 能力分级算法：基于均值和标准差进行五级分类
      * 
      * @param scoreField 分数字段名

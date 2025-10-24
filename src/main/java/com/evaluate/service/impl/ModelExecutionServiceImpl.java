@@ -43,6 +43,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     private SurveyDataMapper surveyDataMapper;
 
     @Autowired
+    private CommunityDisasterReductionCapacityMapper communityDataMapper;
+
+    @Autowired
     private RegionMapper regionMapper;
 
     @Autowired
@@ -103,13 +106,32 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 5. 按顺序执行每个步骤
         Map<String, Object> stepResults = new HashMap<>();
         Map<Integer, List<String>> stepOutputParams = new LinkedHashMap<>();  // 记录每个步骤的输出参数名称
+        List<String> currentRegionCodes = new ArrayList<>(regionCodes);  // 当前使用的地区代码列表
         
         for (ModelStep step : steps) {
             log.info("执行步骤: {} - {}, order={}", step.getStepCode(), step.getStepName(), step.getStepOrder());
             
             try {
-                // 执行单个步骤
-                Map<String, Object> stepResult = executeStep(step.getId(), regionCodes, globalContext);
+                Map<String, Object> stepResult;
+                
+                // 特殊处理：如果是AGGREGATION类型且modelId=8，执行乡镇聚合
+                if ("AGGREGATION".equals(step.getStepType()) && modelId == 8) {
+                    log.info("检测到乡镇聚合步骤，执行按乡镇分组聚合");
+                    stepResult = executeTownshipAggregation(step.getId(), currentRegionCodes, globalContext);
+                    
+                    // 更新regionCodes为乡镇代码列表（用于后续步骤）
+                    @SuppressWarnings("unchecked")
+                    Map<String, Map<String, Object>> regionResults = 
+                            (Map<String, Map<String, Object>>) stepResult.get("regionResults");
+                    if (regionResults != null) {
+                        currentRegionCodes = new ArrayList<>(regionResults.keySet());
+                        log.info("乡镇聚合后，更新regionCodes为乡镇代码列表: {}", currentRegionCodes);
+                    }
+                } else {
+                    // 执行单个步骤
+                    stepResult = executeStep(step.getId(), currentRegionCodes, globalContext);
+                }
+                
                 stepResults.put(step.getStepCode(), stepResult);
                 
                 // 记录该步骤的输出参数（用于后面生成 columns）
@@ -190,23 +212,45 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         // 4. 第一遍：为所有地区准备上下文数据
         Map<String, Map<String, Object>> allRegionContexts = new LinkedHashMap<>();
-        
+
+        // 获取modelId以决定使用哪个数据源
+        Long modelId = (Long) inputData.get("modelId");
+
         for (String regionCode : regionCodes) {
             Map<String, Object> regionContext = new HashMap<>(inputData);
             regionContext.put("currentRegionCode", regionCode);
-            
-            // 先加载调查数据（原始数据）
-            QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
-            dataQuery.eq("region_code", regionCode);
-            SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
-            
-            if (surveyData != null) {
-                addSurveyDataToContext(regionContext, surveyData);
+
+            // 根据modelId选择不同的数据源
+            if (modelId != null && (modelId == 4 || modelId == 8)) {
+                // 社区模型(modelId=4)和社区-乡镇模型(modelId=8)：从community_disaster_reduction_capacity表加载数据
+                // 使用selectMaps直接返回Map，key为数据库字段名，可直接匹配算法表达式中的变量名
+                QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+                communityQuery.eq("region_code", regionCode);
+                List<Map<String, Object>> communityDataList = communityDataMapper.selectMaps(communityQuery);
+
+                if (communityDataList != null && !communityDataList.isEmpty()) {
+                    Map<String, Object> communityDataMap = communityDataList.get(0);
+                    // 直接将数据库字段添加到上下文，同时处理数值类型转换
+                    addMapDataToContext(regionContext, communityDataMap);
+                } else {
+                    log.warn("未找到社区数据: regionCode={}", regionCode);
+                }
+            } else {
+                // 乡镇模型(modelId=3)：从survey_data表加载数据
+                QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
+                dataQuery.eq("region_code", regionCode);
+                SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
+
+                if (surveyData != null) {
+                    addSurveyDataToContext(regionContext, surveyData);
+                } else {
+                    log.warn("未找到调查数据: regionCode={}", regionCode);
+                }
             }
-            
+
             // 再加载前面步骤的输出结果（计算结果），这样会覆盖原始数据中的同名字段
             loadPreviousStepOutputs(regionContext, regionCode, inputData);
-            
+
             allRegionContexts.put(regionCode, regionContext);
         }
         
@@ -399,25 +443,75 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("regionCode", regionCode);
             
-            // 获取地区名称
+            // 获取地区名称和乡镇名称
             String regionName = regionCode;
+            String townshipName = null;
+            String communityName = null;
             
-            // 首先尝试从survey_data表获取地区名称
-            QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
-            surveyQuery.eq("region_code", regionCode);
-            SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
-            if (surveyData != null && surveyData.getTownship() != null) {
-                regionName = surveyData.getTownship();
-            } else {
-                // 如果survey_data中没有找到，再尝试region表
-                Region region = regionMapper.selectByCode(regionCode);
-                if (region != null) {
-                    regionName = region.getName();
+            // 检查是否是乡镇虚拟代码（以"TOWNSHIP_"开头）
+            if (regionCode.startsWith("TOWNSHIP_")) {
+                // 这是乡镇聚合后的虚拟代码
+                townshipName = regionCode.substring("TOWNSHIP_".length());
+                regionName = townshipName;
+                
+                // 从步骤结果中获取保存的乡镇信息
+                for (Map.Entry<String, Map<String, Object>> stepEntry : stepResults.entrySet()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Map<String, Object>> regionResults = 
+                            (Map<String, Map<String, Object>>) stepEntry.getValue().get("regionResults");
+                    if (regionResults != null && regionResults.containsKey(regionCode)) {
+                        Map<String, Object> outputs = regionResults.get(regionCode);
+                        if (outputs.containsKey("_townshipName")) {
+                            townshipName = (String) outputs.get("_townshipName");
+                            regionName = townshipName;
+                        }
+                        if (outputs.containsKey("_firstCommunityCode")) {
+                            String firstCommunityCode = (String) outputs.get("_firstCommunityCode");
+                            // 可以用第一个社区代码来获取更多信息
+                            row.put("_firstCommunityCode", firstCommunityCode);
+                        }
+                        break;
+                    }
                 }
+                
+                log.debug("乡镇虚拟代码 {} 映射为: townshipName={}", regionCode, townshipName);
+            } else {
+                // 这是普通的社区代码
+                // 首先尝试从community_disaster_reduction_capacity表获取社区和乡镇信息
+                QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+                communityQuery.eq("region_code", regionCode);
+                CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
+                if (communityData != null) {
+                    townshipName = communityData.getTownshipName();
+                    communityName = communityData.getCommunityName();
+                    regionName = communityName != null ? communityName : regionCode;
+                } else {
+                    // 如果community表中没有找到，尝试从survey_data表获取地区名称
+                    QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
+                    surveyQuery.eq("region_code", regionCode);
+                    SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
+                    if (surveyData != null && surveyData.getTownship() != null) {
+                        regionName = surveyData.getTownship();
+                    } else {
+                        // 如果survey_data中没有找到，再尝试region表
+                        Region region = regionMapper.selectByCode(regionCode);
+                        if (region != null) {
+                            regionName = region.getName();
+                        }
+                    }
+                }
+                
+                log.debug("地区 {} 映射为: regionName={}, townshipName={}, communityName={}", 
+                        regionCode, regionName, townshipName, communityName);
             }
             
             row.put("regionName", regionName);
-            log.debug("地区 {} 映射为: {}", regionCode, regionName);
+            if (townshipName != null) {
+                row.put("townshipName", townshipName);
+            }
+            if (communityName != null) {
+                row.put("communityName", communityName);
+            }
 
             // 收集该地区在所有步骤中的输出
             for (Map.Entry<String, Map<String, Object>> stepEntry : stepResults.entrySet()) {
@@ -433,6 +527,12 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     // 将输出变量添加到行数据，使用算法中文名称作为列名
                     for (Map.Entry<String, Object> output : outputs.entrySet()) {
                         String outputParam = output.getKey();
+                        
+                        // 跳过内部使用的字段（以"_"开头）
+                        if (outputParam.startsWith("_")) {
+                            continue;
+                        }
+                        
                         String columnName;
                         
                         // 优先使用算法名称作为列名，如果没有则使用原始的 stepCode_outputParam 格式
@@ -556,9 +656,19 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         context.put("management_staff", surveyData.getManagementStaff());
         
         // 风险评估（驼峰和下划线两种命名）
-        context.put("riskAssessment", surveyData.getRiskAssessment());
-        context.put("risk_assessment", surveyData.getRiskAssessment());
-        context.put("是否开展风险评估", surveyData.getRiskAssessment());  // 中文变量名
+        String riskAssessmentValue = surveyData.getRiskAssessment();
+        // 标准化风险评估值：如果值是"低"、"中"、"高"，转换为"是"，以匹配算法表达式
+        String normalizedRiskAssessment = riskAssessmentValue;
+        if (riskAssessmentValue != null &&
+            (riskAssessmentValue.equals("低") ||
+             riskAssessmentValue.equals("中") ||
+             riskAssessmentValue.equals("高"))) {
+            normalizedRiskAssessment = "是";
+        }
+
+        context.put("riskAssessment", normalizedRiskAssessment);
+        context.put("risk_assessment", normalizedRiskAssessment);
+        context.put("是否开展风险评估", normalizedRiskAssessment);  // 中文变量名
         
         // 资金投入（驼峰和下划线两种命名）
         context.put("fundingAmount", surveyData.getFundingAmount());
@@ -589,6 +699,118 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 避难所容量（驼峰和下划线两种命名）
         context.put("shelterCapacity", surveyData.getShelterCapacity());
         context.put("shelter_capacity", surveyData.getShelterCapacity());
+    }
+
+    /**
+     * 通用方法：将Map数据添加到上下文
+     * 数据库字段名直接作为变量名，无需手动映射
+     * 所有数值类型转换为Double，避免整数除法精度丢失
+     */
+    private void addMapDataToContext(Map<String, Object> context, Map<String, Object> dataMap) {
+        if (dataMap == null || dataMap.isEmpty()) {
+            return;
+        }
+
+        for (Map.Entry<String, Object> entry : dataMap.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+
+            // 跳过时间字段和ID字段
+            if ("create_time".equals(key) || "update_time".equals(key) || "id".equals(key)) {
+                continue;
+            }
+
+            // 转换数值类型为Double，避免整数除法精度丢失
+            Object contextValue = value;
+            if (value != null) {
+                if (value instanceof Integer) {
+                    contextValue = ((Integer) value).doubleValue();
+                } else if (value instanceof Long) {
+                    contextValue = ((Long) value).doubleValue();
+                } else if (value instanceof java.math.BigDecimal) {
+                    contextValue = ((java.math.BigDecimal) value).doubleValue();
+                } else if (value instanceof Float) {
+                    contextValue = ((Float) value).doubleValue();
+                }
+            }
+
+            // 直接使用数据库字段名作为上下文变量名
+            context.put(key, contextValue);
+        }
+
+        log.debug("成功将 {} 个数据库字段添加到上下文", dataMap.size());
+    }
+
+    /**
+     * 将社区数据添加到上下文（已废弃，使用addMapDataToContext替代）
+     * 所有数值类型转换为Double，避免整数除法精度丢失
+     * @deprecated 使用selectMaps查询和addMapDataToContext方法替代
+     */
+    @Deprecated
+    private void addCommunityDataToContext(Map<String, Object> context, CommunityDisasterReductionCapacity communityData) {
+        // 地区信息
+        context.put("regionCode", communityData.getRegionCode());
+        context.put("region_code", communityData.getRegionCode());
+        context.put("province", communityData.getProvinceName());
+        context.put("city", communityData.getCityName());
+        context.put("county", communityData.getCountyName());
+        context.put("township", communityData.getTownshipName());
+        context.put("community", communityData.getCommunityName());
+
+        // 人口数据（转换为Double）
+        context.put("population", communityData.getResidentPopulation() != null ? communityData.getResidentPopulation().doubleValue() : 0.0);
+        context.put("residentPopulation", communityData.getResidentPopulation() != null ? communityData.getResidentPopulation().doubleValue() : 0.0);
+
+        // 风险评估相关（4个是/否问题）
+        context.put("hasEmergencyPlan", communityData.getHasEmergencyPlan());
+        context.put("hasVulnerableGroupsList", communityData.getHasVulnerableGroupsList());
+        context.put("hasDisasterPointsList", communityData.getHasDisasterPointsList());
+        context.put("hasDisasterMap", communityData.getHasDisasterMap());
+
+        // 资金投入（转换为Double）
+        Double fundingAmount = communityData.getLastYearFundingAmount() != null ? communityData.getLastYearFundingAmount().doubleValue() : 0.0;
+        context.put("fundingAmount", fundingAmount);
+        context.put("funding_amount", fundingAmount);
+        context.put("lastYearFundingAmount", fundingAmount);
+
+        // 物资储备（转换为Double）
+        Double materialValue = communityData.getMaterialsEquipmentValue() != null ? communityData.getMaterialsEquipmentValue().doubleValue() : 0.0;
+        context.put("materialValue", materialValue);
+        context.put("material_value", materialValue);
+        context.put("materialsEquipmentValue", materialValue);
+
+        // 医疗服务（转换为Double）
+        Double medicalServiceCount = communityData.getMedicalServiceCount() != null ? communityData.getMedicalServiceCount().doubleValue() : 0.0;
+        context.put("medicalServiceCount", medicalServiceCount);
+        context.put("medical_service_count", medicalServiceCount);
+
+        // 民兵预备役（转换为Double）
+        Double militiaReserve = communityData.getMilitiaReserveCount() != null ? communityData.getMilitiaReserveCount().doubleValue() : 0.0;
+        context.put("militiaReserve", militiaReserve);
+        context.put("militia_reserve", militiaReserve);
+        context.put("militiaReserveCount", militiaReserve);
+
+        // 志愿者（转换为Double）
+        Double volunteers = communityData.getRegisteredVolunteerCount() != null ? communityData.getRegisteredVolunteerCount().doubleValue() : 0.0;
+        context.put("volunteers", volunteers);
+        context.put("registeredVolunteerCount", volunteers);
+
+        // 培训参与者（转换为Double）
+        Double trainingParticipants = communityData.getLastYearTrainingParticipants() != null ? communityData.getLastYearTrainingParticipants().doubleValue() : 0.0;
+        context.put("trainingParticipants", trainingParticipants);
+        context.put("training_participants", trainingParticipants);
+        context.put("lastYearTrainingParticipants", trainingParticipants);
+
+        // 演练参与者（转换为Double）
+        Double drillParticipants = communityData.getLastYearDrillParticipants() != null ? communityData.getLastYearDrillParticipants().doubleValue() : 0.0;
+        context.put("drillParticipants", drillParticipants);
+        context.put("lastYearDrillParticipants", drillParticipants);
+
+        // 避难所容量（转换为Double）
+        Double shelterCapacity = communityData.getEmergencyShelterCapacity() != null ? communityData.getEmergencyShelterCapacity().doubleValue() : 0.0;
+        context.put("shelterCapacity", shelterCapacity);
+        context.put("shelter_capacity", shelterCapacity);
+        context.put("emergencyShelterCapacity", shelterCapacity);
     }
 
     /**
@@ -847,23 +1069,40 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         // 第一遍：为所有地区准备上下文数据
         Map<String, Map<String, Object>> allRegionContexts = new LinkedHashMap<>();
-        
+
+        // 获取modelId以决定使用哪个数据源
+        Long modelId = (Long) globalContext.get("modelId");
+
         for (String regionCode : regionCodes) {
             Map<String, Object> regionContext = new HashMap<>(globalContext);
             regionContext.put("currentRegionCode", regionCode);
-            
-            // 先加载调查数据（原始数据）
-            QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
-            dataQuery.eq("region_code", regionCode);
-            SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
-            
-            if (surveyData != null) {
-                addSurveyDataToContext(regionContext, surveyData);
+
+            // 根据modelId选择不同的数据源
+            if (modelId != null && modelId == 4) {
+                // 社区模型(modelId=4)：从community_disaster_reduction_capacity表加载数据
+                // 使用selectMaps直接返回Map，key为数据库字段名，可直接匹配算法表达式中的变量名
+                QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+                communityQuery.eq("region_code", regionCode);
+                List<Map<String, Object>> communityDataList = communityDataMapper.selectMaps(communityQuery);
+
+                if (communityDataList != null && !communityDataList.isEmpty()) {
+                    Map<String, Object> communityDataMap = communityDataList.get(0);
+                    addMapDataToContext(regionContext, communityDataMap);
+                }
+            } else {
+                // 乡镇模型(modelId=3)：从survey_data表加载数据
+                QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
+                dataQuery.eq("region_code", regionCode);
+                SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
+
+                if (surveyData != null) {
+                    addSurveyDataToContext(regionContext, surveyData);
+                }
             }
-            
+
             // 再加载前面步骤的输出结果（计算结果），这样会覆盖原始数据中的同名字段
             loadPreviousStepOutputs(regionContext, regionCode, globalContext);
-            
+
             allRegionContexts.put(regionCode, regionContext);
         }
         
@@ -1122,4 +1361,185 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     
     @Autowired
     private FormulaConfigMapper formulaConfigMapper;
+
+    /**
+     * 执行乡镇聚合
+     * 按乡镇分组，对社区数据进行聚合计算（求和后除以社区数量）
+     * 
+     * @param stepId 步骤ID
+     * @param regionCodes 社区代码列表
+     * @param inputData 输入数据（包含步骤1的社区级别计算结果）
+     * @return 乡镇级别的聚合结果
+     */
+    private Map<String, Object> executeTownshipAggregation(Long stepId, List<String> regionCodes, Map<String, Object> inputData) {
+        log.info("开始执行乡镇聚合, stepId={}, regionCodes.size={}", stepId, regionCodes.size());
+        
+        // 1. 获取步骤信息
+        ModelStep step = modelStepMapper.selectById(stepId);
+        if (step == null || step.getStatus() == 0) {
+            throw new RuntimeException("步骤不存在或已禁用");
+        }
+        
+        // 2. 获取该步骤的所有算法
+        QueryWrapper<StepAlgorithm> algorithmQuery = new QueryWrapper<>();
+        algorithmQuery.eq("step_id", stepId)
+                .eq("status", 1)
+                .orderByAsc("algorithm_order");
+        List<StepAlgorithm> algorithms = stepAlgorithmMapper.selectList(algorithmQuery);
+        
+        if (algorithms == null || algorithms.isEmpty()) {
+            log.warn("步骤 {} 没有配置算法", step.getStepCode());
+            return new HashMap<>();
+        }
+        
+        // 3. 按乡镇分组收集社区数据
+        Map<String, List<Map<String, Object>>> townshipGroups = new LinkedHashMap<>();
+        Map<String, String> townshipToFirstRegionCode = new HashMap<>();  // 记录每个乡镇的第一个社区代码（用于后续步骤）
+        
+        for (String regionCode : regionCodes) {
+            // 获取社区的乡镇信息
+            QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+            communityQuery.eq("region_code", regionCode);
+            CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
+            
+            if (communityData == null) {
+                log.warn("未找到社区数据: regionCode={}", regionCode);
+                continue;
+            }
+            
+            String townshipName = communityData.getTownshipName();
+            if (townshipName == null || townshipName.isEmpty()) {
+                log.warn("社区 {} 没有乡镇信息", regionCode);
+                continue;
+            }
+            
+            // 获取步骤1的输出结果（社区级别的能力值）
+            Map<String, Object> communityContext = new HashMap<>();
+            communityContext.put("currentRegionCode", regionCode);
+            
+            // 从inputData中获取步骤1的结果
+            // inputData中包含 "step_XXX" 的键，其值是步骤的执行结果
+            for (Map.Entry<String, Object> entry : inputData.entrySet()) {
+                String key = entry.getKey();
+                if (key.startsWith("step_")) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Map<String, Object>> regionResults = 
+                            (Map<String, Map<String, Object>>) stepResult.get("regionResults");
+                    
+                    if (regionResults != null && regionResults.containsKey(regionCode)) {
+                        // 将该社区在这个步骤的输出添加到上下文
+                        Map<String, Object> outputs = regionResults.get(regionCode);
+                        communityContext.putAll(outputs);
+                        log.debug("社区 {} 从 {} 加载了 {} 个输出", regionCode, key, outputs.size());
+                    }
+                }
+            }
+            
+            // 按乡镇分组
+            townshipGroups.computeIfAbsent(townshipName, k -> new ArrayList<>()).add(communityContext);
+            
+            // 记录每个乡镇的第一个社区代码
+            townshipToFirstRegionCode.putIfAbsent(townshipName, regionCode);
+            
+            log.debug("社区 {} 归属乡镇 {}", regionCode, townshipName);
+        }
+        
+        log.info("按乡镇分组完成，共 {} 个乡镇", townshipGroups.size());
+        
+        // 4. 对每个乡镇执行聚合计算
+        Map<String, Map<String, Object>> townshipResults = new LinkedHashMap<>();
+        Map<String, String> outputToAlgorithmName = new LinkedHashMap<>();
+        
+        for (Map.Entry<String, List<Map<String, Object>>> entry : townshipGroups.entrySet()) {
+            String townshipName = entry.getKey();
+            List<Map<String, Object>> communities = entry.getValue();
+            int communityCount = communities.size();
+            
+            log.info("处理乡镇: {}, 社区数量: {}", townshipName, communityCount);
+            
+            Map<String, Object> townshipOutput = new LinkedHashMap<>();
+            
+            // 对每个算法执行聚合
+            for (StepAlgorithm algorithm : algorithms) {
+                String qlExpression = algorithm.getQlExpression();
+                String outputParam = algorithm.getOutputParam();
+                
+                if (outputParam == null || outputParam.isEmpty()) {
+                    continue;
+                }
+                
+                // 从表达式中提取输入字段名（例如：PLAN_CONSTRUCTION）
+                String inputField = qlExpression.trim();
+                
+                // 计算聚合值：求和后除以社区数量
+                double sum = 0.0;
+                int validCount = 0;
+                
+                for (Map<String, Object> community : communities) {
+                    Object value = community.get(inputField);
+                    if (value != null) {
+                        sum += toDouble(value);
+                        validCount++;
+                    }
+                }
+                
+                // 计算平均值
+                double average = validCount > 0 ? sum / communityCount : 0.0;
+                
+                // 格式化为8位小数
+                average = Double.parseDouble(String.format("%.8f", average));
+                
+                townshipOutput.put(outputParam, average);
+                outputToAlgorithmName.put(outputParam, algorithm.getAlgorithmName());
+                
+                log.debug("乡镇 {} 的 {} 聚合结果: sum={}, count={}, avg={}", 
+                        townshipName, outputParam, sum, communityCount, average);
+            }
+            
+            // 使用"TOWNSHIP_"前缀 + 乡镇名称作为虚拟的regionCode
+            // 这样可以确保每个乡镇有唯一的标识，且不会与社区代码冲突
+            String townshipRegionCode = "TOWNSHIP_" + townshipName;
+            townshipResults.put(townshipRegionCode, townshipOutput);
+            
+            // 同时在上下文中保存乡镇名称，供generateResultTable使用
+            townshipOutput.put("_townshipName", townshipName);
+            townshipOutput.put("_firstCommunityCode", townshipToFirstRegionCode.get(townshipName));
+        }
+        
+        // 5. 构建步骤结果
+        Map<String, Object> stepResult = new HashMap<>();
+        stepResult.put("stepId", stepId);
+        stepResult.put("stepName", step.getStepName());
+        stepResult.put("stepCode", step.getStepCode());
+        stepResult.put("regionResults", townshipResults);
+        stepResult.put("outputToAlgorithmName", outputToAlgorithmName);
+        
+        log.info("乡镇聚合完成，共 {} 个乡镇", townshipResults.size());
+        
+        return stepResult;
+    }
+    
+    /**
+     * 将对象转换为Double
+     */
+    private Double toDouble(Object value) {
+        if (value == null) {
+            return 0.0;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        if (value instanceof String) {
+            try {
+                return Double.parseDouble((String) value);
+            } catch (NumberFormatException e) {
+                log.warn("无法将字符串转换为数字: {}", value);
+                return 0.0;
+            }
+        }
+        log.warn("无法转换为Double的类型: {}", value.getClass());
+        return 0.0;
+    }
 }
