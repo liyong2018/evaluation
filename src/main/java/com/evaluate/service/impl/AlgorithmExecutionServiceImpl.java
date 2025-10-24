@@ -1,12 +1,15 @@
 package com.evaluate.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.evaluate.entity.AlgorithmConfig;
 import com.evaluate.entity.AlgorithmStep;
 import com.evaluate.entity.FormulaConfig;
 import com.evaluate.entity.IndicatorWeight;
 import com.evaluate.entity.SurveyData;
+import com.evaluate.entity.Region;
 import com.evaluate.mapper.AlgorithmStepMapper;
 import com.evaluate.mapper.FormulaConfigMapper;
+import com.evaluate.mapper.RegionMapper;
 import com.evaluate.service.AlgorithmExecutionService;
 import com.evaluate.service.IIndicatorWeightService;
 import com.evaluate.service.ISurveyDataService;
@@ -31,6 +34,9 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
     
     @Autowired
     private FormulaConfigMapper formulaConfigMapper;
+    
+    @Autowired
+    private RegionMapper regionMapper;
     
     @Autowired
     private RegionService regionService;
@@ -558,8 +564,8 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             Map<String, Object> row1 = new HashMap<>();
             Map<String, Object> row2 = new HashMap<>();
             
-            row1.put("region", regionName);
-            row2.put("region", regionName);
+            row1.put("regionName", regionName);
+            row2.put("regionName", regionName);
             
             if (!surveyDataList.isEmpty()) {
                 SurveyData surveyData = surveyDataList.get(0);
@@ -797,7 +803,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             
             // 从字符串ID中提取地区名称
             String regionName = extractRegionNameFromId(regionId);
-            row.put("region", regionName);
+            row.put("regionName", regionName);
             
             // 根据地区名称获取调查数据
             List<SurveyData> surveyDataList = surveyDataService.getBySurveyRegion(regionName);
@@ -860,12 +866,23 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                     double publicAvoidance = calculateIndicatorValue(surveyData.getTrainingParticipants(), surveyData.getPopulation())/100;
                     double relocationCapacity = calculateIndicatorValue(surveyData.getShelterCapacity(), surveyData.getPopulation())/10000;
                     
+                    // 添加详细日志用于调试风险评估能力归一化
+                    log.info("[归一化调试] 地区={}, riskAssessment原始值={}, 所有地区值={}", 
+                            regionName, riskAssessment, allIndicatorValues.get("riskAssessment"));
+                    
                     // 计算属性向量归一化值
                     double teamManagementNorm = normalizeIndicatorValue(teamManagement, allIndicatorValues.get("teamManagement"));
                     double riskAssessmentNorm = normalizeIndicatorValue(riskAssessment, allIndicatorValues.get("riskAssessment"));
+                    
+                    log.info("[归一化调试] 地区={}, riskAssessment归一化值={}", regionName, riskAssessmentNorm);
                     double financialInputNorm = normalizeIndicatorValue(financialInput, allIndicatorValues.get("financialInput"));
                     double materialReserveNorm = normalizeIndicatorValue(materialReserve, allIndicatorValues.get("materialReserve"));
                     double medicalSupportNorm = normalizeIndicatorValue(medicalSupport, allIndicatorValues.get("medicalSupport"));
+                    
+                    // 添加详细日志用于调试医疗保障归一化
+                    log.info("[医疗保障归一化调试] 地区={}, 原始值={}, 所有地区值={}, 归一化值={}",
+                            regionName, medicalSupport, allIndicatorValues.get("medicalSupport"), medicalSupportNorm);
+                    
                     double selfRescueNorm = normalizeIndicatorValue(selfRescue, allIndicatorValues.get("selfRescue"));
                     double publicAvoidanceNorm = normalizeIndicatorValue(publicAvoidance, allIndicatorValues.get("publicAvoidance"));
                     double relocationCapacityNorm = normalizeIndicatorValue(relocationCapacity, allIndicatorValues.get("relocationCapacity"));
@@ -882,7 +899,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                 } else if (stepIndex == 2) { // 二级指标定权
                     // 使用与TOPSIS算法相同的计算逻辑
                     Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds);
-                    
+
                     // 设置8个指标的定权值（与TOPSIS算法保持一致）
                     row.put("teamManagement", String.format("%.8f", currentWeightedValues.get("teamManagement")));
                     row.put("riskAssessment", String.format("%.8f", currentWeightedValues.get("riskAssessment")));
@@ -893,28 +910,47 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                     row.put("publicAvoidance", String.format("%.8f", currentWeightedValues.get("publicAvoidance")));
                     row.put("relocationCapacity", String.format("%.8f", currentWeightedValues.get("relocationCapacity")));
                 } else if (stepIndex == 3) { // 步骤4：优劣解算法计算（显示4列：3个一级指标+1列综合减灾能力）
-                    // 获取所有地区的定权结果（步骤3表2的数据）
-                    Map<String, Map<String, Double>> allWeightedValues = collectAllWeightedValues(regionIds);
-                    
+                    // 确保数据一致性：统一使用calculateCurrentWeightedValues方法获取所有地区的定权结果
+                    Map<String, Map<String, Double>> allWeightedValues = new HashMap<>();
+
+                    // 为所有地区计算定权值，确保使用相同的方法和数据源
+                    for (String cacheRegionId : regionIds) {
+                        String cacheRegionName = extractRegionNameFromId(cacheRegionId);
+                        List<SurveyData> regionSurveyDataList = surveyDataService.getBySurveyRegion(cacheRegionName);
+                        if (!regionSurveyDataList.isEmpty()) {
+                            SurveyData regionSurveyData = regionSurveyDataList.get(0);
+                            Map<String, Double> regionWeightedValues = calculateCurrentWeightedValues(regionSurveyData, regionIds);
+                            allWeightedValues.put(cacheRegionName, regionWeightedValues);
+                        }
+                    }
+
                     // 计算当前地区的定权值
                     Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds);
                     
                     // 使用TOPSIS算法计算3个一级指标
                     Map<String, Double> topsisResults = calculateTOPSIS(currentWeightedValues, allWeightedValues);
                     
-                    // 使用TOPSIS算法计算综合减灾能力值
-                    double comprehensiveCapability = calculateComprehensiveTOPSIS(currentWeightedValues, allWeightedValues);
+                    // 计算综合减灾能力的优劣解距离
+                    // 使用与calculateTOPSIS方法相同的数据源，确保与一级指标计算一致
+                    Map<String, Double> comprehensiveDistances = calculateComprehensiveTOPSISWithDistances(currentWeightedValues, allWeightedValues);
+                    double comprehensiveCapability = comprehensiveDistances.get("score");
+                    double comprehensivePositive = comprehensiveDistances.get("positiveDistance");
+                    double comprehensiveNegative = comprehensiveDistances.get("negativeDistance");
                     
                     // 将步骤4的结果缓存起来，供步骤5使用
                     Map<String, Double> step4Data = new HashMap<>(topsisResults);
                     step4Data.put("comprehensiveCapability", comprehensiveCapability);
+                    step4Data.put("comprehensivePositive", comprehensivePositive);
+                    step4Data.put("comprehensiveNegative", comprehensiveNegative);
                     step4ResultsCache.put(regionName, step4Data);
                     
-                    // 设置4列：3个一级指标 + 1列综合减灾能力
+                    // 设置列：3个一级指标 + 综合减灾能力 + 优劣解距离
                     row.put("disasterManagement", String.format("%.8f", topsisResults.get("disasterManagement")));
                     row.put("disasterPreparedness", String.format("%.8f", topsisResults.get("disasterPreparedness")));
                     row.put("selfRescueTransfer", String.format("%.8f", topsisResults.get("selfRescueTransfer")));
                     row.put("comprehensiveCapability", String.format("%.8f", comprehensiveCapability));
+                    row.put("comprehensivePositive", String.format("%.8f", comprehensivePositive));
+                    row.put("comprehensiveNegative", String.format("%.8f", comprehensiveNegative));
                 } else if (stepIndex == 4) { // 能力分级计算 - 直接使用步骤4的缓存数据进行分级
                     // 从缓存中获取步骤4的原始数据（避免重新计算）
                     Map<String, Double> step4Data = step4ResultsCache.get(regionName);
@@ -1063,16 +1099,44 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             return "未知地区";
         }
         
-        // 如果是township_开头的格式
-        if (regionId.startsWith("township_")) {
-            String[] parts = regionId.split("_");
-            if (parts.length >= 5) {
-                // 返回最后一部分（乡镇名称）
-                return parts[parts.length - 1];
+        // 首先尝试通过regionCode从survey_data表查询获取中文名称
+        try {
+            // 如果regionId本身就是regionCode，直接查询survey_data表
+            List<SurveyData> surveyDataList = surveyDataService.getBySurveyRegion(regionId);
+            if (!surveyDataList.isEmpty()) {
+                SurveyData surveyData = surveyDataList.get(0);
+                if (surveyData.getTownship() != null && !surveyData.getTownship().isEmpty()) {
+                    return surveyData.getTownship();
+                }
             }
+            
+            // 尝试通过regionCode直接查询
+            QueryWrapper<SurveyData> wrapper = new QueryWrapper<>();
+            wrapper.eq("region_code", regionId);
+            SurveyData surveyData = surveyDataService.getOne(wrapper);
+            if (surveyData != null && surveyData.getTownship() != null) {
+                return surveyData.getTownship();
+            }
+            
+            // 如果是township_开头的格式，提取regionCode
+            if (regionId.startsWith("township_")) {
+                String[] parts = regionId.split("_");
+                if (parts.length >= 5) {
+                    // 尝试通过SurveyData查找对应的regionCode
+                    String regionName = parts[parts.length - 1];
+                    List<SurveyData> surveyDataByName = surveyDataService.getBySurveyRegion(regionName);
+                    if (!surveyDataByName.isEmpty()) {
+                        return surveyDataByName.get(0).getTownship();
+                    }
+                    // 如果找不到对应的数据，返回提取的名称
+                    return regionName;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("查询地区名称失败，regionId: {}, 错误: {}", regionId, e.getMessage());
         }
         
-        // 如果不是预期格式，直接返回原字符串
+        // 如果不是预期格式或查询失败，直接返回原字符串
         return regionId;
     }
     
@@ -1090,6 +1154,8 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         allValues.put("publicAvoidance", new ArrayList<>());
         allValues.put("relocationCapacity", new ArrayList<>());
         
+        log.info("[collectAllIndicatorValues] 开始收集数据, 总地区数={}", regionIds.size());
+        
         for (String regionId : regionIds) {
             String regionName = extractRegionNameFromId(regionId);
             List<SurveyData> surveyDataList = surveyDataService.getBySurveyRegion(regionName);
@@ -1100,9 +1166,17 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                 // 计算8个指标原始值
                 double teamManagement = calculateIndicatorValue(surveyData.getManagementStaff(), surveyData.getPopulation());
                 double riskAssessment = "是".equals(surveyData.getRiskAssessment()) ? 1.0 : 0.0;
+                
+                log.info("[collectAllIndicatorValues] 地区={}, riskAssessment原始值={}, 是否进行风险评估={}", 
+                        regionName, riskAssessment, surveyData.getRiskAssessment());
                 double financialInput = calculateIndicatorValueFromDouble(surveyData.getFundingAmount(), surveyData.getPopulation());
                 double materialReserve = calculateIndicatorValueFromDouble(surveyData.getMaterialValue(), surveyData.getPopulation());
                 double medicalSupport = calculateIndicatorValue(surveyData.getHospitalBeds(), surveyData.getPopulation());
+                
+                // 添加详细日志用于调试医疗保障能力
+                log.info("[医疗保障调试] 地区={}, 住院床位数={}, 常住人口={}, 医疗保障能力原始值={}",
+                        regionName, surveyData.getHospitalBeds(), surveyData.getPopulation(), medicalSupport);
+                
                 int totalRescuePersonnel = (surveyData.getFirefighters() != null ? surveyData.getFirefighters() : 0) +
                                           (surveyData.getVolunteers() != null ? surveyData.getVolunteers() : 0) +
                                           (surveyData.getMilitiaReserve() != null ? surveyData.getMilitiaReserve() : 0);
@@ -1132,6 +1206,9 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             }
         }
         
+        log.info("[collectAllIndicatorValues] 收集完成, riskAssessment所有值={}", allValues.get("riskAssessment"));
+        log.info("[医疗保障调试] 收集完成, medicalSupport所有值={}", allValues.get("medicalSupport"));
+        
         return allValues;
     }
     
@@ -1152,13 +1229,19 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         // 计算平方根
         double sqrtSumOfSquares = Math.sqrt(sumOfSquares);
         
+        // 添加详细调试日志
+        log.debug("[normalizeIndicatorValue] currentValue={}, allValues.size()={}, sumOfSquares={}, sqrtSumOfSquares={}",
+                currentValue, allValues.size(), sumOfSquares, sqrtSumOfSquares);
+        
         // 避免除零
         if (sqrtSumOfSquares == 0.0) {
             return 0.0;
         }
         
-        // 返回归一化值
-        return currentValue / sqrtSumOfSquares;
+        // 返回归一化值：当前值 / SQRT(SUMSQ(所有值))
+        double result = currentValue / sqrtSumOfSquares;
+        log.debug("[normalizeIndicatorValue] result={}", result);
+        return result;
     }
     
     /**
@@ -1564,7 +1647,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         
         // 地区列（所有步骤都有）
         Map<String, Object> regionColumn = new HashMap<>();
-        regionColumn.put("prop", "region");
+        regionColumn.put("prop", "regionName");
         regionColumn.put("label", "地区");
         regionColumn.put("width", 120);
         columns.add(regionColumn);
@@ -1596,11 +1679,13 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             columns.add(createColumn("selfRescue", "自救互救能力", 120));
             columns.add(createColumn("publicAvoidance", "公众避险能力", 120));
             columns.add(createColumn("relocationCapacity", "转移安置能力", 120));
-        } else if (stepIndex == 3) { // 步骤4：优劣解算法 - 显示4列（3个一级指标 + 1列综合减灾能力）
-            columns.add(createColumn("disasterManagement", "灾害管理能力", 150));
-            columns.add(createColumn("disasterPreparedness", "灾害备灾能力", 150));
-            columns.add(createColumn("selfRescueTransfer", "自救转移能力", 150));
-            columns.add(createColumn("comprehensiveCapability", "乡镇（街道）减灾能力", 200));
+        } else if (stepIndex == 3) { // 步骤4：优劣解算法 - 显示7列（3个一级指标 + 综合减灾能力 + 优劣解距离）
+            columns.add(createColumn("disasterManagement", "灾害管理能力", 130));
+            columns.add(createColumn("disasterPreparedness", "灾害备灾能力", 130));
+            columns.add(createColumn("selfRescueTransfer", "自救转移能力", 130));
+            columns.add(createColumn("comprehensiveCapability", "综合减灾能力值", 130));
+            columns.add(createColumn("comprehensivePositive", "最优距离", 120));
+            columns.add(createColumn("comprehensiveNegative", "最劣距离", 120));
         } else if (stepIndex == 4) { // 能力分级计算 - 显示8列（4列原始值+4列分级）
             // 前4列：原始数值
             columns.add(createColumn("disasterManagement", "灾害管理能力值", 130));
@@ -1947,6 +2032,16 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
      */
     private double calculateComprehensiveTOPSIS(Map<String, Double> currentWeightedValues, 
                                                Map<String, Map<String, Double>> allWeightedValues) {
+        Map<String, Double> result = calculateComprehensiveTOPSISWithDistances(currentWeightedValues, allWeightedValues);
+        return result.get("score");
+    }
+    
+    /**
+     * 使用TOPSIS算法计算综合减灾能力值，同时返回优劣解距离
+     * @return Map包含: score(能力值), positiveDistance(最优距离), negativeDistance(最劣距离)
+     */
+    private Map<String, Double> calculateComprehensiveTOPSISWithDistances(Map<String, Double> currentWeightedValues, 
+                                               Map<String, Map<String, Double>> allWeightedValues) {
         
         // 计算各指标的最大值和最小值
         Map<String, Double> maxValues = new HashMap<>();
@@ -1994,8 +2089,12 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             comprehensiveCapability = negativeDistance / (negativeDistance + positiveDistance);
         }
         
-        // 返回综合减灾能力值
+        // 返回综合减灾能力值及优劣解距离
+        Map<String, Double> result = new HashMap<>();
+        result.put("score", comprehensiveCapability);
+        result.put("positiveDistance", positiveDistance);
+        result.put("negativeDistance", negativeDistance);
         
-        return comprehensiveCapability;
+        return result;
     }
 }

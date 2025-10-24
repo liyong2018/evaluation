@@ -11,6 +11,12 @@
       <el-row :gutter="20" justify="space-between">
         <el-col :span="16">
           <el-row :gutter="12">
+            <el-col :span="6">
+              <el-radio-group v-model="searchForm.dataType" @change="handleDataTypeChange">
+                <el-radio label="township">乡镇数据</el-radio>
+                <el-radio label="community">社区数据</el-radio>
+              </el-radio-group>
+            </el-col>
             <el-col :span="8">
               <el-input
                 v-model="searchForm.keyword"
@@ -24,12 +30,17 @@
               </el-input>
             </el-col>
             <el-col :span="6">
-              <el-select v-model="searchForm.region" placeholder="选择地区" clearable>
-                <el-option label="全部地区" value="" />
+              <el-select
+                v-model="searchForm.selectedRegion"
+                placeholder="选择地区"
+                clearable
+                filterable
+              >
+                <el-option label="全部地区" :value="null" />
                 <el-option
-                  v-for="region in regionOptions"
-                  :key="region"
-                  :label="region"
+                  v-for="region in regionSelectOptions"
+                  :key="region.code"
+                  :label="`${region.name} (${region.code})`"
                   :value="region"
                 />
               </el-select>
@@ -63,7 +74,9 @@
 
     <!-- 数据表格 -->
     <el-card class="table-card">
+      <!-- 乡镇数据表格 -->
       <el-table
+        v-if="searchForm.dataType === 'township'"
         v-loading="loading.table"
         :data="tableData"
         stripe
@@ -75,6 +88,11 @@
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="regionCode" label="地区代码" width="120" />
+        <el-table-column label="区域名称" width="160">
+          <template #default="{ row }">
+            {{ getRegionName(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="province" label="省份" width="100" />
         <el-table-column prop="city" label="市" width="100" />
         <el-table-column prop="county" label="县" width="100" />
@@ -90,6 +108,77 @@
         <el-table-column prop="militiaReserve" label="民兵预备役" width="100" />
         <el-table-column prop="trainingParticipants" label="培训参与人次" width="120" />
         <el-table-column prop="shelterCapacity" label="避难场所容量" width="120" />
+        <el-table-column prop="createTime" label="创建时间" width="180" />
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" size="small" @click="showEditDialog(row)">
+              <el-icon><Edit /></el-icon>
+              编辑
+            </el-button>
+            <el-button type="danger" size="small" @click="handleDelete(row)">
+              <el-icon><Delete /></el-icon>
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 社区数据表格 -->
+      <el-table
+        v-else
+        v-loading="loading.table"
+        :data="tableData"
+        stripe
+        border
+        style="width: 100%"
+        :height="500"
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="regionCode" label="行政区代码" width="120" />
+        <el-table-column prop="provinceName" label="省名称" width="100" />
+        <el-table-column prop="cityName" label="市名称" width="100" />
+        <el-table-column prop="countyName" label="县名称" width="100" />
+        <el-table-column prop="townshipName" label="乡镇名称" width="120" />
+        <el-table-column prop="communityName" label="社区名称" width="150" />
+        <el-table-column prop="hasEmergencyPlan" label="应急预案" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.hasEmergencyPlan === '是' ? 'success' : 'info'">
+              {{ row.hasEmergencyPlan }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="hasVulnerableGroupsList" label="弱势人群清单" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.hasVulnerableGroupsList === '是' ? 'success' : 'info'">
+              {{ row.hasVulnerableGroupsList }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="hasDisasterPointsList" label="隐患点清单" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.hasDisasterPointsList === '是' ? 'success' : 'info'">
+              {{ row.hasDisasterPointsList }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="hasDisasterMap" label="灾害类地图" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.hasDisasterMap === '是' ? 'success' : 'info'">
+              {{ row.hasDisasterMap }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="residentPopulation" label="常住人口" width="100" />
+        <el-table-column prop="lastYearFundingAmount" label="资金投入(万元)" width="120" />
+        <el-table-column prop="materialsEquipmentValue" label="物资价值(万元)" width="120" />
+        <el-table-column prop="medicalServiceCount" label="医疗机构数" width="100" />
+        <el-table-column prop="militiaReserveCount" label="民兵预备役" width="100" />
+        <el-table-column prop="registeredVolunteerCount" label="志愿者人数" width="100" />
+        <el-table-column prop="lastYearTrainingParticipants" label="培训人次" width="100" />
+        <el-table-column prop="lastYearDrillParticipants" label="演练人次" width="100" />
+        <el-table-column prop="emergencyShelterCapacity" label="避难容量" width="100" />
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
@@ -293,25 +382,56 @@
     </el-dialog>
 
     <!-- 导入对话框 -->
-    <el-dialog v-model="dialogVisible.import" title="批量导入" width="500px">
-      <el-upload
-        ref="uploadRef"
-        :auto-upload="false"
-        :on-change="handleFileChange"
-        :before-upload="beforeUpload"
-        accept=".xlsx,.xls,.csv"
-        drag
-      >
-        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">
-          将文件拖到此处，或<em>点击上传</em>
-        </div>
-        <template #tip>
-          <div class="el-upload__tip">
-            支持 xlsx/xls/csv 格式文件，文件大小不超过 10MB
-          </div>
-        </template>
-      </el-upload>
+    <el-dialog v-model="dialogVisible.import" title="批量导入" width="600px">
+      <el-form :model="importForm" label-width="140px">
+        <el-form-item label="导入数据类型：">
+          <el-radio-group v-model="importForm.dataType">
+            <el-radio label="survey">调查数据</el-radio>
+            <el-radio label="community">社区行政村减灾能力</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item v-if="importForm.dataType === 'community'" label="导入说明：">
+          <el-alert
+            title="社区行政村减灾能力数据导入说明"
+            type="info"
+            show-icon
+            :closable="false"
+          >
+            <p>请按照以下列顺序准备数据：</p>
+            <p>行政区代码 | 省名称 | 市名称 | 县名称 | 乡镇名称 | 社区（行政村）名称 | 是否有应急预案 | 是否有弱势人群清单 | 是否有隐患点清单 | 是否有灾害类地图 | 常住人口数量 | 上一年度资金投入 | 物资装备折合金额 | 医疗卫生服务数量 | 民兵预备役人数 | 登记志愿者人数 | 上一年度培训人次 | 上一年度演练人次 | 应急避难场所容量</p>
+            <p>是/否字段请填写"是"或"否"</p>
+          </el-alert>
+        </el-form-item>
+
+        <el-form-item label="选择文件：">
+          <el-upload
+            ref="uploadRef"
+            :auto-upload="false"
+            :on-change="handleFileChange"
+            :before-upload="beforeUpload"
+            accept=".xlsx,.xls,.csv"
+            drag
+          >
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            <div class="el-upload__text">
+              将文件拖到此处，或<em>点击上传</em>
+            </div>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持 xlsx/xls/csv 格式文件，文件大小不超过 10MB
+                <el-button v-if="importForm.dataType === 'community'"
+                           type="text"
+                           size="small"
+                           @click="downloadTemplate">
+                  下载模板
+                </el-button>
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+
       <template #footer>
         <el-button @click="dialogVisible.import = false">取消</el-button>
         <el-button type="primary" @click="handleImport" :loading="loading.import">
@@ -334,7 +454,7 @@ import {
   Delete,
   UploadFilled
 } from '@element-plus/icons-vue'
-import { surveyDataApi } from '@/api'
+import { surveyDataApi, regionApi, communityCapacityApi } from '@/api'
 
 // 修复ResizeObserver错误
 const originalError = console.error
@@ -348,11 +468,15 @@ console.error = (...args: any[]) => {
 // 响应式数据
 const tableData = ref<any[]>([])
 const selectedRows = ref<any[]>([])
-const regionOptions = ref<string[]>(['华北地区', '华东地区', '华南地区', '华中地区', '西南地区', '西北地区', '东北地区'])
+// 代码->名称映射表（一次性从后端加载）
+const regionNameMap = ref<Record<string, string>>({})
+// 下拉选项（从后端获取），包含代码与名称
+const regionSelectOptions = ref<Array<{ code: string; name: string }>>([])
 
 const searchForm = reactive({
+  dataType: 'township' as 'township' | 'community',
   keyword: '',
-  region: ''
+  selectedRegion: null as null | { code: string; name: string }
 })
 
 const pagination = reactive({
@@ -376,6 +500,11 @@ const isEdit = ref(false)
 const formRef = ref<FormInstance>()
 const uploadRef = ref()
 const uploadFile = ref<File | null>(null)
+
+// 导入表单数据
+const importForm = reactive({
+  dataType: 'survey' as 'survey' | 'community'
+})
 
 const formData = reactive({
   id: null,
@@ -406,16 +535,91 @@ const formRules = {
   population: [{ required: true, message: '请输入人口数量', trigger: 'blur' }]
 }
 
+// 加载地区名称映射
+const loadRegionNameMap = async () => {
+  try {
+    console.info('[DataManagement] loadRegionNameMap -> request /api/region/all')
+    const res = await regionApi.getAllEnabledRegions()
+    if (res?.success && Array.isArray(res.data)) {
+      const map: Record<string, string> = {}
+      const options: Array<{ code: string; name: string }> = []
+      for (const r of res.data) {
+        if (r?.code) {
+          map[String(r.code).trim()] = r.name || String(r.code).trim()
+          options.push({ code: String(r.code).trim(), name: r.name || String(r.code).trim() })
+        }
+      }
+      regionNameMap.value = map
+      regionSelectOptions.value = options
+      console.info('[DataManagement] loadRegionNameMap -> loaded', options.length)
+    } else {
+      console.warn('[DataManagement] loadRegionNameMap -> response invalid', res)
+    }
+  } catch (e) {
+    console.warn('加载地区名称映射失败:', e)
+  }
+}
+
+// 根据代码获取地区名称（带鲁棒回退）
+const getRegionName = (row?: any) => {
+  const code = row?.regionCode
+  if (!code && !row) return '-'
+  const key = (code != null ? String(code) : '').trim()
+  const mapped = key ? regionNameMap.value[key] : ''
+  // 回退顺序：映射 -> 行内乡镇/县/市/省 -> 原始代码 -> '-'
+  // 根据数据类型使用不同的字段名
+  if (searchForm.dataType === 'community') {
+    return mapped || row?.communityName || row?.townshipName || row?.countyName || row?.cityName || row?.provinceName || key || '-'
+  } else {
+    return mapped || row?.township || row?.county || row?.city || row?.province || key || '-'
+  }
+}
+
+// 数据类型切换处理
+const handleDataTypeChange = async () => {
+  tableData.value = []
+  pagination.total = 0
+  await getDataList()
+}
+
 // 获取数据列表
 const getDataList = async () => {
   loading.table = true
   try {
-    const response = await surveyDataApi.getAll()
-    if (response.success) {
-      tableData.value = response.data || []
-      pagination.total = tableData.value.length
+    let response
+    if (searchForm.dataType === 'community') {
+      response = await communityCapacityApi.getList({ page: 1, size: 1000 }) // 获取更多数据用于前端展示
+      // 处理后端返回的数据格式：{ code: 200, message: "操作成功", data: { total: 59, pages: 1, data: [...] } }
+      if (response.code === 200 && response.data) {
+        tableData.value = response.data.data || []
+        pagination.total = response.data.total || 0
+      } else {
+        tableData.value = []
+        pagination.total = 0
+      }
     } else {
-      ElMessage.error(response.message || '获取数据失败')
+      response = await surveyDataApi.getAll()
+      if (response.code === 200) {
+        tableData.value = response.data || []
+        pagination.total = tableData.value.length
+      } else {
+        tableData.value = []
+        pagination.total = 0
+      }
+    }
+
+    // 如果下拉选项还未加载成功，基于现有表格构建一个临时选项集
+    if (!regionSelectOptions.value?.length && tableData.value?.length) {
+      const uniq = new Map<string, string>()
+      for (const row of tableData.value) {
+        const code = String(row.regionCode || '').trim()
+        if (!code) continue
+        const name = searchForm.dataType === 'community'
+          ? row.townshipName || row.countyName || row.cityName || row.provinceName || code
+          : row.township || row.county || row.city || row.province || code
+        if (!uniq.has(code)) uniq.set(code, name)
+      }
+      regionSelectOptions.value = Array.from(uniq.entries()).map(([code, name]) => ({ code, name }))
     }
   } catch (error) {
     console.error('获取数据失败:', error)
@@ -427,21 +631,32 @@ const getDataList = async () => {
 
 // 搜索
 const handleSearch = async () => {
-  if (!searchForm.keyword && !searchForm.region) {
+  if (!searchForm.keyword && !searchForm.selectedRegion) {
     getDataList()
     return
   }
-  
+
   loading.table = true
   try {
     let response
-    if (searchForm.keyword) {
-      response = await surveyDataApi.search(searchForm.keyword)
-    } else if (searchForm.region) {
-      response = await surveyDataApi.getByRegion(searchForm.region)
+    if (searchForm.dataType === 'community') {
+      // 社区数据搜索逻辑
+      if (searchForm.keyword) {
+        response = await communityCapacityApi.search({ keyword: searchForm.keyword })
+      } else if (searchForm.selectedRegion) {
+        response = await communityCapacityApi.search({ regionCode: searchForm.selectedRegion.code })
+      }
+    } else {
+      // 乡镇数据搜索逻辑
+      if (searchForm.keyword) {
+        response = await surveyDataApi.search(searchForm.keyword)
+      } else if (searchForm.selectedRegion) {
+        // 后端当前按名称查询（township/county/city/province 模糊匹配）
+        response = await surveyDataApi.getByRegion(searchForm.selectedRegion.name)
+      }
     }
-    
-    if (response?.success) {
+
+    if (response?.code === 200) {
       tableData.value = response.data || []
       pagination.total = tableData.value.length
     }
@@ -531,9 +746,15 @@ const handleDelete = async (row: any) => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-    
-    const response = await surveyDataApi.delete(row.id)
-    if (response.success) {
+
+    let response
+    if (searchForm.dataType === 'community') {
+      response = await communityCapacityApi.delete(row.id)
+    } else {
+      response = await surveyDataApi.delete(row.id)
+    }
+
+    if (response.code === 200) {
       ElMessage.success('删除成功')
       getDataList()
     } else {
@@ -565,8 +786,9 @@ const handleCurrentChange = (page: number) => {
 
 // 显示导入对话框
 const showImportDialog = () => {
-  dialogVisible.import = true
+  importForm.dataType = 'survey' // 重置为调查数据
   uploadFile.value = null
+  dialogVisible.import = true
 }
 
 // 文件选择
@@ -598,14 +820,32 @@ const handleImport = async () => {
     ElMessage.warning('请选择要导入的文件')
     return
   }
-  
+
   loading.import = true
   try {
-    const response = await surveyDataApi.importData(uploadFile.value)
+    let response
+    if (importForm.dataType === 'community') {
+      // 导入社区行政村减灾能力数据
+      response = await communityCapacityApi.importData(uploadFile.value)
+    } else {
+      // 导入调查数据
+      response = await surveyDataApi.importData(uploadFile.value)
+    }
+
     if (response.success) {
-      ElMessage.success('导入成功')
+      const successCount = response.data?.successCount || 0
+      const errorCount = response.data?.errorCount || 0
+
+      if (successCount > 0) {
+        ElMessage.success(`导入成功！成功 ${successCount} 条${errorCount > 0 ? `，失败 ${errorCount} 条` : ''}`)
+        if (importForm.dataType === 'survey') {
+          getDataList() // 只在导入调查数据时刷新列表
+        }
+      } else {
+        ElMessage.error('导入失败，没有成功导入的数据')
+      }
+
       dialogVisible.import = false
-      getDataList()
     } else {
       ElMessage.error(response.message || '导入失败')
     }
@@ -614,6 +854,36 @@ const handleImport = async () => {
     ElMessage.error('导入失败')
   } finally {
     loading.import = false
+  }
+}
+
+// 下载模板
+const downloadTemplate = async () => {
+  try {
+    const response = await communityCapacityApi.downloadTemplate()
+    if (response.success && response.data) {
+      // 创建模板文件内容（CSV格式）
+      const templateContent = `行政区代码,省名称,市名称,县名称,乡镇名称,社区（行政村）名称,是否有社区（行政村）应急预案,是否有本辖区弱势人群清单,是否有本辖区地质灾害等隐患点清单,是否有社区（行政村）灾害类地图,常住人口数量（人）,上一年度防灾减灾救灾资金投入总金额（万元）,现有储备物资、装备折合金额（万元）,社区医疗卫生服务站或村卫生室数量（个）,民兵预备役人数（人）,登记注册志愿者人数（人）,上一年度防灾减灾培训活动培训人次,参与上一年度组织的防灾减灾演练活动的居民(人次),本级灾害应急避难场所容量（人）
+示例数据,四川省,成都市,双流区,西航港街道,某社区,是,是,是,否,1000,50.5,30.2,2,50,100,200,150,500`
+
+      const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = '社区行政村减灾能力导入模板.csv'
+
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      ElMessage.success('模板下载成功')
+    } else {
+      ElMessage.warning('模板下载暂未开放，请按照说明准备数据')
+    }
+  } catch (error) {
+    console.error('下载模板失败:', error)
+    ElMessage.warning('模板下载暂未开放，请按照说明准备数据')
   }
 }
 
@@ -694,8 +964,18 @@ const exportData = async () => {
 }
 
 // 组件挂载时获取数据
-onMounted(() => {
-  getDataList()
+onMounted(async () => {
+  console.info('[DataManagement] onMounted -> start loadRegionNameMap')
+  await loadRegionNameMap()
+  console.info('[DataManagement] onMounted -> loadRegionNameMap done, start getDataList')
+  await getDataList()
+  console.info('[DataManagement] onMounted -> getDataList done')
+  // 暴露到 window 便于调试（仅开发时使用）
+  try {
+    ;(window as any).app = (window as any).app || {}
+    ;(window as any).app.regionNameMap = regionNameMap.value
+    ;(window as any).app.reloadRegions = loadRegionNameMap
+  } catch {}
 })
 </script>
 

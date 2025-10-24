@@ -40,21 +40,34 @@
           </el-select>
         </div>
         
-        <!-- 列显示/隐藏控制 -->
+        <!-- 列显示/隐藏控制（按步骤分组） -->
         <div class="column-control" v-if="currentStepData">
           <h4>列显示控制</h4>
-          <div class="column-checkboxes">
-            <el-checkbox-group v-model="visibleColumns">
-              <el-checkbox 
-                v-for="column in allColumns" 
-                :key="column.prop"
-                :label="column.prop"
-                :disabled="column.prop === 'regionCode' || column.prop === 'regionName'"
-              >
-                {{ column.label }}
-              </el-checkbox>
-            </el-checkbox-group>
-          </div>
+          <!-- 分组折叠面板 -->
+          <el-collapse>
+            <el-collapse-item
+              v-for="group in columnGroups"
+              :key="group.key"
+              :title="`${group.name}（${group.columns.length}列）`"
+            >
+              <div class="group-actions">
+                <el-button size="small" @click="selectGroupColumns(group.key)">选择该组</el-button>
+                <el-button size="small" @click="unselectGroupColumns(group.key)">取消该组</el-button>
+              </div>
+              <div class="column-checkboxes">
+                <el-checkbox-group v-model="visibleColumns">
+                  <el-checkbox 
+                    v-for="column in group.columns" 
+                    :key="column.prop"
+                    :label="column.prop"
+                    :disabled="column.prop === 'regionCode' || column.prop === 'regionName'"
+                  >
+                    {{ column.label }}
+                  </el-checkbox>
+                </el-checkbox-group>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
           <div class="column-actions">
             <el-button size="small" @click="selectAllColumns">全选</el-button>
             <el-button size="small" @click="unselectAllColumns">取消全选</el-button>
@@ -121,33 +134,93 @@
       </div>
 
       <!-- 单表格显示（原有逻辑） -->
-      <div v-else-if="resultData && !resultData.isDualTable" class="result-table-section">
-        <h4>计算结果</h4>
-        <div class="table-container">
-          <el-table
-            :data="resultData.tableData"
-            border
+  <div v-else-if="resultData && !resultData.isDualTable" class="result-table-section">
+    <h4>计算结果</h4>
+    <!-- 列显示/隐藏控制（单表格） - 优化版 -->
+    <div class="column-control" v-if="resultData">
+      <div class="control-header">
+        <h4>列显示控制</h4>
+        <div class="quick-actions">
+          <el-button size="small" @click="selectAllColumns">全选</el-button>
+          <el-button size="small" @click="unselectAllColumns">取消全选</el-button>
+          <el-button size="small" @click="resetColumns">重置</el-button>
+        </div>
+      </div>
+      
+      <!-- 按步骤选择（下拉框方式） -->
+      <div class="step-selector">
+        <el-select 
+          v-model="selectedGroupKeys" 
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          placeholder="选择要显示的步骤"
+          style="width: 100%"
+          @change="handleGroupSelectionChange"
+        >
+          <el-option
+            v-for="group in columnGroups"
+            :key="group.key"
+            :label="`${group.name}（${group.columns.length}列）`"
+            :value="group.key"
+          />
+        </el-select>
+      </div>
+      
+      <!-- 详细列选择（可折叠） -->
+      <el-collapse class="detail-collapse">
+        <el-collapse-item title="详细列选择">
+          <div class="groups-container">
+            <div v-for="group in columnGroups" :key="group.key" class="group-section">
+              <div class="group-header">
+                <span class="group-name">{{ group.name }}（{{ group.columns.length }}列）</span>
+                <div class="group-btn">
+                  <el-button size="small" text @click="selectGroupColumns(group.key)">选择</el-button>
+                  <el-button size="small" text @click="unselectGroupColumns(group.key)">取消</el-button>
+                </div>
+              </div>
+              <div class="column-checkboxes">
+                <el-checkbox-group v-model="visibleColumns">
+                  <el-checkbox 
+                    v-for="column in group.columns" 
+                    :key="column.prop"
+                    :label="column.prop"
+                    :disabled="column.prop === 'regionCode' || column.prop === 'regionName'"
+                  >
+                    {{ column.label }}
+                  </el-checkbox>
+                </el-checkbox-group>
+              </div>
+            </div>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
+    </div>
+    <div class="table-container">
+      <el-table
+        :data="resultData.tableData"
+        border
             stripe
             size="small"
             max-height="400"
             class="result-table"
             style="width: 100%; min-width: 1600px;"
           >
-            <el-table-column
-              v-for="(column, index) in resultData.columns"
-              :key="column.prop"
-              :prop="column.prop"
-              :label="column.label"
-              :width="column.width"
-              :formatter="column.formatter"
-              :show-overflow-tooltip="true"
-            >
-              <template #header>
-                <span>{{ column.label }}</span>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
+        <el-table-column
+          v-for="(column, index) in filteredColumns"
+          :key="column.prop"
+          :prop="column.prop"
+          :label="column.label"
+          :width="column.width"
+          :formatter="column.formatter"
+          :show-overflow-tooltip="true"
+        >
+          <template #header>
+            <span>{{ column.label }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
         
         <!-- 统计信息已移除 -->
       </div>
@@ -213,6 +286,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { modelManagementApi } from '@/api'
 
 interface StepInfo {
   stepName: string
@@ -258,6 +332,8 @@ interface Props {
   stepInfo?: StepInfo
   formula?: string
   resultData?: ResultData
+  modelId?: number
+  algorithmId?: number
 }
 
 interface Emits {
@@ -279,6 +355,239 @@ const visible = ref(false)
 const selectedStepOrder = ref<number>(1)
 const visibleColumns = ref<string[]>([])
 const allColumns = ref<any[]>([])
+// 后端步骤-算法输出映射与步骤名称
+const stepAlgorithmOutputs = ref<Record<number, Set<string>>>({})
+const stepOrderNames = ref<Record<number, string>>({})
+// 下拉框选中的分组key
+const selectedGroupKeys = ref<string[]>([])
+// 列分组
+type ColumnItem = { prop: string; label: string; width?: number; formatter?: any }
+type ColumnGroup = { key: string; name: string; columns: ColumnItem[] }
+
+// 中文步骤识别规则：更精确的匹配
+// 步骤1: 原始数据 / 基础数据
+const reStep1 = /(原始|基础|调查|源数据)/
+// 步骤2: 属性向量归一化
+const reStep2 = /(归一化|标准化|normalized)/i
+// 步骤3: 二级指标定权
+const reStep3 = /(定权|权重|weight)/i
+// 步骤4: 优劣解计算
+const reStep4 = /(优解|劣解|ideal|solution)/i
+// 步骤5: 能力值计算与分级
+const reStep5 = /(值与分级|能力值|评估等级|综合得分|score|grade)/i
+
+const isBase = (c: ColumnItem) => c.prop === 'region' || c.prop === 'regionCode' || c.prop === 'regionName'
+
+// 智能匹配函数：同时检查 label 和 prop
+const matchesStep = (c: ColumnItem, regex: RegExp): boolean => {
+  return regex.test(String(c.label)) || regex.test(c.prop)
+}
+
+const isStep1 = (c: ColumnItem) => matchesStep(c, reStep1)
+const isStep2 = (c: ColumnItem) => matchesStep(c, reStep2)
+const isStep3 = (c: ColumnItem) => matchesStep(c, reStep3)
+const isStep4 = (c: ColumnItem) => matchesStep(c, reStep4)
+const isStep5 = (c: ColumnItem) => matchesStep(c, reStep5)
+
+// 列分组计算：优先使用后端步骤-算法输出映射，未覆盖列使用关键字兜底
+const columnGroups = computed<ColumnGroup[]>(() => {
+  const base: ColumnItem[] = []
+  const assigned = new Set<string>()
+  const dynamicStepGroups: ColumnGroup[] = []
+
+  console.log('\n=== 开始计算列分组 ===')
+  console.log('Computing column groups with:', {
+    allColumnsCount: allColumns.value.length,
+    allColumnsList: allColumns.value.map(c => ({ prop: c.prop, label: c.label, stepOrder: (c as any).stepOrder })),
+    stepAlgorithmOutputs: stepAlgorithmOutputs.value,
+    stepOrderNames: stepOrderNames.value,
+    isMultiStep: props.resultData?.isMultiStep
+  })
+
+  // 基础列优先
+  allColumns.value.forEach(c => {
+    if (isBase(c)) {
+      base.push(c)
+      assigned.add(c.prop)
+      console.log(`基础列: ${c.prop}`)
+    }
+  })
+
+  // 方法1: 优先使用列中自带的 stepOrder 字段
+  const stepGroupsFromColumnData: Record<number, ColumnItem[]> = {}
+  let hasStepOrderInColumns = false
+  
+  allColumns.value.forEach(c => {
+    if (assigned.has(c.prop)) return
+    const stepOrder = (c as any).stepOrder
+    if (stepOrder !== undefined && stepOrder !== null) {
+      hasStepOrderInColumns = true
+      if (!stepGroupsFromColumnData[stepOrder]) {
+        stepGroupsFromColumnData[stepOrder] = []
+      }
+      stepGroupsFromColumnData[stepOrder].push(c)
+      assigned.add(c.prop)
+      console.log(`  ✓ 列自带stepOrder: ${c.prop} -> 步骤${stepOrder}`)
+    }
+  })
+  
+  if (hasStepOrderInColumns) {
+    console.log('\n检测到列数据中包含stepOrder字段，使用该字段进行分组')
+    const orders = Object.keys(stepGroupsFromColumnData)
+      .map(n => Number(n))
+      .sort((a, b) => a - b)
+    
+    orders.forEach(order => {
+      const cols = stepGroupsFromColumnData[order]
+      const title = stepOrderNames.value[order]
+        ? `步骤${order} ${stepOrderNames.value[order]}`
+        : `步骤${order}`
+      dynamicStepGroups.push({ key: `step_${order}`, name: title, columns: cols })
+      console.log(`✓ 添加分组(从列数据): ${title} 共 ${cols.length} 列`)
+    })
+  }
+
+  // 方法2: 如果列数据没有stepOrder，使用后端步骤输出映射
+  if (!hasStepOrderInColumns) {
+    const orders = Object.keys(stepAlgorithmOutputs.value)
+      .map(n => Number(n))
+      .sort((a, b) => a - b)
+    
+    console.log('\n列数据中没有stepOrder，使用后端步骤映射:', orders)
+    
+    orders.forEach(order => {
+      const outputs = stepAlgorithmOutputs.value[order]
+      const cols: ColumnItem[] = []
+      
+      console.log(`\n步骤 ${order} 的输出参数:`, Array.from(outputs || []))
+      
+      allColumns.value.forEach(c => {
+        if (!assigned.has(c.prop) && outputs?.has(c.prop)) {
+          cols.push(c)
+          assigned.add(c.prop)
+          console.log(`  ✓ 匹配: ${c.prop} -> 步骤${order}`)
+        }
+      })
+      
+      if (cols.length) {
+        const title = stepOrderNames.value[order]
+          ? `步骤${order} ${stepOrderNames.value[order]}`
+          : `步骤${order}`
+        dynamicStepGroups.push({ key: `step_${order}`, name: title, columns: cols })
+        console.log(`✓ 添加动态分组: ${title} 共 ${cols.length} 列`)
+      } else {
+        console.log(`✗ 步骤${order} 没有匹配到任何列`)
+      }
+    })
+  }
+
+  // 关键字兑底分组
+  console.log('\n开始关键字兑底分组')
+  const step1: ColumnItem[] = []  // 原始数据
+  const step2: ColumnItem[] = []  // 归一化
+  const step3: ColumnItem[] = []  // 定权
+  const step4: ColumnItem[] = []  // 优劣解
+  const step5: ColumnItem[] = []  // 值与分级
+  const others: ColumnItem[] = []
+  
+  const unassignedColumns = allColumns.value.filter(c => !assigned.has(c.prop))
+  console.log(`未分配的列（${unassignedColumns.length}）`, unassignedColumns.map(c => ({ prop: c.prop, label: c.label })))
+  
+  allColumns.value.forEach(c => {
+    if (assigned.has(c.prop)) return
+    
+    // 按照步骤顺序匹配，优先匹配更具体的规则
+    // 步骤5最具体，优先匹配
+    if (isStep5(c)) { 
+      step5.push(c)
+      assigned.add(c.prop)
+      console.log(`  ✓ 关键字匹配[步骤5-值与分级]: ${c.prop} (${c.label})`)
+      return 
+    }
+    if (isStep4(c)) { 
+      step4.push(c)
+      assigned.add(c.prop)
+      console.log(`  ✓ 关键字匹配[步骤4-优劣解]: ${c.prop} (${c.label})`)
+      return 
+    }
+    if (isStep3(c)) { 
+      step3.push(c)
+      assigned.add(c.prop)
+      console.log(`  ✓ 关键字匹配[步骤3-定权]: ${c.prop} (${c.label})`)
+      return 
+    }
+    if (isStep2(c)) { 
+      step2.push(c)
+      assigned.add(c.prop)
+      console.log(`  ✓ 关键字匹配[步骤2-归一化]: ${c.prop} (${c.label})`)
+      return 
+    }
+    if (isStep1(c)) { 
+      step1.push(c)
+      assigned.add(c.prop)
+      console.log(`  ✓ 关键字匹配[步骤1-原始数据]: ${c.prop} (${c.label})`)
+      return 
+    }
+    
+    others.push(c)
+    console.log(`  ? 未匹配: ${c.prop} (${c.label})`)
+  })
+
+  console.log('\n组装最终分组')
+  const groups: ColumnGroup[] = []
+  if (base.length) {
+    groups.push({ key: 'base', name: '基础信息', columns: base })
+    console.log(`  + 基础信息: ${base.length}列`)
+  }
+  
+  // 先添加后端步骤映射的分组
+  dynamicStepGroups.forEach(g => {
+    groups.push(g)
+    console.log(`  + ${g.name}: ${g.columns.length}列`)
+  })
+  
+  // 再添加关键字匹配的分组（按步骤顺序）
+  if (step1.length) {
+    const stepName = stepOrderNames.value[1] || '原始数据'
+    groups.push({ key: 'step_1', name: `步骤1 ${stepName}`, columns: step1 })
+    console.log(`  + 步骤1 ${stepName}(关键字): ${step1.length}列`)
+  }
+  if (step2.length) {
+    const stepName = stepOrderNames.value[2] || '属性向量归一化'
+    groups.push({ key: 'step_2', name: `步骤2 ${stepName}`, columns: step2 })
+    console.log(`  + 步骤2 ${stepName}(关键字): ${step2.length}列`)
+  }
+  if (step3.length) {
+    const stepName = stepOrderNames.value[3] || '二级指标定权'
+    groups.push({ key: 'step_3', name: `步骤3 ${stepName}`, columns: step3 })
+    console.log(`  + 步骤3 ${stepName}(关键字): ${step3.length}列`)
+  }
+  if (step4.length) {
+    const stepName = stepOrderNames.value[4] || '优劣解计算'
+    groups.push({ key: 'step_4', name: `步骤4 ${stepName}`, columns: step4 })
+    console.log(`  + 步骤4 ${stepName}(关键字): ${step4.length}列`)
+  }
+  if (step5.length) {
+    const stepName = stepOrderNames.value[5] || '能力值计算与分级'
+    groups.push({ key: 'step_5', name: `步骤5 ${stepName}`, columns: step5 })
+    console.log(`  + 步骤5 ${stepName}(关键字): ${step5.length}列`)
+  }
+  
+  if (others.length) {
+    groups.push({ key: 'others', name: '其他输出', columns: others })
+    console.log(`  + 其他输出: ${others.length}列`)
+  }
+  
+  console.log('\n=== 列分组完成 ===')
+  console.log('Final column groups summary:', groups.map(g => ({ 
+    key: g.key, 
+    name: g.name, 
+    columnCount: g.columns.length,
+    columns: g.columns.map(c => c.prop)
+  })))
+  
+  return groups
+})
 
 // 计算对话框标题
 const dialogTitle = computed(() => {
@@ -312,9 +621,16 @@ const currentStepData = computed(() => {
   return stepResult
 })
 
-// 过滤后的列
+// 过滤后的列（按分组顺序展现）
 const filteredColumns = computed(() => {
-  return allColumns.value.filter(column => visibleColumns.value.includes(column.prop))
+  const visibleSet = new Set(visibleColumns.value)
+  const ordered: ColumnItem[] = []
+  columnGroups.value.forEach(group => {
+    group.columns.forEach(c => {
+      if (visibleSet.has(c.prop)) ordered.push(c)
+    })
+  })
+  return ordered
 })
 
 // 监听props变化
@@ -326,12 +642,19 @@ watch(
       console.log('ResultDialog opened with data:', {
         stepInfo: props.stepInfo,
         formula: props.formula,
-        resultData: props.resultData
+        resultData: props.resultData,
+        modelId: props.modelId
       })
       
-      // 初始化多步骤数据
+      // 初始化列配置（支持单表与多步骤）
       if (props.resultData?.isMultiStep && props.resultData.stepResults) {
         selectedStepOrder.value = props.resultData.stepResults[0]?.stepOrder || 1
+      }
+      // 拉取模型详情以构建后端步骤分组（多步骤和单表格模式都需要）
+      if (props.modelId) {
+        loadModelDetail(props.modelId)
+      } else {
+        // 如果没有modelId，直接初始化列
         initializeColumns()
       }
     }
@@ -365,6 +688,8 @@ watch(
       if (newData.tableData.length > 0) {
         console.log('First row data keys:', Object.keys(newData.tableData[0]))
       }
+      // 单表格变化时初始化列
+      initializeColumns()
     }
   },
   { deep: true, immediate: true }
@@ -386,36 +711,177 @@ const handleStepChange = (stepOrder: number) => {
   initializeColumns()
 }
 
-// 初始化列配置
+// 初始化列配置（通用化：支持多步骤与单表格模式）
 const initializeColumns = () => {
-  if (!currentStepData.value?.tableData || currentStepData.value.tableData.length === 0) {
-    console.log('No table data available for columns initialization')
-    allColumns.value = []
-    visibleColumns.value = []
-    return
-  }
-  
-  // 从表格数据中推断列配置
-  const firstRow = currentStepData.value.tableData[0]
-  const columns: any[] = []
-  
-  console.log('Initializing columns from first row:', Object.keys(firstRow))
-  
-  Object.keys(firstRow).forEach(key => {
-    columns.push({
-      prop: key,
-      label: getColumnLabel(key),
-      width: getColumnWidth(key)
+  // 多步骤模式
+  if (props.resultData?.isMultiStep) {
+    if (!currentStepData.value?.tableData || currentStepData.value.tableData.length === 0) {
+      console.log('No table data available for columns initialization (multi-step)')
+      allColumns.value = []
+      visibleColumns.value = []
+      return
+    }
+
+    const firstRow = currentStepData.value.tableData[0]
+    const columns: any[] = []
+    console.log('Initializing columns from first row (multi-step):', Object.keys(firstRow))
+    Object.keys(firstRow).forEach(key => {
+      columns.push({
+        prop: key,
+        label: getColumnLabel(key),
+        width: getColumnWidth(key)
+      })
     })
-  })
-  
-  allColumns.value = columns
-  visibleColumns.value = columns.map(col => col.prop) // 默认全部显示
-  
-  console.log('Columns initialized:', {
-    totalColumns: columns.length,
-    visibleColumns: visibleColumns.value.length
-  })
+      allColumns.value = columns
+      visibleColumns.value = columns.map(col => col.prop)
+      console.log('Columns initialized (multi-step):', {
+        totalColumns: columns.length,
+        visibleColumns: visibleColumns.value.length
+      })
+      
+      // 初始化下拉框选择：默认全选
+      selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+      return
+    }
+
+  // 单表格模式
+  if (props.resultData) {
+    const columnsFromProps = props.resultData.columns || []
+    const tableData = props.resultData.tableData || []
+
+    if (columnsFromProps.length > 0) {
+      // 直接使用 props.columns，保留已有label/width/formatter/stepOrder
+      allColumns.value = columnsFromProps.map(col => ({
+        prop: col.prop,
+        label: col.label || getColumnLabel(col.prop),
+        width: col.width || getColumnWidth(col.prop),
+        formatter: col.formatter,
+        stepOrder: (col as any).stepOrder  // 保留 stepOrder 字段
+      }))
+      visibleColumns.value = allColumns.value.map(col => col.prop)
+      console.log('Columns initialized from props (single-table):', {
+        totalColumns: allColumns.value.length,
+        visibleColumns: visibleColumns.value.length,
+        columnsWithStepOrder: allColumns.value.filter(c => (c as any).stepOrder).length
+      })
+      
+      // 初始化下拉框选择：默认全选
+      setTimeout(() => {
+        selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+      }, 100)
+      return
+    }
+
+    if (tableData.length === 0) {
+      console.log('No table data available for columns initialization (single-table)')
+      allColumns.value = []
+      visibleColumns.value = []
+      return
+    }
+
+    // 从表格数据推断
+    const firstRow = tableData[0]
+    const columns: any[] = []
+    console.log('Initializing columns from first row (single-table):', Object.keys(firstRow))
+    Object.keys(firstRow).forEach(key => {
+      columns.push({
+        prop: key,
+        label: getColumnLabel(key),
+        width: getColumnWidth(key)
+      })
+    })
+    allColumns.value = columns
+    visibleColumns.value = columns.map(col => col.prop)
+    console.log('Columns initialized from data (single-table):', {
+      totalColumns: columns.length,
+      visibleColumns: visibleColumns.value.length
+    })
+  }
+}
+
+// 加载模型详情并解析每步算法输出参数
+const loadModelDetail = async (modelId: number) => {
+  try {
+    console.log('Loading model detail for modelId:', modelId)
+    const resp = await modelManagementApi.getModelDetail(modelId)
+    if (resp?.success) {
+      const steps = resp.data?.steps || []
+      const outputsMap: Record<number, Set<string>> = {}
+      const namesMap: Record<number, string> = {}
+      
+      console.log('Model steps received:', steps.length)
+      console.log('Model steps detail:', steps)
+      
+      steps.forEach((step: any) => {
+        const order = Number(step.stepOrder ?? step.order ?? step.step_number ?? 0)
+        namesMap[order] = step.stepName ?? step.name ?? ''
+        
+        console.log(`Processing step ${order}: ${namesMap[order]}`)
+        console.log('Step details:', {
+          description: step.description,
+          algorithms: step.algorithms,
+          algorithmConfigs: step.algorithmConfigs
+        })
+        
+        const outputs = new Set<string>()
+        
+        // 方法1: 从 description 字段中的 |ALGORITHMS| 标记解析
+        let algos: any[] = []
+        if (typeof step.description === 'string' && step.description.includes('|ALGORITHMS|')) {
+          try {
+            const json = step.description.split('|ALGORITHMS|')[1]
+            algos = JSON.parse(json)
+            console.log(`Step ${order} algorithms from description:`, algos.length)
+          } catch (err) {
+            console.warn(`Failed to parse algorithms from description for step ${order}:`, err)
+          }
+        }
+        
+        // 方法2: 从 algorithms 字段直接读取
+        if (algos.length === 0 && Array.isArray(step.algorithms)) {
+          algos = step.algorithms
+          console.log(`Step ${order} algorithms from algorithms field:`, algos.length)
+        }
+        
+        // 方法3: 从 algorithmConfigs 字段读取
+        if (algos.length === 0 && Array.isArray(step.algorithmConfigs)) {
+          algos = step.algorithmConfigs
+          console.log(`Step ${order} algorithms from algorithmConfigs:`, algos.length)
+        }
+        
+        // 提取输出参数
+        algos.forEach(a => {
+          const outputParam = a?.outputParam || a?.output_param || a?.outputParameter
+          if (outputParam) {
+            outputs.add(String(outputParam))
+            console.log(`Step ${order} output param: ${outputParam}`)
+          }
+        })
+        
+        // 如果还是没有输出参数，尝试基于步骤名称和关键字推断可能的列名模式
+        if (outputs.size === 0) {
+          console.log(`Step ${order} has no explicit output params, will rely on keyword matching`)
+        }
+        
+        if (outputs.size > 0) {
+          outputsMap[order] = outputs
+        }
+      })
+      
+      stepAlgorithmOutputs.value = outputsMap
+      stepOrderNames.value = namesMap
+      
+      console.log('Step algorithm outputs map:', outputsMap)
+      console.log('Step order names map:', namesMap)
+      
+      // 模型详情到达后刷新列分组
+      initializeColumns()
+    }
+  } catch (error: any) {
+    console.warn('加载模型详情失败，使用关键字分组作为回退: ', error?.message || error)
+    // 即使失败也要初始化列
+    initializeColumns()
+  }
 }
 
 // 获取列标签
@@ -437,6 +903,9 @@ const getColumnWidth = (key: string) => {
 // 选中所有列
 const selectAllColumns = () => {
   visibleColumns.value = allColumns.value.map(col => col.prop)
+  // 同步更新下拉框：选中所有分组
+  selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+  console.log('✓ 全选：更新下拉框选中', selectedGroupKeys.value)
 }
 
 // 取消选中所有列
@@ -445,11 +914,74 @@ const unselectAllColumns = () => {
   visibleColumns.value = allColumns.value
     .filter(col => col.prop === 'regionCode' || col.prop === 'regionName')
     .map(col => col.prop)
+  // 同步更新下拉框：只选中基础信息分组
+  selectedGroupKeys.value = ['base']
+  console.log('✓ 取消全选：更新下拉框选中', selectedGroupKeys.value)
 }
 
 // 重置列显示
 const resetColumns = () => {
   visibleColumns.value = allColumns.value.map(col => col.prop)
+  // 同步更新下拉框：选中所有分组
+  selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+  console.log('✓ 重置：更新下拉框选中', selectedGroupKeys.value)
+}
+
+// 处理下拉框选择变化
+const handleGroupSelectionChange = (selectedKeys: string[]) => {
+  console.log('选中的分组:', selectedKeys)
+  
+  // 获取所有选中分组的列
+  const selectedCols = new Set<string>()
+  
+  // 始终包含基础列
+  selectedCols.add('regionCode')
+  selectedCols.add('regionName')
+  
+  selectedKeys.forEach(key => {
+    const group = columnGroups.value.find(g => g.key === key)
+    if (group) {
+      group.columns.forEach(c => selectedCols.add(c.prop))
+    }
+  })
+  
+  visibleColumns.value = Array.from(selectedCols)
+  console.log('更新后的可见列:', visibleColumns.value.length)
+}
+
+// 选择/取消某一分组
+const selectGroupColumns = (groupKey: string) => {
+  const group = columnGroups.value.find(g => g.key === groupKey)
+  if (!group) return
+  const current = new Set(visibleColumns.value)
+  group.columns.forEach(c => current.add(c.prop))
+  visibleColumns.value = Array.from(current)
+  
+  // 同步更新下拉框选中
+  if (!selectedGroupKeys.value.includes(groupKey)) {
+    selectedGroupKeys.value.push(groupKey)
+  }
+}
+
+const unselectGroupColumns = (groupKey: string) => {
+  const group = columnGroups.value.find(g => g.key === groupKey)
+  if (!group) return
+  const retain = new Set(
+    allColumns.value
+      .filter(col => col.prop === 'regionCode' || col.prop === 'regionName' || col.prop === 'region')
+      .map(col => col.prop)
+  )
+  const current = new Set(visibleColumns.value)
+  group.columns.forEach(c => current.delete(c.prop))
+  // 保留基础列
+  retain.forEach(r => current.add(r))
+  visibleColumns.value = Array.from(current)
+  
+  // 同步更新下拉框选中
+  const index = selectedGroupKeys.value.indexOf(groupKey)
+  if (index > -1) {
+    selectedGroupKeys.value.splice(index, 1)
+  }
 }
 
 // 导出结果
@@ -798,6 +1330,63 @@ const buildCSVContent = (): string => {
     }
     
     .column-control {
+      .control-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        
+        h4 {
+          margin: 0;
+        }
+        
+        .quick-actions {
+          display: flex;
+          gap: 8px;
+        }
+      }
+      
+      .step-selector {
+        margin-bottom: 16px;
+      }
+      
+      .detail-collapse {
+        margin-top: 12px;
+      }
+      
+      .groups-container {
+        .group-section {
+          margin-bottom: 16px;
+          padding: 12px;
+          background-color: white;
+          border-radius: 4px;
+          border: 1px solid #e0e0e0;
+          
+          &:last-child {
+            margin-bottom: 0;
+          }
+          
+          .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+            
+            .group-name {
+              font-weight: 500;
+              color: #333;
+            }
+            
+            .group-btn {
+              display: flex;
+              gap: 8px;
+            }
+          }
+        }
+      }
+      
       h4 {
         margin: 0 0 12px 0;
         color: #333;
@@ -883,6 +1472,10 @@ const buildCSVContent = (): string => {
     justify-content: flex-end;
     gap: 12px;
   }
+}
+
+.group-actions {
+  margin-bottom: 8px;
 }
 
 /* 响应式设计 */

@@ -6,6 +6,7 @@ import com.evaluate.mapper.*;
 import com.evaluate.service.ModelExecutionService;
 import com.evaluate.service.QLExpressService;
 import com.evaluate.service.SpecialAlgorithmService;
+import com.evaluate.service.ISurveyDataService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.Collections;
 
 /**
  * 模型执行服务实现类
@@ -50,6 +53,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
     @Autowired
     private SpecialAlgorithmService specialAlgorithmService;
+
+    @Autowired
+    private ISurveyDataService surveyDataService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -96,6 +102,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         // 5. 按顺序执行每个步骤
         Map<String, Object> stepResults = new HashMap<>();
+        Map<Integer, List<String>> stepOutputParams = new LinkedHashMap<>();  // 记录每个步骤的输出参数名称
+        
         for (ModelStep step : steps) {
             log.info("执行步骤: {} - {}, order={}", step.getStepCode(), step.getStepName(), step.getStepOrder());
             
@@ -103,6 +111,15 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 // 执行单个步骤
                 Map<String, Object> stepResult = executeStep(step.getId(), regionCodes, globalContext);
                 stepResults.put(step.getStepCode(), stepResult);
+                
+                // 记录该步骤的输出参数（用于后面生成 columns）
+                @SuppressWarnings("unchecked")
+                Map<String, String> outputToAlgorithmName = 
+                        (Map<String, String>) stepResult.get("outputToAlgorithmName");
+                if (outputToAlgorithmName != null) {
+                    stepOutputParams.put(step.getStepOrder(), new ArrayList<>(outputToAlgorithmName.values()));
+                    log.debug("步骤{} 的输出参数: {}", step.getStepOrder(), outputToAlgorithmName.values());
+                }
                 
                 // 将步骤结果合并到全局上下文（供后续步骤使用）
                 globalContext.put("step_" + step.getStepCode(), stepResult);
@@ -114,12 +131,21 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
 
+        // 生成二维表数据
+        List<Map<String, Object>> tableData = generateResultTable(
+                Collections.singletonMap("stepResults", stepResults));
+        
+        // 生成 columns 数组（包含所有步骤的 stepOrder 信息）
+        List<Map<String, Object>> columns = generateColumnsWithAllSteps(tableData, stepOutputParams);
+
         // 6. 构建最终结果
         Map<String, Object> result = new HashMap<>();
         result.put("modelId", modelId);
         result.put("modelName", model.getModelName());
         result.put("executionTime", new Date());
         result.put("stepResults", stepResults);
+        result.put("tableData", tableData);
+        result.put("columns", columns);
         result.put("success", true);
 
         log.info("评估模型执行完成");
@@ -169,10 +195,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             Map<String, Object> regionContext = new HashMap<>(inputData);
             regionContext.put("currentRegionCode", regionCode);
             
-            // 加载前面步骤的输出结果到当前区域上下文
-            loadPreviousStepOutputs(regionContext, regionCode, inputData);
-            
-            // 获取该地区的调查数据
+            // 先加载调查数据（原始数据）
             QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
             dataQuery.eq("region_code", regionCode);
             SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
@@ -181,20 +204,38 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 addSurveyDataToContext(regionContext, surveyData);
             }
             
+            // 再加载前面步骤的输出结果（计算结果），这样会覆盖原始数据中的同名字段
+            loadPreviousStepOutputs(regionContext, regionCode, inputData);
+            
             allRegionContexts.put(regionCode, regionContext);
         }
         
-        // 5. 第二遍：为每个地区执行算法（支持特殊标记）
+        // 5. 分离GRADE算法和非GRADE算法
+        List<StepAlgorithm> nonGradeAlgorithms = new ArrayList<>();
+        List<StepAlgorithm> gradeAlgorithms = new ArrayList<>();
+        
+        for (StepAlgorithm algorithm : algorithms) {
+            String qlExpression = algorithm.getQlExpression();
+            if (qlExpression != null && qlExpression.startsWith("@GRADE")) {
+                gradeAlgorithms.add(algorithm);
+            } else {
+                nonGradeAlgorithms.add(algorithm);
+            }
+        }
+        
+        log.info("算法分组: 非GRADE算法={}, GRADE算法={}", nonGradeAlgorithms.size(), gradeAlgorithms.size());
+        
+        // 6. 第二遍：为每个地区执行非GRADE算法（支持特殊标记）
         Map<String, Map<String, Object>> regionResults = new LinkedHashMap<>();
         Map<String, String> outputToAlgorithmName = new LinkedHashMap<>();
         
         for (String regionCode : regionCodes) {
-            log.info("为地区 {} 执行算法", regionCode);
+            log.info("为地区 {} 执行非GRADE算法", regionCode);
             Map<String, Object> regionContext = allRegionContexts.get(regionCode);
             Map<String, Object> algorithmOutputs = new LinkedHashMap<>();
             
-            // 按顺序执行每个算法
-            for (StepAlgorithm algorithm : algorithms) {
+            // 执行非GRADE算法
+            for (StepAlgorithm algorithm : nonGradeAlgorithms) {
                 try {
                     log.debug("执行算法: {} - {}", algorithm.getAlgorithmCode(), algorithm.getAlgorithmName());
                     
@@ -214,17 +255,19 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         result = specialAlgorithmService.executeSpecialAlgorithm(
                                 marker, params, regionCode, regionContext, allRegionContexts);
                         
-                        // 确保数值类型转换
-                        if (result != null && result instanceof Number && !(result instanceof Double)) {
-                            result = ((Number) result).doubleValue();
+                        // 确保数值类型转换并格式化为8位小数
+                        if (result != null && result instanceof Number) {
+                            double doubleValue = ((Number) result).doubleValue();
+                            result = Double.parseDouble(String.format("%.8f", doubleValue));
                         }
                     } else {
                         // 执行标准QLExpress表达式
                         result = qlExpressService.execute(qlExpression, regionContext);
                         
-                        // 确保数值类型的结果转换为Double
-                        if (result != null && result instanceof Number && !(result instanceof Double)) {
-                            result = ((Number) result).doubleValue();
+                        // 确保数值类型的结果转换为Double并格式化为8位小数
+                        if (result != null && result instanceof Number) {
+                            double doubleValue = ((Number) result).doubleValue();
+                            result = Double.parseDouble(String.format("%.8f", doubleValue));
                         }
                     }
                     
@@ -245,6 +288,54 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
             
             regionResults.put(regionCode, algorithmOutputs);
+        }
+        
+        // 7. 第三遍：为每个地区执行GRADE算法（此时所有地区的分数已计算完成）
+        if (!gradeAlgorithms.isEmpty()) {
+            log.info("开始执行GRADE算法，此时所有地区的分数已计算完成");
+            
+            for (String regionCode : regionCodes) {
+                log.info("为地区 {} 执行GRADE算法", regionCode);
+                Map<String, Object> regionContext = allRegionContexts.get(regionCode);
+                Map<String, Object> algorithmOutputs = regionResults.get(regionCode);
+                
+                for (StepAlgorithm algorithm : gradeAlgorithms) {
+                    try {
+                        log.debug("执行GRADE算法: {} - {}", algorithm.getAlgorithmCode(), algorithm.getAlgorithmName());
+                        
+                        String qlExpression = algorithm.getQlExpression();
+                        String[] parts = qlExpression.substring(1).split(":", 2);
+                        String marker = parts[0];
+                        String params = parts.length > 1 ? parts[1] : "";
+                        
+                        log.info("执行特殊标记算法: marker={}, params={}", marker, params);
+                        
+                        // 调用特殊算法服务
+                        Object result = specialAlgorithmService.executeSpecialAlgorithm(
+                                marker, params, regionCode, regionContext, allRegionContexts);
+                        
+                        // 格式化GRADE算法结果为8位小数
+                        if (result != null && result instanceof Number) {
+                            double doubleValue = ((Number) result).doubleValue();
+                            result = Double.parseDouble(String.format("%.8f", doubleValue));
+                        }
+
+                        // 保存算法输出到上下文（供后续算法使用）
+                        String outputParam = algorithm.getOutputParam();
+                        if (outputParam != null && !outputParam.isEmpty()) {
+                            regionContext.put(outputParam, result);
+                            allRegionContexts.put(regionCode, regionContext);  // 更新全局上下文
+                            algorithmOutputs.put(outputParam, result);
+                            outputToAlgorithmName.put(outputParam, algorithm.getAlgorithmName());
+                        }
+                        
+                        log.debug("GRADE算法 {} 执行结果: {}", algorithm.getAlgorithmCode(), result);
+                    } catch (Exception e) {
+                        log.error("GRADE算法 {} 执行失败: {}", algorithm.getAlgorithmCode(), e.getMessage(), e);
+                        throw new RuntimeException("GRADE算法 " + algorithm.getAlgorithmName() + " 执行失败: " + e.getMessage(), e);
+                    }
+                }
+            }
         }
         
         // 保存输出参数到算法名称的映射
@@ -309,8 +400,22 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             row.put("regionCode", regionCode);
             
             // 获取地区名称
-            Region region = regionMapper.selectByCode(regionCode);
-            String regionName = region != null ? region.getName() : regionCode;
+            String regionName = regionCode;
+            
+            // 首先尝试从survey_data表获取地区名称
+            QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
+            surveyQuery.eq("region_code", regionCode);
+            SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
+            if (surveyData != null && surveyData.getTownship() != null) {
+                regionName = surveyData.getTownship();
+            } else {
+                // 如果survey_data中没有找到，再尝试region表
+                Region region = regionMapper.selectByCode(regionCode);
+                if (region != null) {
+                    regionName = region.getName();
+                }
+            }
+            
             row.put("regionName", regionName);
             log.debug("地区 {} 映射为: {}", regionCode, regionName);
 
@@ -337,7 +442,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                             columnName = stepCode + "_" + outputParam;
                         }
                         
-                        row.put(columnName, output.getValue());
+                        // 格式化数值为8位小数
+                        Object value = output.getValue();
+                        if (value != null && value instanceof Number) {
+                            double doubleValue = ((Number) value).doubleValue();
+                            value = Double.parseDouble(String.format("%.8f", doubleValue));
+                        }
+                        row.put(columnName, value);
                     }
                 }
             }
@@ -528,20 +639,24 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             // 4. 执行目标步骤
             Map<String, Object> stepExecutionResult = executeAlgorithmStepInternal(targetStep, regionCodes, globalContext);
 
-            // 5. 生成该步骤的2D表格数据
-            List<Map<String, Object>> tableData = generateStepResultTable(stepExecutionResult, regionCodes);
+        // 5. 生成该步骤的2D表格数据
+        List<Map<String, Object>> tableData = generateStepResultTable(stepExecutionResult, regionCodes);
 
-            // 6. 构建返回结果
-            Map<String, Object> result = new HashMap<>();
-            result.put("stepId", targetStep.getId());
-            result.put("stepName", targetStep.getStepName());
-            result.put("stepOrder", stepOrder);
-            result.put("stepCode", targetStep.getStepCode());
-            result.put("description", targetStep.getStepDescription());
-            result.put("executionResult", stepExecutionResult);
-            result.put("tableData", tableData);
-            result.put("success", true);
-            result.put("executionTime", new Date());
+        // 生成 columns 数组（包含 stepOrder 信息）
+        List<Map<String, Object>> columns = generateColumnsWithStepOrder(tableData, stepOrder);
+
+        // 6. 构建返回结果
+        Map<String, Object> result = new HashMap<>();
+        result.put("stepId", targetStep.getId());
+        result.put("stepName", targetStep.getStepName());
+        result.put("stepOrder", stepOrder);
+        result.put("stepCode", targetStep.getStepCode());
+        result.put("description", targetStep.getStepDescription());
+        result.put("executionResult", stepExecutionResult);
+        result.put("tableData", tableData);
+        result.put("columns", columns);
+        result.put("success", true);
+        result.put("executionTime", new Date());
 
             log.info("算法步骤 {} 执行完成，生成 {} 行表格数据", stepOrder, tableData.size());
             return result;
@@ -737,10 +852,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             Map<String, Object> regionContext = new HashMap<>(globalContext);
             regionContext.put("currentRegionCode", regionCode);
             
-            // 加载前面步骤的输出结果到当前区域上下文
-            loadPreviousStepOutputs(regionContext, regionCode, globalContext);
-            
-            // 获取该地区的调查数据
+            // 先加载调查数据（原始数据）
             QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
             dataQuery.eq("region_code", regionCode);
             SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
@@ -748,6 +860,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             if (surveyData != null) {
                 addSurveyDataToContext(regionContext, surveyData);
             }
+            
+            // 再加载前面步骤的输出结果（计算结果），这样会覆盖原始数据中的同名字段
+            loadPreviousStepOutputs(regionContext, regionCode, globalContext);
             
             allRegionContexts.put(regionCode, regionContext);
         }
@@ -782,17 +897,19 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         result = specialAlgorithmService.executeSpecialAlgorithm(
                                 marker, params, regionCode, regionContext, allRegionContexts);
                         
-                        // 确保数值类型转换
-                        if (result != null && result instanceof Number && !(result instanceof Double)) {
-                            result = ((Number) result).doubleValue();
+                        // 确保数值类型转换并格式化为8位小数
+                        if (result != null && result instanceof Number) {
+                            double doubleValue = ((Number) result).doubleValue();
+                            result = Double.parseDouble(String.format("%.8f", doubleValue));
                         }
                     } else {
                         // 执行标准QLExpress表达式
                         result = qlExpressService.execute(expression, regionContext);
                         
-                        // 确保数值类型的结果转换为Double
-                        if (result != null && result instanceof Number && !(result instanceof Double)) {
-                            result = ((Number) result).doubleValue();
+                        // 确保数值类型的结果转换为Double并格式化为8位小数
+                        if (result != null && result instanceof Number) {
+                            double doubleValue = ((Number) result).doubleValue();
+                            result = Double.parseDouble(String.format("%.8f", doubleValue));
                         }
                     }
                     
@@ -866,7 +983,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         columnName = outputParam;
                     }
                     
-                    row.put(columnName, output.getValue());
+                    // 格式化数值为8位小数
+                    Object value = output.getValue();
+                    if (value != null && value instanceof Number) {
+                        double doubleValue = ((Number) value).doubleValue();
+                        value = Double.parseDouble(String.format("%.8f", doubleValue));
+                    }
+                    row.put(columnName, value);
                 }
             }
             
@@ -874,6 +997,121 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
         
         return tableData;
+    }
+
+    /**
+     * 从表格数据和步骤输出参数生成 columns 数组，每列标记所属步骤
+     * 
+     * @param tableData 表格数据
+     * @param stepOutputParams 步骤序号 -> 输出参数名称列表的映射
+     * @return columns 数组
+     */
+    private List<Map<String, Object>> generateColumnsWithAllSteps(
+            List<Map<String, Object>> tableData, 
+            Map<Integer, List<String>> stepOutputParams) {
+        
+        List<Map<String, Object>> columns = new ArrayList<>();
+        
+        if (tableData == null || tableData.isEmpty()) {
+            log.debug("表格数据为空，返回空的 columns 数组");
+            return columns;
+        }
+        
+        // 从第一行数据提取所有列名
+        Map<String, Object> firstRow = tableData.get(0);
+        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region"));
+        
+        // 创建反向映射：列名 -> 步骤序号
+        Map<String, Integer> columnToStepOrder = new HashMap<>();
+        for (Map.Entry<Integer, List<String>> entry : stepOutputParams.entrySet()) {
+            Integer stepOrder = entry.getKey();
+            List<String> outputNames = entry.getValue();
+            for (String outputName : outputNames) {
+                columnToStepOrder.put(outputName, stepOrder);
+            }
+        }
+        
+        log.info("开始生成 columns 数组（全模型），总列数: {}", firstRow.size());
+        log.debug("列名到步骤序号的映射: {}", columnToStepOrder);
+        
+        for (String columnName : firstRow.keySet()) {
+            Map<String, Object> column = new LinkedHashMap<>();
+            column.put("prop", columnName);
+            column.put("label", columnName);
+            
+            // 设置列宽
+            if ("regionCode".equals(columnName)) {
+                column.put("width", 150);
+            } else if ("regionName".equals(columnName) || "region".equals(columnName)) {
+                column.put("width", 120);
+            } else {
+                column.put("width", 120);
+                // 非基础列添加 stepOrder
+                Integer stepOrder = columnToStepOrder.get(columnName);
+                if (stepOrder != null) {
+                    column.put("stepOrder", stepOrder);
+                    log.debug("列 {} 标记为步骤 {}", columnName, stepOrder);
+                } else {
+                    log.warn("列 {} 未找到对应的步骤序号", columnName);
+                }
+            }
+            
+            columns.add(column);
+        }
+        
+        log.info("完成 columns 数组生成（全模型），共 {} 列，其中 {} 列包含 stepOrder", 
+                columns.size(), columns.stream().filter(c -> c.containsKey("stepOrder")).count());
+        
+        return columns;
+    }
+
+    /**
+     * 从表格数据生成 columns 数组，并为非基础列添加 stepOrder
+     * 
+     * @param tableData 表格数据
+     * @param stepOrder 当前步骤序号
+     * @return columns 数组
+     */
+    private List<Map<String, Object>> generateColumnsWithStepOrder(
+            List<Map<String, Object>> tableData, Integer stepOrder) {
+        
+        List<Map<String, Object>> columns = new ArrayList<>();
+        
+        if (tableData == null || tableData.isEmpty()) {
+            log.debug("表格数据为空，返回空的 columns 数组");
+            return columns;
+        }
+        
+        // 从第一行数据提取所有列名
+        Map<String, Object> firstRow = tableData.get(0);
+        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region"));
+        
+        log.info("开始生成 columns 数组，步骤序号: {}, 列数: {}", stepOrder, firstRow.size());
+        
+        for (String columnName : firstRow.keySet()) {
+            Map<String, Object> column = new LinkedHashMap<>();
+            column.put("prop", columnName);
+            column.put("label", columnName);  // 使用中文名称作为 label
+            
+            // 设置列宽
+            if ("regionCode".equals(columnName)) {
+                column.put("width", 150);
+            } else if ("regionName".equals(columnName) || "region".equals(columnName)) {
+                column.put("width", 120);
+            } else {
+                column.put("width", 120);
+                // 非基础列添加 stepOrder
+                column.put("stepOrder", stepOrder);
+                log.debug("列 {} 标记为步骤 {}", columnName, stepOrder);
+            }
+            
+            columns.add(column);
+        }
+        
+        log.info("完成 columns 数组生成，共 {} 列，其中 {} 列包含 stepOrder", 
+                columns.size(), columns.stream().filter(c -> c.containsKey("stepOrder")).count());
+        
+        return columns;
     }
 
     @Autowired

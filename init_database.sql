@@ -15,6 +15,7 @@ DROP TABLE IF EXISTS algorithm_config;
 DROP TABLE IF EXISTS indicator_weight;
 DROP TABLE IF EXISTS weight_config;
 DROP TABLE IF EXISTS survey_data;
+DROP TABLE IF EXISTS community_disaster_reduction_capacity;
 
 -- 1. 创建调查数据表
 CREATE TABLE survey_data (
@@ -44,6 +45,40 @@ CREATE TABLE survey_data (
 CREATE INDEX idx_survey_data_region ON survey_data(region_code);
 CREATE INDEX idx_survey_data_township ON survey_data(township);
 CREATE INDEX idx_survey_data_create_time ON survey_data(create_time DESC);
+
+-- 1.5. 创建社区行政村减灾能力数据表
+CREATE TABLE community_disaster_reduction_capacity (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    region_code VARCHAR(50) NOT NULL COMMENT '行政区代码',
+    province_name VARCHAR(100) DEFAULT NULL COMMENT '省名称',
+    city_name VARCHAR(100) DEFAULT NULL COMMENT '市名称',
+    county_name VARCHAR(100) DEFAULT NULL COMMENT '县名称',
+    township_name VARCHAR(100) DEFAULT NULL COMMENT '乡镇名称',
+    community_name VARCHAR(100) NOT NULL COMMENT '社区（行政村）名称',
+    has_emergency_plan VARCHAR(10) DEFAULT '否' COMMENT '是否有社区（行政村）应急预案（是/否）',
+    has_vulnerable_groups_list VARCHAR(10) DEFAULT '否' COMMENT '是否有本辖区弱势人群清单（是/否）',
+    has_disaster_points_list VARCHAR(10) DEFAULT '否' COMMENT '是否有本辖区地质灾害等隐患点清单（是/否）',
+    has_disaster_map VARCHAR(10) DEFAULT '否' COMMENT '是否有社区（行政村）灾害类地图（是/否）',
+    resident_population INT DEFAULT 0 COMMENT '常住人口数量（人）',
+    last_year_funding_amount DECIMAL(12,2) DEFAULT 0.00 COMMENT '上一年度防灾减灾救灾资金投入总金额（万元）',
+    materials_equipment_value DECIMAL(12,2) DEFAULT 0.00 COMMENT '现有储备物资、装备折合金额（万元）',
+    medical_service_count INT DEFAULT 0 COMMENT '社区医疗卫生服务站或村卫生室数量（个）',
+    militia_reserve_count INT DEFAULT 0 COMMENT '民兵预备役人数（人）',
+    registered_volunteer_count INT DEFAULT 0 COMMENT '登记注册志愿者人数（人）',
+    last_year_training_participants INT DEFAULT 0 COMMENT '上一年度防灾减灾培训活动培训人次（人次）',
+    last_year_drill_participants INT DEFAULT 0 COMMENT '参与上一年度组织的防灾减灾演练活动的居民(人次)',
+    emergency_shelter_capacity INT DEFAULT 0 COMMENT '本级灾害应急避难场所容量（人）',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '社区行政村减灾能力数据表';
+
+-- 创建社区减灾能力表索引
+CREATE UNIQUE INDEX uk_region_community ON community_disaster_reduction_capacity(region_code, community_name);
+CREATE INDEX idx_community_region_code ON community_disaster_reduction_capacity(region_code);
+CREATE INDEX idx_community_province_name ON community_disaster_reduction_capacity(province_name);
+CREATE INDEX idx_community_city_name ON community_disaster_reduction_capacity(city_name);
+CREATE INDEX idx_community_county_name ON community_disaster_reduction_capacity(county_name);
+CREATE INDEX idx_community_township_name ON community_disaster_reduction_capacity(township_name);
 
 -- 2. 创建权重配置表
 CREATE TABLE weight_config (
