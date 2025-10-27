@@ -2,9 +2,12 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 // 创建axios实例
+const baseURL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'http://localhost:8081'
+const DEFAULT_TIMEOUT = Number((import.meta as any)?.env?.VITE_API_TIMEOUT) || 60000
+
 const request = axios.create({
-  baseURL: 'http://localhost:8082', // 后端服务地址
-  timeout: 10000, // 请求超时时间
+  baseURL, // 后端服务地址（可通过环境变量覆盖）
+  timeout: DEFAULT_TIMEOUT, // 请求超时时间（默认60秒，可配置）
   headers: {
     'Content-Type': 'application/json'
   }
@@ -47,6 +50,11 @@ request.interceptors.response.use(
   (error) => {
     // 对响应错误做点什么
     console.error('请求错误:', error)
+    // 专门处理超时错误
+    if ((error as any)?.code === 'ECONNABORTED' || /timeout/i.test(String((error as any)?.message))) {
+      ElMessage.error(`请求超时，请稍后重试（当前超时：${DEFAULT_TIMEOUT}ms）`)
+      return Promise.reject(error)
+    }
     
     if (error.response) {
       const { status, data } = error.response
