@@ -478,11 +478,11 @@ const getDataList = async () => {
   try {
     let response
     if (dataType.value === 'township') {
-      // 乡镇数据
+      // 乡镇数据 - 直接返回数组
       response = await surveyDataApi.getAll()
     } else {
-      // 社区数据
-      response = await communityCapacityApi.getList({})
+      // 社区数据 - 使用 search API (返回数组) 而不是 getList (返回分页对象)
+      response = await communityCapacityApi.search({})
     }
 
     if (response.success) {
