@@ -122,26 +122,29 @@ export const indicatorWeightApi = {
   validate: (weights: any[]) => request.post('/api/indicator-weight/validate', weights)
 }
 
-// 地区组织机构相关API
+// 地区组织机构相关API (已废弃 - 使用 regionDataApi 替代)
+// 现在区域数据从 survey_data 和 community_disaster_reduction_capacity 表获取
+/*
 export const regionApi = {
   // 获取地区树形结构
   getRegionTree: () => request.get('/api/region/tree'),
-  
+
   // 根据父级ID获取子级地区
   getRegionsByParentId: (parentId: number) => request.get(`/api/region/children/${parentId}`),
-  
+
   // 根据级别获取地区列表
   getRegionsByLevel: (level: number) => request.get(`/api/region/level/${level}`),
-  
+
   // 根据地区代码获取地区信息
   getRegionByCode: (code: string) => request.get(`/api/region/code/${code}`),
-  
+
   // 根据地区ID列表获取地区信息
   getRegionsByIds: (ids: number[]) => request.post('/api/region/batch', ids),
-  
+
   // 获取所有启用的地区
   getAllEnabledRegions: () => request.get('/api/region/all')
 }
+*/
 
 // 评估计算相关API
 export const evaluationApi = {

@@ -419,26 +419,14 @@ const formRules = {
   population: [{ required: true, message: '请输入人口数量', trigger: 'blur' }]
 }
 
-// 加载地区名称映射
+// 加载地区名称映射 (已废弃 - region表已删除)
+// 现在区域名称直接从数据表中获取 (township, communityName等字段)
 const loadRegionNameMap = async () => {
   try {
-    console.info('[DataManagement] loadRegionNameMap -> request /api/region/all')
-    const res = await regionApi.getAllEnabledRegions()
-    if (res?.success && Array.isArray(res.data)) {
-      const map: Record<string, string> = {}
-      const options: Array<{ code: string; name: string }> = []
-      for (const r of res.data) {
-        if (r?.code) {
-          map[String(r.code).trim()] = r.name || String(r.code).trim()
-          options.push({ code: String(r.code).trim(), name: r.name || String(r.code).trim() })
-        }
-      }
-      regionNameMap.value = map
-      regionSelectOptions.value = options
-      console.info('[DataManagement] loadRegionNameMap -> loaded', options.length)
-    } else {
-      console.warn('[DataManagement] loadRegionNameMap -> response invalid', res)
-    }
+    console.info('[DataManagement] loadRegionNameMap -> skipped (region table removed)')
+    // 不再从region表加载，直接使用数据中的名称字段
+    regionNameMap.value = {}
+    regionSelectOptions.value = []
   } catch (e) {
     console.warn('加载地区名称映射失败:', e)
   }

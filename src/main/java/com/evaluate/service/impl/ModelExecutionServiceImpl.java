@@ -46,9 +46,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     private CommunityDisasterReductionCapacityMapper communityDataMapper;
 
     @Autowired
-    private RegionMapper regionMapper;
-
-    @Autowired
     private IndicatorWeightMapper indicatorWeightMapper;
 
     @Autowired
@@ -493,11 +490,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     if (surveyData != null && surveyData.getTownship() != null) {
                         regionName = surveyData.getTownship();
                     } else {
-                        // 如果survey_data中没有找到，再尝试region表
-                        Region region = regionMapper.selectByCode(regionCode);
-                        if (region != null) {
-                            regionName = region.getName();
-                        }
+                        // 如果都没有找到，使用regionCode作为regionName
+                        regionName = regionCode;
                     }
                 }
                 
@@ -592,16 +586,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 log.debug("加载权重: weight_{} = {}", weight.getIndicatorCode(), weightValue);
             }
         }
-
-        // 加载所有地区信息
-        Map<String, Region> regionMap = new HashMap<>();
-        for (String regionCode : regionCodes) {
-            Region region = regionMapper.selectByCode(regionCode);
-            if (region != null) {
-                regionMap.put(regionCode, region);
-            }
-        }
-        context.put("regions", regionMap);
     }
 
     /**
@@ -1203,9 +1187,25 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("regionCode", regionCode);
             
-            // 获取地区名称
-            Region region = regionMapper.selectByCode(regionCode);
-            String regionName = region != null ? region.getName() : regionCode;
+            // 获取地区名称 - 优先从community表，然后survey_data表
+            String regionName = regionCode;
+            QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+            communityQuery.eq("region_code", regionCode);
+            CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
+            if (communityData != null) {
+                if (communityData.getCommunityName() != null) {
+                    regionName = communityData.getCommunityName();
+                } else if (communityData.getTownshipName() != null) {
+                    regionName = communityData.getTownshipName();
+                }
+            } else {
+                QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
+                surveyQuery.eq("region_code", regionCode);
+                SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
+                if (surveyData != null && surveyData.getTownship() != null) {
+                    regionName = surveyData.getTownship();
+                }
+            }
             row.put("regionName", regionName);
             
             // 添加该地区的所有输出结果
