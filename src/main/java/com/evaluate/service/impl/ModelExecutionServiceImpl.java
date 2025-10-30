@@ -1633,7 +1633,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             List<Map<String, Object>> tableData) {
 
         List<EvaluationResult> results = new ArrayList<>();
-        String dataSource = (modelId == 3) ? "survey_data" : "community_disaster_reduction_capacity";
+        // data_source字段限制为varchar(20)，使用简短标识
+        String dataSource = (modelId == 3) ? "township" : "community";
 
         // 从tableData中获取地区信息和所有输出参数
         for (Map<String, Object> row : tableData) {
