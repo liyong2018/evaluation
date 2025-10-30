@@ -730,6 +730,7 @@ watch(visible, (newVal) => {
 const handleStepChange = (stepOrder: number) => {
   selectedStepOrder.value = stepOrder
   initializeColumns()
+  autoSelectStepColumns(stepOrder)
 }
 
 // 鍒濆鍖栧垪閰嶇疆锛堥€氱敤鍖栵細鏀寔澶氭楠や笌鍗曡〃鏍兼ā寮忥級
@@ -748,6 +749,33 @@ const initializeColumns = () => {
     Object.keys(firstRow).forEach(key => {
       columns.push({
         prop: key,
+// 根据步骤自动选择列组与可见列（含基础信息）
+function autoSelectStepColumns(order: number) {
+  try {
+    const groups = columnGroups.value
+    const baseGroup = groups.find(g => g.key === 'base')
+    const stepGroup = groups.find(g => g.key === `step_${order}`)
+
+    const selected: string[] = []
+    const visible: string[] = []
+    if (baseGroup) {
+      selected.push('base')
+      baseGroup.columns.forEach((c: any) => visible.push(c.prop))
+    }
+    if (stepGroup) {
+      selected.push(stepGroup.key)
+      stepGroup.columns.forEach((c: any) => visible.push(c.prop))
+    } else {
+      const cols = allColumns.value.filter((c: any) => (c as any).stepOrder === order)
+      cols.forEach((c: any) => visible.push(c.prop))
+      if (!selected.includes(`step_${order}`)) selected.push(`step_${order}`)
+    }
+    visibleColumns.value = Array.from(new Set(visible))
+    selectedGroupKeys.value = selected
+  } catch (e) {
+    console.warn('autoSelectStepColumns failed', e)
+  }
+}
         label: getColumnLabel(key),
         width: getColumnWidth(key)
       })
@@ -759,7 +787,7 @@ const initializeColumns = () => {
         visibleColumns: visibleColumns.value.length
       })
       
-      // 鍒濆鍖栦笅鎷夋閫夋嫨锛氶粯璁ゅ叏閫?      selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+      // 鍒濆鍖栦笅鎷夋閫夋嫨锛氶粯璁ゅ叏閫?      autoSelectStepColumns(selectedStepOrder.value)
       return
     }
 
@@ -784,7 +812,7 @@ const initializeColumns = () => {
       })
       
       // 鍒濆鍖栦笅鎷夋閫夋嫨锛氶粯璁ゅ叏閫?      setTimeout(() => {
-        selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+        autoSelectStepColumns(selectedStepOrder.value)
       }, 100)
       return
     }
@@ -916,7 +944,7 @@ const initializeColumns = () => {
 // 閫変腑鎵€鏈夊垪
 const selectAllColumns = () => {
   visibleColumns.value = allColumns.value.map(col => col.prop)
-  // 鍚屾鏇存柊涓嬫媺妗嗭細閫変腑鎵€鏈夊垎缁?  selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+  // 鍚屾鏇存柊涓嬫媺妗嗭細閫変腑鎵€鏈夊垎缁?  autoSelectStepColumns(selectedStepOrder.value)
   console.log('鉁?鍏ㄩ€夛細鏇存柊涓嬫媺妗嗛€変腑', selectedGroupKeys.value)
 }
 
@@ -933,7 +961,7 @@ const unselectAllColumns = () => {
 
 // 閲嶇疆鍒楁樉绀?const resetColumns = () => {
   visibleColumns.value = allColumns.value.map(col => col.prop)
-  // 鍚屾鏇存柊涓嬫媺妗嗭細閫変腑鎵€鏈夊垎缁?  selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+  // 鍚屾鏇存柊涓嬫媺妗嗭細閫変腑鎵€鏈夊垎缁?  autoSelectStepColumns(selectedStepOrder.value)
   console.log('鉁?閲嶇疆锛氭洿鏂颁笅鎷夋閫変腑', selectedGroupKeys.value)
 }
 
@@ -1486,3 +1514,6 @@ const buildCSVContent = (): string => {
   }
 }
 </style>
+
+
+
