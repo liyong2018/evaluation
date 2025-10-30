@@ -96,21 +96,92 @@
             {{ getRegionName(row) }}
           </template>
         </el-table-column>
-        <el-table-column prop="province" label="省份" width="100" />
-        <el-table-column prop="city" label="市" width="100" />
-        <el-table-column prop="county" label="县" width="100" />
-        <el-table-column prop="township" label="乡镇(街道)" width="120" />
-        <el-table-column prop="population" label="人口数量" width="100" />
-        <el-table-column prop="managementStaff" label="管理人员" width="100" />
-        <el-table-column prop="riskAssessment" label="风险评估" width="100" />
-        <el-table-column prop="fundingAmount" label="资金投入(万元)" width="120" />
-        <el-table-column prop="materialValue" label="物资价值(万元)" width="120" />
-        <el-table-column prop="hospitalBeds" label="医院床位" width="100" />
-        <el-table-column prop="firefighters" label="消防员数量" width="100" />
-        <el-table-column prop="volunteers" label="志愿者人数" width="100" />
-        <el-table-column prop="militiaReserve" label="民兵预备役" width="100" />
-        <el-table-column prop="trainingParticipants" label="培训参与人次" width="120" />
-        <el-table-column prop="shelterCapacity" label="避难场所容量" width="120" />
+        <!-- 省份 -->
+        <el-table-column label="省份" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.province : row.provinceName }}
+          </template>
+        </el-table-column>
+        <!-- 市 -->
+        <el-table-column label="市" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.city : row.cityName }}
+          </template>
+        </el-table-column>
+        <!-- 县 -->
+        <el-table-column label="县" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.county : row.countyName }}
+          </template>
+        </el-table-column>
+        <!-- 乡镇(街道) -->
+        <el-table-column label="乡镇(街道)" width="120">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.township : row.townshipName }}
+          </template>
+        </el-table-column>
+        <!-- 社区名称 (仅社区数据) -->
+        <el-table-column v-if="dataType === 'community'" prop="communityName" label="社区(行政村)" width="140" />
+        <!-- 人口数量 -->
+        <el-table-column label="人口数量" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.population : row.residentPopulation }}
+          </template>
+        </el-table-column>
+        <!-- 管理人员 (仅乡镇数据) -->
+        <el-table-column v-if="dataType === 'township'" prop="managementStaff" label="管理人员" width="100" />
+        <!-- 风险评估 (仅乡镇数据) -->
+        <el-table-column v-if="dataType === 'township'" prop="riskAssessment" label="风险评估" width="100" />
+        <!-- 应急预案 (仅社区数据) -->
+        <el-table-column v-if="dataType === 'community'" prop="hasEmergencyPlan" label="应急预案" width="100" />
+        <!-- 弱势人群清单 (仅社区数据) -->
+        <el-table-column v-if="dataType === 'community'" prop="hasVulnerableGroupsList" label="弱势人群清单" width="120" />
+        <!-- 资金投入 -->
+        <el-table-column label="资金投入(万元)" width="120">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.fundingAmount : row.lastYearFundingAmount }}
+          </template>
+        </el-table-column>
+        <!-- 物资价值 -->
+        <el-table-column label="物资价值(万元)" width="120">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.materialValue : row.materialsEquipmentValue }}
+          </template>
+        </el-table-column>
+        <!-- 医疗设施 -->
+        <el-table-column label="医疗设施" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.hospitalBeds : row.medicalServiceCount }}
+          </template>
+        </el-table-column>
+        <!-- 消防员 (仅乡镇数据) -->
+        <el-table-column v-if="dataType === 'township'" prop="firefighters" label="消防员数量" width="100" />
+        <!-- 志愿者 -->
+        <el-table-column label="志愿者人数" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.volunteers : row.registeredVolunteerCount }}
+          </template>
+        </el-table-column>
+        <!-- 民兵预备役 -->
+        <el-table-column label="民兵预备役" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.militiaReserve : row.militiaReserveCount }}
+          </template>
+        </el-table-column>
+        <!-- 培训参与人次 -->
+        <el-table-column label="培训参与人次" width="120">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.trainingParticipants : row.lastYearTrainingParticipants }}
+          </template>
+        </el-table-column>
+        <!-- 演练参与人次 (仅社区数据) -->
+        <el-table-column v-if="dataType === 'community'" prop="lastYearDrillParticipants" label="演练参与人次" width="120" />
+        <!-- 避难场所容量 -->
+        <el-table-column label="避难场所容量" width="120">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.shelterCapacity : row.emergencyShelterCapacity }}
+          </template>
+        </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
