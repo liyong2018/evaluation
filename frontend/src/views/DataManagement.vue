@@ -6,6 +6,17 @@
       <p>调查数据的导入、查询、编辑和管理</p>
     </div>
 
+    <!-- 数据类型切换 -->
+    <el-card class="type-switch-card">
+      <el-radio-group v-model="dataType" size="large" @change="handleDataTypeChange">
+        <el-radio-button label="township">乡镇数据 (survey_data)</el-radio-button>
+        <el-radio-button label="community">社区数据 (community_disaster_reduction_capacity)</el-radio-button>
+      </el-radio-group>
+      <el-tag :type="dataType === 'township' ? 'success' : 'warning'" style="margin-left: 20px">
+        当前: {{ dataType === 'township' ? '乡镇数据表' : '社区数据表' }}
+      </el-tag>
+    </el-card>
+
     <!-- 操作工具栏 -->
     <el-card class="toolbar-card">
       <el-row :gutter="20" justify="space-between">
@@ -344,7 +355,7 @@ import {
   Delete,
   UploadFilled
 } from '@element-plus/icons-vue'
-import { surveyDataApi, regionApi } from '@/api'
+import { surveyDataApi, communityCapacityApi } from '@/api'
 
 // 修复ResizeObserver错误
 const originalError = console.error
@@ -356,6 +367,7 @@ console.error = (...args: any[]) => {
 }
 
 // 响应式数据
+const dataType = ref<'township' | 'community'>('township')  // 数据类型：township(乡镇) 或 community(社区)
 const tableData = ref<any[]>([])
 const selectedRows = ref<any[]>([])
 // 代码->名称映射表（一次性从后端加载）
@@ -438,15 +450,41 @@ const getRegionName = (row?: any) => {
   if (!code && !row) return '-'
   const key = (code != null ? String(code) : '').trim()
   const mapped = key ? regionNameMap.value[key] : ''
-  // 回退顺序：映射 -> 行内乡镇/县/市/省 -> 原始代码 -> '-'
-  return mapped || row?.township || row?.county || row?.city || row?.province || key || '-'
+  // 回退顺序：映射 -> 行内字段 -> 原始代码 -> '-'
+  if (mapped) return mapped
+  if (dataType.value === 'township') {
+    return row?.township || row?.county || row?.city || row?.province || key || '-'
+  } else {
+    return row?.communityName || row?.townshipName || row?.countyName || row?.cityName || row?.provinceName || key || '-'
+  }
+}
+
+// 数据类型切换处理
+const handleDataTypeChange = (newType: 'township' | 'community') => {
+  console.info('[DataManagement] 切换数据类型:', newType)
+  dataType.value = newType
+  // 清空搜索条件和表格数据
+  searchForm.keyword = ''
+  searchForm.selectedRegion = null
+  tableData.value = []
+  regionSelectOptions.value = []
+  // 重新加载数据
+  getDataList()
 }
 
 // 获取数据列表
 const getDataList = async () => {
   loading.table = true
   try {
-    const response = await surveyDataApi.getAll()
+    let response
+    if (dataType.value === 'township') {
+      // 乡镇数据
+      response = await surveyDataApi.getAll()
+    } else {
+      // 社区数据
+      response = await communityCapacityApi.getList({})
+    }
+
     if (response.success) {
       tableData.value = response.data || []
       pagination.total = tableData.value.length
@@ -456,7 +494,12 @@ const getDataList = async () => {
         for (const row of tableData.value) {
           const code = String(row.regionCode || '').trim()
           if (!code) continue
-          const name = row.township || row.county || row.city || row.province || code
+          let name = ''
+          if (dataType.value === 'township') {
+            name = row.township || row.county || row.city || row.province || code
+          } else {
+            name = row.communityName || row.townshipName || row.countyName || row.cityName || row.provinceName || code
+          }
           if (!uniq.has(code)) uniq.set(code, name)
         }
         regionSelectOptions.value = Array.from(uniq.entries()).map(([code, name]) => ({ code, name }))
@@ -478,17 +521,26 @@ const handleSearch = async () => {
     getDataList()
     return
   }
-  
+
   loading.table = true
   try {
     let response
-    if (searchForm.keyword) {
-      response = await surveyDataApi.search(searchForm.keyword)
-    } else if (searchForm.selectedRegion) {
-      // 后端当前按名称查询（township/county/city/province 模糊匹配）
-      response = await surveyDataApi.getByRegion(searchForm.selectedRegion.name)
+    if (dataType.value === 'township') {
+      // 乡镇数据搜索
+      if (searchForm.keyword) {
+        response = await surveyDataApi.search(searchForm.keyword)
+      } else if (searchForm.selectedRegion) {
+        response = await surveyDataApi.getByRegion(searchForm.selectedRegion.name)
+      }
+    } else {
+      // 社区数据搜索
+      if (searchForm.keyword) {
+        response = await communityCapacityApi.search({ keyword: searchForm.keyword })
+      } else if (searchForm.selectedRegion) {
+        response = await communityCapacityApi.search({ communityName: searchForm.selectedRegion.name })
+      }
     }
-    
+
     if (response?.success) {
       tableData.value = response.data || []
       pagination.total = tableData.value.length
@@ -646,10 +698,18 @@ const handleImport = async () => {
     ElMessage.warning('请选择要导入的文件')
     return
   }
-  
+
   loading.import = true
   try {
-    const response = await surveyDataApi.importData(uploadFile.value)
+    let response
+    if (dataType.value === 'township') {
+      // 导入乡镇数据
+      response = await surveyDataApi.importData(uploadFile.value)
+    } else {
+      // 导入社区数据
+      response = await communityCapacityApi.importData(uploadFile.value)
+    }
+
     if (response.success) {
       ElMessage.success('导入成功')
       dialogVisible.import = false
@@ -777,6 +837,15 @@ onMounted(async () => {
   margin: 0;
   color: #909399;
   font-size: 14px;
+}
+
+.type-switch-card {
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.type-switch-card :deep(.el-card__body) {
+  padding: 16px 20px;
 }
 
 .toolbar-card {
