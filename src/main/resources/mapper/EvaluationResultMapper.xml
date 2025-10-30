@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.evaluate.mapper.EvaluationResultMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.evaluate.entity.EvaluationResult">
+        <id column="id" property="id"/>
+        <result column="region_code" property="regionCode"/>
+        <result column="region_name" property="regionName"/>
+        <result column="management_capability_score" property="managementCapabilityScore"/>
+        <result column="support_capability_score" property="supportCapabilityScore"/>
+        <result column="self_rescue_capability_score" property="selfRescueCapabilityScore"/>
+        <result column="comprehensive_capability_score" property="comprehensiveCapabilityScore"/>
+        <result column="management_capability_level" property="managementCapabilityLevel"/>
+        <result column="support_capability_level" property="supportCapabilityLevel"/>
+        <result column="self_rescue_capability_level" property="selfRescueCapabilityLevel"/>
+        <result column="comprehensive_capability_level" property="comprehensiveCapabilityLevel"/>
+        <result column="evaluation_model_id" property="evaluationModelId"/>
+        <result column="data_source" property="dataSource"/>
+        <result column="execution_record_id" property="executionRecordId"/>
+        <result column="create_by" property="createBy"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_by" property="updateBy"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_deleted" property="isDeleted"/>
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, region_code, region_name, management_capability_score, support_capability_score,
+        self_rescue_capability_score, comprehensive_capability_score, management_capability_level,
+        support_capability_level, self_rescue_capability_level, comprehensive_capability_level,
+        evaluation_model_id, data_source, execution_record_id, create_by, create_time,
+        update_by, update_time, is_deleted
+    </sql>
+
+    <!-- 根据执行记录ID查询评估结果 -->
+    <select id="selectByExecutionRecordId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM evaluation_result
+        WHERE execution_record_id = #{executionRecordId}
+        AND is_deleted = 0
+        ORDER BY create_time DESC
+    </select>
+
+    <!-- 根据模型ID和数据源查询评估结果 -->
+    <select id="selectByModelIdAndDataSource" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM evaluation_result
+        WHERE evaluation_model_id = #{modelId}
+        AND data_source = #{dataSource}
+        AND is_deleted = 0
+        ORDER BY create_time DESC
+    </select>
+
+    <!-- 根据地区代码查询评估结果 -->
+    <select id="selectByRegionCode" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM evaluation_result
+        WHERE region_code = #{regionCode}
+        AND is_deleted = 0
+        ORDER BY create_time DESC
+    </select>
+
+    <!-- 批量插入评估结果 -->
+    <insert id="insertBatch" parameterType="java.util.List">
+        INSERT INTO evaluation_result (
+            region_code, region_name, management_capability_score, support_capability_score,
+            self_rescue_capability_score, comprehensive_capability_score, management_capability_level,
+            support_capability_level, self_rescue_capability_level, comprehensive_capability_level,
+            evaluation_model_id, data_source, execution_record_id, create_by
+        ) VALUES
+        <foreach collection="evaluationResults" item="item" separator=",">
+            (
+                #{item.regionCode}, #{item.regionName}, #{item.managementCapabilityScore},
+                #{item.supportCapabilityScore}, #{item.selfRescueCapabilityScore},
+                #{item.comprehensiveCapabilityScore}, #{item.managementCapabilityLevel},
+                #{item.supportCapabilityLevel}, #{item.selfRescueCapabilityLevel},
+                #{item.comprehensiveCapabilityLevel}, #{item.evaluationModelId},
+                #{item.dataSource}, #{item.executionRecordId}, #{item.createBy}
+            )
+        </foreach>
+    </insert>
+
+</mapper>
