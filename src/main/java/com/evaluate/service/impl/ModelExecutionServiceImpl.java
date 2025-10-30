@@ -1603,43 +1603,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             Long executionRecordId = executionRecord.getId();
             log.info("保存执行记录成功，ID: {}", executionRecordId);
 
-            // 2. 提取并保存评估结果（8个字段：4个评分+4个级别）
-            List<EvaluationResult> evaluationResults = new ArrayList<>();
-
-            // 确定数据源类型
-            String dataSource = (modelId == 3) ? "survey_data" : "community_disaster_reduction_capacity";
-
-            for (Map<String, Object> row : tableData) {
-                EvaluationResult result = new EvaluationResult();
-
-                // 基本信息
-                String regionCode = (String) row.get("regionCode");
-                String regionName = (String) row.get("regionName");
-
-                if (regionCode == null || regionCode.isEmpty()) {
-                    log.warn("跳过无效的地区记录: {}", row);
-                    continue;
-                }
-
-                result.setRegionCode(regionCode);
-                result.setRegionName(regionName != null ? regionName : regionCode);
-                result.setEvaluationModelId(modelId);
-                result.setDataSource(dataSource);
-                result.setExecutionRecordId(executionRecordId);
-
-                // 提取8个评估字段（评分和级别）
-                result.setManagementCapabilityScore(toBigDecimal(row.get("management_capability_score")));
-                result.setSupportCapabilityScore(toBigDecimal(row.get("support_capability_score")));
-                result.setSelfRescueCapabilityScore(toBigDecimal(row.get("self_rescue_capability_score")));
-                result.setComprehensiveCapabilityScore(toBigDecimal(row.get("comprehensive_capability_score")));
-
-                result.setManagementCapabilityLevel(toString(row.get("management_capability_level")));
-                result.setSupportCapabilityLevel(toString(row.get("support_capability_level")));
-                result.setSelfRescueCapabilityLevel(toString(row.get("self_rescue_capability_level")));
-                result.setComprehensiveCapabilityLevel(toString(row.get("comprehensive_capability_level")));
-
-                evaluationResults.add(result);
-            }
+            // 2. 从stepResults的最后一步提取评估结果（8个字段：4个评分+4个级别）
+            List<EvaluationResult> evaluationResults = extractEvaluationResults(
+                    modelId, executionRecordId, stepResults, tableData);
 
             // 批量保存评估结果
             if (!evaluationResults.isEmpty()) {
@@ -1655,6 +1621,153 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             log.error("保存执行记录和评估结果失败: {}", e.getMessage(), e);
             throw new RuntimeException("保存执行记录和评估结果失败: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 从stepResults中提取评估结果
+     */
+    private List<EvaluationResult> extractEvaluationResults(
+            Long modelId,
+            Long executionRecordId,
+            Map<String, Object> stepResults,
+            List<Map<String, Object>> tableData) {
+
+        List<EvaluationResult> results = new ArrayList<>();
+        String dataSource = (modelId == 3) ? "survey_data" : "community_disaster_reduction_capacity";
+
+        // 从tableData中获取地区信息和所有输出参数
+        for (Map<String, Object> row : tableData) {
+            String regionCode = (String) row.get("regionCode");
+            String regionName = (String) row.get("regionName");
+
+            if (regionCode == null || regionCode.isEmpty()) {
+                log.warn("跳过无效的地区记录: {}", row);
+                continue;
+            }
+
+            // 记录row中的所有key，用于调试
+            log.debug("地区 {} 的row keys: {}", regionCode, row.keySet());
+
+            EvaluationResult result = new EvaluationResult();
+            result.setRegionCode(regionCode);
+            result.setRegionName(regionName != null ? regionName : regionCode);
+            result.setEvaluationModelId(modelId);
+            result.setDataSource(dataSource);
+            result.setExecutionRecordId(executionRecordId);
+
+            // 尝试多种可能的字段名格式提取8个评估字段
+            // 优先尝试下划线格式，然后尝试驼峰格式
+            result.setManagementCapabilityScore(
+                    getDecimalValue(row, "management_capability_score", "managementCapabilityScore"));
+            result.setSupportCapabilityScore(
+                    getDecimalValue(row, "support_capability_score", "supportCapabilityScore"));
+            result.setSelfRescueCapabilityScore(
+                    getDecimalValue(row, "self_rescue_capability_score", "selfRescueCapabilityScore"));
+            result.setComprehensiveCapabilityScore(
+                    getDecimalValue(row, "comprehensive_capability_score", "comprehensiveCapabilityScore"));
+
+            result.setManagementCapabilityLevel(
+                    getStringValue(row, "management_capability_level", "managementCapabilityLevel"));
+            result.setSupportCapabilityLevel(
+                    getStringValue(row, "support_capability_level", "supportCapabilityLevel"));
+            result.setSelfRescueCapabilityLevel(
+                    getStringValue(row, "self_rescue_capability_level", "selfRescueCapabilityLevel"));
+            result.setComprehensiveCapabilityLevel(
+                    getStringValue(row, "comprehensive_capability_level", "comprehensiveCapabilityLevel"));
+
+            results.add(result);
+        }
+
+        return results;
+    }
+
+    /**
+     * 从row中获取BigDecimal值，尝试多个可能的key
+     */
+    private java.math.BigDecimal getDecimalValue(Map<String, Object> row, String... keys) {
+        // 1. 先尝试精确匹配
+        for (String key : keys) {
+            Object value = row.get(key);
+            if (value != null) {
+                log.debug("找到精确匹配的key: {}", key);
+                return toBigDecimal(value);
+            }
+        }
+
+        // 2. 如果精确匹配失败，尝试模糊匹配（查找包含关键词的key）
+        // 提取第一个key的主要关键词（去掉下划线和驼峰命名中的前缀）
+        if (keys.length > 0) {
+            String primaryKey = keys[0];
+            String[] keywords = extractKeywords(primaryKey);
+
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+                String rowKey = entry.getKey().toLowerCase();
+                boolean allMatch = true;
+                for (String keyword : keywords) {
+                    if (!rowKey.contains(keyword.toLowerCase())) {
+                        allMatch = false;
+                        break;
+                    }
+                }
+                if (allMatch && entry.getValue() != null) {
+                    log.info("使用模糊匹配找到key '{}' 对应字段 '{}'", primaryKey, entry.getKey());
+                    return toBigDecimal(entry.getValue());
+                }
+            }
+        }
+
+        log.warn("未找到匹配的字段: {}", String.join(", ", keys));
+        return null;
+    }
+
+    /**
+     * 从row中获取String值，尝试多个可能的key
+     */
+    private String getStringValue(Map<String, Object> row, String... keys) {
+        // 1. 先尝试精确匹配
+        for (String key : keys) {
+            Object value = row.get(key);
+            if (value != null) {
+                log.debug("找到精确匹配的key: {}", key);
+                return toString(value);
+            }
+        }
+
+        // 2. 如果精确匹配失败，尝试模糊匹配
+        if (keys.length > 0) {
+            String primaryKey = keys[0];
+            String[] keywords = extractKeywords(primaryKey);
+
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+                String rowKey = entry.getKey().toLowerCase();
+                boolean allMatch = true;
+                for (String keyword : keywords) {
+                    if (!rowKey.contains(keyword.toLowerCase())) {
+                        allMatch = false;
+                        break;
+                    }
+                }
+                if (allMatch && entry.getValue() != null) {
+                    log.info("使用模糊匹配找到key '{}' 对应字段 '{}'", primaryKey, entry.getKey());
+                    return toString(entry.getValue());
+                }
+            }
+        }
+
+        log.warn("未找到匹配的字段: {}", String.join(", ", keys));
+        return null;
+    }
+
+    /**
+     * 提取字段名中的关键词
+     */
+    private String[] extractKeywords(String fieldName) {
+        // 移除下划线，按驼峰命名分割
+        String normalized = fieldName.replaceAll("_", " ");
+        // 按大写字母分割驼峰命名
+        normalized = normalized.replaceAll("([A-Z])", " $1");
+        // 分割成词
+        return normalized.toLowerCase().trim().split("\\s+");
     }
 
     /**
