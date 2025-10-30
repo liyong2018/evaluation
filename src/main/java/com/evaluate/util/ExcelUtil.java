@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -24,6 +25,38 @@ import java.util.List;
 public class ExcelUtil {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /**
+     * 判断文件是否为Excel文件
+     *
+     * @param file 上传的文件
+     * @return 是否为Excel文件
+     */
+    public static boolean isExcel(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return false;
+        }
+
+        String contentType = file.getContentType();
+        String originalFilename = file.getOriginalFilename();
+
+        // 检查Content-Type
+        if (contentType != null) {
+            return contentType.equals("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") ||
+                   contentType.equals("application/vnd.ms-excel") ||
+                   contentType.equals("text/csv");
+        }
+
+        // 检查文件扩展名
+        if (originalFilename != null) {
+            String extension = originalFilename.toLowerCase();
+            return extension.endsWith(".xlsx") ||
+                   extension.endsWith(".xls") ||
+                   extension.endsWith(".csv");
+        }
+
+        return false;
+    }
 
     /**
      * 从Excel输入流读取数据

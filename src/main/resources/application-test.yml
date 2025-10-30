@@ -1,0 +1,67 @@
+# 服务器配置
+server:
+  port: 8081
+  servlet:
+    context-path: /
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+# Spring配置
+spring:
+  application:
+    name: disaster-reduction-evaluation
+
+  # 数据源配置 - 禁用数据库
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      maximum-pool-size: 0
+      auto-commit: true
+      connection-timeout: 1000
+
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+      enabled: true
+
+  # Jackson配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+
+# MyBatis Plus配置 - 禁用
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+
+# 日志配置
+logging:
+  level:
+    com.evaluate: info
+    com.zaxxer.hikari: WARN
+    org.springframework.jdbc: WARN
+    org.springframework.transaction: WARN
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
+
+# Swagger配置
+springfox:
+  documentation:
+    swagger-ui:
+      enabled: false
+    enabled: false

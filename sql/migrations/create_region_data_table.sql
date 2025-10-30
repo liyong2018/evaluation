@@ -1,0 +1,88 @@
+-- 创建地区数据表
+CREATE TABLE IF NOT EXISTS `region_data` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `code` VARCHAR(20) NOT NULL COMMENT '地区编码',
+    `name` VARCHAR(100) NOT NULL COMMENT '地区名称',
+    `level` TINYINT NOT NULL COMMENT '地区级别：1-省份，2-城市，3-区县',
+    `parent_code` VARCHAR(20) DEFAULT NULL COMMENT '父级地区编码',
+    `parent_name` VARCHAR(100) DEFAULT NULL COMMENT '父级地区名称',
+    `pinyin` VARCHAR(200) DEFAULT NULL COMMENT '拼音',
+    `longitude` DECIMAL(10,7) DEFAULT NULL COMMENT '经度',
+    `latitude` DECIMAL(10,7) DEFAULT NULL COMMENT '纬度',
+    `sort_order` INT DEFAULT 0 COMMENT '排序序号',
+    `status` TINYINT DEFAULT 1 COMMENT '状态：1-启用，0-禁用',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_code` (`code`),
+    KEY `idx_parent_code` (`parent_code`),
+    KEY `idx_level` (`level`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='地区数据表';
+
+-- 插入省份数据
+INSERT IGNORE INTO `region_data` (`code`, `name`, `level`, `parent_code`, `parent_name`, `sort_order`, `status`) VALUES
+('110000', '北京市', 1, NULL, NULL, 1, 1),
+('120000', '天津市', 1, NULL, NULL, 2, 1),
+('130000', '河北省', 1, NULL, NULL, 3, 1),
+('140000', '山西省', 1, NULL, NULL, 4, 1),
+('150000', '内蒙古自治区', 1, NULL, NULL, 5, 1),
+('210000', '辽宁省', 1, NULL, NULL, 6, 1),
+('220000', '吉林省', 1, NULL, NULL, 7, 1),
+('230000', '黑龙江省', 1, NULL, NULL, 8, 1),
+('310000', '上海市', 1, NULL, NULL, 9, 1),
+('320000', '江苏省', 1, NULL, NULL, 10, 1),
+('330000', '浙江省', 1, NULL, NULL, 11, 1),
+('340000', '安徽省', 1, NULL, NULL, 12, 1),
+('350000', '福建省', 1, NULL, NULL, 13, 1),
+('360000', '江西省', 1, NULL, NULL, 14, 1),
+('370000', '山东省', 1, NULL, NULL, 15, 1),
+('410000', '河南省', 1, NULL, NULL, 16, 1),
+('420000', '湖北省', 1, NULL, NULL, 17, 1),
+('430000', '湖南省', 1, NULL, NULL, 18, 1),
+('440000', '广东省', 1, NULL, NULL, 19, 1),
+('450000', '广西壮族自治区', 1, NULL, NULL, 20, 1),
+('460000', '海南省', 1, NULL, NULL, 21, 1),
+('500000', '重庆市', 1, NULL, NULL, 22, 1),
+('510000', '四川省', 1, NULL, NULL, 23, 1),
+('520000', '贵州省', 1, NULL, NULL, 24, 1),
+('530000', '云南省', 1, NULL, NULL, 25, 1),
+('540000', '西藏自治区', 1, NULL, NULL, 26, 1),
+('610000', '陕西省', 1, NULL, NULL, 27, 1),
+('620000', '甘肃省', 1, NULL, NULL, 28, 1),
+('630000', '青海省', 1, NULL, NULL, 29, 1),
+('640000', '宁夏回族自治区', 1, NULL, NULL, 30, 1),
+('650000', '新疆维吾尔自治区', 1, NULL, NULL, 31, 1);
+
+-- 插入四川省的城市数据
+INSERT IGNORE INTO `region_data` (`code`, `name`, `level`, `parent_code`, `parent_name`, `sort_order`, `status`) VALUES
+('510100', '成都市', 2, '510000', '四川省', 1, 1),
+('510300', '自贡市', 2, '510000', '四川省', 2, 1),
+('510400', '攀枝花市', 2, '510000', '四川省', 3, 1),
+('510500', '泸州市', 2, '510000', '四川省', 4, 1),
+('510600', '德阳市', 2, '510000', '四川省', 5, 1),
+('510700', '绵阳市', 2, '510000', '四川省', 6, 1),
+('510800', '广元市', 2, '510000', '四川省', 7, 1),
+('510900', '遂宁市', 2, '510000', '四川省', 8, 1),
+('511000', '内江市', 2, '510000', '四川省', 9, 1),
+('511100', '乐山市', 2, '510000', '四川省', 10, 1),
+('511300', '南充市', 2, '510000', '四川省', 11, 1),
+('511400', '眉山市', 2, '510000', '四川省', 12, 1),
+('511500', '宜宾市', 2, '510000', '四川省', 13, 1),
+('511600', '广安市', 2, '510000', '四川省', 14, 1),
+('511700', '达州市', 2, '510000', '四川省', 15, 1),
+('511800', '雅安市', 2, '510000', '四川省', 16, 1),
+('511900', '巴中市', 2, '510000', '四川省', 17, 1),
+('512000', '资阳市', 2, '510000', '四川省', 18, 1),
+('513200', '阿坝藏族羌族自治州', 2, '510000', '四川省', 19, 1),
+('513300', '甘孜藏族自治州', 2, '510000', '四川省', 20, 1),
+('513400', '凉山彝族自治州', 2, '510000', '四川省', 21, 1);
+
+-- 插入眉山市的区县数据
+INSERT IGNORE INTO `region_data` (`code`, `name`, `level`, `parent_code`, `parent_name`, `sort_order`, `status`) VALUES
+('511402', '东坡区', 3, '511400', '眉山市', 1, 1),
+('511403', '彭山区', 3, '511400', '眉山市', 2, 1),
+('511421', '仁寿县', 3, '511400', '眉山市', 3, 1),
+('511423', '洪雅县', 3, '511400', '眉山市', 4, 1),
+('511424', '丹棱县', 3, '511400', '眉山市', 5, 1),
+('511425', '青神县', 3, '511400', '眉山市', 6, 1);

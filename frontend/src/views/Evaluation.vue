@@ -59,6 +59,17 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
+            <el-form-item label="数据类型" prop="dataType">
+              <el-radio-group v-model="evaluationForm.dataType" @change="handleDataTypeChange">
+                <el-radio label="township">乡镇数据</el-radio>
+                <el-radio label="community">社区数据</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
             <el-form-item label="评估算法" prop="algorithmId">
               <el-select v-model="evaluationForm.algorithmId" placeholder="选择评估算法">
                 <el-option
@@ -70,29 +81,66 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <!-- 留空或者可以添加其他配置 -->
+          </el-col>
         </el-row>
         
         <el-row :gutter="20">
-          <el-col :span="24">
-            <el-form-item label="选择地区" prop="regions">
-              <el-tree-select
-                v-model="evaluationForm.regions"
-                :data="regionTreeData"
-                multiple
-                show-checkbox
-                check-strictly
-                :render-after-expand="false"
-                placeholder="请选择地区组织机构"
+          <el-col :span="8">
+            <el-form-item label="选择省份" prop="province">
+              <el-select
+                v-model="evaluationForm.selectedProvince"
+                placeholder="请选择省份"
                 style="width: 100%"
-                node-key="id"
-                :props="{
-                  label: 'name',
-                  children: 'children',
-                  value: 'id'
-                }"
-                @check="handleRegionCheck"
-                :check-on-click-node="true"
-              />
+                @change="handleProvinceChange"
+                clearable
+              >
+                <el-option
+                  v-for="province in provinces"
+                  :key="province.code"
+                  :label="province.name"
+                  :value="province.code"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="选择城市" prop="city">
+              <el-select
+                v-model="evaluationForm.selectedCity"
+                placeholder="请选择城市"
+                style="width: 100%"
+                @change="handleCityChange"
+                :disabled="!evaluationForm.selectedProvince"
+                clearable
+              >
+                <el-option
+                  v-for="city in cities"
+                  :key="city.code"
+                  :label="city.name"
+                  :value="city.code"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="选择区县" prop="county">
+              <el-select
+                v-model="evaluationForm.selectedCounty"
+                placeholder="请选择区县"
+                style="width: 100%"
+                @change="handleCountyChange"
+                :disabled="!evaluationForm.selectedCity"
+                clearable
+              >
+                <el-option
+                  v-for="county in counties"
+                  :key="county.code"
+                  :label="county.name"
+                  :value="county.code"
+                />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -402,7 +450,7 @@ import {
   Download,
   Delete
 } from '@element-plus/icons-vue'
-import { evaluationApi, weightConfigApi, surveyDataApi, regionApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi } from '@/api'
+import { evaluationApi, weightConfigApi, surveyDataApi, regionApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi, communityCapacityApi, regionDataApi } from '@/api'
 import ResultDialog from '@/components/ResultDialog.vue'
 
 // 处理ResizeObserver警告
@@ -431,6 +479,11 @@ const regionTreeData = ref<any[]>([])
 const evaluationHistory = ref<any[]>([])
 const previewData = ref<any[]>([])
 
+// 三级联动数据
+const provinces = ref<any[]>([])
+const cities = ref<any[]>([])
+const counties = ref<any[]>([])
+
 const loading = reactive({
   evaluation: false,
   history: false
@@ -458,8 +511,14 @@ const evaluationForm = reactive({
   modelId: null,
   weightConfigId: null,
   algorithmId: null,
+  dataType: 'township', // 默认选择乡镇数据
   dataSource: 'REGION',
   regions: [],
+  // 三级联动数据
+  selectedProvince: '',
+  selectedCity: '',
+  selectedCounty: '',
+  countyData: [], // 选定县的数据
   parameters: {
     // AHP参数
     crThreshold: 0.1,
@@ -503,108 +562,173 @@ const getWeightConfigs = async () => {
 // 获取地区树形数据
 const getRegionTreeData = async () => {
   try {
-    // 从survey-data API获取地区数据
-    const response = await surveyDataApi.getAll()
-    if (response.success && response.data) {
-      // 将survey-data转换为地区树形结构
+    let response
+    let dataKey
+
+    // 根据数据类型选择不同的API
+    if (evaluationForm.dataType === 'community') {
+      // 社区数据：从community-capacity API获取数据
+      response = await communityCapacityApi.getList({ page: 1, size: 1000 })
+      dataKey = 'data.data' // 社区数据的嵌套结构
+    } else {
+      // 乡镇数据：从survey-data API获取数据
+      response = await surveyDataApi.getAll()
+      dataKey = 'data' // 乡镇数据的直接结构
+    }
+
+    if (response.code === 200) {
+      // 根据数据类型选择正确的数据路径
+      const rawData = dataKey === 'data.data' ? response.data.data : response[dataKey]
+      if (!rawData || rawData.length === 0) {
+        ElMessage.warning('未找到相关数据')
+        return
+      }
+
+      // 将数据转换为地区树形结构
       const regionMap = new Map()
-      
-      // 处理调查数据，提取地区信息
-      // 同时创建一个映射，用于查找 regionCode
       const idToRegionCodeMap = new Map()
-      
-      response.data.forEach(item => {
+
+      rawData.forEach(item => {
         // 省级
-        if (item.province && !regionMap.has(item.province)) {
-          regionMap.set(item.province, {
-            id: `province_${item.province}`,
-            name: item.province.replace(/^province_/, ''),
-            value: `province_${item.province}`,
+        const provinceName = evaluationForm.dataType === 'community' ? item.provinceName : item.province
+        if (provinceName && !regionMap.has(provinceName)) {
+          regionMap.set(provinceName, {
+            id: `province_${provinceName}`,
+            name: provinceName,
+            value: `province_${provinceName}`,
             level: 1,
             children: []
           })
         }
-        
+
         // 市级
-        if (item.city && item.province) {
-          const provinceKey = item.province
-          const cityKey = `${item.province}_${item.city}`
-          
+        const cityName = evaluationForm.dataType === 'community' ? item.cityName : item.city
+        if (cityName && provinceName) {
+          const cityKey = `${provinceName}_${cityName}`
+
           if (!regionMap.has(cityKey)) {
             const cityNode = {
               id: `city_${cityKey}`,
-              name: item.city.replace(/^city_/, ''),
+              name: cityName,
               value: `city_${cityKey}`,
               level: 2,
               children: []
             }
-            
+
             regionMap.set(cityKey, cityNode)
-            
+
             // 添加到省级节点
-            const provinceNode = regionMap.get(provinceKey)
+            const provinceNode = regionMap.get(provinceName)
             if (provinceNode) {
               provinceNode.children.push(cityNode)
             }
           }
         }
-        
+
         // 县级
-        if (item.county && item.city && item.province) {
-          const cityKey = `${item.province}_${item.city}`
-          const countyKey = `${item.province}_${item.city}_${item.county}`
-          
+        const countyName = evaluationForm.dataType === 'community' ? item.countyName : item.county
+        if (countyName && cityName && provinceName) {
+          const countyKey = `${provinceName}_${cityName}_${countyName}`
+
           if (!regionMap.has(countyKey)) {
             const countyNode = {
               id: `county_${countyKey}`,
-              name: item.county.replace(/^county_/, ''),
+              name: countyName,
               value: `county_${countyKey}`,
               level: 3,
               children: []
             }
-            
+
             regionMap.set(countyKey, countyNode)
-            
+
             // 添加到市级节点
-            const cityNode = regionMap.get(cityKey)
+            const cityNode = regionMap.get(`${provinceName}_${cityName}`)
             if (cityNode) {
               cityNode.children.push(countyNode)
             }
           }
         }
-        
-        // 乡镇级
-        if (item.township && item.county && item.city && item.province) {
-          const countyKey = `${item.province}_${item.city}_${item.county}`
-          const townshipKey = `${item.province}_${item.city}_${item.county}_${item.township}`
-          
-          if (!regionMap.has(townshipKey)) {
-            const townshipNode = {
-              id: `township_${townshipKey}`,
-              name: item.township.replace(/^township_/, ''),
-              value: `township_${townshipKey}`,
-              level: 4,
-              regionCode: item.regionCode,  // 添加 regionCode
-              children: []
+
+        // 乡镇级/社区级
+        if (evaluationForm.dataType === 'community') {
+          // 社区级
+          if (item.communityName && item.townshipName && countyName && cityName && provinceName) {
+            const townshipKey = `${provinceName}_${cityName}_${countyName}_${item.townshipName}`
+            const communityKey = `${provinceName}_${cityName}_${countyName}_${item.townshipName}_${item.communityName}`
+
+            if (!regionMap.has(communityKey)) {
+              const communityNode = {
+                id: `community_${communityKey}`,
+                name: item.communityName,
+                value: `community_${communityKey}`,
+                level: 5,
+                regionCode: item.regionCode,
+                children: []
+              }
+
+              regionMap.set(communityKey, communityNode)
+
+              // 确保乡镇节点存在
+              if (!regionMap.has(townshipKey)) {
+                const townshipNode = {
+                  id: `township_${townshipKey}`,
+                  name: item.townshipName,
+                  value: `township_${townshipKey}`,
+                  level: 4,
+                  children: []
+                }
+                regionMap.set(townshipKey, townshipNode)
+
+                // 添加到县级节点
+                const countyNode = regionMap.get(`${provinceName}_${cityName}_${countyName}`)
+                if (countyNode) {
+                  countyNode.children.push(townshipNode)
+                }
+              }
+
+              // 添加社区节点到乡镇节点
+              const townshipNode = regionMap.get(townshipKey)
+              if (townshipNode) {
+                townshipNode.children.push(communityNode)
+              }
+
+              // 保存映射
+              idToRegionCodeMap.set(`community_${communityKey}`, item.regionCode)
             }
-            
-            regionMap.set(townshipKey, townshipNode)
-            
-            // 添加到县级节点
-            const countyNode = regionMap.get(countyKey)
-            if (countyNode) {
-              countyNode.children.push(townshipNode)
+          }
+        } else {
+          // 乡镇级
+          if (item.township && countyName && cityName && provinceName) {
+            const townshipKey = `${provinceName}_${cityName}_${countyName}_${item.township}`
+
+            if (!regionMap.has(townshipKey)) {
+              const townshipNode = {
+                id: `township_${townshipKey}`,
+                name: item.township,
+                value: `township_${townshipKey}`,
+                level: 4,
+                regionCode: item.regionCode,
+                children: []
+              }
+
+              regionMap.set(townshipKey, townshipNode)
+
+              // 添加到县级节点
+              const countyNode = regionMap.get(`${provinceName}_${cityName}_${countyName}`)
+              if (countyNode) {
+                countyNode.children.push(townshipNode)
+              }
+
+              // 保存映射
+              idToRegionCodeMap.set(`township_${townshipKey}`, item.regionCode)
             }
-            
-            // 保存 ID 到 regionCode 的映射
-            idToRegionCodeMap.set(`township_${townshipKey}`, item.regionCode)
           }
         }
       })
-      
+
       // 将映射保存到全局变量
       window.__regionCodeMap = idToRegionCodeMap
-      
+
       // 提取省级节点作为根节点
       const treeData = []
       regionMap.forEach((value, key) => {
@@ -612,8 +736,13 @@ const getRegionTreeData = async () => {
           treeData.push(value)
         }
       })
-      
+
       regionTreeData.value = treeData
+      console.log(`成功获取${evaluationForm.dataType === 'community' ? '社区' : '乡镇'}地区树数据:`, {
+        dataType: evaluationForm.dataType,
+        totalRegions: rawData.length,
+        treeNodes: treeData.length
+      })
     } else {
       ElMessage.error(response.message || '获取地区数据失败')
     }
@@ -659,6 +788,136 @@ const handleModelChange = (modelId: number) => {
   console.log('模型变化:', modelId)
   // 如果需要，可以清空算法选择
   // evaluationForm.algorithmId = null
+}
+
+// 处理数据类型变化
+const handleDataTypeChange = () => {
+  console.log('数据类型变化:', evaluationForm.dataType)
+  // 清空三级联动数据
+  evaluationForm.selectedProvince = ''
+  evaluationForm.selectedCity = ''
+  evaluationForm.selectedCounty = ''
+  evaluationForm.countyData = []
+  evaluationForm.regions = []
+  // 清空下拉框数据
+  provinces.value = []
+  cities.value = []
+  counties.value = []
+  // 重新获取省份数据
+  getProvinces()
+}
+
+// 获取省份列表
+const getProvinces = async () => {
+  try {
+    const response = await regionDataApi.getProvinces(evaluationForm.dataType)
+    if (response.code === 200) {
+      provinces.value = response.data || []
+      console.log('获取到省份列表:', provinces.value)
+    } else {
+      ElMessage.error(response.message || '获取省份列表失败')
+    }
+  } catch (error) {
+    console.error('获取省份列表失败:', error)
+    ElMessage.error('获取省份列表失败')
+  }
+}
+
+// 处理省份变化
+const handleProvinceChange = async (provinceName: string) => {
+  console.log('省份变化:', provinceName)
+  // 清空城市和区县选择
+  evaluationForm.selectedCity = ''
+  evaluationForm.selectedCounty = ''
+  evaluationForm.countyData = []
+  evaluationForm.regions = []
+  cities.value = []
+  counties.value = []
+
+  if (provinceName) {
+    // 获取城市列表
+    try {
+      const response = await regionDataApi.getCities(evaluationForm.dataType, provinceName)
+      if (response.code === 200) {
+        cities.value = response.data || []
+        console.log('获取到城市列表:', cities.value)
+      } else {
+        ElMessage.error(response.message || '获取城市列表失败')
+      }
+    } catch (error) {
+      console.error('获取城市列表失败:', error)
+      ElMessage.error('获取城市列表失败')
+    }
+  }
+}
+
+// 处理城市变化
+const handleCityChange = async (cityName: string) => {
+  console.log('城市变化:', cityName)
+  // 清空区县选择
+  evaluationForm.selectedCounty = ''
+  evaluationForm.countyData = []
+  evaluationForm.regions = []
+  counties.value = []
+
+  if (cityName && evaluationForm.selectedProvince) {
+    // 获取区县列表
+    try {
+      const response = await regionDataApi.getCounties(evaluationForm.dataType, evaluationForm.selectedProvince, cityName)
+      if (response.code === 200) {
+        counties.value = response.data || []
+        console.log('获取到区县列表:', counties.value)
+      } else {
+        ElMessage.error(response.message || '获取区县列表失败')
+      }
+    } catch (error) {
+      console.error('获取区县列表失败:', error)
+      ElMessage.error('获取区县列表失败')
+    }
+  }
+}
+
+// 处理区县变化
+const handleCountyChange = async (countyName: string) => {
+  console.log('区县变化:', countyName)
+  // 清空之前的数据
+  evaluationForm.countyData = []
+  evaluationForm.regions = []
+
+  if (countyName && evaluationForm.selectedProvince && evaluationForm.selectedCity) {
+    // 获取该县的数据
+    try {
+      const response = await regionDataApi.getDataByCounty(
+        evaluationForm.dataType,
+        evaluationForm.selectedProvince,
+        evaluationForm.selectedCity,
+        countyName
+      )
+      if (response.code === 200) {
+        evaluationForm.countyData = response.data || []
+        // 将数据转换为regions格式用于评估
+        evaluationForm.regions = evaluationForm.countyData.map((item: any) => {
+          if (evaluationForm.dataType === 'community') {
+            return item.regionCode || `${item.provinceName}_${item.cityName}_${item.countyName}_${item.communityName}`
+          } else {
+            return item.regionCode || `${item.province}_${item.city}_${item.county}_${item.township}`
+          }
+        })
+        console.log('获取到县数据:', {
+          county: countyName,
+          dataType: evaluationForm.dataType,
+          dataCount: evaluationForm.countyData.length,
+          regions: evaluationForm.regions
+        })
+        ElMessage.success(`成功获取${countyName}的${evaluationForm.dataType === 'community' ? '社区' : '乡镇'}数据，共${evaluationForm.countyData.length}条`)
+      } else {
+        ElMessage.error(response.message || '获取县数据失败')
+      }
+    } catch (error) {
+      console.error('获取县数据失败:', error)
+      ElMessage.error('获取县数据失败')
+    }
+  }
 }
 
 // 获取算法步骤和公式
@@ -766,6 +1025,7 @@ const resetEvaluationForm = () => {
     modelId: null,
     weightConfigId: null,
     algorithmId: null,
+    dataType: 'township', // 重置为默认乡镇数据
     dataSource: 'REGION',
     regions: [],
     parameters: {
@@ -779,6 +1039,8 @@ const resetEvaluationForm = () => {
     description: ''
   })
   evaluationFormRef.value?.resetFields()
+  // 重新获取地区树数据
+  getRegionTreeData()
 }
 
 // 验证参数
@@ -1362,17 +1624,13 @@ const calculateStepResult = async (step: any, index: number) => {
 // 处理地区选择
 const handleRegionCheck = (data: any, checked: boolean, indeterminate: boolean) => {
   console.log('地区选择事件:', { data: data.id, checked, indeterminate })
-  
+
   // 获取当前选中的地区列表
   let currentRegions = [...(evaluationForm.regions || [])]
-  
+
   if (checked) {
-    // 选中节点时：只选择当前节点和其直接子节点，不影响父节点
-    if (!currentRegions.includes(data.id)) {
-      currentRegions.push(data.id)
-    }
-    
-    // 如果当前节点有子节点，自动选择所有直接子节点
+    // 选中节点时：只选择其直系子节点（不包括点击的节点本身）
+    // 如果当前节点有子节点，选择所有直接子节点
     if (data.children && data.children.length > 0) {
       data.children.forEach(child => {
         if (!currentRegions.includes(child.id)) {
@@ -1381,24 +1639,14 @@ const handleRegionCheck = (data: any, checked: boolean, indeterminate: boolean) 
       })
     }
   } else {
-    // 取消选中节点时：移除当前节点和其所有子节点
-    const nodesToRemove = [data.id]
-    
-    // 递归收集所有子节点ID
-    const collectChildIds = (node: any) => {
-      if (node.children && node.children.length > 0) {
-        node.children.forEach(child => {
-          nodesToRemove.push(child.id)
-          collectChildIds(child)
-        })
-      }
+    // 取消选中节点时：只移除其直系子节点（不包括点击的节点本身）
+    // 如果当前节点有子节点，移除所有直接子节点
+    if (data.children && data.children.length > 0) {
+      const childIdsToRemove = data.children.map(child => child.id)
+      currentRegions = currentRegions.filter(id => !childIdsToRemove.includes(id))
     }
-    collectChildIds(data)
-    
-    // 从选中列表中移除这些节点
-    currentRegions = currentRegions.filter(id => !nodesToRemove.includes(id))
   }
-  
+
   console.log('更新后的地区选择:', currentRegions)
   evaluationForm.regions = currentRegions
 }
@@ -1816,13 +2064,70 @@ watch(() => evaluationForm.algorithmId, (newAlgorithmId) => {
   }
 })
 
+// 设置默认值
+const setDefaultValues = async () => {
+  // 等待数据加载完成
+  await Promise.all([
+    getWeightConfigs(),
+    getEvaluationModels()
+  ])
+
+  // 设置默认权重配置为第一项
+  if (weightConfigs.value.length > 0) {
+    evaluationForm.weightConfigId = weightConfigs.value[0].id
+  }
+
+  // 设置默认评估模型为第一项
+  if (evaluationModels.value.length > 0) {
+    evaluationForm.modelId = evaluationModels.value[0].id
+  }
+
+  // 等待省份数据加载完成后再设置默认地区
+  await getProvinces()
+
+  // 设置默认地区为四川-眉山-青神县
+  if (provinces.value.length > 0) {
+    // 查找四川省
+    const sichuanProvince = provinces.value.find(p => p.name === '四川')
+    if (sichuanProvince) {
+      evaluationForm.selectedProvince = sichuanProvince.name
+      // 获取四川省下的城市
+      await handleProvinceChange(sichuanProvince.name)
+
+      // 查找眉山市
+      setTimeout(async () => {
+        const meishanCity = cities.value.find(c => c.name === '眉山')
+        if (meishanCity) {
+          evaluationForm.selectedCity = meishanCity.name
+          // 获取眉山市下的区县
+          await handleCityChange(meishanCity.name)
+
+          // 查找青神县
+          setTimeout(() => {
+            const qingshenCounty = counties.value.find(c => c.name === '青神')
+            if (qingshenCounty) {
+              evaluationForm.selectedCounty = qingshenCounty.name
+              // 自动获取青神县的数据
+              handleCountyChange(qingshenCounty.name)
+            }
+          }, 500)
+        }
+      }, 500)
+    }
+  }
+}
+
 // 组件挂载时获取数据
 onMounted(() => {
   getWeightConfigs()
   getAlgorithmConfigs()
   getEvaluationModels()
-  getRegionTreeData()
   getEvaluationHistory()
+  // 获取省份数据（替代原来的地区树数据）
+  getProvinces()
+
+  // 设置默认值
+  setDefaultValues()
 })
 </script>
 

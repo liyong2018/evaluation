@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.evaluate.mapper.ModelExecutionRecordMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.evaluate.entity.ModelExecutionRecord">
+        <id column="id" property="id"/>
+        <result column="model_id" property="modelId"/>
+        <result column="execution_code" property="executionCode"/>
+        <result column="region_ids" property="regionIds"/>
+        <result column="weight_config_id" property="weightConfigId"/>
+        <result column="execution_status" property="executionStatus"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="result_summary" property="resultSummary"/>
+        <result column="result_ids" property="resultIds"/>
+        <result column="result_count" property="resultCount"/>
+        <result column="create_by" property="createBy"/>
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, model_id, execution_code, region_ids, weight_config_id, execution_status,
+        start_time, end_time, error_message, result_summary, result_ids, result_count, create_by
+    </sql>
+
+    <!-- 根据模型ID查询执行记录 -->
+    <select id="selectByModelId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM model_execution_record
+        WHERE model_id = #{modelId}
+        ORDER BY start_time DESC
+    </select>
+
+    <!-- 根据执行状态查询执行记录 -->
+    <select id="selectByExecutionStatus" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM model_execution_record
+        WHERE execution_status = #{executionStatus}
+        ORDER BY start_time DESC
+    </select>
+
+    <!-- 根据执行代码查询执行记录 -->
+    <select id="selectByExecutionCode" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM model_execution_record
+        WHERE execution_code = #{executionCode}
+        LIMIT 1
+    </select>
+
+    <!-- 更新执行记录状态和结果信息 -->
+    <update id="updateExecutionResult">
+        UPDATE model_execution_record
+        SET execution_status = #{executionStatus},
+            result_summary = #{resultSummary},
+            result_ids = #{resultIds},
+            result_count = #{resultCount},
+            error_message = #{errorMessage},
+            end_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 查询所有执行记录，按开始时间倒序 -->
+    <select id="selectAllRecords" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM model_execution_record
+        ORDER BY start_time DESC
+    </select>
+
+</mapper>

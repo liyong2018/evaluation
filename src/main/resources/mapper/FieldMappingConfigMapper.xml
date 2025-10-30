@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.evaluate.mapper.FieldMappingConfigMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.evaluate.entity.FieldMappingConfig">
+        <id column="id" property="id"/>
+        <result column="model_id" property="modelId"/>
+        <result column="algorithm_output_field" property="algorithmOutputField"/>
+        <result column="database_field" property="databaseField"/>
+        <result column="field_type" property="fieldType"/>
+        <result column="field_category" property="fieldCategory"/>
+        <result column="description" property="description"/>
+        <result column="is_active" property="isActive"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="create_by" property="createBy"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_by" property="updateBy"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_deleted" property="isDeleted"/>
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, model_id, algorithm_output_field, database_field, field_type, field_category, description, is_active, sort_order, create_by, create_time, update_by, update_time, is_deleted
+    </sql>
+
+    <!-- 根据模型ID获取字段映射配置 -->
+    <select id="selectByModelId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM field_mapping_config
+        WHERE model_id = #{modelId}
+          AND is_active = 1
+          AND is_deleted = 0
+        ORDER BY sort_order ASC
+    </select>
+
+    <!-- 根据模型ID和字段类型获取字段映射配置 -->
+    <select id="selectByModelIdAndFieldType" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM field_mapping_config
+        WHERE model_id = #{modelId}
+          AND field_type = #{fieldType}
+          AND is_active = 1
+          AND is_deleted = 0
+        ORDER BY sort_order ASC
+    </select>
+
+</mapper>

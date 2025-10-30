@@ -6,6 +6,8 @@ import com.evaluate.entity.AlgorithmConfig;
 import com.evaluate.mapper.AlgorithmConfigMapper;
 import com.evaluate.service.IAlgorithmConfigService;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,8 @@ import java.util.List;
 @Slf4j
 @Service
 public class AlgorithmConfigServiceImpl extends ServiceImpl<AlgorithmConfigMapper, AlgorithmConfig> implements IAlgorithmConfigService {
+
+    private static final Logger log = LoggerFactory.getLogger(AlgorithmConfigServiceImpl.class);
 
     @Override
     public AlgorithmConfig getDefaultConfig() {
@@ -63,6 +67,7 @@ public class AlgorithmConfigServiceImpl extends ServiceImpl<AlgorithmConfigMappe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean updateStatus(Long id, Integer status) {
+        log.info("更新算法配置状态 - ID: {}, 状态: {}", id, status);
         AlgorithmConfig config = getById(id);
         if (config != null) {
             config.setStatus(status);

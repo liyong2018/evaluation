@@ -2,6 +2,8 @@ package com.evaluate.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -14,6 +16,8 @@ import java.util.Map;
  */
 @RestController
 public class IndexController {
+
+    private static final Logger log = LoggerFactory.getLogger(IndexController.class);
 
     /**
      * 系统首页
@@ -29,6 +33,7 @@ public class IndexController {
         result.put("description", "基于Java+MyBatis Plus+MySQL的专业减灾能力评估平台");
         
         // API接口列表
+        log.info("API接口列表");
         Map<String, String> apis = new HashMap<>();
         apis.put("调查数据管理", "/api/data/survey");
         apis.put("权重配置管理", "/api/data/weight");

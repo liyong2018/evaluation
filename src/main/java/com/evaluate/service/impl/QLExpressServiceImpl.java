@@ -36,15 +36,28 @@ public class QLExpressServiceImpl implements QLExpressService {
     @Override
     public Object execute(String expression, Map<String, Object> context) throws Exception {
         log.debug("执行QLExpress表达式: {}, 上下文: {}", expression, context);
-        
+
         DefaultContext<String, Object> expressContext = new DefaultContext<>();
         if (context != null) {
-            context.forEach(expressContext::put);
+            // 将上下文中的所有整数类型转换为Double，避免整数除法精度丢失
+            context.forEach((key, value) -> {
+                if (value instanceof Integer) {
+                    expressContext.put(key, ((Integer) value).doubleValue());
+                } else if (value instanceof Long) {
+                    expressContext.put(key, ((Long) value).doubleValue());
+                } else if (value instanceof Float) {
+                    expressContext.put(key, ((Float) value).doubleValue());
+                } else if (value instanceof BigDecimal) {
+                    expressContext.put(key, ((BigDecimal) value).doubleValue());
+                } else {
+                    expressContext.put(key, value);
+                }
+            });
         }
-        
+
         Object result = runner.execute(expression, expressContext, null, true, false);
         log.debug("表达式执行结果: {}", result);
-        
+
         return result;
     }
 

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(mvn spring-boot:run:*)",
+      "Bash(curl:*)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(taskkill:*)",
+      "Bash(mysql -uroot -p123456 evaluate:*)",
+      "Bash(mysql -h192.168.15.203 -P30314 -uroot -p123456 evaluate_db -e:*)",
+      "Bash(iconv:*)",
+      "Bash(mvn clean compile:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

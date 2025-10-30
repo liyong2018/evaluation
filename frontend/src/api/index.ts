@@ -447,6 +447,67 @@ export const algorithmStepExecutionApi = {
     request.post(`/api/algorithm-step-execution/${algorithmId}/validate-params`, data)
 }
 
+// 社区行政村减灾能力相关API
+export const communityCapacityApi = {
+  // 导入社区行政村减灾能力数据
+  importData: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post('/api/community-capacity/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  // 获取社区行政村减灾能力数据列表
+  getList: (params: {
+    page?: number;
+    size?: number;
+    regionCode?: string;
+    communityName?: string;
+  }) => request.get('/api/community-capacity/list', { params }),
+
+  // 搜索社区行政村减灾能力数据
+  search: (params: {
+    keyword?: string;
+    regionCode?: string;
+    communityName?: string;
+  }) => request.get('/api/community-capacity/search', { params }),
+
+  // 根据ID获取社区行政村减灾能力数据
+  getById: (id: number) => request.get(`/api/community-capacity/${id}`),
+
+  // 更新社区行政村减灾能力数据
+  update: (id: number, data: any) => request.put(`/api/community-capacity/${id}`, data),
+
+  // 删除社区行政村减灾能力数据
+  delete: (id: number) => request.delete(`/api/community-capacity/${id}`),
+
+  // 批量删除社区行政村减灾能力数据
+  batchDelete: (ids: number[]) => request.delete('/api/community-capacity/batch', { data: ids }),
+
+  // 下载导入模板
+  downloadTemplate: () => request.get('/api/community-capacity/template')
+}
+
+// 地区数据相关API（三级联动）
+export const regionDataApi = {
+  // 根据数据类型获取省份列表
+  getProvinces: (dataType: string) =>
+    request.get('/api/region/provinces', { params: { dataType } }),
+
+  // 根据省份名称获取城市列表
+  getCities: (dataType: string, provinceName: string) =>
+    request.get('/api/region/cities', { params: { dataType, provinceName } }),
+
+  // 根据城市名称获取区县列表
+  getCounties: (dataType: string, provinceName: string, cityName: string) =>
+    request.get('/api/region/counties', { params: { dataType, provinceName, cityName } }),
+
+  // 根据选择的县获取对应的数据
+  getDataByCounty: (dataType: string, provinceName: string, cityName: string, countyName: string) =>
+    request.get('/api/region/data', { params: { dataType, provinceName, cityName, countyName } })
+}
+
 // 模型管理相关API
 export const modelManagementApi = {
   // 获取所有评估模型
