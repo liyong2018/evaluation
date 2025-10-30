@@ -6,14 +6,11 @@ import com.evaluate.entity.AlgorithmStep;
 import com.evaluate.entity.FormulaConfig;
 import com.evaluate.entity.IndicatorWeight;
 import com.evaluate.entity.SurveyData;
-import com.evaluate.entity.Region;
 import com.evaluate.mapper.AlgorithmStepMapper;
 import com.evaluate.mapper.FormulaConfigMapper;
-import com.evaluate.mapper.RegionMapper;
 import com.evaluate.service.AlgorithmExecutionService;
 import com.evaluate.service.IIndicatorWeightService;
 import com.evaluate.service.ISurveyDataService;
-import com.evaluate.service.RegionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -31,19 +28,13 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
     
     @Autowired
     private AlgorithmStepMapper algorithmStepMapper;
-    
+
     @Autowired
     private FormulaConfigMapper formulaConfigMapper;
-    
-    @Autowired
-    private RegionMapper regionMapper;
-    
-    @Autowired
-    private RegionService regionService;
-    
+
     @Autowired
     private ISurveyDataService surveyDataService;
-    
+
     @Autowired
     private IIndicatorWeightService indicatorWeightService;
     

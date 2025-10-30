@@ -83,8 +83,8 @@
 - /api/algorithm-step-execution：GET /{algorithmId}/steps, POST /{algorithmId}/step/{stepOrder}/execute, POST /{algorithmId}/steps/execute-up-to/{upToStepOrder}, GET /{algorithmId}/detail, GET /algorithms, POST /{algorithmId}/validate-params
 - /api/community-capacity：POST /import, GET /list, GET /search, GET /{id}, PUT /{id}, DELETE /{id}, DELETE /batch, GET /template
 - /api/evaluation：POST /calculate, POST /recalculate, POST /batch, GET /process, GET /history/{surveyId}, POST /validate, DELETE /results, POST /execute-model, POST /generate-table, GET /algorithm/{algorithmId}/steps-info, POST /algorithm/{algorithmId}/step/{stepOrder}/execute, POST /algorithm/{algorithmId}/steps-up-to/{upToStepOrder}/execute
-- /api/region：GET /tree, GET /children/{parentId}, GET /level/{level}, GET /code/{code}, POST /batch, GET /all
-- /api/region（数据接口）：GET /provinces, GET /cities, GET /counties, GET /data
+- /api/region（区域数据接口）：GET /provinces?dataType={township|community}, GET /cities?dataType=xxx&provinceName=xxx, GET /counties?dataType=xxx&provinceName=xxx&cityName=xxx, GET /data?dataType=xxx&provinceName=xxx&cityName=xxx&countyName=xxx
+  - **注意**：region表已删除，区域数据现从 survey_data（乡镇模型）和 community_disaster_reduction_capacity（社区模型）表动态查询
 - /api/survey-data：GET /{id}, GET /survey/{surveyName}, GET /region/{region}, GET /search, POST /batch, DELETE /{id}, DELETE /survey/{surveyName}, POST /import, GET /export/{surveyName}, GET /export/all
 - /api/unified-evaluation：GET /data-source-types, POST /execute, POST /execute-step, POST /validate, GET /help
 - /api/indicator-weight：GET /{id}, GET /config/{configId}, GET /indicator/{indicatorCode}, POST /batch, DELETE /{id}, POST /validate
@@ -139,6 +139,6 @@
 
 - 迁移脚本索引：docs/sql-migrations-index.md
 - 架构详解：docs/agent-architecture.md
-- ����/���/�ӿڣ�docs/requirements-design-api.md
+- ����/���/�ӿڣ�docs/requirements-design-api.md
 
-- ҵ�����̣�docs/requirements-design-api.md#����ģ��ҵ�����̣�business-flow��
+- ҵ�����̣�docs/requirements-design-api.md#����ģ��ҵ�����̣�business-flow��

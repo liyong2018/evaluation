@@ -6,6 +6,17 @@
       <p>调查数据的导入、查询、编辑和管理</p>
     </div>
 
+    <!-- 数据类型切换 -->
+    <el-card class="type-switch-card">
+      <el-radio-group v-model="dataType" size="large" @change="handleDataTypeChange">
+        <el-radio-button label="township">乡镇数据 (survey_data)</el-radio-button>
+        <el-radio-button label="community">社区数据 (community_disaster_reduction_capacity)</el-radio-button>
+      </el-radio-group>
+      <el-tag :type="dataType === 'township' ? 'success' : 'warning'" style="margin-left: 20px">
+        当前: {{ dataType === 'township' ? '乡镇数据表' : '社区数据表' }}
+      </el-tag>
+    </el-card>
+
     <!-- 操作工具栏 -->
     <el-card class="toolbar-card">
       <el-row :gutter="20" justify="space-between">
@@ -85,21 +96,92 @@
             {{ getRegionName(row) }}
           </template>
         </el-table-column>
-        <el-table-column prop="province" label="省份" width="100" />
-        <el-table-column prop="city" label="市" width="100" />
-        <el-table-column prop="county" label="县" width="100" />
-        <el-table-column prop="township" label="乡镇(街道)" width="120" />
-        <el-table-column prop="population" label="人口数量" width="100" />
-        <el-table-column prop="managementStaff" label="管理人员" width="100" />
-        <el-table-column prop="riskAssessment" label="风险评估" width="100" />
-        <el-table-column prop="fundingAmount" label="资金投入(万元)" width="120" />
-        <el-table-column prop="materialValue" label="物资价值(万元)" width="120" />
-        <el-table-column prop="hospitalBeds" label="医院床位" width="100" />
-        <el-table-column prop="firefighters" label="消防员数量" width="100" />
-        <el-table-column prop="volunteers" label="志愿者人数" width="100" />
-        <el-table-column prop="militiaReserve" label="民兵预备役" width="100" />
-        <el-table-column prop="trainingParticipants" label="培训参与人次" width="120" />
-        <el-table-column prop="shelterCapacity" label="避难场所容量" width="120" />
+        <!-- 省份 -->
+        <el-table-column label="省份" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.province : row.provinceName }}
+          </template>
+        </el-table-column>
+        <!-- 市 -->
+        <el-table-column label="市" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.city : row.cityName }}
+          </template>
+        </el-table-column>
+        <!-- 县 -->
+        <el-table-column label="县" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.county : row.countyName }}
+          </template>
+        </el-table-column>
+        <!-- 乡镇(街道) -->
+        <el-table-column label="乡镇(街道)" width="120">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.township : row.townshipName }}
+          </template>
+        </el-table-column>
+        <!-- 社区名称 (仅社区数据) -->
+        <el-table-column v-if="dataType === 'community'" prop="communityName" label="社区(行政村)" width="140" />
+        <!-- 人口数量 -->
+        <el-table-column label="人口数量" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.population : row.residentPopulation }}
+          </template>
+        </el-table-column>
+        <!-- 管理人员 (仅乡镇数据) -->
+        <el-table-column v-if="dataType === 'township'" prop="managementStaff" label="管理人员" width="100" />
+        <!-- 风险评估 (仅乡镇数据) -->
+        <el-table-column v-if="dataType === 'township'" prop="riskAssessment" label="风险评估" width="100" />
+        <!-- 应急预案 (仅社区数据) -->
+        <el-table-column v-if="dataType === 'community'" prop="hasEmergencyPlan" label="应急预案" width="100" />
+        <!-- 弱势人群清单 (仅社区数据) -->
+        <el-table-column v-if="dataType === 'community'" prop="hasVulnerableGroupsList" label="弱势人群清单" width="120" />
+        <!-- 资金投入 -->
+        <el-table-column label="资金投入(万元)" width="120">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.fundingAmount : row.lastYearFundingAmount }}
+          </template>
+        </el-table-column>
+        <!-- 物资价值 -->
+        <el-table-column label="物资价值(万元)" width="120">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.materialValue : row.materialsEquipmentValue }}
+          </template>
+        </el-table-column>
+        <!-- 医疗设施 -->
+        <el-table-column label="医疗设施" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.hospitalBeds : row.medicalServiceCount }}
+          </template>
+        </el-table-column>
+        <!-- 消防员 (仅乡镇数据) -->
+        <el-table-column v-if="dataType === 'township'" prop="firefighters" label="消防员数量" width="100" />
+        <!-- 志愿者 -->
+        <el-table-column label="志愿者人数" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.volunteers : row.registeredVolunteerCount }}
+          </template>
+        </el-table-column>
+        <!-- 民兵预备役 -->
+        <el-table-column label="民兵预备役" width="100">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.militiaReserve : row.militiaReserveCount }}
+          </template>
+        </el-table-column>
+        <!-- 培训参与人次 -->
+        <el-table-column label="培训参与人次" width="120">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.trainingParticipants : row.lastYearTrainingParticipants }}
+          </template>
+        </el-table-column>
+        <!-- 演练参与人次 (仅社区数据) -->
+        <el-table-column v-if="dataType === 'community'" prop="lastYearDrillParticipants" label="演练参与人次" width="120" />
+        <!-- 避难场所容量 -->
+        <el-table-column label="避难场所容量" width="120">
+          <template #default="{ row }">
+            {{ dataType === 'township' ? row.shelterCapacity : row.emergencyShelterCapacity }}
+          </template>
+        </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
@@ -344,7 +426,7 @@ import {
   Delete,
   UploadFilled
 } from '@element-plus/icons-vue'
-import { surveyDataApi, regionApi } from '@/api'
+import { surveyDataApi, communityCapacityApi } from '@/api'
 
 // 修复ResizeObserver错误
 const originalError = console.error
@@ -356,6 +438,7 @@ console.error = (...args: any[]) => {
 }
 
 // 响应式数据
+const dataType = ref<'township' | 'community'>('township')  // 数据类型：township(乡镇) 或 community(社区)
 const tableData = ref<any[]>([])
 const selectedRows = ref<any[]>([])
 // 代码->名称映射表（一次性从后端加载）
@@ -419,26 +502,14 @@ const formRules = {
   population: [{ required: true, message: '请输入人口数量', trigger: 'blur' }]
 }
 
-// 加载地区名称映射
+// 加载地区名称映射 (已废弃 - region表已删除)
+// 现在区域名称直接从数据表中获取 (township, communityName等字段)
 const loadRegionNameMap = async () => {
   try {
-    console.info('[DataManagement] loadRegionNameMap -> request /api/region/all')
-    const res = await regionApi.getAllEnabledRegions()
-    if (res?.success && Array.isArray(res.data)) {
-      const map: Record<string, string> = {}
-      const options: Array<{ code: string; name: string }> = []
-      for (const r of res.data) {
-        if (r?.code) {
-          map[String(r.code).trim()] = r.name || String(r.code).trim()
-          options.push({ code: String(r.code).trim(), name: r.name || String(r.code).trim() })
-        }
-      }
-      regionNameMap.value = map
-      regionSelectOptions.value = options
-      console.info('[DataManagement] loadRegionNameMap -> loaded', options.length)
-    } else {
-      console.warn('[DataManagement] loadRegionNameMap -> response invalid', res)
-    }
+    console.info('[DataManagement] loadRegionNameMap -> skipped (region table removed)')
+    // 不再从region表加载，直接使用数据中的名称字段
+    regionNameMap.value = {}
+    regionSelectOptions.value = []
   } catch (e) {
     console.warn('加载地区名称映射失败:', e)
   }
@@ -450,15 +521,41 @@ const getRegionName = (row?: any) => {
   if (!code && !row) return '-'
   const key = (code != null ? String(code) : '').trim()
   const mapped = key ? regionNameMap.value[key] : ''
-  // 回退顺序：映射 -> 行内乡镇/县/市/省 -> 原始代码 -> '-'
-  return mapped || row?.township || row?.county || row?.city || row?.province || key || '-'
+  // 回退顺序：映射 -> 行内字段 -> 原始代码 -> '-'
+  if (mapped) return mapped
+  if (dataType.value === 'township') {
+    return row?.township || row?.county || row?.city || row?.province || key || '-'
+  } else {
+    return row?.communityName || row?.townshipName || row?.countyName || row?.cityName || row?.provinceName || key || '-'
+  }
+}
+
+// 数据类型切换处理
+const handleDataTypeChange = (newType: 'township' | 'community') => {
+  console.info('[DataManagement] 切换数据类型:', newType)
+  dataType.value = newType
+  // 清空搜索条件和表格数据
+  searchForm.keyword = ''
+  searchForm.selectedRegion = null
+  tableData.value = []
+  regionSelectOptions.value = []
+  // 重新加载数据
+  getDataList()
 }
 
 // 获取数据列表
 const getDataList = async () => {
   loading.table = true
   try {
-    const response = await surveyDataApi.getAll()
+    let response
+    if (dataType.value === 'township') {
+      // 乡镇数据 - 直接返回数组
+      response = await surveyDataApi.getAll()
+    } else {
+      // 社区数据 - 使用 search API (返回数组) 而不是 getList (返回分页对象)
+      response = await communityCapacityApi.search({})
+    }
+
     if (response.success) {
       tableData.value = response.data || []
       pagination.total = tableData.value.length
@@ -468,7 +565,12 @@ const getDataList = async () => {
         for (const row of tableData.value) {
           const code = String(row.regionCode || '').trim()
           if (!code) continue
-          const name = row.township || row.county || row.city || row.province || code
+          let name = ''
+          if (dataType.value === 'township') {
+            name = row.township || row.county || row.city || row.province || code
+          } else {
+            name = row.communityName || row.townshipName || row.countyName || row.cityName || row.provinceName || code
+          }
           if (!uniq.has(code)) uniq.set(code, name)
         }
         regionSelectOptions.value = Array.from(uniq.entries()).map(([code, name]) => ({ code, name }))
@@ -490,17 +592,26 @@ const handleSearch = async () => {
     getDataList()
     return
   }
-  
+
   loading.table = true
   try {
     let response
-    if (searchForm.keyword) {
-      response = await surveyDataApi.search(searchForm.keyword)
-    } else if (searchForm.selectedRegion) {
-      // 后端当前按名称查询（township/county/city/province 模糊匹配）
-      response = await surveyDataApi.getByRegion(searchForm.selectedRegion.name)
+    if (dataType.value === 'township') {
+      // 乡镇数据搜索
+      if (searchForm.keyword) {
+        response = await surveyDataApi.search(searchForm.keyword)
+      } else if (searchForm.selectedRegion) {
+        response = await surveyDataApi.getByRegion(searchForm.selectedRegion.name)
+      }
+    } else {
+      // 社区数据搜索
+      if (searchForm.keyword) {
+        response = await communityCapacityApi.search({ keyword: searchForm.keyword })
+      } else if (searchForm.selectedRegion) {
+        response = await communityCapacityApi.search({ communityName: searchForm.selectedRegion.name })
+      }
     }
-    
+
     if (response?.success) {
       tableData.value = response.data || []
       pagination.total = tableData.value.length
@@ -658,10 +769,18 @@ const handleImport = async () => {
     ElMessage.warning('请选择要导入的文件')
     return
   }
-  
+
   loading.import = true
   try {
-    const response = await surveyDataApi.importData(uploadFile.value)
+    let response
+    if (dataType.value === 'township') {
+      // 导入乡镇数据
+      response = await surveyDataApi.importData(uploadFile.value)
+    } else {
+      // 导入社区数据
+      response = await communityCapacityApi.importData(uploadFile.value)
+    }
+
     if (response.success) {
       ElMessage.success('导入成功')
       dialogVisible.import = false
@@ -789,6 +908,15 @@ onMounted(async () => {
   margin: 0;
   color: #909399;
   font-size: 14px;
+}
+
+.type-switch-card {
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.type-switch-card :deep(.el-card__body) {
+  padding: 16px 20px;
 }
 
 .toolbar-card {
