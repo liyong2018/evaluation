@@ -1590,7 +1590,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             executionRecord.setExecutionStatus("SUCCESS");
             executionRecord.setStartTime(startTime);
             executionRecord.setEndTime(java.time.LocalDateTime.now());
-            executionRecord.setResultCount(tableData.size());
 
             // 生成结果摘要
             StringBuilder summary = new StringBuilder();
@@ -1648,18 +1647,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     evaluationResultMapper.insert(result);
                 }
                 log.info("批量保存评估结果成功，共 {} 条", evaluationResults.size());
-
-                // 收集结果ID列表
-                List<Long> resultIds = evaluationResults.stream()
-                        .map(EvaluationResult::getId)
-                        .collect(Collectors.toList());
-
-                // 更新执行记录的结果ID列表
-                String resultIdsStr = resultIds.stream()
-                        .map(String::valueOf)
-                        .collect(Collectors.joining(","));
-                executionRecord.setResultIds(resultIdsStr);
-                modelExecutionRecordMapper.updateById(executionRecord);
             }
 
             return executionRecordId;

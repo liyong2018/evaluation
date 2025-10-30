@@ -41,6 +41,7 @@ public class ModelExecutionRecord implements Serializable {
 
     private String resultSummary;
 
+    @TableField(exist = false)
     private String resultIds;
 
     @TableField(exist = false)
