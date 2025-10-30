@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-dialog
     v-model="visible"
     :title="dialogTitle"
@@ -7,52 +7,52 @@
     class="result-dialog"
   >
     <div class="result-content">
-      <!-- 步骤信息 -->
+      <!-- 姝ラ淇℃伅 -->
       <div class="step-info" v-if="stepInfo">
         <h3>{{ stepInfo.stepName }}</h3>
         <p class="step-description">{{ stepInfo.description }}</p>
       </div>
 
-      <!-- 公式展示 -->
+      <!-- 鍏紡灞曠ず -->
       <div class="formula-section" v-if="formula">
-        <h4>计算公式</h4>
+        <h4>璁＄畻鍏紡</h4>
         <div class="formula-code">
           <code>{{ formula }}</code>
         </div>
       </div>
 
-      <!-- 步骤分组控制 -->
+      <!-- 姝ラ鍒嗙粍鎺у埗 -->
       <div v-if="resultData && resultData.isMultiStep" class="step-control-section">
         <div class="step-selector">
-          <h4>选择查看步骤</h4>
+          <h4>閫夋嫨鏌ョ湅姝ラ</h4>
           <el-select 
             v-model="selectedStepOrder" 
-            placeholder="选择步骤"
+            placeholder="閫夋嫨姝ラ"
             @change="handleStepChange"
             style="width: 200px;"
           >
             <el-option
               v-for="step in resultData.stepResults"
               :key="step.stepOrder"
-              :label="`步骤${step.stepOrder}: ${step.stepName}`"
+              :label="`姝ラ${step.stepOrder}: ${step.stepName}`"
               :value="step.stepOrder"
             />
           </el-select>
         </div>
         
-        <!-- 列显示/隐藏控制（按步骤分组） -->
+        <!-- 鍒楁樉绀?闅愯棌鎺у埗锛堟寜姝ラ鍒嗙粍锛?-->
         <div class="column-control" v-if="currentStepData">
-          <h4>列显示控制</h4>
-          <!-- 分组折叠面板 -->
+          <h4>鍒楁樉绀烘帶鍒?/h4>
+          <!-- 鍒嗙粍鎶樺彔闈㈡澘 -->
           <el-collapse>
             <el-collapse-item
               v-for="group in columnGroups"
               :key="group.key"
-              :title="`${group.name}（${group.columns.length}列）`"
+              :title="`${group.name}锛?{group.columns.length}鍒楋級`"
             >
               <div class="group-actions">
-                <el-button size="small" @click="selectGroupColumns(group.key)">选择该组</el-button>
-                <el-button size="small" @click="unselectGroupColumns(group.key)">取消该组</el-button>
+                <el-button size="small" @click="selectGroupColumns(group.key)">閫夋嫨璇ョ粍</el-button>
+                <el-button size="small" @click="unselectGroupColumns(group.key)">鍙栨秷璇ョ粍</el-button>
               </div>
               <div class="column-checkboxes">
                 <el-checkbox-group v-model="visibleColumns">
@@ -69,18 +69,18 @@
             </el-collapse-item>
           </el-collapse>
           <div class="column-actions">
-            <el-button size="small" @click="selectAllColumns">全选</el-button>
-            <el-button size="small" @click="unselectAllColumns">取消全选</el-button>
-            <el-button size="small" @click="resetColumns">重置</el-button>
+            <el-button size="small" @click="selectAllColumns">鍏ㄩ€?/el-button>
+            <el-button size="small" @click="unselectAllColumns">鍙栨秷鍏ㄩ€?/el-button>
+            <el-button size="small" @click="resetColumns">閲嶇疆</el-button>
           </div>
         </div>
       </div>
 
-      <!-- 双表格显示 -->
+      <!-- 鍙岃〃鏍兼樉绀?-->
       <div v-if="resultData && resultData.isDualTable" class="dual-table-section">
-        <!-- 表格1：一级指标权重计算 -->
+        <!-- 琛ㄦ牸1锛氫竴绾ф寚鏍囨潈閲嶈绠?-->
         <div class="table-section">
-          <h4>一级指标权重计算</h4>
+          <h4>涓€绾ф寚鏍囨潈閲嶈绠?/h4>
           <div class="table-container">
             <el-table
               :data="resultData.table1Data"
@@ -102,12 +102,12 @@
             </el-table>
           </div>
           
-          <!-- 统计信息已移除 -->
+          <!-- 缁熻淇℃伅宸茬Щ闄?-->
         </div>
 
-        <!-- 表格2：乡镇减灾能力权重计算 -->
+        <!-- 琛ㄦ牸2锛氫埂闀囧噺鐏捐兘鍔涙潈閲嶈绠?-->
         <div class="table-section" style="margin-top: 30px;">
-          <h4>乡镇减灾能力权重计算</h4>
+          <h4>涔￠晣鍑忕伨鑳藉姏鏉冮噸璁＄畻</h4>
           <div class="table-container">
             <el-table
               :data="resultData.table2Data"
@@ -129,54 +129,54 @@
             </el-table>
           </div>
           
-          <!-- 统计信息已移除 -->
+          <!-- 缁熻淇℃伅宸茬Щ闄?-->
         </div>
       </div>
 
-      <!-- 单表格显示（原有逻辑） -->
+      <!-- 鍗曡〃鏍兼樉绀猴紙鍘熸湁閫昏緫锛?-->
   <div v-else-if="resultData && !resultData.isDualTable" class="result-table-section">
-    <h4>计算结果</h4>
-    <!-- 列显示/隐藏控制（单表格） - 优化版 -->
+    <h4>璁＄畻缁撴灉</h4>
+    <!-- 鍒楁樉绀?闅愯棌鎺у埗锛堝崟琛ㄦ牸锛?- 浼樺寲鐗?-->
     <div class="column-control" v-if="resultData">
       <div class="control-header">
-        <h4>列显示控制</h4>
+        <h4>鍒楁樉绀烘帶鍒?/h4>
         <div class="quick-actions">
-          <el-button size="small" @click="selectAllColumns">全选</el-button>
-          <el-button size="small" @click="unselectAllColumns">取消全选</el-button>
-          <el-button size="small" @click="resetColumns">重置</el-button>
+          <el-button size="small" @click="selectAllColumns">鍏ㄩ€?/el-button>
+          <el-button size="small" @click="unselectAllColumns">鍙栨秷鍏ㄩ€?/el-button>
+          <el-button size="small" @click="resetColumns">閲嶇疆</el-button>
         </div>
       </div>
       
-      <!-- 按步骤选择（下拉框方式） -->
+      <!-- 鎸夋楠ら€夋嫨锛堜笅鎷夋鏂瑰紡锛?-->
       <div class="step-selector">
         <el-select 
           v-model="selectedGroupKeys" 
           multiple
           collapse-tags
           collapse-tags-tooltip
-          placeholder="选择要显示的步骤"
+          placeholder="閫夋嫨瑕佹樉绀虹殑姝ラ"
           style="width: 100%"
           @change="handleGroupSelectionChange"
         >
           <el-option
             v-for="group in columnGroups"
             :key="group.key"
-            :label="`${group.name}（${group.columns.length}列）`"
+            :label="`${group.name}锛?{group.columns.length}鍒楋級`"
             :value="group.key"
           />
         </el-select>
       </div>
       
-      <!-- 详细列选择（可折叠） -->
+      <!-- 璇︾粏鍒楅€夋嫨锛堝彲鎶樺彔锛?-->
       <el-collapse class="detail-collapse">
-        <el-collapse-item title="详细列选择">
+        <el-collapse-item title="璇︾粏鍒楅€夋嫨">
           <div class="groups-container">
             <div v-for="group in columnGroups" :key="group.key" class="group-section">
               <div class="group-header">
-                <span class="group-name">{{ group.name }}（{{ group.columns.length }}列）</span>
+                <span class="group-name">{{ group.name }}锛坽{ group.columns.length }}鍒楋級</span>
                 <div class="group-btn">
-                  <el-button size="small" text @click="selectGroupColumns(group.key)">选择</el-button>
-                  <el-button size="small" text @click="unselectGroupColumns(group.key)">取消</el-button>
+                  <el-button size="small" text @click="selectGroupColumns(group.key)">閫夋嫨</el-button>
+                  <el-button size="small" text @click="unselectGroupColumns(group.key)">鍙栨秷</el-button>
                 </div>
               </div>
               <div class="column-checkboxes">
@@ -196,16 +196,16 @@
         </el-collapse-item>
       </el-collapse>
     </div>
-    <div class="table-container">
-      <el-table
-        :data="resultData.tableData"
-        border
-            stripe
-            size="small"
-            max-height="400"
-            class="result-table"
-            style="width: 100%; min-width: 1600px;"
-          >
+          <div class="table-container">
+            <el-table
+              :data="filteredTableData"
+              border
+              stripe
+              size="small"
+              max-height="400"
+              class="result-table"
+              style="width: 100%; min-width: 1600px;"
+            >
         <el-table-column
           v-for="(column, index) in filteredColumns"
           :key="column.prop"
@@ -222,18 +222,18 @@
       </el-table>
     </div>
         
-        <!-- 统计信息已移除 -->
+        <!-- 缁熻淇℃伅宸茬Щ闄?-->
       </div>
 
-      <!-- 多步骤结果显示 -->
+      <!-- 澶氭楠ょ粨鏋滄樉绀?-->
       <div v-if="resultData && resultData.isMultiStep" class="multi-step-section">
         <div v-if="currentStepData" class="current-step-result">
-          <h4>{{ currentStepData.stepName }} - 计算结果</h4>
+          <h4>{{ currentStepData.stepName }} - 璁＄畻缁撴灉</h4>
           <p class="step-description">{{ currentStepData.description }}</p>
           
           <div class="table-container">
             <el-table
-              :data="currentStepData.tableData"
+              :data="filteredTableData"
               border
               stripe
               size="small"
@@ -258,25 +258,24 @@
         </div>
         
         <div v-else class="no-step-selected">
-          <el-empty description="请选择要查看的步骤" :image-size="80" />
+          <el-empty description="璇烽€夋嫨瑕佹煡鐪嬬殑姝ラ" :image-size="80" />
         </div>
       </div>
 
-      <!-- 空状态 -->
+      <!-- 绌虹姸鎬?-->
       <div v-if="!resultData" class="empty-state">
-        <el-empty description="暂无计算结果" />
+        <el-empty description="鏆傛棤璁＄畻缁撴灉" />
       </div>
     </div>
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="handleClose">关闭</el-button>
+        <el-button @click="handleClose">鍏抽棴</el-button>
         <el-button type="primary" @click="exportResults" :disabled="!resultData">
-          导出结果
+          瀵煎嚭缁撴灉
         </el-button>
         <el-button type="success" @click="generateThematicMap" :disabled="!resultData">
-          生成专题图
-        </el-button>
+          鐢熸垚涓撻鍥?        </el-button>
       </div>
     </template>
   </el-dialog>
@@ -307,13 +306,11 @@ interface StepResult {
 }
 
 interface ResultData {
-  // 单表格数据结构
-  tableData?: any[]
+  // 鍗曡〃鏍兼暟鎹粨鏋?  tableData?: any[]
   columns?: any[]
   summary?: Record<string, any>
   
-  // 双表格数据结构
-  isDualTable?: boolean
+  // 鍙岃〃鏍兼暟鎹粨鏋?  isDualTable?: boolean
   table1Data?: any[]
   table1Columns?: any[]
   table1Summary?: Record<string, any>
@@ -321,8 +318,7 @@ interface ResultData {
   table2Columns?: any[]
   table2Summary?: Record<string, any>
   
-  // 多步骤数据结构
-  isMultiStep?: boolean
+  // 澶氭楠ゆ暟鎹粨鏋?  isMultiStep?: boolean
   stepResults?: StepResult[]
   selectedStep?: number
 }
@@ -355,30 +351,25 @@ const visible = ref(false)
 const selectedStepOrder = ref<number>(1)
 const visibleColumns = ref<string[]>([])
 const allColumns = ref<any[]>([])
-// 后端步骤-算法输出映射与步骤名称
-const stepAlgorithmOutputs = ref<Record<number, Set<string>>>({})
+// 鍚庣姝ラ-绠楁硶杈撳嚭鏄犲皠涓庢楠ゅ悕绉?const stepAlgorithmOutputs = ref<Record<number, Set<string>>>({})
 const stepOrderNames = ref<Record<number, string>>({})
-// 下拉框选中的分组key
+// 涓嬫媺妗嗛€変腑鐨勫垎缁刱ey
 const selectedGroupKeys = ref<string[]>([])
-// 列分组
-type ColumnItem = { prop: string; label: string; width?: number; formatter?: any }
+// 鍒楀垎缁?type ColumnItem = { prop: string; label: string; width?: number; formatter?: any }
 type ColumnGroup = { key: string; name: string; columns: ColumnItem[] }
 
-// 中文步骤识别规则：更精确的匹配
-// 步骤1: 原始数据 / 基础数据
-const reStep1 = /(原始|基础|调查|源数据)/
-// 步骤2: 属性向量归一化
-const reStep2 = /(归一化|标准化|normalized)/i
-// 步骤3: 二级指标定权
-const reStep3 = /(定权|权重|weight)/i
-// 步骤4: 优劣解计算
-const reStep4 = /(优解|劣解|ideal|solution)/i
-// 步骤5: 能力值计算与分级
-const reStep5 = /(值与分级|能力值|评估等级|综合得分|score|grade)/i
+// 涓枃姝ラ璇嗗埆瑙勫垯锛氭洿绮剧‘鐨勫尮閰?// 姝ラ1: 鍘熷鏁版嵁 / 鍩虹鏁版嵁
+const reStep1 = /(鍘熷|鍩虹|璋冩煡|婧愭暟鎹?/
+// 姝ラ2: 灞炴€у悜閲忓綊涓€鍖?const reStep2 = /(褰掍竴鍖東鏍囧噯鍖東normalized)/i
+// 姝ラ3: 浜岀骇鎸囨爣瀹氭潈
+const reStep3 = /(瀹氭潈|鏉冮噸|weight)/i
+// 姝ラ4: 浼樺姡瑙ｈ绠?const reStep4 = /(浼樿В|鍔ｈВ|ideal|solution)/i
+// 姝ラ5: 鑳藉姏鍊艰绠椾笌鍒嗙骇
+const reStep5 = /(鍊间笌鍒嗙骇|鑳藉姏鍊紎璇勪及绛夌骇|缁煎悎寰楀垎|score|grade)/i
 
 const isBase = (c: ColumnItem) => c.prop === 'region' || c.prop === 'regionCode' || c.prop === 'regionName'
 
-// 智能匹配函数：同时检查 label 和 prop
+// 鏅鸿兘鍖归厤鍑芥暟锛氬悓鏃舵鏌?label 鍜?prop
 const matchesStep = (c: ColumnItem, regex: RegExp): boolean => {
   return regex.test(String(c.label)) || regex.test(c.prop)
 }
@@ -389,13 +380,13 @@ const isStep3 = (c: ColumnItem) => matchesStep(c, reStep3)
 const isStep4 = (c: ColumnItem) => matchesStep(c, reStep4)
 const isStep5 = (c: ColumnItem) => matchesStep(c, reStep5)
 
-// 列分组计算：优先使用后端步骤-算法输出映射，未覆盖列使用关键字兜底
+// 鍒楀垎缁勮绠楋細浼樺厛浣跨敤鍚庣姝ラ-绠楁硶杈撳嚭鏄犲皠锛屾湭瑕嗙洊鍒椾娇鐢ㄥ叧閿瓧鍏滃簳
 const columnGroups = computed<ColumnGroup[]>(() => {
   const base: ColumnItem[] = []
   const assigned = new Set<string>()
   const dynamicStepGroups: ColumnGroup[] = []
 
-  console.log('\n=== 开始计算列分组 ===')
+  console.log('\n=== 寮€濮嬭绠楀垪鍒嗙粍 ===')
   console.log('Computing column groups with:', {
     allColumnsCount: allColumns.value.length,
     allColumnsList: allColumns.value.map(c => ({ prop: c.prop, label: c.label, stepOrder: (c as any).stepOrder })),
@@ -404,16 +395,15 @@ const columnGroups = computed<ColumnGroup[]>(() => {
     isMultiStep: props.resultData?.isMultiStep
   })
 
-  // 基础列优先
-  allColumns.value.forEach(c => {
+  // 鍩虹鍒椾紭鍏?  allColumns.value.forEach(c => {
     if (isBase(c)) {
       base.push(c)
       assigned.add(c.prop)
-      console.log(`基础列: ${c.prop}`)
+      console.log(`鍩虹鍒? ${c.prop}`)
     }
   })
 
-  // 方法1: 优先使用列中自带的 stepOrder 字段
+  // 鏂规硶1: 浼樺厛浣跨敤鍒椾腑鑷甫鐨?stepOrder 瀛楁
   const stepGroupsFromColumnData: Record<number, ColumnItem[]> = {}
   let hasStepOrderInColumns = false
   
@@ -427,12 +417,12 @@ const columnGroups = computed<ColumnGroup[]>(() => {
       }
       stepGroupsFromColumnData[stepOrder].push(c)
       assigned.add(c.prop)
-      console.log(`  ✓ 列自带stepOrder: ${c.prop} -> 步骤${stepOrder}`)
+      console.log(`  鉁?鍒楄嚜甯tepOrder: ${c.prop} -> 姝ラ${stepOrder}`)
     }
   })
   
   if (hasStepOrderInColumns) {
-    console.log('\n检测到列数据中包含stepOrder字段，使用该字段进行分组')
+    console.log('\n妫€娴嬪埌鍒楁暟鎹腑鍖呭惈stepOrder瀛楁锛屼娇鐢ㄨ瀛楁杩涜鍒嗙粍')
     const orders = Object.keys(stepGroupsFromColumnData)
       .map(n => Number(n))
       .sort((a, b) => a - b)
@@ -440,145 +430,139 @@ const columnGroups = computed<ColumnGroup[]>(() => {
     orders.forEach(order => {
       const cols = stepGroupsFromColumnData[order]
       const title = stepOrderNames.value[order]
-        ? `步骤${order} ${stepOrderNames.value[order]}`
-        : `步骤${order}`
+        ? `姝ラ${order} ${stepOrderNames.value[order]}`
+        : `姝ラ${order}`
       dynamicStepGroups.push({ key: `step_${order}`, name: title, columns: cols })
-      console.log(`✓ 添加分组(从列数据): ${title} 共 ${cols.length} 列`)
+      console.log(`鉁?娣诲姞鍒嗙粍(浠庡垪鏁版嵁): ${title} 鍏?${cols.length} 鍒梎)
     })
   }
 
-  // 方法2: 如果列数据没有stepOrder，使用后端步骤输出映射
-  if (!hasStepOrderInColumns) {
+  // 鏂规硶2: 濡傛灉鍒楁暟鎹病鏈塻tepOrder锛屼娇鐢ㄥ悗绔楠よ緭鍑烘槧灏?  if (!hasStepOrderInColumns) {
     const orders = Object.keys(stepAlgorithmOutputs.value)
       .map(n => Number(n))
       .sort((a, b) => a - b)
     
-    console.log('\n列数据中没有stepOrder，使用后端步骤映射:', orders)
+    console.log('\n鍒楁暟鎹腑娌℃湁stepOrder锛屼娇鐢ㄥ悗绔楠ゆ槧灏?', orders)
     
     orders.forEach(order => {
       const outputs = stepAlgorithmOutputs.value[order]
       const cols: ColumnItem[] = []
       
-      console.log(`\n步骤 ${order} 的输出参数:`, Array.from(outputs || []))
+      console.log(`\n姝ラ ${order} 鐨勮緭鍑哄弬鏁?`, Array.from(outputs || []))
       
       allColumns.value.forEach(c => {
         if (!assigned.has(c.prop) && outputs?.has(c.prop)) {
           cols.push(c)
           assigned.add(c.prop)
-          console.log(`  ✓ 匹配: ${c.prop} -> 步骤${order}`)
+          console.log(`  鉁?鍖归厤: ${c.prop} -> 姝ラ${order}`)
         }
       })
       
       if (cols.length) {
         const title = stepOrderNames.value[order]
-          ? `步骤${order} ${stepOrderNames.value[order]}`
-          : `步骤${order}`
+          ? `姝ラ${order} ${stepOrderNames.value[order]}`
+          : `姝ラ${order}`
         dynamicStepGroups.push({ key: `step_${order}`, name: title, columns: cols })
-        console.log(`✓ 添加动态分组: ${title} 共 ${cols.length} 列`)
+        console.log(`鉁?娣诲姞鍔ㄦ€佸垎缁? ${title} 鍏?${cols.length} 鍒梎)
       } else {
-        console.log(`✗ 步骤${order} 没有匹配到任何列`)
+        console.log(`鉁?姝ラ${order} 娌℃湁鍖归厤鍒颁换浣曞垪`)
       }
     })
   }
 
-  // 关键字兑底分组
-  console.log('\n开始关键字兑底分组')
-  const step1: ColumnItem[] = []  // 原始数据
-  const step2: ColumnItem[] = []  // 归一化
-  const step3: ColumnItem[] = []  // 定权
-  const step4: ColumnItem[] = []  // 优劣解
-  const step5: ColumnItem[] = []  // 值与分级
+  // 鍏抽敭瀛楀厬搴曞垎缁?  console.log('\n寮€濮嬪叧閿瓧鍏戝簳鍒嗙粍')
+  const step1: ColumnItem[] = []  // 鍘熷鏁版嵁
+  const step2: ColumnItem[] = []  // 褰掍竴鍖?  const step3: ColumnItem[] = []  // 瀹氭潈
+  const step4: ColumnItem[] = []  // 浼樺姡瑙?  const step5: ColumnItem[] = []  // 鍊间笌鍒嗙骇
   const others: ColumnItem[] = []
   
   const unassignedColumns = allColumns.value.filter(c => !assigned.has(c.prop))
-  console.log(`未分配的列（${unassignedColumns.length}）`, unassignedColumns.map(c => ({ prop: c.prop, label: c.label })))
+  console.log(`鏈垎閰嶇殑鍒楋紙${unassignedColumns.length}锛塦, unassignedColumns.map(c => ({ prop: c.prop, label: c.label })))
   
   allColumns.value.forEach(c => {
     if (assigned.has(c.prop)) return
     
-    // 按照步骤顺序匹配，优先匹配更具体的规则
-    // 步骤5最具体，优先匹配
-    if (isStep5(c)) { 
+    // 鎸夌収姝ラ椤哄簭鍖归厤锛屼紭鍏堝尮閰嶆洿鍏蜂綋鐨勮鍒?    // 姝ラ5鏈€鍏蜂綋锛屼紭鍏堝尮閰?    if (isStep5(c)) { 
       step5.push(c)
       assigned.add(c.prop)
-      console.log(`  ✓ 关键字匹配[步骤5-值与分级]: ${c.prop} (${c.label})`)
+      console.log(`  鉁?鍏抽敭瀛楀尮閰峓姝ラ5-鍊间笌鍒嗙骇]: ${c.prop} (${c.label})`)
       return 
     }
     if (isStep4(c)) { 
       step4.push(c)
       assigned.add(c.prop)
-      console.log(`  ✓ 关键字匹配[步骤4-优劣解]: ${c.prop} (${c.label})`)
+      console.log(`  鉁?鍏抽敭瀛楀尮閰峓姝ラ4-浼樺姡瑙: ${c.prop} (${c.label})`)
       return 
     }
     if (isStep3(c)) { 
       step3.push(c)
       assigned.add(c.prop)
-      console.log(`  ✓ 关键字匹配[步骤3-定权]: ${c.prop} (${c.label})`)
+      console.log(`  鉁?鍏抽敭瀛楀尮閰峓姝ラ3-瀹氭潈]: ${c.prop} (${c.label})`)
       return 
     }
     if (isStep2(c)) { 
       step2.push(c)
       assigned.add(c.prop)
-      console.log(`  ✓ 关键字匹配[步骤2-归一化]: ${c.prop} (${c.label})`)
+      console.log(`  鉁?鍏抽敭瀛楀尮閰峓姝ラ2-褰掍竴鍖朷: ${c.prop} (${c.label})`)
       return 
     }
     if (isStep1(c)) { 
       step1.push(c)
       assigned.add(c.prop)
-      console.log(`  ✓ 关键字匹配[步骤1-原始数据]: ${c.prop} (${c.label})`)
+      console.log(`  鉁?鍏抽敭瀛楀尮閰峓姝ラ1-鍘熷鏁版嵁]: ${c.prop} (${c.label})`)
       return 
     }
     
     others.push(c)
-    console.log(`  ? 未匹配: ${c.prop} (${c.label})`)
+    console.log(`  ? 鏈尮閰? ${c.prop} (${c.label})`)
   })
 
-  console.log('\n组装最终分组')
+  console.log('\n缁勮鏈€缁堝垎缁?)
   const groups: ColumnGroup[] = []
   if (base.length) {
-    groups.push({ key: 'base', name: '基础信息', columns: base })
-    console.log(`  + 基础信息: ${base.length}列`)
+    groups.push({ key: 'base', name: '鍩虹淇℃伅', columns: base })
+    console.log(`  + 鍩虹淇℃伅: ${base.length}鍒梎)
   }
   
-  // 先添加后端步骤映射的分组
+  // 鍏堟坊鍔犲悗绔楠ゆ槧灏勭殑鍒嗙粍
   dynamicStepGroups.forEach(g => {
     groups.push(g)
-    console.log(`  + ${g.name}: ${g.columns.length}列`)
+    console.log(`  + ${g.name}: ${g.columns.length}鍒梎)
   })
   
-  // 再添加关键字匹配的分组（按步骤顺序）
+  // 鍐嶆坊鍔犲叧閿瓧鍖归厤鐨勫垎缁勶紙鎸夋楠ら『搴忥級
   if (step1.length) {
-    const stepName = stepOrderNames.value[1] || '原始数据'
-    groups.push({ key: 'step_1', name: `步骤1 ${stepName}`, columns: step1 })
-    console.log(`  + 步骤1 ${stepName}(关键字): ${step1.length}列`)
+    const stepName = stepOrderNames.value[1] || '鍘熷鏁版嵁'
+    groups.push({ key: 'step_1', name: `姝ラ1 ${stepName}`, columns: step1 })
+    console.log(`  + 姝ラ1 ${stepName}(鍏抽敭瀛?: ${step1.length}鍒梎)
   }
   if (step2.length) {
-    const stepName = stepOrderNames.value[2] || '属性向量归一化'
-    groups.push({ key: 'step_2', name: `步骤2 ${stepName}`, columns: step2 })
-    console.log(`  + 步骤2 ${stepName}(关键字): ${step2.length}列`)
+    const stepName = stepOrderNames.value[2] || '灞炴€у悜閲忓綊涓€鍖?
+    groups.push({ key: 'step_2', name: `姝ラ2 ${stepName}`, columns: step2 })
+    console.log(`  + 姝ラ2 ${stepName}(鍏抽敭瀛?: ${step2.length}鍒梎)
   }
   if (step3.length) {
-    const stepName = stepOrderNames.value[3] || '二级指标定权'
-    groups.push({ key: 'step_3', name: `步骤3 ${stepName}`, columns: step3 })
-    console.log(`  + 步骤3 ${stepName}(关键字): ${step3.length}列`)
+    const stepName = stepOrderNames.value[3] || '浜岀骇鎸囨爣瀹氭潈'
+    groups.push({ key: 'step_3', name: `姝ラ3 ${stepName}`, columns: step3 })
+    console.log(`  + 姝ラ3 ${stepName}(鍏抽敭瀛?: ${step3.length}鍒梎)
   }
   if (step4.length) {
-    const stepName = stepOrderNames.value[4] || '优劣解计算'
-    groups.push({ key: 'step_4', name: `步骤4 ${stepName}`, columns: step4 })
-    console.log(`  + 步骤4 ${stepName}(关键字): ${step4.length}列`)
+    const stepName = stepOrderNames.value[4] || '浼樺姡瑙ｈ绠?
+    groups.push({ key: 'step_4', name: `姝ラ4 ${stepName}`, columns: step4 })
+    console.log(`  + 姝ラ4 ${stepName}(鍏抽敭瀛?: ${step4.length}鍒梎)
   }
   if (step5.length) {
-    const stepName = stepOrderNames.value[5] || '能力值计算与分级'
-    groups.push({ key: 'step_5', name: `步骤5 ${stepName}`, columns: step5 })
-    console.log(`  + 步骤5 ${stepName}(关键字): ${step5.length}列`)
+    const stepName = stepOrderNames.value[5] || '鑳藉姏鍊艰绠椾笌鍒嗙骇'
+    groups.push({ key: 'step_5', name: `姝ラ5 ${stepName}`, columns: step5 })
+    console.log(`  + 姝ラ5 ${stepName}(鍏抽敭瀛?: ${step5.length}鍒梎)
   }
   
   if (others.length) {
-    groups.push({ key: 'others', name: '其他输出', columns: others })
-    console.log(`  + 其他输出: ${others.length}列`)
+    groups.push({ key: 'others', name: '鍏朵粬杈撳嚭', columns: others })
+    console.log(`  + 鍏朵粬杈撳嚭: ${others.length}鍒梎)
   }
   
-  console.log('\n=== 列分组完成 ===')
+  console.log('\n=== 鍒楀垎缁勫畬鎴?===')
   console.log('Final column groups summary:', groups.map(g => ({ 
     key: g.key, 
     name: g.name, 
@@ -589,18 +573,17 @@ const columnGroups = computed<ColumnGroup[]>(() => {
   return groups
 })
 
-// 计算对话框标题
-const dialogTitle = computed(() => {
+// 璁＄畻瀵硅瘽妗嗘爣棰?const dialogTitle = computed(() => {
   if (props.resultData?.isMultiStep) {
-    return '算法步骤执行结果'
+    return '绠楁硶姝ラ鎵ц缁撴灉'
   }
   if (props.stepInfo) {
-    return `${props.stepInfo.stepName} - 计算结果`
+    return `${props.stepInfo.stepName} - 璁＄畻缁撴灉`
   }
-  return '计算结果'
+  return '璁＄畻缁撴灉'
 })
 
-// 当前步骤数据
+// 褰撳墠姝ラ鏁版嵁
 const currentStepData = computed(() => {
   if (!props.resultData?.isMultiStep || !props.resultData.stepResults) {
     return null
@@ -610,7 +593,7 @@ const currentStepData = computed(() => {
     return null
   }
   
-  // 确保返回的数据包含 tableData 字段
+  // 纭繚杩斿洖鐨勬暟鎹寘鍚?tableData 瀛楁
   console.log('Current step result:', {
     stepOrder: stepResult.stepOrder,
     stepName: stepResult.stepName,
@@ -621,7 +604,7 @@ const currentStepData = computed(() => {
   return stepResult
 })
 
-// 过滤后的列（按分组顺序展现）
+// 杩囨护鍚庣殑鍒楋紙鎸夊垎缁勯『搴忓睍鐜帮級
 const filteredColumns = computed(() => {
   const visibleSet = new Set(visibleColumns.value)
   const ordered: ColumnItem[] = []
@@ -632,8 +615,48 @@ const filteredColumns = computed(() => {
   })
   return ordered
 })
+  // 计算当前可见列涉及到的步骤序号集合
+  const visibleStepOrders = computed(() => {
+    const stepOrders = new Set<number>()
+    filteredColumns.value.forEach((c: any) => {
+      if (typeof (c as any).stepOrder === 'number') {
+        stepOrders.add((c as any).stepOrder)
+      }
+    })
+    return stepOrders
+  })
 
-// 监听props变化
+  // 根据可见列推断显示行层级：步骤1->community，其它->township；混合->all
+  const desiredRowLevel = computed<'community' | 'township' | 'all'>(() => {
+    const s = visibleStepOrders.value
+    if (s.size === 0) return 'all'
+    const onlyStep1 = s.size === 1 && s.has(1)
+    if (onlyStep1) return 'community'
+    if (s.has(2) || s.has(3) || s.has(4) || s.has(5) || s.has(6)) return 'township'
+    return 'all'
+  })
+
+  // 过滤表格行：优先依据 _regionLevel；没有则用 _rawRegionCode 是否以 TOWNSHIP_ 开头判断
+  const filteredTableData = computed(() => {
+    const data = (props.resultData?.isMultiStep && currentStepData.value?.tableData)
+      ? currentStepData.value.tableData
+      : (props.resultData?.tableData || [])
+
+    const level = desiredRowLevel.value
+    if (level === 'all') return data
+
+    const isTownship = (row: any) => {
+      if (row && typeof row._regionLevel === 'string') return row._regionLevel === 'township'
+      const raw = row?._rawRegionCode || row?.regionCode || ''
+      return typeof raw === 'string' && raw.startsWith('TOWNSHIP_')
+    }
+
+    return data.filter((row: any) => {
+      return level === 'township' ? isTownship(row) : !isTownship(row)
+    })
+  })
+
+// 鐩戝惉props鍙樺寲
 watch(
   () => props.modelValue,
   (newVal) => {
@@ -646,23 +669,22 @@ watch(
         modelId: props.modelId
       })
       
-      // 初始化列配置（支持单表与多步骤）
+      // 鍒濆鍖栧垪閰嶇疆锛堟敮鎸佸崟琛ㄤ笌澶氭楠わ級
       if (props.resultData?.isMultiStep && props.resultData.stepResults) {
         selectedStepOrder.value = props.resultData.stepResults[0]?.stepOrder || 1
       }
-      // 拉取模型详情以构建后端步骤分组（多步骤和单表格模式都需要）
+      // 鎷夊彇妯″瀷璇︽儏浠ユ瀯寤哄悗绔楠ゅ垎缁勶紙澶氭楠ゅ拰鍗曡〃鏍兼ā寮忛兘闇€瑕侊級
       if (props.modelId) {
         loadModelDetail(props.modelId)
       } else {
-        // 如果没有modelId，直接初始化列
-        initializeColumns()
+        // 濡傛灉娌℃湁modelId锛岀洿鎺ュ垵濮嬪寲鍒?        initializeColumns()
       }
     }
   },
   { immediate: true }
 )
 
-// 监听resultData变化
+// 鐩戝惉resultData鍙樺寲
 watch(
   () => props.resultData,
   (newData) => {
@@ -688,33 +710,31 @@ watch(
       if (newData.tableData.length > 0) {
         console.log('First row data keys:', Object.keys(newData.tableData[0]))
       }
-      // 单表格变化时初始化列
+      // 鍗曡〃鏍煎彉鍖栨椂鍒濆鍖栧垪
       initializeColumns()
     }
   },
   { deep: true, immediate: true }
 )
 
-// 监听visible变化
+// 鐩戝惉visible鍙樺寲
 watch(visible, (newVal) => {
   emit('update:modelValue', newVal)
 })
 
-// 关闭对话框
-const handleClose = () => {
+// 鍏抽棴瀵硅瘽妗?const handleClose = () => {
   visible.value = false
 }
 
-// 处理步骤切换
+// 澶勭悊姝ラ鍒囨崲
 const handleStepChange = (stepOrder: number) => {
   selectedStepOrder.value = stepOrder
   initializeColumns()
 }
 
-// 初始化列配置（通用化：支持多步骤与单表格模式）
+// 鍒濆鍖栧垪閰嶇疆锛堥€氱敤鍖栵細鏀寔澶氭楠や笌鍗曡〃鏍兼ā寮忥級
 const initializeColumns = () => {
-  // 多步骤模式
-  if (props.resultData?.isMultiStep) {
+  // 澶氭楠ゆā寮?  if (props.resultData?.isMultiStep) {
     if (!currentStepData.value?.tableData || currentStepData.value.tableData.length === 0) {
       console.log('No table data available for columns initialization (multi-step)')
       allColumns.value = []
@@ -739,24 +759,22 @@ const initializeColumns = () => {
         visibleColumns: visibleColumns.value.length
       })
       
-      // 初始化下拉框选择：默认全选
-      selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+      // 鍒濆鍖栦笅鎷夋閫夋嫨锛氶粯璁ゅ叏閫?      selectedGroupKeys.value = columnGroups.value.map(g => g.key)
       return
     }
 
-  // 单表格模式
-  if (props.resultData) {
+  // 鍗曡〃鏍兼ā寮?  if (props.resultData) {
     const columnsFromProps = props.resultData.columns || []
     const tableData = props.resultData.tableData || []
 
     if (columnsFromProps.length > 0) {
-      // 直接使用 props.columns，保留已有label/width/formatter/stepOrder
+      // 鐩存帴浣跨敤 props.columns锛屼繚鐣欏凡鏈塴abel/width/formatter/stepOrder
       allColumns.value = columnsFromProps.map(col => ({
         prop: col.prop,
         label: col.label || getColumnLabel(col.prop),
         width: col.width || getColumnWidth(col.prop),
         formatter: col.formatter,
-        stepOrder: (col as any).stepOrder  // 保留 stepOrder 字段
+        stepOrder: (col as any).stepOrder  // 淇濈暀 stepOrder 瀛楁
       }))
       visibleColumns.value = allColumns.value.map(col => col.prop)
       console.log('Columns initialized from props (single-table):', {
@@ -765,8 +783,7 @@ const initializeColumns = () => {
         columnsWithStepOrder: allColumns.value.filter(c => (c as any).stepOrder).length
       })
       
-      // 初始化下拉框选择：默认全选
-      setTimeout(() => {
+      // 鍒濆鍖栦笅鎷夋閫夋嫨锛氶粯璁ゅ叏閫?      setTimeout(() => {
         selectedGroupKeys.value = columnGroups.value.map(g => g.key)
       }, 100)
       return
@@ -779,8 +796,7 @@ const initializeColumns = () => {
       return
     }
 
-    // 从表格数据推断
-    const firstRow = tableData[0]
+    // 浠庤〃鏍兼暟鎹帹鏂?    const firstRow = tableData[0]
     const columns: any[] = []
     console.log('Initializing columns from first row (single-table):', Object.keys(firstRow))
     Object.keys(firstRow).forEach(key => {
@@ -799,8 +815,7 @@ const initializeColumns = () => {
   }
 }
 
-// 加载模型详情并解析每步算法输出参数
-const loadModelDetail = async (modelId: number) => {
+// 鍔犺浇妯″瀷璇︽儏骞惰В鏋愭瘡姝ョ畻娉曡緭鍑哄弬鏁?const loadModelDetail = async (modelId: number) => {
   try {
     console.log('Loading model detail for modelId:', modelId)
     const resp = await modelManagementApi.getModelDetail(modelId)
@@ -825,7 +840,7 @@ const loadModelDetail = async (modelId: number) => {
         
         const outputs = new Set<string>()
         
-        // 方法1: 从 description 字段中的 |ALGORITHMS| 标记解析
+        // 鏂规硶1: 浠?description 瀛楁涓殑 |ALGORITHMS| 鏍囪瑙ｆ瀽
         let algos: any[] = []
         if (typeof step.description === 'string' && step.description.includes('|ALGORITHMS|')) {
           try {
@@ -837,19 +852,19 @@ const loadModelDetail = async (modelId: number) => {
           }
         }
         
-        // 方法2: 从 algorithms 字段直接读取
+        // 鏂规硶2: 浠?algorithms 瀛楁鐩存帴璇诲彇
         if (algos.length === 0 && Array.isArray(step.algorithms)) {
           algos = step.algorithms
           console.log(`Step ${order} algorithms from algorithms field:`, algos.length)
         }
         
-        // 方法3: 从 algorithmConfigs 字段读取
+        // 鏂规硶3: 浠?algorithmConfigs 瀛楁璇诲彇
         if (algos.length === 0 && Array.isArray(step.algorithmConfigs)) {
           algos = step.algorithmConfigs
           console.log(`Step ${order} algorithms from algorithmConfigs:`, algos.length)
         }
         
-        // 提取输出参数
+        // 鎻愬彇杈撳嚭鍙傛暟
         algos.forEach(a => {
           const outputParam = a?.outputParam || a?.output_param || a?.outputParameter
           if (outputParam) {
@@ -858,7 +873,7 @@ const loadModelDetail = async (modelId: number) => {
           }
         })
         
-        // 如果还是没有输出参数，尝试基于步骤名称和关键字推断可能的列名模式
+        // 濡傛灉杩樻槸娌℃湁杈撳嚭鍙傛暟锛屽皾璇曞熀浜庢楠ゅ悕绉板拰鍏抽敭瀛楁帹鏂彲鑳界殑鍒楀悕妯″紡
         if (outputs.size === 0) {
           console.log(`Step ${order} has no explicit output params, will rely on keyword matching`)
         }
@@ -874,68 +889,62 @@ const loadModelDetail = async (modelId: number) => {
       console.log('Step algorithm outputs map:', outputsMap)
       console.log('Step order names map:', namesMap)
       
-      // 模型详情到达后刷新列分组
+      // 妯″瀷璇︽儏鍒拌揪鍚庡埛鏂板垪鍒嗙粍
       initializeColumns()
     }
   } catch (error: any) {
-    console.warn('加载模型详情失败，使用关键字分组作为回退: ', error?.message || error)
-    // 即使失败也要初始化列
+    console.warn('鍔犺浇妯″瀷璇︽儏澶辫触锛屼娇鐢ㄥ叧閿瓧鍒嗙粍浣滀负鍥為€€: ', error?.message || error)
+    // 鍗充娇澶辫触涔熻鍒濆鍖栧垪
     initializeColumns()
   }
 }
 
-// 获取列标签
-const getColumnLabel = (key: string) => {
+// 鑾峰彇鍒楁爣绛?const getColumnLabel = (key: string) => {
   const labelMap: Record<string, string> = {
-    'regionCode': '地区代码',
-    'regionName': '地区名称'
+    'regionCode': '鍦板尯浠ｇ爜',
+    'regionName': '鍦板尯鍚嶇О'
   }
   return labelMap[key] || key
 }
 
-// 获取列宽度
-const getColumnWidth = (key: string) => {
+// 鑾峰彇鍒楀搴?const getColumnWidth = (key: string) => {
   if (key === 'regionCode') return 150
   if (key === 'regionName') return 120
   return 120
 }
 
-// 选中所有列
+// 閫変腑鎵€鏈夊垪
 const selectAllColumns = () => {
   visibleColumns.value = allColumns.value.map(col => col.prop)
-  // 同步更新下拉框：选中所有分组
-  selectedGroupKeys.value = columnGroups.value.map(g => g.key)
-  console.log('✓ 全选：更新下拉框选中', selectedGroupKeys.value)
+  // 鍚屾鏇存柊涓嬫媺妗嗭細閫変腑鎵€鏈夊垎缁?  selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+  console.log('鉁?鍏ㄩ€夛細鏇存柊涓嬫媺妗嗛€変腑', selectedGroupKeys.value)
 }
 
-// 取消选中所有列
+// 鍙栨秷閫変腑鎵€鏈夊垪
 const unselectAllColumns = () => {
-  // 保留必需的列
+  // 淇濈暀蹇呴渶鐨勫垪
   visibleColumns.value = allColumns.value
     .filter(col => col.prop === 'regionCode' || col.prop === 'regionName')
     .map(col => col.prop)
-  // 同步更新下拉框：只选中基础信息分组
+  // 鍚屾鏇存柊涓嬫媺妗嗭細鍙€変腑鍩虹淇℃伅鍒嗙粍
   selectedGroupKeys.value = ['base']
-  console.log('✓ 取消全选：更新下拉框选中', selectedGroupKeys.value)
+  console.log('鉁?鍙栨秷鍏ㄩ€夛細鏇存柊涓嬫媺妗嗛€変腑', selectedGroupKeys.value)
 }
 
-// 重置列显示
-const resetColumns = () => {
+// 閲嶇疆鍒楁樉绀?const resetColumns = () => {
   visibleColumns.value = allColumns.value.map(col => col.prop)
-  // 同步更新下拉框：选中所有分组
-  selectedGroupKeys.value = columnGroups.value.map(g => g.key)
-  console.log('✓ 重置：更新下拉框选中', selectedGroupKeys.value)
+  // 鍚屾鏇存柊涓嬫媺妗嗭細閫変腑鎵€鏈夊垎缁?  selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+  console.log('鉁?閲嶇疆锛氭洿鏂颁笅鎷夋閫変腑', selectedGroupKeys.value)
 }
 
-// 处理下拉框选择变化
+// 澶勭悊涓嬫媺妗嗛€夋嫨鍙樺寲
 const handleGroupSelectionChange = (selectedKeys: string[]) => {
-  console.log('选中的分组:', selectedKeys)
+  console.log('閫変腑鐨勫垎缁?', selectedKeys)
   
-  // 获取所有选中分组的列
+  // 鑾峰彇鎵€鏈夐€変腑鍒嗙粍鐨勫垪
   const selectedCols = new Set<string>()
   
-  // 始终包含基础列
-  selectedCols.add('regionCode')
+  // 濮嬬粓鍖呭惈鍩虹鍒?  selectedCols.add('regionCode')
   selectedCols.add('regionName')
   
   selectedKeys.forEach(key => {
@@ -946,10 +955,10 @@ const handleGroupSelectionChange = (selectedKeys: string[]) => {
   })
   
   visibleColumns.value = Array.from(selectedCols)
-  console.log('更新后的可见列:', visibleColumns.value.length)
+  console.log('鏇存柊鍚庣殑鍙鍒?', visibleColumns.value.length)
 }
 
-// 选择/取消某一分组
+// 閫夋嫨/鍙栨秷鏌愪竴鍒嗙粍
 const selectGroupColumns = (groupKey: string) => {
   const group = columnGroups.value.find(g => g.key === groupKey)
   if (!group) return
@@ -957,7 +966,7 @@ const selectGroupColumns = (groupKey: string) => {
   group.columns.forEach(c => current.add(c.prop))
   visibleColumns.value = Array.from(current)
   
-  // 同步更新下拉框选中
+  // 鍚屾鏇存柊涓嬫媺妗嗛€変腑
   if (!selectedGroupKeys.value.includes(groupKey)) {
     selectedGroupKeys.value.push(groupKey)
   }
@@ -973,70 +982,65 @@ const unselectGroupColumns = (groupKey: string) => {
   )
   const current = new Set(visibleColumns.value)
   group.columns.forEach(c => current.delete(c.prop))
-  // 保留基础列
-  retain.forEach(r => current.add(r))
+  // 淇濈暀鍩虹鍒?  retain.forEach(r => current.add(r))
   visibleColumns.value = Array.from(current)
   
-  // 同步更新下拉框选中
+  // 鍚屾鏇存柊涓嬫媺妗嗛€変腑
   const index = selectedGroupKeys.value.indexOf(groupKey)
   if (index > -1) {
     selectedGroupKeys.value.splice(index, 1)
   }
 }
 
-// 导出结果
+// 瀵煎嚭缁撴灉
 const exportResults = () => {
   if (!props.resultData) {
-    ElMessage.warning('暂无数据可导出')
+    ElMessage.warning('鏆傛棤鏁版嵁鍙鍑?)
     return
   }
 
   try {
-    // 构建CSV内容
+    // 鏋勫缓CSV鍐呭
     const csvContent = buildCSVContent()
     
-    // 创建下载链接
+    // 鍒涘缓涓嬭浇閾炬帴
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
     
-    // 生成文件名
-    const fileName = `${props.stepInfo?.stepName || '计算结果'}_${new Date().toISOString().slice(0, 10)}.csv`
+    // 鐢熸垚鏂囦欢鍚?    const fileName = `${props.stepInfo?.stepName || '璁＄畻缁撴灉'}_${new Date().toISOString().slice(0, 10)}.csv`
     link.setAttribute('download', fileName)
     
-    // 触发下载
+    // 瑙﹀彂涓嬭浇
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     
-    ElMessage.success('导出成功')
+    ElMessage.success('瀵煎嚭鎴愬姛')
     emit('export', props.resultData)
   } catch (error) {
-    console.error('导出失败:', error)
-    ElMessage.error('导出失败')
+    console.error('瀵煎嚭澶辫触:', error)
+    ElMessage.error('瀵煎嚭澶辫触')
   }
 }
 
-// 生成专题图
-const generateThematicMap = () => {
+// 鐢熸垚涓撻鍥?const generateThematicMap = () => {
   if (!props.resultData) {
-    ElMessage.warning('暂无数据可生成专题图')
+    ElMessage.warning('鏆傛棤鏁版嵁鍙敓鎴愪笓棰樺浘')
     return
   }
 
   try {
-    // 从resultData中提取数据
-    const { tableData, columns, summary } = props.resultData
+    // 浠巖esultData涓彁鍙栨暟鎹?    const { tableData, columns, summary } = props.resultData
     
-    // 构建专题图数据，匹配ThematicMap.vue期望的数据结构
-    const thematicData = {
-      id: Date.now(), // 生成唯一ID
-      regionName: props.stepInfo?.stepName || '评估区域',
+    // 鏋勫缓涓撻鍥炬暟鎹紝鍖归厤ThematicMap.vue鏈熸湜鐨勬暟鎹粨鏋?    const thematicData = {
+      id: Date.now(), // 鐢熸垚鍞竴ID
+      regionName: props.stepInfo?.stepName || '璇勪及鍖哄煙',
       evaluationTime: new Date().toLocaleString('zh-CN'),
       algorithm: props.stepInfo?.stepCode || 'default',
-      totalScore: summary?.总分 || summary?.平均分 || '未知',
+      totalScore: summary?.鎬诲垎 || summary?.骞冲潎鍒?|| '鏈煡',
       stepInfo: props.stepInfo,
       formula: props.formula,
       resultData: props.resultData,
@@ -1047,54 +1051,52 @@ const generateThematicMap = () => {
       source: 'evaluation_calculation'
     }
     
-    console.log('存储专题图数据:', thematicData)
+    console.log('瀛樺偍涓撻鍥炬暟鎹?', thematicData)
     
-    // 将数据存储到 sessionStorage
+    // 灏嗘暟鎹瓨鍌ㄥ埌 sessionStorage
     sessionStorage.setItem('thematicMapData', JSON.stringify(thematicData))
     
-    // 跳转到专题图页面
+    // 璺宠浆鍒颁笓棰樺浘椤甸潰
     router.push('/thematic-map')
     
-    ElMessage.success('正在跳转到专题图页面...')
+    ElMessage.success('姝ｅ湪璺宠浆鍒颁笓棰樺浘椤甸潰...')
   } catch (error) {
-    console.error('生成专题图失败:', error)
-    ElMessage.error('生成专题图失败')
+    console.error('鐢熸垚涓撻鍥惧け璐?', error)
+    ElMessage.error('鐢熸垚涓撻鍥惧け璐?)
   }
 }
 
-// 构建CSV内容
+// 鏋勫缓CSV鍐呭
 const buildCSVContent = (): string => {
   if (!props.resultData) return ''
   
   const lines: string[] = []
   
-  // 添加步骤信息
+  // 娣诲姞姝ラ淇℃伅
   if (props.stepInfo) {
-    lines.push(`步骤名称,${props.stepInfo.stepName}`)
-    lines.push(`步骤描述,${props.stepInfo.description}`)
+    lines.push(`姝ラ鍚嶇О,${props.stepInfo.stepName}`)
+    lines.push(`姝ラ鎻忚堪,${props.stepInfo.description}`)
     lines.push('')
   }
   
-  // 添加公式
+  // 娣诲姞鍏紡
   if (props.formula) {
-    lines.push(`计算公式,${props.formula}`)
+    lines.push(`璁＄畻鍏紡,${props.formula}`)
     lines.push('')
   }
   
   if (props.resultData.isDualTable) {
-    // 双表格数据导出
-    const { table1Data, table1Columns, table1Summary, table2Data, table2Columns, table2Summary } = props.resultData
+    // 鍙岃〃鏍兼暟鎹鍑?    const { table1Data, table1Columns, table1Summary, table2Data, table2Columns, table2Summary } = props.resultData
     
-    // 表格1
+    // 琛ㄦ牸1
     if (table1Data && table1Columns) {
-      lines.push('一级指标权重计算')
+      lines.push('涓€绾ф寚鏍囨潈閲嶈绠?)
       
-      // 表格1表头
+      // 琛ㄦ牸1琛ㄥご
       const headers1 = table1Columns.map(col => col.label).join(',')
       lines.push(headers1)
       
-      // 表格1数据行
-      table1Data.forEach(row => {
+      // 琛ㄦ牸1鏁版嵁琛?      table1Data.forEach(row => {
         const values = table1Columns.map(col => {
           const value = row[col.prop]
           return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
@@ -1102,10 +1104,10 @@ const buildCSVContent = (): string => {
         lines.push(values.join(','))
       })
       
-      // 表格1统计信息
+      // 琛ㄦ牸1缁熻淇℃伅
       if (table1Summary) {
         lines.push('')
-        lines.push('表格1统计信息')
+        lines.push('琛ㄦ牸1缁熻淇℃伅')
         Object.entries(table1Summary).forEach(([key, value]) => {
           lines.push(`${key},${value}`)
         })
@@ -1115,16 +1117,15 @@ const buildCSVContent = (): string => {
       lines.push('')
     }
     
-    // 表格2
+    // 琛ㄦ牸2
     if (table2Data && table2Columns) {
-      lines.push('乡镇减灾能力权重计算')
+      lines.push('涔￠晣鍑忕伨鑳藉姏鏉冮噸璁＄畻')
       
-      // 表格2表头
+      // 琛ㄦ牸2琛ㄥご
       const headers2 = table2Columns.map(col => col.label).join(',')
       lines.push(headers2)
       
-      // 表格2数据行
-      table2Data.forEach(row => {
+      // 琛ㄦ牸2鏁版嵁琛?      table2Data.forEach(row => {
         const values = table2Columns.map(col => {
           const value = row[col.prop]
           return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
@@ -1132,26 +1133,24 @@ const buildCSVContent = (): string => {
         lines.push(values.join(','))
       })
       
-      // 表格2统计信息
+      // 琛ㄦ牸2缁熻淇℃伅
       if (table2Summary) {
         lines.push('')
-        lines.push('表格2统计信息')
+        lines.push('琛ㄦ牸2缁熻淇℃伅')
         Object.entries(table2Summary).forEach(([key, value]) => {
           lines.push(`${key},${value}`)
         })
       }
     }
   } else {
-    // 单表格数据导出（原有逻辑）
-    const { tableData, columns, summary } = props.resultData
+    // 鍗曡〃鏍兼暟鎹鍑猴紙鍘熸湁閫昏緫锛?    const { tableData, columns, summary } = props.resultData
     
     if (tableData && columns) {
-      // 添加表头
+      // 娣诲姞琛ㄥご
       const headers = columns.map(col => col.label).join(',')
       lines.push(headers)
       
-      // 添加数据行
-      tableData.forEach(row => {
+      // 娣诲姞鏁版嵁琛?      tableData.forEach(row => {
         const values = columns.map(col => {
           const value = row[col.prop]
           return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
@@ -1159,10 +1158,10 @@ const buildCSVContent = (): string => {
         lines.push(values.join(','))
       })
       
-      // 添加统计信息
+      // 娣诲姞缁熻淇℃伅
       if (summary) {
         lines.push('')
-        lines.push('统计信息')
+        lines.push('缁熻淇℃伅')
         Object.entries(summary).forEach(([key, value]) => {
           lines.push(`${key},${value}`)
         })
@@ -1478,7 +1477,7 @@ const buildCSVContent = (): string => {
   margin-bottom: 8px;
 }
 
-/* 响应式设计 */
+/* 鍝嶅簲寮忚璁?*/
 @media (max-width: 768px) {
   .result-dialog {
     .summary-grid {
