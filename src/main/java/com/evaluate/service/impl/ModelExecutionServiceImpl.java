@@ -57,6 +57,12 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     @Autowired
     private ISurveyDataService surveyDataService;
 
+    @Autowired
+    private ModelExecutionRecordMapper modelExecutionRecordMapper;
+
+    @Autowired
+    private EvaluationResultMapper evaluationResultMapper;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -153,11 +159,20 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 生成二维表数据
         List<Map<String, Object>> tableData = generateResultTable(
                 Collections.singletonMap("stepResults", stepResults));
-        
+
         // 生成 columns 数组（包含所有步骤的 stepOrder 信息）
         List<Map<String, Object>> columns = generateColumnsWithAllSteps(tableData, stepOutputParams);
 
-        // 6. 构建最终结果
+        // 6. 保存执行记录和评估结果
+        Long executionRecordId = saveExecutionRecordAndResults(
+                modelId,
+                model.getModelName(),
+                currentRegionCodes,
+                weightConfigId,
+                stepResults,
+                tableData);
+
+        // 7. 构建最终结果
         Map<String, Object> result = new HashMap<>();
         result.put("modelId", modelId);
         result.put("modelName", model.getModelName());
@@ -166,8 +181,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         result.put("tableData", tableData);
         result.put("columns", columns);
         result.put("success", true);
+        result.put("executionRecordId", executionRecordId);
 
-        log.info("评估模型执行完成");
+        log.info("评估模型执行完成，执行记录ID: {}", executionRecordId);
         return result;
     }
 
@@ -1541,5 +1557,151 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
         log.warn("无法转换为Double的类型: {}", value.getClass());
         return 0.0;
+    }
+
+    /**
+     * 保存执行记录和评估结果
+     *
+     * @param modelId 模型ID
+     * @param modelName 模型名称
+     * @param regionCodes 地区代码列表
+     * @param weightConfigId 权重配置ID
+     * @param stepResults 步骤执行结果
+     * @param tableData 二维表数据
+     * @return 执行记录ID
+     */
+    private Long saveExecutionRecordAndResults(
+            Long modelId,
+            String modelName,
+            List<String> regionCodes,
+            Long weightConfigId,
+            Map<String, Object> stepResults,
+            List<Map<String, Object>> tableData) {
+
+        try {
+            java.time.LocalDateTime startTime = java.time.LocalDateTime.now();
+
+            // 1. 创建执行记录
+            ModelExecutionRecord executionRecord = new ModelExecutionRecord();
+            executionRecord.setModelId(modelId);
+            executionRecord.setExecutionCode("EXEC_" + System.currentTimeMillis());
+            executionRecord.setRegionIds(String.join(",", regionCodes));
+            executionRecord.setWeightConfigId(weightConfigId);
+            executionRecord.setExecutionStatus("SUCCESS");
+            executionRecord.setStartTime(startTime);
+            executionRecord.setEndTime(java.time.LocalDateTime.now());
+            executionRecord.setResultCount(tableData.size());
+
+            // 生成结果摘要
+            StringBuilder summary = new StringBuilder();
+            summary.append("模型: ").append(modelName).append("; ");
+            summary.append("地区数: ").append(regionCodes.size()).append("; ");
+            summary.append("评估结果数: ").append(tableData.size());
+            executionRecord.setResultSummary(summary.toString());
+
+            // 保存执行记录
+            modelExecutionRecordMapper.insert(executionRecord);
+            Long executionRecordId = executionRecord.getId();
+            log.info("保存执行记录成功，ID: {}", executionRecordId);
+
+            // 2. 提取并保存评估结果（8个字段：4个评分+4个级别）
+            List<EvaluationResult> evaluationResults = new ArrayList<>();
+
+            // 确定数据源类型
+            String dataSource = (modelId == 3) ? "survey_data" : "community_disaster_reduction_capacity";
+
+            for (Map<String, Object> row : tableData) {
+                EvaluationResult result = new EvaluationResult();
+
+                // 基本信息
+                String regionCode = (String) row.get("regionCode");
+                String regionName = (String) row.get("regionName");
+
+                if (regionCode == null || regionCode.isEmpty()) {
+                    log.warn("跳过无效的地区记录: {}", row);
+                    continue;
+                }
+
+                result.setRegionCode(regionCode);
+                result.setRegionName(regionName != null ? regionName : regionCode);
+                result.setEvaluationModelId(modelId);
+                result.setDataSource(dataSource);
+                result.setExecutionRecordId(executionRecordId);
+
+                // 提取8个评估字段（评分和级别）
+                result.setManagementCapabilityScore(toBigDecimal(row.get("management_capability_score")));
+                result.setSupportCapabilityScore(toBigDecimal(row.get("support_capability_score")));
+                result.setSelfRescueCapabilityScore(toBigDecimal(row.get("self_rescue_capability_score")));
+                result.setComprehensiveCapabilityScore(toBigDecimal(row.get("comprehensive_capability_score")));
+
+                result.setManagementCapabilityLevel(toString(row.get("management_capability_level")));
+                result.setSupportCapabilityLevel(toString(row.get("support_capability_level")));
+                result.setSelfRescueCapabilityLevel(toString(row.get("self_rescue_capability_level")));
+                result.setComprehensiveCapabilityLevel(toString(row.get("comprehensive_capability_level")));
+
+                evaluationResults.add(result);
+            }
+
+            // 批量保存评估结果
+            if (!evaluationResults.isEmpty()) {
+                for (EvaluationResult result : evaluationResults) {
+                    evaluationResultMapper.insert(result);
+                }
+                log.info("批量保存评估结果成功，共 {} 条", evaluationResults.size());
+
+                // 收集结果ID列表
+                List<Long> resultIds = evaluationResults.stream()
+                        .map(EvaluationResult::getId)
+                        .collect(Collectors.toList());
+
+                // 更新执行记录的结果ID列表
+                String resultIdsStr = resultIds.stream()
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(","));
+                executionRecord.setResultIds(resultIdsStr);
+                modelExecutionRecordMapper.updateById(executionRecord);
+            }
+
+            return executionRecordId;
+
+        } catch (Exception e) {
+            log.error("保存执行记录和评估结果失败: {}", e.getMessage(), e);
+            throw new RuntimeException("保存执行记录和评估结果失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 将对象转换为BigDecimal
+     */
+    private java.math.BigDecimal toBigDecimal(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof java.math.BigDecimal) {
+            return (java.math.BigDecimal) value;
+        }
+        if (value instanceof Number) {
+            return java.math.BigDecimal.valueOf(((Number) value).doubleValue());
+        }
+        if (value instanceof String) {
+            try {
+                return new java.math.BigDecimal((String) value);
+            } catch (NumberFormatException e) {
+                log.warn("无法将字符串转换为BigDecimal: {}", value);
+                return null;
+            }
+        }
+        log.warn("无法转换为BigDecimal的类型: {}", value.getClass());
+        return null;
+    }
+
+    /**
+     * 将对象转换为String
+     */
+    private String toString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return value.toString();
     }
 }
