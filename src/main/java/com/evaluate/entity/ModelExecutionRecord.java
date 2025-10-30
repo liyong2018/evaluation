@@ -43,6 +43,7 @@ public class ModelExecutionRecord implements Serializable {
 
     private String resultIds;
 
+    @TableField(exist = false)
     private Integer resultCount;
 
     private String createBy;
