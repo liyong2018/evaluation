@@ -435,6 +435,7 @@ const activeTab = ref('steps')
 const selectedModelId = ref<number | null>(null)
 const selectedStepId = ref<number | null>(null)
 const currentStepName = ref('')
+const currentModelInfo = ref<any>(null) // 保存当前模型的完整信息
 
 // 算法编辑器状态
 const selectedInputColumn = ref('')
@@ -456,19 +457,66 @@ const finalStepOutputParams = [
   { label: '综合减灾能力级别', value: 'comprehensive_capability_level' }
 ]
 
+// 乡镇数据表字段 (survey_data)
+const townshipDataFields = [
+  'province', 'city', 'county', 'township',
+  'population', 'managementStaff', 'riskAssessment',
+  'fundingAmount', 'materialValue', 'hospitalBeds',
+  'firefighters', 'volunteers', 'militiaReserve'
+]
+
+// 社区数据表字段 (community_disaster_reduction_capacity)
+const communityDataFields = [
+  'provinceName', 'cityName', 'countyName', 'townshipName', 'communityName',
+  'residentPopulation', 'hasEmergencyPlan', 'hasVulnerableGroupsList',
+  'lastYearFundingAmount', 'materialsEquipmentValue', 'medicalServiceCount',
+  'registeredVolunteerCount', 'militiaReserveCount'
+]
+
 // 可用的输入列（从上一步的输出参数获取）
 const availableInputColumns = computed(() => {
-  if (!selectedStepId.value || currentAlgorithms.value.length === 0) {
+  if (!selectedStepId.value) {
     return []
   }
 
-  // 获取当前步骤的所有已定义算法的输出参数
-  const outputParams = currentAlgorithms.value
-    .filter(algo => algo.outputParam)
-    .map(algo => algo.outputParam)
+  // 找到当前步骤
+  const currentStep = currentSteps.value.find(s => s.id === selectedStepId.value)
+  if (!currentStep) {
+    return []
+  }
 
-  // 获取前序步骤的输出参数（这里简化处理，实际应该查询前序步骤）
-  return outputParams
+  // 找到上一步骤（stepOrder 小于当前步骤的最大那个）
+  const previousSteps = currentSteps.value
+    .filter(s => s.stepOrder < currentStep.stepOrder)
+    .sort((a, b) => b.stepOrder - a.stepOrder)
+
+  if (previousSteps.length === 0) {
+    // 如果是第一步，返回数据表字段
+    const modelCode = currentModelInfo.value?.modelCode || ''
+    const isTownshipModel = modelCode.toUpperCase().includes('TOWNSHIP') ||
+                           modelCode.toUpperCase().includes('乡镇')
+
+    return isTownshipModel ? townshipDataFields : communityDataFields
+  }
+
+  // 获取上一步骤的输出参数
+  const previousStep = previousSteps[0]
+
+  // 从步骤描述中解析算法列表
+  if (previousStep.description && previousStep.description.includes('|ALGORITHMS|')) {
+    try {
+      const algoJson = previousStep.description.split('|ALGORITHMS|')[1]
+      const algorithms = JSON.parse(algoJson)
+      const outputParams = algorithms
+        .filter((algo: any) => algo.outputParam)
+        .map((algo: any) => algo.outputParam)
+      return outputParams
+    } catch (e) {
+      return []
+    }
+  }
+
+  return []
 })
 
 // 加载模型列表
@@ -553,8 +601,9 @@ const deleteModel = (model: any) => {
 // 查看模型详情
 const viewModelDetail = async (model: any) => {
   selectedModelId.value = model.id
+  currentModelInfo.value = model // 保存当前模型信息
   loading.value = true
-  
+
   try {
     const response = await request.get(`/api/model-management/models/${model.id}/detail`)
     if (response.success) {
@@ -741,27 +790,48 @@ const insertFunction = async () => {
 
   await nextTick()
   const textarea = expressionInput.value?.$el?.querySelector('textarea')
-  const functionTemplate = selectedFunction.value
+  const functionName = selectedFunction.value.replace(':', '') // 去掉冒号
 
   if (!textarea) {
-    currentAlgorithm.value.qlExpression += functionTemplate
+    // 如果没有textarea，将整个表达式包裹
+    const existingExpression = currentAlgorithm.value.qlExpression || ''
+    if (existingExpression) {
+      currentAlgorithm.value.qlExpression = `${functionName}(${existingExpression})`
+    } else {
+      currentAlgorithm.value.qlExpression = `${functionName}()`
+    }
     return
   }
 
   const start = textarea.selectionStart
   const end = textarea.selectionEnd
   const text = currentAlgorithm.value.qlExpression || ''
+  const selectedText = text.substring(start, end)
 
-  currentAlgorithm.value.qlExpression =
-    text.substring(0, start) +
-    functionTemplate +
-    text.substring(end)
+  if (selectedText) {
+    // 如果有选中文本，将函数包裹在选中文本外面
+    currentAlgorithm.value.qlExpression =
+      text.substring(0, start) +
+      `${functionName}(${selectedText})` +
+      text.substring(end)
 
-  await nextTick()
-  const newPos = start + functionTemplate.length
-  textarea.setSelectionRange(newPos, newPos)
+    await nextTick()
+    const newPos = start + functionName.length + selectedText.length + 2
+    textarea.setSelectionRange(newPos, newPos)
+  } else {
+    // 如果没有选中文本，插入函数模板
+    currentAlgorithm.value.qlExpression =
+      text.substring(0, start) +
+      `${functionName}()` +
+      text.substring(end)
+
+    await nextTick()
+    // 将光标放在括号内
+    const newPos = start + functionName.length + 1
+    textarea.setSelectionRange(newPos, newPos)
+  }
+
   textarea.focus()
-
   selectedFunction.value = ''
   expressionValid.value = null
 }
