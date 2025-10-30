@@ -155,7 +155,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 Collections.singletonMap("stepResults", stepResults));
         
         // 生成 columns 数组（包含所有步骤的 stepOrder 信息）
-        List<Map<String, Object>> columns = generateColumnsWithAllSteps(tableData, stepOutputParams);
+        List<Map<String, Object>> columns = generateColumnsWithAllStepsV2(tableData, stepOutputParams);
 
         // 6. 构建最终结果
         Map<String, Object> result = new HashMap<>();
@@ -450,6 +450,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 // 这是乡镇聚合后的虚拟代码
                 townshipName = regionCode.substring("TOWNSHIP_".length());
                 regionName = townshipName;
+                // 乡镇行的 regionCode 直接展示中文名称，避免显示 TOWNSHIP_ 前缀
+                row.put("regionCode", regionName);
                 
                 // 从步骤结果中获取保存的乡镇信息
                 for (Map.Entry<String, Map<String, Object>> stepEntry : stepResults.entrySet()) {
@@ -1304,6 +1306,56 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         return columns;
     }
 
+    // 新版：扫描所有行，合并列，再根据 stepOutputParams 反标记 stepOrder，避免首行不包含全部步骤列导致缺失
+    private List<Map<String, Object>> generateColumnsWithAllStepsV2(
+            List<Map<String, Object>> tableData,
+            Map<Integer, List<String>> stepOutputParams) {
+        List<Map<String, Object>> columns = new ArrayList<>();
+        if (tableData == null || tableData.isEmpty()) {
+            return columns;
+        }
+
+        // 基础列
+        Set<String> baseColumns = new LinkedHashSet<>(Arrays.asList("regionCode", "regionName", "region"));
+
+        // 列到步骤序号
+        Map<String, Integer> columnToStepOrder = new HashMap<>();
+        for (Map.Entry<Integer, List<String>> e : stepOutputParams.entrySet()) {
+            Integer stepOrder = e.getKey();
+            for (String name : e.getValue()) {
+                columnToStepOrder.put(name, stepOrder);
+            }
+        }
+
+        // 收集所有列（保留首次出现顺序）
+        LinkedHashSet<String> allColumnsOrdered = new LinkedHashSet<>();
+        for (Map<String, Object> row : tableData) {
+            allColumnsOrdered.addAll(row.keySet());
+        }
+
+        for (String columnName : allColumnsOrdered) {
+            Map<String, Object> col = new LinkedHashMap<>();
+            col.put("prop", columnName);
+            col.put("label", columnName);
+
+            if ("regionCode".equals(columnName)) {
+                col.put("width", 150);
+            } else if ("regionName".equals(columnName) || "region".equals(columnName)) {
+                col.put("width", 120);
+            } else {
+                col.put("width", 120);
+                Integer stepOrder = columnToStepOrder.get(columnName);
+                if (stepOrder != null) {
+                    col.put("stepOrder", stepOrder);
+                }
+            }
+
+            columns.add(col);
+        }
+
+        return columns;
+    }
+
     /**
      * 从表格数据生成 columns 数组，并为非基础列添加 stepOrder
      * 
@@ -1486,7 +1538,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 }
                 
                 // 计算平均值
-                double average = validCount > 0 ? sum / communityCount : 0.0;
+                double average = validCount > 0 ? sum / validCount : 0.0;
                 
                 // 格式化为8位小数
                 average = Double.parseDouble(String.format("%.8f", average));
