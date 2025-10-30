@@ -457,20 +457,23 @@ const finalStepOutputParams = [
   { label: '综合减灾能力级别', value: 'comprehensive_capability_level' }
 ]
 
-// 乡镇数据表字段 (survey_data)
+// 乡镇数据表字段 (survey_data) - 使用下划线命名与数据库字段一致
 const townshipDataFields = [
   'province', 'city', 'county', 'township',
-  'population', 'managementStaff', 'riskAssessment',
-  'fundingAmount', 'materialValue', 'hospitalBeds',
-  'firefighters', 'volunteers', 'militiaReserve'
+  'population', 'management_staff', 'risk_assessment',
+  'funding_amount', 'material_value', 'hospital_beds',
+  'firefighters', 'volunteers', 'militia_reserve'
 ]
 
-// 社区数据表字段 (community_disaster_reduction_capacity)
+// 社区数据表字段 (community_disaster_reduction_capacity) - 使用下划线命名与数据库字段一致
 const communityDataFields = [
-  'provinceName', 'cityName', 'countyName', 'townshipName', 'communityName',
-  'residentPopulation', 'hasEmergencyPlan', 'hasVulnerableGroupsList',
-  'lastYearFundingAmount', 'materialsEquipmentValue', 'medicalServiceCount',
-  'registeredVolunteerCount', 'militiaReserveCount'
+  'province_name', 'city_name', 'county_name', 'township_name', 'community_name',
+  'resident_population', 'has_emergency_plan', 'has_vulnerable_groups_list',
+  'has_disaster_points_list', 'has_disaster_map',
+  'last_year_funding_amount', 'materials_equipment_value', 'medical_service_count',
+  'registered_volunteer_count', 'militia_reserve_count',
+  'last_year_training_participants', 'last_year_drill_participants',
+  'emergency_shelter_capacity'
 ]
 
 // 可用的输入列（从上一步的输出参数获取）
@@ -491,10 +494,12 @@ const availableInputColumns = computed(() => {
     .sort((a, b) => b.stepOrder - a.stepOrder)
 
   if (previousSteps.length === 0) {
-    // 如果是第一步，返回数据表字段
-    const modelCode = currentModelInfo.value?.modelCode || ''
-    const isTownshipModel = modelCode.toUpperCase().includes('TOWNSHIP') ||
-                           modelCode.toUpperCase().includes('乡镇')
+    // 如果是第一步，根据modelId返回对应数据表字段
+    const modelId = currentModelInfo.value?.id
+
+    // modelId=3: 乡镇模型使用survey_data
+    // modelId=4,8: 社区模型使用community_disaster_reduction_capacity
+    const isTownshipModel = modelId === 3
 
     return isTownshipModel ? townshipDataFields : communityDataFields
   }
