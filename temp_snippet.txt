@@ -1,9 +1,0 @@
- qlExpressService;
-
-    @Autowired
-    private SpecialAlgorithmService specialAlgorithmService;
-
-    @Autowired
-    private ISurveyDataService surveyDataService;
-
-    private final ObjectMappe
