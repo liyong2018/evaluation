@@ -1625,6 +1625,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
     /**
      * 从stepResults中提取评估结果
+     * 直接从stepResults的最后一步中提取数据，使用输出参数名（output_param）
      */
     private List<EvaluationResult> extractEvaluationResults(
             Long modelId,
@@ -1636,140 +1637,142 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // data_source字段限制为varchar(20)，使用简短标识
         String dataSource = (modelId == 3) ? "township" : "community";
 
-        // 从tableData中获取地区信息和所有输出参数
-        for (Map<String, Object> row : tableData) {
-            String regionCode = (String) row.get("regionCode");
-            String regionName = (String) row.get("regionName");
+        // 获取最后一个步骤的结果（包含所有地区的最终评估结果）
+        Map<String, Object> lastStepResult = null;
+        for (Map.Entry<String, Object> entry : stepResults.entrySet()) {
+            if (entry.getKey().startsWith("step_")) {
+                lastStepResult = (Map<String, Object>) entry.getValue();
+                log.debug("检查步骤: {}", entry.getKey());
+            }
+        }
 
-            if (regionCode == null || regionCode.isEmpty()) {
-                log.warn("跳过无效的地区记录: {}", row);
-                continue;
+        if (lastStepResult == null) {
+            log.warn("未找到步骤结果");
+            return results;
+        }
+
+        // 从最后一步的regionResults中提取数据
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> regionResults =
+                (Map<String, Map<String, Object>>) lastStepResult.get("regionResults");
+
+        if (regionResults == null) {
+            log.warn("未找到regionResults");
+            return results;
+        }
+
+        log.info("开始提取评估结果，共 {} 个地区", regionResults.size());
+
+        // 遍历每个地区的结果
+        for (Map.Entry<String, Map<String, Object>> regionEntry : regionResults.entrySet()) {
+            String regionCode = regionEntry.getKey();
+            Map<String, Object> outputs = regionEntry.getValue();
+
+            // 打印该地区的所有输出参数，便于调试
+            log.info("=== 地区 {} 的输出参数 ===", regionCode);
+            for (Map.Entry<String, Object> output : outputs.entrySet()) {
+                log.info("  参数: {} = {}", output.getKey(), output.getValue());
             }
 
-            // 记录row中的所有key，用于调试
-            log.debug("地区 {} 的row keys: {}", regionCode, row.keySet());
+            // 获取地区名称
+            String regionName = getRegionName(regionCode);
 
             EvaluationResult result = new EvaluationResult();
             result.setRegionCode(regionCode);
-            result.setRegionName(regionName != null ? regionName : regionCode);
+            result.setRegionName(regionName);
             result.setEvaluationModelId(modelId);
             result.setDataSource(dataSource);
             result.setExecutionRecordId(executionRecordId);
 
-            // 尝试多种可能的字段名格式提取8个评估字段
-            // 优先尝试下划线格式，然后尝试驼峰格式
+            // 直接使用输出参数名提取数据
+            // 根据数据库设计，这些应该是算法配置中的output_param字段值
             result.setManagementCapabilityScore(
-                    getDecimalValue(row, "management_capability_score", "managementCapabilityScore"));
+                    getDecimalValueFromMap(outputs, "MANAGEMENT_CAPABILITY_SCORE", "management_capability_score"));
             result.setSupportCapabilityScore(
-                    getDecimalValue(row, "support_capability_score", "supportCapabilityScore"));
+                    getDecimalValueFromMap(outputs, "SUPPORT_CAPABILITY_SCORE", "support_capability_score"));
             result.setSelfRescueCapabilityScore(
-                    getDecimalValue(row, "self_rescue_capability_score", "selfRescueCapabilityScore"));
+                    getDecimalValueFromMap(outputs, "SELF_RESCUE_CAPABILITY_SCORE", "self_rescue_capability_score"));
             result.setComprehensiveCapabilityScore(
-                    getDecimalValue(row, "comprehensive_capability_score", "comprehensiveCapabilityScore"));
+                    getDecimalValueFromMap(outputs, "COMPREHENSIVE_CAPABILITY_SCORE", "comprehensive_capability_score"));
 
             result.setManagementCapabilityLevel(
-                    getStringValue(row, "management_capability_level", "managementCapabilityLevel"));
+                    getStringValueFromMap(outputs, "MANAGEMENT_CAPABILITY_LEVEL", "management_capability_level"));
             result.setSupportCapabilityLevel(
-                    getStringValue(row, "support_capability_level", "supportCapabilityLevel"));
+                    getStringValueFromMap(outputs, "SUPPORT_CAPABILITY_LEVEL", "support_capability_level"));
             result.setSelfRescueCapabilityLevel(
-                    getStringValue(row, "self_rescue_capability_level", "selfRescueCapabilityLevel"));
+                    getStringValueFromMap(outputs, "SELF_RESCUE_CAPABILITY_LEVEL", "self_rescue_capability_level"));
             result.setComprehensiveCapabilityLevel(
-                    getStringValue(row, "comprehensive_capability_level", "comprehensiveCapabilityLevel"));
+                    getStringValueFromMap(outputs, "COMPREHENSIVE_CAPABILITY_LEVEL", "comprehensive_capability_level"));
 
             results.add(result);
         }
 
+        log.info("评估结果提取完成，共 {} 条记录", results.size());
         return results;
     }
 
     /**
-     * 从row中获取BigDecimal值，尝试多个可能的key
+     * 获取地区名称
      */
-    private java.math.BigDecimal getDecimalValue(Map<String, Object> row, String... keys) {
-        // 1. 先尝试精确匹配
+    private String getRegionName(String regionCode) {
+        // 检查是否是乡镇虚拟代码
+        if (regionCode.startsWith("TOWNSHIP_")) {
+            return regionCode.substring("TOWNSHIP_".length());
+        }
+
+        // 尝试从community表获取
+        QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+        communityQuery.eq("region_code", regionCode);
+        CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
+        if (communityData != null) {
+            if (communityData.getCommunityName() != null) {
+                return communityData.getCommunityName();
+            } else if (communityData.getTownshipName() != null) {
+                return communityData.getTownshipName();
+            }
+        }
+
+        // 尝试从survey_data表获取
+        QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
+        surveyQuery.eq("region_code", regionCode);
+        SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
+        if (surveyData != null && surveyData.getTownship() != null) {
+            return surveyData.getTownship();
+        }
+
+        return regionCode;
+    }
+
+    /**
+     * 从Map中获取BigDecimal值
+     */
+    private java.math.BigDecimal getDecimalValueFromMap(Map<String, Object> map, String... keys) {
         for (String key : keys) {
-            Object value = row.get(key);
+            Object value = map.get(key);
             if (value != null) {
-                log.debug("找到精确匹配的key: {}", key);
+                log.debug("找到字段 {} = {}", key, value);
                 return toBigDecimal(value);
             }
         }
-
-        // 2. 如果精确匹配失败，尝试模糊匹配（查找包含关键词的key）
-        // 提取第一个key的主要关键词（去掉下划线和驼峰命名中的前缀）
-        if (keys.length > 0) {
-            String primaryKey = keys[0];
-            String[] keywords = extractKeywords(primaryKey);
-
-            for (Map.Entry<String, Object> entry : row.entrySet()) {
-                String rowKey = entry.getKey().toLowerCase();
-                boolean allMatch = true;
-                for (String keyword : keywords) {
-                    if (!rowKey.contains(keyword.toLowerCase())) {
-                        allMatch = false;
-                        break;
-                    }
-                }
-                if (allMatch && entry.getValue() != null) {
-                    log.info("使用模糊匹配找到key '{}' 对应字段 '{}'", primaryKey, entry.getKey());
-                    return toBigDecimal(entry.getValue());
-                }
-            }
-        }
-
         log.warn("未找到匹配的字段: {}", String.join(", ", keys));
         return null;
     }
 
     /**
-     * 从row中获取String值，尝试多个可能的key
+     * 从Map中获取String值
      */
-    private String getStringValue(Map<String, Object> row, String... keys) {
-        // 1. 先尝试精确匹配
+    private String getStringValueFromMap(Map<String, Object> map, String... keys) {
         for (String key : keys) {
-            Object value = row.get(key);
+            Object value = map.get(key);
             if (value != null) {
-                log.debug("找到精确匹配的key: {}", key);
+                log.debug("找到字段 {} = {}", key, value);
                 return toString(value);
             }
         }
-
-        // 2. 如果精确匹配失败，尝试模糊匹配
-        if (keys.length > 0) {
-            String primaryKey = keys[0];
-            String[] keywords = extractKeywords(primaryKey);
-
-            for (Map.Entry<String, Object> entry : row.entrySet()) {
-                String rowKey = entry.getKey().toLowerCase();
-                boolean allMatch = true;
-                for (String keyword : keywords) {
-                    if (!rowKey.contains(keyword.toLowerCase())) {
-                        allMatch = false;
-                        break;
-                    }
-                }
-                if (allMatch && entry.getValue() != null) {
-                    log.info("使用模糊匹配找到key '{}' 对应字段 '{}'", primaryKey, entry.getKey());
-                    return toString(entry.getValue());
-                }
-            }
-        }
-
         log.warn("未找到匹配的字段: {}", String.join(", ", keys));
         return null;
     }
 
-    /**
-     * 提取字段名中的关键词
-     */
-    private String[] extractKeywords(String fieldName) {
-        // 移除下划线，按驼峰命名分割
-        String normalized = fieldName.replaceAll("_", " ");
-        // 按大写字母分割驼峰命名
-        normalized = normalized.replaceAll("([A-Z])", " $1");
-        // 分割成词
-        return normalized.toLowerCase().trim().split("\\s+");
-    }
 
     /**
      * 将对象转换为BigDecimal
