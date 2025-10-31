@@ -1,7 +1,11 @@
 package com.evaluate.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.evaluate.entity.EvaluationResult;
+import com.evaluate.mapper.EvaluationResultMapper;
 import com.evaluate.service.SpecialAlgorithmService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -17,6 +21,9 @@ import java.util.stream.Collectors;
 @Service
 public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
 
+    @Autowired
+    private EvaluationResultMapper evaluationResultMapper;
+
     @Override
     public Object executeSpecialAlgorithm(
             String marker,
@@ -24,29 +31,122 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String currentRegionCode,
             Map<String, Object> regionContext,
             Map<String, Map<String, Object>> allRegionData) {
-        
+
         log.info("执行特殊算法: marker={}, params={}, region={}", marker, params, currentRegionCode);
-        
+
         switch (marker) {
+            case "LOAD_EVAL_RESULT":
+                return loadEvaluationResult(params, currentRegionCode, regionContext);
+
             case "NORMALIZE":
                 return normalize(params, currentRegionCode, allRegionData);
-                
+
             case "TOPSIS_POSITIVE":
                 return calculateTopsisPositive(params, currentRegionCode, allRegionData);
-                
+
             case "TOPSIS_NEGATIVE":
                 return calculateTopsisNegative(params, currentRegionCode, allRegionData);
-                
+
             case "TOPSIS_SCORE":
                 return calculateTopsisScore(params, currentRegionCode, allRegionData);
-                
+
             case "GRADE":
                 return calculateGrade(params, currentRegionCode, allRegionData);
-                
+
             default:
                 log.warn("未知的特殊标记: {}", marker);
                 return 0.0;
         }
+    }
+
+    /**
+     * 从evaluation_result表加载评估结果
+     * 参数格式：modelId=3,field=management_capability_score
+     *
+     * @param params 参数字符串
+     * @param currentRegionCode 当前地区代码
+     * @param regionContext 地区上下文
+     * @return 字段值
+     */
+    private Double loadEvaluationResult(String params, String currentRegionCode, Map<String, Object> regionContext) {
+        log.info("[LOAD_EVAL_RESULT] 加载评估结果: params={}, region={}", params, currentRegionCode);
+
+        // 解析参数
+        Map<String, String> paramMap = parseParams(params);
+        String modelIdStr = paramMap.get("modelId");
+        String fieldName = paramMap.get("field");
+
+        if (modelIdStr == null || fieldName == null) {
+            log.error("[LOAD_EVAL_RESULT] 参数不完整: modelId={}, field={}", modelIdStr, fieldName);
+            return 0.0;
+        }
+
+        Long modelId = Long.parseLong(modelIdStr);
+
+        // 从数据库查询评估结果
+        QueryWrapper<EvaluationResult> query = new QueryWrapper<>();
+        query.eq("evaluation_model_id", modelId)
+             .eq("region_code", currentRegionCode)
+             .orderByDesc("id")  // 获取最新记录
+             .last("LIMIT 1");
+
+        EvaluationResult result = evaluationResultMapper.selectOne(query);
+
+        if (result == null) {
+            log.warn("[LOAD_EVAL_RESULT] 未找到评估结果: modelId={}, regionCode={}", modelId, currentRegionCode);
+            return 0.0;
+        }
+
+        // 根据字段名提取值
+        Double value = extractFieldValue(result, fieldName);
+
+        log.info("[LOAD_EVAL_RESULT] 加载成功: modelId={}, region={}, field={}, value={}",
+                modelId, currentRegionCode, fieldName, value);
+
+        return value;
+    }
+
+    /**
+     * 解析参数字符串为Map
+     * 例如：modelId=3,field=management_capability_score
+     */
+    private Map<String, String> parseParams(String params) {
+        Map<String, String> paramMap = new HashMap<>();
+        String[] pairs = params.split(",");
+        for (String pair : pairs) {
+            String[] kv = pair.split("=");
+            if (kv.length == 2) {
+                paramMap.put(kv[0].trim(), kv[1].trim());
+            }
+        }
+        return paramMap;
+    }
+
+    /**
+     * 从EvaluationResult对象中提取指定字段的值
+     */
+    private Double extractFieldValue(EvaluationResult result, String fieldName) {
+        java.math.BigDecimal bdValue = null;
+
+        switch (fieldName) {
+            case "management_capability_score":
+                bdValue = result.getManagementCapabilityScore();
+                break;
+            case "support_capability_score":
+                bdValue = result.getSupportCapabilityScore();
+                break;
+            case "self_rescue_capability_score":
+                bdValue = result.getSelfRescueCapabilityScore();
+                break;
+            case "comprehensive_capability_score":
+                bdValue = result.getComprehensiveCapabilityScore();
+                break;
+            default:
+                log.warn("未知的字段名: {}", fieldName);
+                return 0.0;
+        }
+
+        return bdValue != null ? bdValue.doubleValue() : 0.0;
     }
 
     @Override
