@@ -1642,42 +1642,49 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             log.info("  步骤key: {}", key);
         }
 
-        // 获取最后一个步骤的结果（包含所有地区的最终评估结果）
-        // stepResults的key就是stepCode，不带"step_"前缀
-        Map<String, Object> lastStepResult = null;
-        for (Map.Entry<String, Object> entry : stepResults.entrySet()) {
-            // 遍历所有步骤，保留最后一个（因为LinkedHashMap保持插入顺序）
-            lastStepResult = (Map<String, Object>) entry.getValue();
-            log.info("检查步骤: {}", entry.getKey());
+        // 需要从多个步骤中提取数据：
+        // - Score字段可能在 TOPSIS_DISTANCE 步骤
+        // - Grade字段可能在 CAPABILITY_GRADE 步骤
+        // 因此需要遍历所有步骤，合并每个地区的输出
+
+        Map<String, Map<String, Object>> allRegionOutputs = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Object> stepEntry : stepResults.entrySet()) {
+            String stepCode = stepEntry.getKey();
+            Map<String, Object> stepResult = (Map<String, Object>) stepEntry.getValue();
+
+            log.info("处理步骤: {}", stepCode);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Object>> regionResults =
+                    (Map<String, Map<String, Object>>) stepResult.get("regionResults");
+
+            if (regionResults != null) {
+                log.info("  步骤 {} 包含 {} 个地区的结果", stepCode, regionResults.size());
+
+                // 遍历该步骤的每个地区结果
+                for (Map.Entry<String, Map<String, Object>> regionEntry : regionResults.entrySet()) {
+                    String regionCode = regionEntry.getKey();
+                    Map<String, Object> outputs = regionEntry.getValue();
+
+                    // 打印该步骤该地区的输出
+                    log.info("    地区 {} 在步骤 {} 的输出: {}", regionCode, stepCode, outputs.keySet());
+
+                    // 合并到全局输出中
+                    allRegionOutputs.computeIfAbsent(regionCode, k -> new LinkedHashMap<>()).putAll(outputs);
+                }
+            }
         }
 
-        if (lastStepResult == null) {
-            log.warn("未找到步骤结果");
-            return results;
-        }
+        log.info("合并后共有 {} 个地区的完整输出", allRegionOutputs.size());
 
-        // 打印最后一步的结构
-        log.info("最后一步结果的所有key: {}", lastStepResult.keySet());
-
-        // 从最后一步的regionResults中提取数据
-        @SuppressWarnings("unchecked")
-        Map<String, Map<String, Object>> regionResults =
-                (Map<String, Map<String, Object>>) lastStepResult.get("regionResults");
-
-        if (regionResults == null) {
-            log.warn("未找到regionResults");
-            return results;
-        }
-
-        log.info("开始提取评估结果，共 {} 个地区", regionResults.size());
-
-        // 遍历每个地区的结果
-        for (Map.Entry<String, Map<String, Object>> regionEntry : regionResults.entrySet()) {
+        // 遍历每个地区的合并后的结果
+        for (Map.Entry<String, Map<String, Object>> regionEntry : allRegionOutputs.entrySet()) {
             String regionCode = regionEntry.getKey();
             Map<String, Object> outputs = regionEntry.getValue();
 
             // 打印该地区的所有输出参数，便于调试
-            log.info("=== 地区 {} 的输出参数 ===", regionCode);
+            log.info("=== 地区 {} 的合并后输出参数 ===", regionCode);
             for (Map.Entry<String, Object> output : outputs.entrySet()) {
                 log.info("  参数: {} = {}", output.getKey(), output.getValue());
             }
