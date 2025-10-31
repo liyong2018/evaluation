@@ -1656,6 +1656,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             return results;
         }
 
+        // 打印最后一步的结构
+        log.info("最后一步结果的所有key: {}", lastStepResult.keySet());
+
         // 从最后一步的regionResults中提取数据
         @SuppressWarnings("unchecked")
         Map<String, Map<String, Object>> regionResults =
@@ -1691,23 +1694,48 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
             // 直接使用输出参数名提取数据
             // 根据数据库设计，这些应该是算法配置中的output_param字段值
+            // 尝试多种可能的命名格式
             result.setManagementCapabilityScore(
-                    getDecimalValueFromMap(outputs, "MANAGEMENT_CAPABILITY_SCORE", "management_capability_score"));
+                    getDecimalValueFromMap(outputs,
+                        "MANAGEMENT_CAPABILITY_SCORE", "management_capability_score",
+                        "ORGANIZATION_MANAGEMENT_CAPABILITY_SCORE", "organization_management_capability_score",
+                        "管理能力得分"));
             result.setSupportCapabilityScore(
-                    getDecimalValueFromMap(outputs, "SUPPORT_CAPABILITY_SCORE", "support_capability_score"));
+                    getDecimalValueFromMap(outputs,
+                        "SUPPORT_CAPABILITY_SCORE", "support_capability_score",
+                        "SUPPORT_GUARANTEE_CAPABILITY_SCORE", "support_guarantee_capability_score",
+                        "保障能力得分"));
             result.setSelfRescueCapabilityScore(
-                    getDecimalValueFromMap(outputs, "SELF_RESCUE_CAPABILITY_SCORE", "self_rescue_capability_score"));
+                    getDecimalValueFromMap(outputs,
+                        "SELF_RESCUE_CAPABILITY_SCORE", "self_rescue_capability_score",
+                        "SELF_RESCUE_MUTUAL_AID_CAPABILITY_SCORE", "self_rescue_mutual_aid_capability_score",
+                        "自救能力得分"));
             result.setComprehensiveCapabilityScore(
-                    getDecimalValueFromMap(outputs, "COMPREHENSIVE_CAPABILITY_SCORE", "comprehensive_capability_score"));
+                    getDecimalValueFromMap(outputs,
+                        "COMPREHENSIVE_CAPABILITY_SCORE", "comprehensive_capability_score",
+                        "COMPREHENSIVE_DISASTER_REDUCTION_CAPABILITY_SCORE", "comprehensive_disaster_reduction_capability_score",
+                        "综合能力得分"));
 
             result.setManagementCapabilityLevel(
-                    getStringValueFromMap(outputs, "MANAGEMENT_CAPABILITY_LEVEL", "management_capability_level"));
+                    getStringValueFromMap(outputs,
+                        "MANAGEMENT_CAPABILITY_LEVEL", "management_capability_level",
+                        "ORGANIZATION_MANAGEMENT_CAPABILITY_LEVEL", "organization_management_capability_level",
+                        "管理能力等级"));
             result.setSupportCapabilityLevel(
-                    getStringValueFromMap(outputs, "SUPPORT_CAPABILITY_LEVEL", "support_capability_level"));
+                    getStringValueFromMap(outputs,
+                        "SUPPORT_CAPABILITY_LEVEL", "support_capability_level",
+                        "SUPPORT_GUARANTEE_CAPABILITY_LEVEL", "support_guarantee_capability_level",
+                        "保障能力等级"));
             result.setSelfRescueCapabilityLevel(
-                    getStringValueFromMap(outputs, "SELF_RESCUE_CAPABILITY_LEVEL", "self_rescue_capability_level"));
+                    getStringValueFromMap(outputs,
+                        "SELF_RESCUE_CAPABILITY_LEVEL", "self_rescue_capability_level",
+                        "SELF_RESCUE_MUTUAL_AID_CAPABILITY_LEVEL", "self_rescue_mutual_aid_capability_level",
+                        "自救能力等级"));
             result.setComprehensiveCapabilityLevel(
-                    getStringValueFromMap(outputs, "COMPREHENSIVE_CAPABILITY_LEVEL", "comprehensive_capability_level"));
+                    getStringValueFromMap(outputs,
+                        "COMPREHENSIVE_CAPABILITY_LEVEL", "comprehensive_capability_level",
+                        "COMPREHENSIVE_DISASTER_REDUCTION_CAPABILITY_LEVEL", "comprehensive_disaster_reduction_capability_level",
+                        "综合能力等级"));
 
             results.add(result);
         }
@@ -1755,11 +1783,11 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         for (String key : keys) {
             Object value = map.get(key);
             if (value != null) {
-                log.debug("找到字段 {} = {}", key, value);
+                log.info("✓ 成功匹配字段 {} = {}", key, value);
                 return toBigDecimal(value);
             }
         }
-        log.warn("未找到匹配的字段: {}", String.join(", ", keys));
+        log.warn("✗ 未找到匹配的字段: {}，可用字段: {}", String.join(", ", keys), map.keySet());
         return null;
     }
 
@@ -1770,11 +1798,11 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         for (String key : keys) {
             Object value = map.get(key);
             if (value != null) {
-                log.debug("找到字段 {} = {}", key, value);
+                log.info("✓ 成功匹配字段 {} = {}", key, value);
                 return toString(value);
             }
         }
-        log.warn("未找到匹配的字段: {}", String.join(", ", keys));
+        log.warn("✗ 未找到匹配的字段: {}，可用字段: {}", String.join(", ", keys), map.keySet());
         return null;
     }
 
