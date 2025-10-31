@@ -1637,13 +1637,18 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // data_source字段限制为varchar(20)，使用简短标识
         String dataSource = (modelId == 3) ? "township" : "community";
 
+        log.info("开始提取评估结果，stepResults 包含 {} 个步骤", stepResults.size());
+        for (String key : stepResults.keySet()) {
+            log.info("  步骤key: {}", key);
+        }
+
         // 获取最后一个步骤的结果（包含所有地区的最终评估结果）
+        // stepResults的key就是stepCode，不带"step_"前缀
         Map<String, Object> lastStepResult = null;
         for (Map.Entry<String, Object> entry : stepResults.entrySet()) {
-            if (entry.getKey().startsWith("step_")) {
-                lastStepResult = (Map<String, Object>) entry.getValue();
-                log.debug("检查步骤: {}", entry.getKey());
-            }
+            // 遍历所有步骤，保留最后一个（因为LinkedHashMap保持插入顺序）
+            lastStepResult = (Map<String, Object>) entry.getValue();
+            log.info("检查步骤: {}", entry.getKey());
         }
 
         if (lastStepResult == null) {
