@@ -1693,49 +1693,25 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             result.setExecutionRecordId(executionRecordId);
 
             // 直接使用输出参数名提取数据
-            // 根据数据库设计，这些应该是算法配置中的output_param字段值
-            // 尝试多种可能的命名格式
+            // 实际的字段名：disasterMgmtScore, disasterPrepScore, selfRescueScore, comprehensiveScore
+            //              disasterMgmtGrade, disasterPrepGrade, selfRescueGrade, comprehensiveGrade
             result.setManagementCapabilityScore(
-                    getDecimalValueFromMap(outputs,
-                        "MANAGEMENT_CAPABILITY_SCORE", "management_capability_score",
-                        "ORGANIZATION_MANAGEMENT_CAPABILITY_SCORE", "organization_management_capability_score",
-                        "管理能力得分"));
+                    getDecimalValueFromMap(outputs, "disasterMgmtScore", "disaster_mgmt_score"));
             result.setSupportCapabilityScore(
-                    getDecimalValueFromMap(outputs,
-                        "SUPPORT_CAPABILITY_SCORE", "support_capability_score",
-                        "SUPPORT_GUARANTEE_CAPABILITY_SCORE", "support_guarantee_capability_score",
-                        "保障能力得分"));
+                    getDecimalValueFromMap(outputs, "disasterPrepScore", "disaster_prep_score"));
             result.setSelfRescueCapabilityScore(
-                    getDecimalValueFromMap(outputs,
-                        "SELF_RESCUE_CAPABILITY_SCORE", "self_rescue_capability_score",
-                        "SELF_RESCUE_MUTUAL_AID_CAPABILITY_SCORE", "self_rescue_mutual_aid_capability_score",
-                        "自救能力得分"));
+                    getDecimalValueFromMap(outputs, "selfRescueScore", "self_rescue_score"));
             result.setComprehensiveCapabilityScore(
-                    getDecimalValueFromMap(outputs,
-                        "COMPREHENSIVE_CAPABILITY_SCORE", "comprehensive_capability_score",
-                        "COMPREHENSIVE_DISASTER_REDUCTION_CAPABILITY_SCORE", "comprehensive_disaster_reduction_capability_score",
-                        "综合能力得分"));
+                    getDecimalValueFromMap(outputs, "comprehensiveScore", "comprehensive_score"));
 
             result.setManagementCapabilityLevel(
-                    getStringValueFromMap(outputs,
-                        "MANAGEMENT_CAPABILITY_LEVEL", "management_capability_level",
-                        "ORGANIZATION_MANAGEMENT_CAPABILITY_LEVEL", "organization_management_capability_level",
-                        "管理能力等级"));
+                    getStringValueFromMap(outputs, "disasterMgmtGrade", "disaster_mgmt_grade"));
             result.setSupportCapabilityLevel(
-                    getStringValueFromMap(outputs,
-                        "SUPPORT_CAPABILITY_LEVEL", "support_capability_level",
-                        "SUPPORT_GUARANTEE_CAPABILITY_LEVEL", "support_guarantee_capability_level",
-                        "保障能力等级"));
+                    getStringValueFromMap(outputs, "disasterPrepGrade", "disaster_prep_grade"));
             result.setSelfRescueCapabilityLevel(
-                    getStringValueFromMap(outputs,
-                        "SELF_RESCUE_CAPABILITY_LEVEL", "self_rescue_capability_level",
-                        "SELF_RESCUE_MUTUAL_AID_CAPABILITY_LEVEL", "self_rescue_mutual_aid_capability_level",
-                        "自救能力等级"));
+                    getStringValueFromMap(outputs, "selfRescueGrade", "self_rescue_grade"));
             result.setComprehensiveCapabilityLevel(
-                    getStringValueFromMap(outputs,
-                        "COMPREHENSIVE_CAPABILITY_LEVEL", "comprehensive_capability_level",
-                        "COMPREHENSIVE_DISASTER_REDUCTION_CAPABILITY_LEVEL", "comprehensive_disaster_reduction_capability_level",
-                        "综合能力等级"));
+                    getStringValueFromMap(outputs, "comprehensiveGrade", "comprehensive_grade"));
 
             results.add(result);
         }
