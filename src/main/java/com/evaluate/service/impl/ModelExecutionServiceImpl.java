@@ -451,6 +451,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
 
+        log.info("生成结果表：共 {} 个地区，{} 个输出字段", allRegions.size(), allOutputs.size());
+        log.info("所有输出字段: {}", allOutputs);
+        log.info("输出参数到算法名称映射: {}", globalOutputToAlgorithmName);
+
         // 为每个地区生成一行数据
         for (String regionCode : allRegions) {
             Map<String, Object> row = new LinkedHashMap<>();
@@ -1474,30 +1478,56 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             int communityCount = communities.size();
             
             log.info("处理乡镇: {}, 社区数量: {}", townshipName, communityCount);
-            
+
+            // 打印第一个社区的所有字段，便于调试
+            if (!communities.isEmpty()) {
+                Map<String, Object> firstCommunity = communities.get(0);
+                log.info("第一个社区的所有字段: {}", firstCommunity.keySet());
+            }
+
             Map<String, Object> townshipOutput = new LinkedHashMap<>();
-            
+
             // 对每个算法执行聚合
             for (StepAlgorithm algorithm : algorithms) {
                 String qlExpression = algorithm.getQlExpression();
                 String outputParam = algorithm.getOutputParam();
-                
+                String inputParams = algorithm.getInputParams();
+
+                log.info("算法: {}, inputParams={}, qlExpression={}, outputParam={}",
+                        algorithm.getAlgorithmName(), inputParams, qlExpression, outputParam);
+
                 if (outputParam == null || outputParam.isEmpty()) {
                     continue;
                 }
-                
-                // 从表达式中提取输入字段名（例如：PLAN_CONSTRUCTION）
-                String inputField = qlExpression.trim();
-                
+
+                // 从inputParams中提取输入字段名（步骤1的输出参数）
+                // 如果inputParams为空，则尝试从qlExpression提取
+                String inputField = null;
+                if (inputParams != null && !inputParams.isEmpty()) {
+                    // inputParams可能是"FIELD1,FIELD2"格式，取第一个
+                    inputField = inputParams.split(",")[0].trim();
+                } else {
+                    // 兼容旧逻辑：如果没有inputParams，则qlExpression本身就是字段名
+                    inputField = qlExpression.trim();
+                }
+
+                log.info("将从社区数据中提取字段: {}", inputField);
+
                 // 计算聚合值：求和后除以社区数量
                 double sum = 0.0;
                 int validCount = 0;
-                
+
                 for (Map<String, Object> community : communities) {
                     Object value = community.get(inputField);
                     if (value != null) {
-                        sum += toDouble(value);
+                        double doubleValue = toDouble(value);
+                        sum += doubleValue;
                         validCount++;
+                        log.debug("社区 {} 的 {} = {}",
+                                community.get("currentRegionCode"), inputField, doubleValue);
+                    } else {
+                        log.warn("社区数据中未找到字段: {}, 可用字段: {}",
+                                inputField, community.keySet());
                     }
                 }
                 
