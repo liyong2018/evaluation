@@ -1406,9 +1406,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 .eq("status", 1)
                 .orderByAsc("algorithm_order");
         List<StepAlgorithm> algorithms = stepAlgorithmMapper.selectList(algorithmQuery);
-        
+
         if (algorithms == null || algorithms.isEmpty()) {
-            log.warn("步骤 {} 没有配置算法", step.getStepCode());
             return new HashMap<>();
         }
         
@@ -1421,15 +1420,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
             communityQuery.eq("region_code", regionCode);
             CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
-            
+
             if (communityData == null) {
-                log.warn("未找到社区数据: regionCode={}", regionCode);
                 continue;
             }
-            
+
             String townshipName = communityData.getTownshipName();
             if (townshipName == null || townshipName.isEmpty()) {
-                log.warn("社区 {} 没有乡镇信息", regionCode);
                 continue;
             }
             
@@ -1452,18 +1449,15 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         // 将该社区在这个步骤的输出添加到上下文
                         Map<String, Object> outputs = regionResults.get(regionCode);
                         communityContext.putAll(outputs);
-                        log.debug("社区 {} 从 {} 加载了 {} 个输出", regionCode, key, outputs.size());
                     }
                 }
             }
             
             // 按乡镇分组
             townshipGroups.computeIfAbsent(townshipName, k -> new ArrayList<>()).add(communityContext);
-            
+
             // 记录每个乡镇的第一个社区代码
             townshipToFirstRegionCode.putIfAbsent(townshipName, regionCode);
-            
-            log.debug("社区 {} 归属乡镇 {}", regionCode, townshipName);
         }
         
         log.info("按乡镇分组完成，共 {} 个乡镇", townshipGroups.size());
@@ -1479,12 +1473,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             
             log.info("处理乡镇: {}, 社区数量: {}", townshipName, communityCount);
 
-            // 打印第一个社区的所有字段，便于调试
-            if (!communities.isEmpty()) {
-                Map<String, Object> firstCommunity = communities.get(0);
-                log.info("第一个社区的所有字段: {}", firstCommunity.keySet());
-            }
-
             Map<String, Object> townshipOutput = new LinkedHashMap<>();
 
             // 对每个算法执行聚合
@@ -1492,9 +1480,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 String qlExpression = algorithm.getQlExpression();
                 String outputParam = algorithm.getOutputParam();
                 String inputParams = algorithm.getInputParams();
-
-                log.info("算法: {}, inputParams={}, qlExpression={}, outputParam={}",
-                        algorithm.getAlgorithmName(), inputParams, qlExpression, outputParam);
 
                 if (outputParam == null || outputParam.isEmpty()) {
                     continue;
@@ -1511,8 +1496,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     inputField = qlExpression.trim();
                 }
 
-                log.info("将从社区数据中提取字段: {}", inputField);
-
                 // 计算聚合值：求和后除以社区数量
                 double sum = 0.0;
                 int validCount = 0;
@@ -1523,11 +1506,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         double doubleValue = toDouble(value);
                         sum += doubleValue;
                         validCount++;
-                        log.debug("社区 {} 的 {} = {}",
-                                community.get("currentRegionCode"), inputField, doubleValue);
-                    } else {
-                        log.warn("社区数据中未找到字段: {}, 可用字段: {}",
-                                inputField, community.keySet());
                     }
                 }
                 
@@ -1536,12 +1514,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 
                 // 格式化为8位小数
                 average = Double.parseDouble(String.format("%.8f", average));
-                
+
                 townshipOutput.put(outputParam, average);
                 outputToAlgorithmName.put(outputParam, algorithm.getAlgorithmName());
-                
-                log.debug("乡镇 {} 的 {} 聚合结果: sum={}, count={}, avg={}", 
-                        townshipName, outputParam, sum, communityCount, average);
             }
             
             // 使用"TOWNSHIP_"前缀 + 乡镇名称作为虚拟的regionCode
