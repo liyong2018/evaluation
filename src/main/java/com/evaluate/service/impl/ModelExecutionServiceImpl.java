@@ -390,27 +390,40 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         Set<String> allOutputs = new LinkedHashSet<>();
         Map<String, String> globalOutputToAlgorithmName = new LinkedHashMap<>();  // 全局的输出参数到算法名称映射
 
+        log.info("开始生成结果表，共 {} 个步骤", stepResults.size());
+
         for (Map.Entry<String, Map<String, Object>> stepEntry : stepResults.entrySet()) {
+            String stepCode = stepEntry.getKey();
+
             @SuppressWarnings("unchecked")
-            Map<String, Map<String, Object>> regionResults = 
+            Map<String, Map<String, Object>> regionResults =
                     (Map<String, Map<String, Object>>) stepEntry.getValue().get("regionResults");
-            
+
             // 获取输出参数到算法名称的映射
             @SuppressWarnings("unchecked")
-            Map<String, String> outputToAlgorithmName = 
+            Map<String, String> outputToAlgorithmName =
                     (Map<String, String>) stepEntry.getValue().get("outputToAlgorithmName");
             if (outputToAlgorithmName != null) {
+                log.info("步骤 {} 有 {} 个输出参数映射", stepCode, outputToAlgorithmName.size());
                 globalOutputToAlgorithmName.putAll(outputToAlgorithmName);
+            } else {
+                log.warn("步骤 {} 没有outputToAlgorithmName", stepCode);
             }
-            
+
             if (regionResults != null) {
+                log.info("步骤 {} 有 {} 个地区结果", stepCode, regionResults.size());
                 allRegions.addAll(regionResults.keySet());
-                
+
                 for (Map<String, Object> outputs : regionResults.values()) {
                     allOutputs.addAll(outputs.keySet());
                 }
+            } else {
+                log.warn("步骤 {} 没有regionResults", stepCode);
             }
         }
+
+        log.info("收集完成：{} 个地区，{} 个输出字段，{} 个算法名称映射",
+                allRegions.size(), allOutputs.size(), globalOutputToAlgorithmName.size());
 
         // 为每个地区生成一行数据
         for (String regionCode : allRegions) {
@@ -520,8 +533,14 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
 
             tableData.add(row);
+
+            // 记录第一行数据的字段数量（用于诊断）
+            if (tableData.size() == 1) {
+                log.info("第一行数据有 {} 个字段: {}", row.size(), row.keySet());
+            }
         }
 
+        log.info("生成结果表完成，共 {} 行数据", tableData.size());
         return tableData;
     }
 
@@ -1194,19 +1213,25 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      * @return columns 数组
      */
     private List<Map<String, Object>> generateColumnsWithAllSteps(
-            List<Map<String, Object>> tableData, 
+            List<Map<String, Object>> tableData,
             Map<Integer, List<String>> stepOutputParams) {
-        
+
         List<Map<String, Object>> columns = new ArrayList<>();
-        
+
         if (tableData == null || tableData.isEmpty()) {
             return columns;
         }
-        
-        // 从第一行数据提取所有列名
-        Map<String, Object> firstRow = tableData.get(0);
-        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region"));
-        
+
+        // 从所有行数据提取所有可能的列名（不只是第一行）
+        Set<String> allColumnNames = new LinkedHashSet<>();
+        for (Map<String, Object> row : tableData) {
+            allColumnNames.addAll(row.keySet());
+        }
+
+        log.info("从 {} 行数据中收集到 {} 个唯一列名", tableData.size(), allColumnNames.size());
+
+        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region", "townshipName", "communityName"));
+
         // 创建反向映射：列名 -> 步骤序号
         Map<String, Integer> columnToStepOrder = new HashMap<>();
         for (Map.Entry<Integer, List<String>> entry : stepOutputParams.entrySet()) {
@@ -1216,17 +1241,22 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 columnToStepOrder.put(outputName, stepOrder);
             }
         }
-        
-        
-        for (String columnName : firstRow.keySet()) {
+
+        // 生成columns
+        for (String columnName : allColumnNames) {
+            // 跳过内部字段
+            if (columnName.startsWith("_")) {
+                continue;
+            }
+
             Map<String, Object> column = new LinkedHashMap<>();
             column.put("prop", columnName);
             column.put("label", columnName);
-            
+
             // 设置列宽
             if ("regionCode".equals(columnName)) {
                 column.put("width", 150);
-            } else if ("regionName".equals(columnName) || "region".equals(columnName)) {
+            } else if (baseColumns.contains(columnName)) {
                 column.put("width", 120);
             } else {
                 column.put("width", 120);
@@ -1234,14 +1264,16 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 Integer stepOrder = columnToStepOrder.get(columnName);
                 if (stepOrder != null) {
                     column.put("stepOrder", stepOrder);
-                } else {
                 }
             }
-            
+
             columns.add(column);
         }
-        
-        
+
+        log.info("生成 {} 个columns，其中 {} 个有stepOrder",
+                columns.size(),
+                columns.stream().filter(c -> c.containsKey("stepOrder")).count());
+
         return columns;
     }
 
