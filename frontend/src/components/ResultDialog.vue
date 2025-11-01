@@ -134,7 +134,7 @@
       </div>
 
       <!-- 单表格显示（原有逻辑） -->
-  <div v-else-if="resultData && !resultData.isDualTable" class="result-table-section">
+      <div v-else-if="resultData && !resultData.isDualTable && !resultData.isMultiStep" class="result-table-section">
     <h4>计算结果</h4>
     <!-- 列显示/隐藏控制（单表格） - 优化版 -->
     <div class="column-control" v-if="resultData">
@@ -149,15 +149,13 @@
       
       <!-- 按步骤选择（下拉框方式） -->
       <div class="step-selector">
-        <el-select 
-          v-model="selectedGroupKeys" 
-          multiple
-          collapse-tags
-          collapse-tags-tooltip
+        <el-select
+          v-model="selectedGroupKey"
           placeholder="选择要显示的步骤"
           style="width: 100%"
           @change="handleGroupSelectionChange"
         >
+          <el-option :label="'全部列'" :value="SELECT_ALL_KEY" />
           <el-option
             v-for="group in columnGroups"
             :key="group.key"
@@ -198,7 +196,7 @@
     </div>
     <div class="table-container">
       <el-table
-        :data="resultData.tableData"
+        :data="filteredTableData"
         border
             stripe
             size="small"
@@ -283,7 +281,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { modelManagementApi } from '@/api'
@@ -358,8 +356,10 @@ const allColumns = ref<any[]>([])
 // 后端步骤-算法输出映射与步骤名称
 const stepAlgorithmOutputs = ref<Record<number, Set<string>>>({})
 const stepOrderNames = ref<Record<number, string>>({})
-// 下拉框选中的分组key
-const selectedGroupKeys = ref<string[]>([])
+// 下拉框选中的分组key（单选）
+const SELECT_ALL_KEY = 'all'
+const BASE_GROUP_KEY = 'base'
+const selectedGroupKey = ref<string>(SELECT_ALL_KEY)
 // 列分组
 type ColumnItem = { prop: string; label: string; width?: number; formatter?: any }
 type ColumnGroup = { key: string; name: string; columns: ColumnItem[] }
@@ -633,6 +633,46 @@ const filteredColumns = computed(() => {
   return ordered
 })
 
+const isTownshipRow = (row: Record<string, any>): boolean => {
+  if (!row) return false
+  const flag = row._isTownship
+  if (typeof flag === 'boolean') {
+    return flag
+  }
+  if (flag !== undefined && flag !== null) {
+    return String(flag).toLowerCase() === 'true'
+  }
+  return '_firstCommunityCode' in row && row._firstCommunityCode !== undefined && row._firstCommunityCode !== null
+}
+
+// 过滤后的表格数据（根据当前分组控制社区/乡镇）
+const filteredTableData = computed(() => {
+  if (!props.resultData || !Array.isArray(props.resultData.tableData)) {
+    return []
+  }
+
+  const data = props.resultData.tableData
+
+  if (!props.resultData.isMultiStep) {
+    const key = selectedGroupKey.value
+    if (key && key.startsWith('step_')) {
+      const stepOrder = Number(key.replace('step_', ''))
+      if (!Number.isNaN(stepOrder)) {
+        if (stepOrder === 1) {
+          // 步骤1：仅展示社区（无乡镇标记）
+          return data.filter(row => !isTownshipRow(row))
+        }
+        if (stepOrder > 1) {
+          // 其他步骤：仅展示乡镇聚合数据
+          return data.filter(row => isTownshipRow(row))
+        }
+      }
+    }
+  }
+
+  return data
+})
+
 // 监听props变化
 watch(
   () => props.modelValue,
@@ -678,6 +718,15 @@ watch(
     if (newData?.isMultiStep) {
       console.log('Multi-step mode detected!')
       console.log('Step results:', newData.stepResults)
+      if (Array.isArray(newData.stepResults) && newData.stepResults.length > 0) {
+        selectedStepOrder.value = newData.stepResults[0].stepOrder || 1
+        nextTick(() => {
+          initializeColumns()
+        })
+      } else {
+        allColumns.value = []
+        visibleColumns.value = []
+      }
     } else if (newData?.isDualTable) {
       console.log('Dual table mode detected!')
     } else if (newData?.tableData) {
@@ -715,6 +764,23 @@ const handleStepChange = (stepOrder: number) => {
 const initializeColumns = () => {
   // 多步骤模式
   if (props.resultData?.isMultiStep) {
+    const stepColumnsFromProps = currentStepData.value?.columns || []
+    if (stepColumnsFromProps.length > 0) {
+      allColumns.value = stepColumnsFromProps.map(col => ({
+        prop: col.prop,
+        label: col.label || getColumnLabel(col.prop),
+        width: col.width || getColumnWidth(col.prop),
+        formatter: col.formatter
+      }))
+      visibleColumns.value = allColumns.value.map(col => col.prop)
+      console.log('Columns initialized from step columns (multi-step):', {
+        totalColumns: allColumns.value.length,
+        visibleColumns: visibleColumns.value.length
+      })
+      selectedGroupKey.value = SELECT_ALL_KEY
+      return
+    }
+
     if (!currentStepData.value?.tableData || currentStepData.value.tableData.length === 0) {
       console.log('No table data available for columns initialization (multi-step)')
       allColumns.value = []
@@ -740,7 +806,7 @@ const initializeColumns = () => {
       })
       
       // 初始化下拉框选择：默认全选
-      selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+      selectedGroupKey.value = SELECT_ALL_KEY
       return
     }
 
@@ -767,7 +833,7 @@ const initializeColumns = () => {
       
       // 初始化下拉框选择：默认全选
       setTimeout(() => {
-        selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+        selectedGroupKey.value = SELECT_ALL_KEY
       }, 100)
       return
     }
@@ -900,88 +966,78 @@ const getColumnWidth = (key: string) => {
   return 120
 }
 
+const buildVisibleColumnsForSelection = (selectedKey: string): string[] => {
+  if (selectedKey === SELECT_ALL_KEY) {
+    return allColumns.value.map(col => col.prop)
+  }
+
+  const baseGroup = columnGroups.value.find(g => g.key === BASE_GROUP_KEY)
+  const selectedGroup = columnGroups.value.find(g => g.key === selectedKey)
+  const columnSet = new Set<string>()
+
+  if (baseGroup) {
+    baseGroup.columns.forEach(c => columnSet.add(c.prop))
+  } else {
+    allColumns.value
+      .filter(col => col.prop === 'regionCode' || col.prop === 'regionName' || col.prop === 'region')
+      .forEach(col => columnSet.add(col.prop))
+  }
+
+  if (selectedGroup && selectedGroup.key !== BASE_GROUP_KEY) {
+    selectedGroup.columns.forEach(c => columnSet.add(c.prop))
+  }
+
+  return Array.from(columnSet)
+}
+
 // 选中所有列
 const selectAllColumns = () => {
   visibleColumns.value = allColumns.value.map(col => col.prop)
-  // 同步更新下拉框：选中所有分组
-  selectedGroupKeys.value = columnGroups.value.map(g => g.key)
-  console.log('✓ 全选：更新下拉框选中', selectedGroupKeys.value)
+  selectedGroupKey.value = SELECT_ALL_KEY
+  console.log('✓ 全选：更新下拉框选中', selectedGroupKey.value)
 }
 
 // 取消选中所有列
 const unselectAllColumns = () => {
-  // 保留必需的列
-  visibleColumns.value = allColumns.value
-    .filter(col => col.prop === 'regionCode' || col.prop === 'regionName')
-    .map(col => col.prop)
-  // 同步更新下拉框：只选中基础信息分组
-  selectedGroupKeys.value = ['base']
-  console.log('✓ 取消全选：更新下拉框选中', selectedGroupKeys.value)
+  visibleColumns.value = buildVisibleColumnsForSelection(BASE_GROUP_KEY)
+  selectedGroupKey.value = BASE_GROUP_KEY
+  console.log('✓ 取消全选：更新下拉框选中', selectedGroupKey.value)
 }
 
 // 重置列显示
 const resetColumns = () => {
   visibleColumns.value = allColumns.value.map(col => col.prop)
-  // 同步更新下拉框：选中所有分组
-  selectedGroupKeys.value = columnGroups.value.map(g => g.key)
-  console.log('✓ 重置：更新下拉框选中', selectedGroupKeys.value)
+  selectedGroupKey.value = SELECT_ALL_KEY
+  console.log('✓ 重置：更新下拉框选中', selectedGroupKey.value)
 }
 
 // 处理下拉框选择变化
-const handleGroupSelectionChange = (selectedKeys: string[]) => {
-  console.log('选中的分组:', selectedKeys)
-  
-  // 获取所有选中分组的列
-  const selectedCols = new Set<string>()
-  
-  // 始终包含基础列
-  selectedCols.add('regionCode')
-  selectedCols.add('regionName')
-  
-  selectedKeys.forEach(key => {
-    const group = columnGroups.value.find(g => g.key === key)
-    if (group) {
-      group.columns.forEach(c => selectedCols.add(c.prop))
-    }
-  })
-  
-  visibleColumns.value = Array.from(selectedCols)
+const handleGroupSelectionChange = (selectedKey: string) => {
+  console.log('选中的分组:', selectedKey)
+  selectedGroupKey.value = selectedKey || SELECT_ALL_KEY
+  visibleColumns.value = buildVisibleColumnsForSelection(selectedGroupKey.value)
   console.log('更新后的可见列:', visibleColumns.value.length)
 }
 
 // 选择/取消某一分组
 const selectGroupColumns = (groupKey: string) => {
-  const group = columnGroups.value.find(g => g.key === groupKey)
-  if (!group) return
-  const current = new Set(visibleColumns.value)
-  group.columns.forEach(c => current.add(c.prop))
-  visibleColumns.value = Array.from(current)
-  
-  // 同步更新下拉框选中
-  if (!selectedGroupKeys.value.includes(groupKey)) {
-    selectedGroupKeys.value.push(groupKey)
+  if (groupKey === SELECT_ALL_KEY) {
+    selectAllColumns()
+    return
   }
+  selectedGroupKey.value = groupKey
+  visibleColumns.value = buildVisibleColumnsForSelection(groupKey)
+  console.log(`✓ 选择分组${groupKey}：当前可见列`, visibleColumns.value.length)
 }
 
 const unselectGroupColumns = (groupKey: string) => {
-  const group = columnGroups.value.find(g => g.key === groupKey)
-  if (!group) return
-  const retain = new Set(
-    allColumns.value
-      .filter(col => col.prop === 'regionCode' || col.prop === 'regionName' || col.prop === 'region')
-      .map(col => col.prop)
-  )
-  const current = new Set(visibleColumns.value)
-  group.columns.forEach(c => current.delete(c.prop))
-  // 保留基础列
-  retain.forEach(r => current.add(r))
-  visibleColumns.value = Array.from(current)
-  
-  // 同步更新下拉框选中
-  const index = selectedGroupKeys.value.indexOf(groupKey)
-  if (index > -1) {
-    selectedGroupKeys.value.splice(index, 1)
+  if (groupKey === BASE_GROUP_KEY) {
+    selectedGroupKey.value = BASE_GROUP_KEY
+  } else if (selectedGroupKey.value === groupKey) {
+    selectedGroupKey.value = BASE_GROUP_KEY
   }
+  visibleColumns.value = buildVisibleColumnsForSelection(selectedGroupKey.value)
+  console.log(`✗ 取消分组${groupKey}：当前可见列`, visibleColumns.value.length)
 }
 
 // 导出结果
