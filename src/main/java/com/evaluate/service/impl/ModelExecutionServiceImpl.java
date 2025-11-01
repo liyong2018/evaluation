@@ -589,10 +589,17 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         }
                     }
                 }
+                if (isCodeLike(townshipName)) {
+                    String fetched = getTownshipNameByCommunityCode(firstCommunityCodeMeta != null ? firstCommunityCodeMeta : regionCode);
+                    if (fetched != null && !fetched.isEmpty()) {
+                        townshipName = fetched;
+                    }
+                }
 
                 if (townshipName != null && !townshipName.isEmpty()) {
                     regionName = townshipName;
                     row.put("townshipName", townshipName);
+                    townshipNameByRegion.put(regionCode, townshipName);
                 }
                 if (communityName != null && !communityName.isEmpty()) {
                     row.put("communityName", communityName);
@@ -1969,7 +1976,14 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
             if (firstCommunityCode != null) {
                 storedRegionCode = deriveTownshipCodeForStorage(firstCommunityCode);
-                storedRegionName = townshipName != null ? townshipName : getRegionName(stepRegionCode);
+                if (!isEmptyString(townshipName)) {
+                    storedRegionName = townshipName;
+                } else {
+                    storedRegionName = getTownshipNameByCommunityCode(firstCommunityCode);
+                    if (isEmptyString(storedRegionName)) {
+                        storedRegionName = getRegionName(stepRegionCode);
+                    }
+                }
                 dataSource = "township";
             } else {
                 storedRegionCode = deriveTownshipCodeForStorage(stepRegionCode);
@@ -1992,6 +2006,12 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     if (resolvedTownship != null && !resolvedTownship.isEmpty()) {
                         storedRegionName = resolvedTownship;
                     }
+                }
+            }
+            if (isCodeLike(storedRegionName)) {
+                String fetched = getTownshipNameByCommunityCode(firstCommunityCode != null ? firstCommunityCode : storedRegionCode);
+                if (!isEmptyString(fetched)) {
+                    storedRegionName = fetched;
                 }
             }
 
