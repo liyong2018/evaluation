@@ -25,19 +25,19 @@
       <div v-if="resultData && resultData.isMultiStep" class="step-control-section">
         <div class="step-selector">
           <h4>选择查看步骤</h4>
-          <el-select 
-            v-model="selectedStepOrder" 
-            placeholder="选择步骤"
+          <el-radio-group
+            v-model="selectedStepOrder"
             @change="handleStepChange"
-            style="width: 200px;"
+            class="step-radio-group"
           >
-            <el-option
+            <el-radio-button
               v-for="step in resultData.stepResults"
               :key="step.stepOrder"
-              :label="`步骤${step.stepOrder}: ${step.stepName}`"
-              :value="step.stepOrder"
-            />
-          </el-select>
+              :label="step.stepOrder"
+            >
+              步骤{{step.stepOrder}}: {{step.stepName}}
+            </el-radio-button>
+          </el-radio-group>
         </div>
         
         <!-- 列显示/隐藏控制（按步骤分组） -->
@@ -715,7 +715,35 @@ const handleStepChange = (stepOrder: number) => {
 const initializeColumns = () => {
   // 多步骤模式
   if (props.resultData?.isMultiStep) {
-    if (!currentStepData.value?.tableData || currentStepData.value.tableData.length === 0) {
+    if (!currentStepData.value) {
+      console.log('No current step data available')
+      allColumns.value = []
+      visibleColumns.value = []
+      return
+    }
+
+    // 优先使用步骤自带的 columns 字段
+    if (currentStepData.value.columns && Array.isArray(currentStepData.value.columns) && currentStepData.value.columns.length > 0) {
+      allColumns.value = currentStepData.value.columns.map((col: any) => ({
+        prop: col.prop,
+        label: col.label || getColumnLabel(col.prop),
+        width: col.width || getColumnWidth(col.prop),
+        formatter: col.formatter,
+        stepOrder: (col as any).stepOrder
+      }))
+      visibleColumns.value = allColumns.value.map(col => col.prop)
+      console.log('Columns initialized from step columns (multi-step):', {
+        totalColumns: allColumns.value.length,
+        visibleColumns: visibleColumns.value.length
+      })
+
+      // 初始化下拉框选择：默认全选
+      selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+      return
+    }
+
+    // 如果步骤没有 columns，从 tableData 推断
+    if (!currentStepData.value.tableData || currentStepData.value.tableData.length === 0) {
       console.log('No table data available for columns initialization (multi-step)')
       allColumns.value = []
       visibleColumns.value = []
@@ -732,17 +760,17 @@ const initializeColumns = () => {
         width: getColumnWidth(key)
       })
     })
-      allColumns.value = columns
-      visibleColumns.value = columns.map(col => col.prop)
-      console.log('Columns initialized (multi-step):', {
-        totalColumns: columns.length,
-        visibleColumns: visibleColumns.value.length
-      })
-      
-      // 初始化下拉框选择：默认全选
-      selectedGroupKeys.value = columnGroups.value.map(g => g.key)
-      return
-    }
+    allColumns.value = columns
+    visibleColumns.value = columns.map(col => col.prop)
+    console.log('Columns initialized from data (multi-step):', {
+      totalColumns: columns.length,
+      visibleColumns: visibleColumns.value.length
+    })
+
+    // 初始化下拉框选择：默认全选
+    selectedGroupKeys.value = columnGroups.value.map(g => g.key)
+    return
+  }
 
   // 单表格模式
   if (props.resultData) {
@@ -1317,15 +1345,21 @@ const buildCSVContent = (): string => {
     background-color: #f8f9fa;
     border-radius: 6px;
     border: 1px solid #e9ecef;
-    
+
     .step-selector {
       margin-bottom: 16px;
-      
+
       h4 {
-        margin: 0 0 8px 0;
+        margin: 0 0 12px 0;
         color: #333;
         font-size: 14px;
         font-weight: 600;
+      }
+
+      .step-radio-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
       }
     }
     

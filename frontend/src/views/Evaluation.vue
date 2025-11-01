@@ -1223,15 +1223,17 @@ const displayModelResults = (resultData: any) => {
   console.log('resultData 结构:', {
     hasTableData: !!resultData?.tableData,
     hasColumns: !!resultData?.columns,
+    hasStepTables: !!resultData?.stepTables,
+    stepTablesLength: resultData?.stepTables?.length,
     tableDataLength: resultData?.tableData?.length,
     columnsLength: resultData?.columns?.length,
     columnsDetail: resultData?.columns
   })
-  
+
   // 使用后端返回的 columns（已包含 stepOrder）
   // 如果后端没有返回 columns，则从 tableData 推断
   let columns: any[] = []
-  
+
   if (resultData?.columns && Array.isArray(resultData.columns) && resultData.columns.length > 0) {
     // 直接使用后端返回的 columns（保留 stepOrder 等字段）
     columns = resultData.columns
@@ -1262,18 +1264,51 @@ const displayModelResults = (resultData: any) => {
     formulaName: '',
     formulaDescription: ''
   }
-  
-  currentCalculationResult.value = {
-    tableData: resultData?.tableData || resultData || [],
-    columns: columns
+
+  // 检查是否有 stepTables（按步骤分组的数据）
+  if (resultData?.stepTables && Array.isArray(resultData.stepTables) && resultData.stepTables.length > 0) {
+    console.log('✓ 检测到 stepTables，使用多步骤显示模式')
+
+    // 构建多步骤结果数据结构
+    currentCalculationResult.value = {
+      isMultiStep: true,
+      stepResults: resultData.stepTables.map((stepTable: any) => ({
+        stepId: stepTable.stepId,
+        stepName: stepTable.stepName,
+        stepOrder: stepTable.stepOrder,
+        stepCode: stepTable.stepCode,
+        description: `步骤${stepTable.stepOrder}: ${stepTable.stepName}`,
+        tableData: stepTable.tableData,
+        columns: stepTable.columns,
+        success: true,
+        executionTime: new Date().toISOString()
+      })),
+      // 保留合并的数据（向后兼容）
+      tableData: resultData?.tableData || [],
+      columns: columns
+    }
+
+    console.log('✓ 多步骤模式数据:', {
+      stepCount: currentCalculationResult.value.stepResults.length,
+      steps: currentCalculationResult.value.stepResults.map((s: any) => ({
+        stepOrder: s.stepOrder,
+        stepName: s.stepName,
+        dataRows: s.tableData.length,
+        columns: s.columns.length
+      }))
+    })
+  } else {
+    console.log('⚠ 未检测到 stepTables，使用单表格显示模式')
+
+    // 单表格模式（向后兼容）
+    currentCalculationResult.value = {
+      tableData: resultData?.tableData || resultData || [],
+      columns: columns
+    }
   }
-  
-  console.log('✓ 传递给 ResultDialog 的数据:', {
-    tableDataLength: currentCalculationResult.value.tableData.length,
-    columnsLength: currentCalculationResult.value.columns.length,
-    columnsWithStepOrder: currentCalculationResult.value.columns.filter(c => c.stepOrder !== undefined).length
-  })
-  
+
+  console.log('✓ 传递给 ResultDialog 的数据:', currentCalculationResult.value)
+
   resultDialogVisible.value = true
 }
 
