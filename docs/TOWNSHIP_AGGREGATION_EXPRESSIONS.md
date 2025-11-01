@@ -4,6 +4,13 @@
 
 乡镇聚合步骤现在支持灵活的SUM()表达式，可以实现复杂的聚合计算逻辑。
 
+**工作原理：**
+1. 系统自动按乡镇名称将社区数据分组
+2. 对每个乡镇，根据配置的表达式计算聚合结果
+3. `SUM(字段名)` 会对该乡镇所有社区的指定字段求和
+4. `communityCount` 自动替换为该乡镇的社区数量
+5. 支持任意四则运算表达式
+
 ## 🎯 支持的表达式类型
 
 ### 1. 简单求和
@@ -133,9 +140,35 @@ INSERT INTO step_algorithm (
 
 ## 🔧 内置变量
 
-| 变量名 | 说明 | 示例 |
-|-------|------|------|
-| `communityCount` | 该乡镇的社区数量 | `SUM(score)/communityCount` |
+| 变量名 | 说明 | 自动替换 | 示例 |
+|-------|------|---------|------|
+| `communityCount` | 该乡镇的社区数量 | **系统自动替换** | `SUM(score)/communityCount` |
+
+**重要说明：**
+- `communityCount` 是占位符，**不需要**您传递实际值
+- 后端会自动根据该乡镇包含的社区数量进行替换
+- 例如青竹街道有10个社区，系统会自动将 `communityCount` 替换为 `10`
+
+---
+
+## 📌 实际配置示例（基于用户需求）
+
+### Excel公式 → 系统表达式转换
+
+| Excel公式 | 系统表达式 | 说明 |
+|----------|-----------|------|
+| `=SUM(AN55:AN60)/$BC$19` | `SUM(fieldAN)/communityCount` | 单列平均 |
+| `=(SUM(AO55:AO60)+SUM(AP55:AP60))/(2*$BC$19)` | `(SUM(fieldAO)+SUM(fieldAP))/(2*communityCount)` | 两列平均 |
+| `=SUM(AQ55:AQ60)/$BC$19` | `SUM(fieldAQ)/communityCount` | 单列平均 |
+| `=SUM(AS55:AS60)/SUM($AR$55:$AR$60)*10000` | `SUM(fieldAS)/SUM(fieldAR)*10000` | 比值（每万）|
+| `=SUM(AT55:AT60)/SUM($AR$55:$AR$60)*10000` | `SUM(fieldAT)/SUM(fieldAR)*10000` | 比值（每万）|
+| `=SUM(AU55:AU60)/SUM($AR$55:$AR$60)*10000` | `SUM(fieldAU)/SUM(fieldAR)*10000` | 比值（每万）|
+| `=(SUM(AV55:AV60)+SUM(AW55:AW60))/SUM($AR$55:$AR$60)*10000` | `(SUM(fieldAV)+SUM(fieldAW))/SUM(fieldAR)*10000` | 多列比值 |
+
+**注意：**
+- Excel中的 `$BC$19` 是社区数量单元格，在系统中用 `communityCount` 表示
+- Excel中的列名（AN、AO等）对应系统中步骤1的输出字段名
+- 确保字段名与步骤1的 `output_param` 完全一致
 
 ---
 

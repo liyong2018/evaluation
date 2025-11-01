@@ -1489,14 +1489,19 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("SUM\\(([^)]+)\\)");
             java.util.regex.Matcher matcher = pattern.matcher(expression);
 
-            String processedExpression = expression;
+            // 2. 先找出所有SUM并计算，保存到Map中（避免重复计算）
+            Map<String, Double> sumResults = new java.util.LinkedHashMap<>();
 
-            // 2. 遍历所有SUM函数，计算每个字段的总和
             while (matcher.find()) {
                 String fullMatch = matcher.group(0);  // 完整的 SUM(fieldName)
                 String fieldName = matcher.group(1);  // 字段名
 
-                // 计算该字段的总和
+                // 如果已经计算过这个SUM，跳过
+                if (sumResults.containsKey(fullMatch)) {
+                    continue;
+                }
+
+                // 计算该字段在所有社区的总和
                 double sum = 0.0;
                 for (Map<String, Object> community : communities) {
                     Object value = community.get(fieldName);
@@ -1505,14 +1510,19 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     }
                 }
 
-                // 替换表达式中的SUM(fieldName)为实际的总和值
-                processedExpression = processedExpression.replace(fullMatch, String.valueOf(sum));
+                sumResults.put(fullMatch, sum);
             }
 
-            // 3. 替换communityCount为实际的社区数量
+            // 3. 替换表达式中的所有SUM(...)为计算结果
+            String processedExpression = expression;
+            for (Map.Entry<String, Double> entry : sumResults.entrySet()) {
+                processedExpression = processedExpression.replace(entry.getKey(), String.valueOf(entry.getValue()));
+            }
+
+            // 4. 替换communityCount为实际的社区数量
             processedExpression = processedExpression.replace("communityCount", String.valueOf(communityCount));
 
-            // 4. 使用QLExpress计算最终结果
+            // 5. 使用QLExpress计算最终结果
             Object result = qlExpressService.execute(processedExpression, new HashMap<>());
 
             if (result instanceof Number) {
