@@ -1409,37 +1409,41 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     continue;
                 }
 
-                // 从inputParams中提取输入字段名（步骤1的输出参数）
-                // 如果inputParams为空，则尝试从qlExpression提取
-                String inputField = null;
-                if (inputParams != null && !inputParams.isEmpty()) {
-                    // inputParams可能是"FIELD1,FIELD2"格式，取第一个
-                    inputField = inputParams.split(",")[0].trim();
+                // 检查表达式是否包含SUM()函数
+                double result;
+                if (qlExpression != null && qlExpression.contains("SUM(")) {
+                    // 使用新的SUM表达式计算
+                    result = calculateAggregationExpression(qlExpression, communities, communityCount);
                 } else {
-                    // 兼容旧逻辑：如果没有inputParams，则qlExpression本身就是字段名
-                    inputField = qlExpression.trim();
-                }
-
-                // 计算聚合值：求和后除以社区数量
-                double sum = 0.0;
-                int validCount = 0;
-
-                for (Map<String, Object> community : communities) {
-                    Object value = community.get(inputField);
-                    if (value != null) {
-                        double doubleValue = toDouble(value);
-                        sum += doubleValue;
-                        validCount++;
+                    // 兼容旧逻辑：简单的字段求和平均
+                    String inputField = null;
+                    if (inputParams != null && !inputParams.isEmpty()) {
+                        inputField = inputParams.split(",")[0].trim();
+                    } else {
+                        inputField = qlExpression != null ? qlExpression.trim() : null;
                     }
-                }
-                
-                // 计算平均值
-                double average = validCount > 0 ? sum / communityCount : 0.0;
-                
-                // 格式化为8位小数
-                average = Double.parseDouble(String.format("%.8f", average));
 
-                townshipOutput.put(outputParam, average);
+                    if (inputField == null || inputField.isEmpty()) {
+                        continue;
+                    }
+
+                    double sum = 0.0;
+                    int validCount = 0;
+                    for (Map<String, Object> community : communities) {
+                        Object value = community.get(inputField);
+                        if (value != null) {
+                            double doubleValue = toDouble(value);
+                            sum += doubleValue;
+                            validCount++;
+                        }
+                    }
+                    result = validCount > 0 ? sum / communityCount : 0.0;
+                }
+
+                // 格式化为8位小数
+                result = Double.parseDouble(String.format("%.8f", result));
+
+                townshipOutput.put(outputParam, result);
                 outputToAlgorithmName.put(outputParam, algorithm.getAlgorithmName());
             }
             
@@ -1466,6 +1470,62 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         return stepResult;
     }
     
+    /**
+     * 计算包含SUM()函数的聚合表达式
+     * 支持的格式：
+     * - SUM(fieldName) - 对字段求和
+     * - SUM(fieldA)+SUM(fieldB) - 多个字段求和
+     * - SUM(fieldA)/SUM(fieldB)*10000 - 复杂表达式
+     * - (SUM(fieldA)+SUM(fieldB))/(2*communityCount) - 包含社区数量
+     *
+     * @param expression 表达式，如 "SUM(A)+SUM(B)" 或 "SUM(A)/communityCount"
+     * @param communities 社区数据列表
+     * @param communityCount 社区数量
+     * @return 计算结果
+     */
+    private double calculateAggregationExpression(String expression, List<Map<String, Object>> communities, int communityCount) {
+        try {
+            // 1. 使用正则表达式找出所有SUM(字段名)
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("SUM\\(([^)]+)\\)");
+            java.util.regex.Matcher matcher = pattern.matcher(expression);
+
+            String processedExpression = expression;
+
+            // 2. 遍历所有SUM函数，计算每个字段的总和
+            while (matcher.find()) {
+                String fullMatch = matcher.group(0);  // 完整的 SUM(fieldName)
+                String fieldName = matcher.group(1);  // 字段名
+
+                // 计算该字段的总和
+                double sum = 0.0;
+                for (Map<String, Object> community : communities) {
+                    Object value = community.get(fieldName);
+                    if (value != null) {
+                        sum += toDouble(value);
+                    }
+                }
+
+                // 替换表达式中的SUM(fieldName)为实际的总和值
+                processedExpression = processedExpression.replace(fullMatch, String.valueOf(sum));
+            }
+
+            // 3. 替换communityCount为实际的社区数量
+            processedExpression = processedExpression.replace("communityCount", String.valueOf(communityCount));
+
+            // 4. 使用QLExpress计算最终结果
+            Object result = qlExpressService.execute(processedExpression, new HashMap<>());
+
+            if (result instanceof Number) {
+                return ((Number) result).doubleValue();
+            }
+
+            return 0.0;
+        } catch (Exception e) {
+            log.error("计算聚合表达式失败: expression={}, error={}", expression, e.getMessage(), e);
+            return 0.0;
+        }
+    }
+
     /**
      * 将对象转换为Double
      */
