@@ -143,7 +143,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 globalContext.put("step_" + step.getStepCode(), stepResult);
                 
             } catch (Exception e) {
-                log.error("步骤 {} 执行失败: {}", step.getStepCode(), e.getMessage(), e);
                 throw new RuntimeException("步骤 " + step.getStepName() + " 执行失败: " + e.getMessage(), e);
             }
         }
@@ -314,7 +313,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         outputToAlgorithmName.put(outputParam, algorithm.getAlgorithmName());
                     }
                 } catch (Exception e) {
-                    log.error("算法 {} 执行失败: {}", algorithm.getAlgorithmCode(), e.getMessage(), e);
                     throw new RuntimeException("算法 " + algorithm.getAlgorithmName() + " 执行失败: " + e.getMessage(), e);
                 }
             }
@@ -354,7 +352,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                             outputToAlgorithmName.put(outputParam, algorithm.getAlgorithmName());
                         }
                     } catch (Exception e) {
-                        log.error("GRADE算法 {} 执行失败: {}", algorithm.getAlgorithmCode(), e.getMessage(), e);
                         throw new RuntimeException("GRADE算法 " + algorithm.getAlgorithmName() + " 执行失败: " + e.getMessage(), e);
                     }
                 }
@@ -835,7 +832,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             return result;
 
         } catch (Exception e) {
-            log.error("执行算法步骤失败", e);
             throw new RuntimeException("执行算法步骤失败: " + e.getMessage(), e);
         }
     }
@@ -886,7 +882,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             return result;
 
         } catch (Exception e) {
-            log.error("获取算法步骤信息失败", e);
             throw new RuntimeException("获取算法步骤信息失败: " + e.getMessage(), e);
         }
     }
@@ -958,7 +953,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             return result;
 
         } catch (Exception e) {
-            log.error("批量执行算法步骤失败", e);
             throw new RuntimeException("批量执行算法步骤失败: " + e.getMessage(), e);
         }
     }
@@ -981,7 +975,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     globalContext.put("step_" + algorithmStep.getStepCode(), stepResult);
                     
                 } catch (Exception e) {
-                    log.error("算法步骤 {} 执行失败: {}", algorithmStep.getStepCode(), e.getMessage(), e);
                     throw new RuntimeException("算法步骤 " + algorithmStep.getStepName() + " 执行失败: " + e.getMessage(), e);
                 }
             }
@@ -1103,7 +1096,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     }
                     
                 } catch (Exception e) {
-                    log.error("公式 {} 执行失败: {}", formula.getFormulaName(), e.getMessage(), e);
                     throw new RuntimeException("公式 " + formula.getFormulaName() + " 执行失败: " + e.getMessage(), e);
                 }
             }
@@ -1613,7 +1605,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             return executionRecordId;
 
         } catch (Exception e) {
-            log.error("保存执行记录和评估结果失败: {}", e.getMessage(), e);
             throw new RuntimeException("保存执行记录和评估结果失败: " + e.getMessage(), e);
         }
     }

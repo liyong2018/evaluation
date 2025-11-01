@@ -32,7 +32,6 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             Map<String, Object> regionContext,
             Map<String, Map<String, Object>> allRegionData) {
 
-        log.info("执行特殊算法: marker={}, params={}, region={}", marker, params, currentRegionCode);
 
         switch (marker) {
             case "LOAD_EVAL_RESULT":
@@ -155,14 +154,13 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
         
-        log.info("[归一化调试] 开始归一化: indicator={}, region={}, allRegionData.size={}", 
-                indicatorName, currentRegionCode, allRegionData.size());
+   
         
         // 1. 收集所有区域的指标值
         List<Double> allValues = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> entry : allRegionData.entrySet()) {
             Object value = entry.getValue().get(indicatorName);
-            log.info("[归一化调试] 地区={}, {}={}", entry.getKey(), indicatorName, value);
+       
             
             // 特别为 riskAssessment 添加详细调试
             if ("riskAssessment".equals(indicatorName)) {
@@ -176,7 +174,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             }
         }
         
-        log.info("[归一化调试] 收集到的所有值: {}", allValues);
+
         
         if (allValues.isEmpty()) {
             log.warn("未找到任何指标值: {}", indicatorName);
@@ -218,10 +216,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         
         // 4. 计算归一化值
         double normalized = toDouble(currentValue) / denominator;
-        
-        log.info("[归一化调试] 归一化结果: indicator={}, region={}, currentValue={}, sumSquares={}, denominator={}, normalized={}", 
-                indicatorName, currentRegionCode, currentValue, allValues.stream().mapToDouble(v -> v * v).sum(), denominator, normalized);
-        
+     
         return normalized;
     }
 
@@ -231,7 +226,6 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
         
-        log.info("[TOPSIS-DEBUG] 优解计算: indicators={}, region={}", indicators, currentRegionCode);
         log.debug("TOPSIS优解计算: indicators={}, region={}", indicators, currentRegionCode);
         
         // 检查是否为单区域情况
@@ -387,12 +381,10 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
         
-        log.info("[TOPSIS得分] 开始计算: params={}, region={}", params, currentRegionCode);
         
         // 1. 解析参数：正理想解字段名,负理想解字段名
         String[] fields = params.split(",");
         if (fields.length != 2) {
-            log.error("TOPSIS_SCORE参数格式错误，应为: POSITIVE_FIELD,NEGATIVE_FIELD，实际: {}", params);
             return 0.0;
         }
         
@@ -425,18 +417,10 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         // 5. 计算TOPSIS得分：D- / (D+ + D-)
         double denominator = dPositive + dNegative;
         if (denominator == 0) {
-            log.warn("TOPSIS得分分母为0: D+={}, D-={}", dPositive, dNegative);
             return 0.0;
         }
         
         double score = dNegative / denominator;
-        
-        log.info("[TOPSIS得分] region={}, D+={}, D-={}, score={}", 
-                currentRegionCode, 
-                String.format("%.8f", dPositive), 
-                String.format("%.8f", dNegative), 
-                String.format("%.8f", score));
-        
         return score;
     }
 
@@ -445,8 +429,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String scoreField,
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
-        
-        log.debug("能力分级计算: scoreField={}, region={}", scoreField, currentRegionCode);
+
         
         // 1. 收集所有区域的分数
         List<Double> allScores = new ArrayList<>();
@@ -481,7 +464,6 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
                 .sum();
         double stdev = Math.sqrt(sumSquaredDiff / (n - 1));  // 样本标准差：除以(n-1)
         
-        log.info("[分级] {} 统计: n={}, μ={}, σ={}", scoreField, n, String.format("%.4f", mean), String.format("%.4f", stdev));
         
         // 4. 获取当前区域的分数
         Map<String, Object> currentData = allRegionData.get(currentRegionCode);
@@ -500,9 +482,6 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         
         // 5. 根据分级规则计算等级
         String grade = determineGrade(score, mean, stdev);
-        
-        log.info("[分级结果] 地区 {} {} 分数={} 等级={}", 
-                currentRegionCode, scoreField, String.format("%.4f", score), grade);
         
         return grade;
     }
@@ -634,17 +613,13 @@ private String determineGrade(double value, double mean, double stdev) {
         double meanMinusHalf = mean - halfStdev;
         double meanMinusOneAndHalf = mean - oneAndHalfStdev;
         
-        log.info("[分级规则] v={} μ={} σ={} 阈值: +1.5σ={} +0.5σ={} -0.5σ={} -1.5σ={}", 
-                String.format("%.4f", value), String.format("%.4f", mean), String.format("%.4f", stdev), 
-                String.format("%.4f", meanPlusOneAndHalf), String.format("%.4f", meanPlusHalf), 
-                String.format("%.4f", meanMinusHalf), String.format("%.4f", meanMinusOneAndHalf));
+  
         
         // 确保值不小于0（根据规则中的[0,...)区间)
         value = Math.max(0, value);
         
         if (mean <= halfStdev) {
             // 情况1：μ ≤ 0.5σ，分为3级
-            log.info("[分级规则] 3级分类: μ({}) ≤ 0.5σ({})", String.format("%.4f", mean), String.format("%.4f", halfStdev));
             if (value >= meanPlusOneAndHalf) {
                 return "强";
             } else if (value >= meanPlusHalf) {
@@ -654,7 +629,6 @@ private String determineGrade(double value, double mean, double stdev) {
             }
         } else if (mean <= oneAndHalfStdev) {
             // 情况2：0.5σ < μ ≤ 1.5σ，分为4级
-            log.info("[分级规则] 4级分类: 0.5σ({}) < μ({}) ≤ 1.5σ({})", String.format("%.4f", halfStdev), String.format("%.4f", mean), String.format("%.4f", oneAndHalfStdev));
             
             if (value >= meanPlusOneAndHalf) {
                 return "强";
@@ -667,7 +641,6 @@ private String determineGrade(double value, double mean, double stdev) {
             }
         } else {
             // 情况3：μ > 1.5σ，默认情况，使用5级分类
-            log.info("[分级规则] 5级分类: μ({}) > 1.5σ({})", String.format("%.4f", mean), String.format("%.4f", oneAndHalfStdev));
             if (value >= meanPlusOneAndHalf) {
                 return "强";
             } else if (value >= meanPlusHalf) {
