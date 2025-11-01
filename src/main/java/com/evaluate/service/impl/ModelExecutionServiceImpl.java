@@ -154,6 +154,36 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 生成 columns 数组（包含所有步骤的 stepOrder 信息）
         List<Map<String, Object>> columns = generateColumnsWithAllSteps(tableData, stepOutputParams);
 
+        // 为每个步骤生成单独的tableData和columns（支持前端按步骤切换）
+        List<Map<String, Object>> stepTables = new ArrayList<>();
+        for (ModelStep step : steps) {
+            Map<String, Object> stepTableInfo = new HashMap<>();
+            stepTableInfo.put("stepId", step.getId());
+            stepTableInfo.put("stepCode", step.getStepCode());
+            stepTableInfo.put("stepName", step.getStepName());
+            stepTableInfo.put("stepOrder", step.getStepOrder());
+
+            // 为该步骤生成独立的tableData
+            Map<String, Object> singleStepResult = new HashMap<>();
+            singleStepResult.put(step.getStepCode(), stepResults.get(step.getStepCode()));
+
+            List<Map<String, Object>> stepTableData = generateResultTable(
+                    Collections.singletonMap("stepResults", singleStepResult));
+
+            // 为该步骤生成独立的columns
+            List<String> stepOutputs = stepOutputParams.get(step.getStepOrder());
+            Map<Integer, List<String>> singleStepParams = new HashMap<>();
+            if (stepOutputs != null) {
+                singleStepParams.put(step.getStepOrder(), stepOutputs);
+            }
+            List<Map<String, Object>> stepColumns = generateColumnsWithAllSteps(stepTableData, singleStepParams);
+
+            stepTableInfo.put("tableData", stepTableData);
+            stepTableInfo.put("columns", stepColumns);
+
+            stepTables.add(stepTableInfo);
+        }
+
         // 6. 保存执行记录和评估结果
         Long executionRecordId = saveExecutionRecordAndResults(
                 modelId,
@@ -169,8 +199,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         result.put("modelName", model.getModelName());
         result.put("executionTime", new Date());
         result.put("stepResults", stepResults);
-        result.put("tableData", tableData);
-        result.put("columns", columns);
+        result.put("tableData", tableData);  // 保留：所有步骤合并的数据
+        result.put("columns", columns);      // 保留：所有步骤合并的列
+        result.put("stepTables", stepTables); // 新增：每个步骤单独的表格数据
         result.put("success", true);
         result.put("executionRecordId", executionRecordId);
 
