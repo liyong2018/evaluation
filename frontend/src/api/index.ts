@@ -43,9 +43,10 @@ export const surveyDataApi = {
   deleteBySurveyName: (surveyName: string) => request.delete(`/api/survey-data/survey/${surveyName}`),
   
   // 导入Excel文件
-  importData: (file: File) => {
+  importData: (file: File, year: number) => {
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('year', year.toString())
     return request.post('/api/survey-data/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
@@ -453,9 +454,10 @@ export const algorithmStepExecutionApi = {
 // 社区行政村减灾能力相关API
 export const communityCapacityApi = {
   // 导入社区行政村减灾能力数据
-  importData: (file: File) => {
+  importData: (file: File, year: number) => {
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('year', year.toString())
     return request.post('/api/community-capacity/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })

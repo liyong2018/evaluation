@@ -152,9 +152,9 @@ public class SurveyDataController {
     }
 
     @PostMapping("/import")
-    public Result<Boolean> importSurveyData(@RequestParam MultipartFile file) {
+    public Result<Boolean> importSurveyData(@RequestParam MultipartFile file, @RequestParam Integer year) {
         try {
-            boolean result = surveyDataService.importFromExcel(file);
+            boolean result = surveyDataService.importFromExcel(file, year);
             return result ? Result.success(true) : Result.error("导入调查数据失败");
         } catch (Exception e) {
             log.error("导入调查数据失败", e);

@@ -64,6 +64,12 @@ public class CommunityDisasterReductionCapacity implements Serializable {
     private String communityName;
 
     /**
+     * 数据所属年份
+     */
+    @TableField("year")
+    private Integer year;
+
+    /**
      * 是否有社区（行政村）应急预案（是/否）
      */
     @TableField("has_emergency_plan")

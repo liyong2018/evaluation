@@ -95,27 +95,34 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean importFromExcel(MultipartFile file) {
+    public boolean importFromExcel(MultipartFile file, Integer year) {
         if (file == null || file.isEmpty()) {
             log.error("Excel文件为空");
             return false;
         }
-        
+
+        if (year == null) {
+            log.error("年份参数为空");
+            return false;
+        }
+
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             List<SurveyData> dataList = new ArrayList<>();
-            
+
             // 跳过标题行，从第二行开始读取
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
-                
+
                 SurveyData data = parseRowToSurveyData(row);
                 if (data != null) {
+                    // 设置年份
+                    data.setYear(year);
                     dataList.add(data);
                 }
             }
-            
+
             return batchSave(dataList);
         } catch (IOException e) {
             log.error("读取Excel文件失败", e);

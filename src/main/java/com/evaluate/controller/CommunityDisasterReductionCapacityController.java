@@ -30,10 +30,11 @@ public class CommunityDisasterReductionCapacityController {
      */
     @PostMapping("/import")
     public Result<Map<String, Object>> importCommunityCapacityData(
-            @RequestParam("file") MultipartFile file) {
-        log.info("开始导入社区行政村减灾能力数据，文件名: {}", file.getOriginalFilename());
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("year") Integer year) {
+        log.info("开始导入社区行政村减灾能力数据，文件名: {}, 年份: {}", file.getOriginalFilename(), year);
         try {
-            Map<String, Object> result = communityDisasterReductionCapacityService.importCommunityCapacityData(file);
+            Map<String, Object> result = communityDisasterReductionCapacityService.importCommunityCapacityData(file, year);
             return Result.success(result);
         } catch (Exception e) {
             log.error("导入社区行政村减灾能力数据失败", e);

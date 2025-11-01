@@ -386,24 +386,39 @@
 
     <!-- 导入对话框 -->
     <el-dialog v-model="dialogVisible.import" title="批量导入" width="500px">
-      <el-upload
-        ref="uploadRef"
-        :auto-upload="false"
-        :on-change="handleFileChange"
-        :before-upload="beforeUpload"
-        accept=".xlsx,.xls,.csv"
-        drag
-      >
-        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">
-          将文件拖到此处，或<em>点击上传</em>
-        </div>
-        <template #tip>
-          <div class="el-upload__tip">
-            支持 xlsx/xls/csv 格式文件，文件大小不超过 10MB
-          </div>
-        </template>
-      </el-upload>
+      <el-form label-width="100px">
+        <el-form-item label="数据年份" required>
+          <el-select v-model="importYear" placeholder="请选择数据所属年份" style="width: 100%">
+            <el-option
+              v-for="year in yearOptions"
+              :key="year"
+              :label="year + '年'"
+              :value="year"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="上传文件">
+          <el-upload
+            ref="uploadRef"
+            :auto-upload="false"
+            :on-change="handleFileChange"
+            :before-upload="beforeUpload"
+            accept=".xlsx,.xls,.csv"
+            drag
+            style="width: 100%"
+          >
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            <div class="el-upload__text">
+              将文件拖到此处，或<em>点击上传</em>
+            </div>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持 xlsx/xls/csv 格式文件，文件大小不超过 10MB
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
       <template #footer>
         <el-button @click="dialogVisible.import = false">取消</el-button>
         <el-button type="primary" @click="handleImport" :loading="loading.import">
@@ -472,6 +487,21 @@ const isEdit = ref(false)
 const formRef = ref<FormInstance>()
 const uploadRef = ref()
 const uploadFile = ref<File | null>(null)
+
+// 导入年份选择
+const importYear = ref<number>(new Date().getFullYear())
+const yearOptions = ref<number[]>([])
+
+// 生成年份选项（从2020年到当前年份）
+const generateYearOptions = () => {
+  const currentYear = new Date().getFullYear()
+  const startYear = 2020
+  const years: number[] = []
+  for (let year = currentYear; year >= startYear; year--) {
+    years.push(year)
+  }
+  yearOptions.value = years
+}
 
 const formData = reactive({
   id: null,
@@ -765,6 +795,11 @@ const beforeUpload = (file: File) => {
 
 // 导入数据
 const handleImport = async () => {
+  if (!importYear.value) {
+    ElMessage.warning('请选择数据所属年份')
+    return
+  }
+
   if (!uploadFile.value) {
     ElMessage.warning('请选择要导入的文件')
     return
@@ -775,10 +810,10 @@ const handleImport = async () => {
     let response
     if (dataType.value === 'township') {
       // 导入乡镇数据
-      response = await surveyDataApi.importData(uploadFile.value)
+      response = await surveyDataApi.importData(uploadFile.value, importYear.value)
     } else {
       // 导入社区数据
-      response = await communityCapacityApi.importData(uploadFile.value)
+      response = await communityCapacityApi.importData(uploadFile.value, importYear.value)
     }
 
     if (response.success) {
@@ -879,6 +914,7 @@ onMounted(async () => {
   console.info('[DataManagement] onMounted -> loadRegionNameMap done, start getDataList')
   await getDataList()
   console.info('[DataManagement] onMounted -> getDataList done')
+  generateYearOptions()
   // 暴露到 window 便于调试（仅开发时使用）
   try {
     ;(window as any).app = (window as any).app || {}

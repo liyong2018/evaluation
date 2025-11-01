@@ -37,8 +37,8 @@ public class CommunityDisasterReductionCapacityServiceImpl
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> importCommunityCapacityData(MultipartFile file) {
-        log.info("开始导入社区行政村减灾能力数据，文件名: {}", file.getOriginalFilename());
+    public Map<String, Object> importCommunityCapacityData(MultipartFile file, Integer year) {
+        log.info("开始导入社区行政村减灾能力数据，文件名: {}, 年份: {}", file.getOriginalFilename(), year);
 
         Map<String, Object> result = new HashMap<>();
         List<String> errorMessages = new ArrayList<>();
@@ -46,6 +46,11 @@ public class CommunityDisasterReductionCapacityServiceImpl
         int errorCount = 0;
 
         try {
+            // 验证年份参数
+            if (year == null) {
+                throw new RuntimeException("年份参数不能为空");
+            }
+
             // 验证文件格式
             if (!ExcelUtil.isExcel(file)) {
                 throw new RuntimeException("请上传Excel文件(.xlsx或.xls)");
@@ -59,6 +64,8 @@ public class CommunityDisasterReductionCapacityServiceImpl
             for (Map<String, Object> data : dataList) {
                 try {
                     CommunityDisasterReductionCapacity entity = convertToEntity(data);
+                    // 设置年份
+                    entity.setYear(year);
 
                     // 检查是否已存在相同的数据
                     CommunityDisasterReductionCapacity existing = getByRegionAndCommunity(
