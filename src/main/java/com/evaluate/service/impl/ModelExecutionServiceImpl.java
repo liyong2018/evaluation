@@ -76,9 +76,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId) {
-        log.info("开始执行评估模型, modelId={}, regionCodes={}, weightConfigId={}", 
-                modelId, regionCodes, weightConfigId);
-
         // 1. 验证模型是否存在且启用
         EvaluationModel model = evaluationModelMapper.selectById(modelId);
         if (model == null || model.getStatus() == 0) {
@@ -112,14 +109,12 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         List<String> currentRegionCodes = new ArrayList<>(regionCodes);  // 当前使用的地区代码列表
         
         for (ModelStep step : steps) {
-            log.info("执行步骤: {} - {}, order={}", step.getStepCode(), step.getStepName(), step.getStepOrder());
             
             try {
                 Map<String, Object> stepResult;
                 
                 // 特殊处理：如果是AGGREGATION类型且modelId=8，执行乡镇聚合
                 if ("AGGREGATION".equals(step.getStepType()) && modelId == 8) {
-                    log.info("检测到乡镇聚合步骤，执行按乡镇分组聚合");
                     stepResult = executeTownshipAggregation(step.getId(), currentRegionCodes, globalContext);
                     
                     // 更新regionCodes为乡镇代码列表（用于后续步骤）
@@ -128,7 +123,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                             (Map<String, Map<String, Object>>) stepResult.get("regionResults");
                     if (regionResults != null) {
                         currentRegionCodes = new ArrayList<>(regionResults.keySet());
-                        log.info("乡镇聚合后，更新regionCodes为乡镇代码列表: {}", currentRegionCodes);
                     }
                 } else {
                     // 执行单个步骤
@@ -143,13 +137,11 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         (Map<String, String>) stepResult.get("outputToAlgorithmName");
                 if (outputToAlgorithmName != null) {
                     stepOutputParams.put(step.getStepOrder(), new ArrayList<>(outputToAlgorithmName.values()));
-                    log.debug("步骤{} 的输出参数: {}", step.getStepOrder(), outputToAlgorithmName.values());
                 }
                 
                 // 将步骤结果合并到全局上下文（供后续步骤使用）
                 globalContext.put("step_" + step.getStepCode(), stepResult);
                 
-                log.info("步骤 {} 执行完成", step.getStepCode());
             } catch (Exception e) {
                 log.error("步骤 {} 执行失败: {}", step.getStepCode(), e.getMessage(), e);
                 throw new RuntimeException("步骤 " + step.getStepName() + " 执行失败: " + e.getMessage(), e);
@@ -183,7 +175,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         result.put("success", true);
         result.put("executionRecordId", executionRecordId);
 
-        log.info("评估模型执行完成，执行记录ID: {}", executionRecordId);
         return result;
     }
 
@@ -197,8 +188,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      */
     @Override
     public Map<String, Object> executeStep(Long stepId, List<String> regionCodes, Map<String, Object> inputData) {
-        log.info("执行步骤, stepId={}", stepId);
-
         // 1. 获取步骤信息
         ModelStep step = modelStepMapper.selectById(stepId);
         if (step == null || step.getStatus() == 0) {
@@ -213,7 +202,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         List<StepAlgorithm> algorithms = stepAlgorithmMapper.selectList(algorithmQuery);
 
         if (algorithms == null || algorithms.isEmpty()) {
-            log.warn("步骤 {} 没有配置算法", step.getStepCode());
             return new HashMap<>();
         }
 
@@ -245,8 +233,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     Map<String, Object> communityDataMap = communityDataList.get(0);
                     // 直接将数据库字段添加到上下文，同时处理数值类型转换
                     addMapDataToContext(regionContext, communityDataMap);
-                } else {
-                    log.warn("未找到社区数据: regionCode={}", regionCode);
                 }
             } else {
                 // 乡镇模型(modelId=3)：从survey_data表加载数据
@@ -256,8 +242,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
                 if (surveyData != null) {
                     addSurveyDataToContext(regionContext, surveyData);
-                } else {
-                    log.warn("未找到调查数据: regionCode={}", regionCode);
                 }
             }
 
@@ -279,23 +263,18 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 nonGradeAlgorithms.add(algorithm);
             }
         }
-        
-        log.info("算法分组: 非GRADE算法={}, GRADE算法={}", nonGradeAlgorithms.size(), gradeAlgorithms.size());
-        
+
         // 6. 第二遍：为每个地区执行非GRADE算法（支持特殊标记）
         Map<String, Map<String, Object>> regionResults = new LinkedHashMap<>();
         Map<String, String> outputToAlgorithmName = new LinkedHashMap<>();
         
         for (String regionCode : regionCodes) {
-            log.info("为地区 {} 执行非GRADE算法", regionCode);
             Map<String, Object> regionContext = allRegionContexts.get(regionCode);
             Map<String, Object> algorithmOutputs = new LinkedHashMap<>();
-            
+
             // 执行非GRADE算法
             for (StepAlgorithm algorithm : nonGradeAlgorithms) {
                 try {
-                    log.debug("执行算法: {} - {}", algorithm.getAlgorithmCode(), algorithm.getAlgorithmName());
-                    
                     Object result;
                     String qlExpression = algorithm.getQlExpression();
                     
@@ -305,9 +284,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         String[] parts = qlExpression.substring(1).split(":", 2);
                         String marker = parts[0];
                         String params = parts.length > 1 ? parts[1] : "";
-                        
-                        log.info("执行特殊标记算法: marker={}, params={}", marker, params);
-                        
+
                         // 调用特殊算法服务
                         result = specialAlgorithmService.executeSpecialAlgorithm(
                                 marker, params, regionCode, regionContext, allRegionContexts);
@@ -336,8 +313,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         algorithmOutputs.put(outputParam, result);
                         outputToAlgorithmName.put(outputParam, algorithm.getAlgorithmName());
                     }
-                    
-                    log.debug("算法 {} 执行结果: {}", algorithm.getAlgorithmCode(), result);
                 } catch (Exception e) {
                     log.error("算法 {} 执行失败: {}", algorithm.getAlgorithmCode(), e.getMessage(), e);
                     throw new RuntimeException("算法 " + algorithm.getAlgorithmName() + " 执行失败: " + e.getMessage(), e);
@@ -349,24 +324,17 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         
         // 7. 第三遍：为每个地区执行GRADE算法（此时所有地区的分数已计算完成）
         if (!gradeAlgorithms.isEmpty()) {
-            log.info("开始执行GRADE算法，此时所有地区的分数已计算完成");
-            
             for (String regionCode : regionCodes) {
-                log.info("为地区 {} 执行GRADE算法", regionCode);
                 Map<String, Object> regionContext = allRegionContexts.get(regionCode);
                 Map<String, Object> algorithmOutputs = regionResults.get(regionCode);
-                
+
                 for (StepAlgorithm algorithm : gradeAlgorithms) {
                     try {
-                        log.debug("执行GRADE算法: {} - {}", algorithm.getAlgorithmCode(), algorithm.getAlgorithmName());
-                        
                         String qlExpression = algorithm.getQlExpression();
                         String[] parts = qlExpression.substring(1).split(":", 2);
                         String marker = parts[0];
                         String params = parts.length > 1 ? parts[1] : "";
-                        
-                        log.info("执行特殊标记算法: marker={}, params={}", marker, params);
-                        
+
                         // 调用特殊算法服务
                         Object result = specialAlgorithmService.executeSpecialAlgorithm(
                                 marker, params, regionCode, regionContext, allRegionContexts);
@@ -385,8 +353,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                             algorithmOutputs.put(outputParam, result);
                             outputToAlgorithmName.put(outputParam, algorithm.getAlgorithmName());
                         }
-                        
-                        log.debug("GRADE算法 {} 执行结果: {}", algorithm.getAlgorithmCode(), result);
                     } catch (Exception e) {
                         log.error("GRADE算法 {} 执行失败: {}", algorithm.getAlgorithmCode(), e.getMessage(), e);
                         throw new RuntimeException("GRADE算法 " + algorithm.getAlgorithmName() + " 执行失败: " + e.getMessage(), e);
@@ -412,8 +378,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      */
     @Override
     public List<Map<String, Object>> generateResultTable(Map<String, Object> executionResults) {
-        log.info("生成结果二维表");
-
         List<Map<String, Object>> tableData = new ArrayList<>();
         
         @SuppressWarnings("unchecked")
@@ -451,10 +415,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
 
-        log.info("生成结果表：共 {} 个地区，{} 个输出字段", allRegions.size(), allOutputs.size());
-        log.info("所有输出字段: {}", allOutputs);
-        log.info("输出参数到算法名称映射: {}", globalOutputToAlgorithmName);
-
         // 为每个地区生成一行数据
         for (String regionCode : allRegions) {
             Map<String, Object> row = new LinkedHashMap<>();
@@ -490,8 +450,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         break;
                     }
                 }
-                
-                log.debug("乡镇虚拟代码 {} 映射为: townshipName={}", regionCode, townshipName);
             } else {
                 // 这是普通的社区代码
                 // 首先尝试从community_disaster_reduction_capacity表获取社区和乡镇信息
@@ -514,11 +472,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         regionName = regionCode;
                     }
                 }
-                
-                log.debug("地区 {} 映射为: regionName={}, townshipName={}, communityName={}", 
-                        regionCode, regionName, townshipName, communityName);
             }
-            
+
             row.put("regionName", regionName);
             if (townshipName != null) {
                 row.put("townshipName", townshipName);
@@ -570,7 +525,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             tableData.add(row);
         }
 
-        log.info("生成结果二维表完成，共 {} 行数据", tableData.size());
         return tableData;
     }
 
@@ -578,8 +532,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      * 加载基础数据到上下文
      */
     private void loadBaseDataToContext(Map<String, Object> context, List<String> regionCodes, Long weightConfigId) {
-        log.debug("加载基础数据到上下文");
-
         // 加载权重配置
         if (weightConfigId != null) {
             QueryWrapper<IndicatorWeight> weightQuery = new QueryWrapper<>();
@@ -603,7 +555,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     weightValue = 0.0;
                 }
                 context.put("weight_" + weight.getIndicatorCode(), weightValue);
-                log.debug("加载权重: weight_{} = {}", weight.getIndicatorCode(), weightValue);
             }
         }
     }
@@ -631,7 +582,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         // 将当前区域的所有输出变量添加到上下文
                         for (Map.Entry<String, Object> output : currentRegionOutputs.entrySet()) {
                             regionContext.put(output.getKey(), output.getValue());
-                            log.debug("从前面步骤加载变量: {}={}", output.getKey(), output.getValue());
                         }
                     }
                 }
@@ -742,7 +692,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             context.put(key, contextValue);
         }
 
-        log.debug("成功将 {} 个数据库字段添加到上下文", dataMap.size());
     }
 
     /**
@@ -828,7 +777,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      */
     @Override
     public Map<String, Object> executeAlgorithmStep(Long algorithmId, Integer stepOrder, List<String> regionCodes, Long weightConfigId) {
-        log.info("执行算法步骤, algorithmId={}, stepOrder={}, regionCodes.size={}", algorithmId, stepOrder, regionCodes.size());
 
         try {
             // 1. 获取算法配置的所有步骤
@@ -884,7 +832,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         result.put("success", true);
         result.put("executionTime", new Date());
 
-            log.info("算法步骤 {} 执行完成，生成 {} 行表格数据", stepOrder, tableData.size());
             return result;
 
         } catch (Exception e) {
@@ -901,7 +848,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      */
     @Override
     public Map<String, Object> getAlgorithmStepsInfo(Long algorithmId) {
-        log.info("获取算法步骤信息, algorithmId={}", algorithmId);
 
         try {
             // 获取算法配置
@@ -937,7 +883,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             result.put("steps", stepsInfo);
             result.put("success", true);
 
-            log.info("获取算法步骤信息完成，共 {} 个步骤", stepsInfo.size());
             return result;
 
         } catch (Exception e) {
@@ -957,7 +902,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      */
     @Override
     public Map<String, Object> executeAlgorithmStepsUpTo(Long algorithmId, Integer upToStepOrder, List<String> regionCodes, Long weightConfigId) {
-        log.info("批量执行算法步骤到第{}步, algorithmId={}", upToStepOrder, algorithmId);
 
         try {
             // 1. 获取算法配置的所有步骤
@@ -1011,7 +955,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             result.put("success", true);
             result.put("executionTime", new Date());
 
-            log.info("批量执行算法步骤完成，执行到第{}步", upToStepOrder);
             return result;
 
         } catch (Exception e) {
@@ -1029,7 +972,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         
         for (AlgorithmStep algorithmStep : algorithmSteps) {
             if (algorithmStep.getStepOrder() <= upToStepOrder) {
-                log.info("执行算法步骤: {} - {}, order={}", algorithmStep.getStepCode(), algorithmStep.getStepName(), algorithmStep.getStepOrder());
                 
                 try {
                     Map<String, Object> stepResult = executeAlgorithmStepInternal(algorithmStep, regionCodes, globalContext);
@@ -1038,7 +980,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     // 将步骤结果合并到全局上下文（供后续步骤使用）
                     globalContext.put("step_" + algorithmStep.getStepCode(), stepResult);
                     
-                    log.info("算法步骤 {} 执行完成", algorithmStep.getStepCode());
                 } catch (Exception e) {
                     log.error("算法步骤 {} 执行失败: {}", algorithmStep.getStepCode(), e.getMessage(), e);
                     throw new RuntimeException("算法步骤 " + algorithmStep.getStepName() + " 执行失败: " + e.getMessage(), e);
@@ -1061,7 +1002,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         List<FormulaConfig> formulas = formulaConfigMapper.selectList(formulaQuery);
 
         if (formulas.isEmpty()) {
-            log.warn("算法步骤 {} 没有配置公式", algorithmStep.getStepCode());
             return new HashMap<>();
         }
 
@@ -1115,14 +1055,12 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         Map<String, String> outputToFormulaName = new LinkedHashMap<>();
         
         for (String regionCode : regionCodes) {
-            log.debug("为地区 {} 执行公式", regionCode);
             Map<String, Object> regionContext = allRegionContexts.get(regionCode);
             Map<String, Object> formulaOutputs = new LinkedHashMap<>();
             
             // 按顺序执行每个公式
             for (FormulaConfig formula : formulas) {
                 try {
-                    log.debug("执行公式: {} - {}", formula.getFormulaName(), formula.getFormulaExpression());
                     
                     Object result;
                     String expression = formula.getFormulaExpression();
@@ -1134,7 +1072,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         String marker = parts[0];
                         String params = parts.length > 1 ? parts[1] : "";
                         
-                        log.info("执行特殊标记公式: marker={}, params={}", marker, params);
                         
                         // 调用特殊算法服务
                         result = specialAlgorithmService.executeSpecialAlgorithm(
@@ -1165,7 +1102,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         outputToFormulaName.put(outputParam, formula.getFormulaName());
                     }
                     
-                    log.debug("公式 {} 执行结果: {}", formula.getFormulaName(), result);
                 } catch (Exception e) {
                     log.error("公式 {} 执行失败: {}", formula.getFormulaName(), e.getMessage(), e);
                     throw new RuntimeException("公式 " + formula.getFormulaName() + " 执行失败: " + e.getMessage(), e);
@@ -1272,7 +1208,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         List<Map<String, Object>> columns = new ArrayList<>();
         
         if (tableData == null || tableData.isEmpty()) {
-            log.debug("表格数据为空，返回空的 columns 数组");
             return columns;
         }
         
@@ -1290,8 +1225,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
         
-        log.info("开始生成 columns 数组（全模型），总列数: {}", firstRow.size());
-        log.debug("列名到步骤序号的映射: {}", columnToStepOrder);
         
         for (String columnName : firstRow.keySet()) {
             Map<String, Object> column = new LinkedHashMap<>();
@@ -1309,17 +1242,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 Integer stepOrder = columnToStepOrder.get(columnName);
                 if (stepOrder != null) {
                     column.put("stepOrder", stepOrder);
-                    log.debug("列 {} 标记为步骤 {}", columnName, stepOrder);
                 } else {
-                    log.warn("列 {} 未找到对应的步骤序号", columnName);
                 }
             }
             
             columns.add(column);
         }
         
-        log.info("完成 columns 数组生成（全模型），共 {} 列，其中 {} 列包含 stepOrder", 
-                columns.size(), columns.stream().filter(c -> c.containsKey("stepOrder")).count());
         
         return columns;
     }
@@ -1337,7 +1266,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         List<Map<String, Object>> columns = new ArrayList<>();
         
         if (tableData == null || tableData.isEmpty()) {
-            log.debug("表格数据为空，返回空的 columns 数组");
             return columns;
         }
         
@@ -1345,7 +1273,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         Map<String, Object> firstRow = tableData.get(0);
         Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region"));
         
-        log.info("开始生成 columns 数组，步骤序号: {}, 列数: {}", stepOrder, firstRow.size());
         
         for (String columnName : firstRow.keySet()) {
             Map<String, Object> column = new LinkedHashMap<>();
@@ -1361,14 +1288,11 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 column.put("width", 120);
                 // 非基础列添加 stepOrder
                 column.put("stepOrder", stepOrder);
-                log.debug("列 {} 标记为步骤 {}", columnName, stepOrder);
             }
             
             columns.add(column);
         }
         
-        log.info("完成 columns 数组生成，共 {} 列，其中 {} 列包含 stepOrder", 
-                columns.size(), columns.stream().filter(c -> c.containsKey("stepOrder")).count());
         
         return columns;
     }
@@ -1556,11 +1480,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             try {
                 return Double.parseDouble((String) value);
             } catch (NumberFormatException e) {
-                log.warn("无法将字符串转换为数字: {}", value);
                 return 0.0;
             }
         }
-        log.warn("无法转换为Double的类型: {}", value.getClass());
         return 0.0;
     }
 
@@ -1606,7 +1528,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             // 保存执行记录
             modelExecutionRecordMapper.insert(executionRecord);
             Long executionRecordId = executionRecord.getId();
-            log.info("保存执行记录成功，ID: {}", executionRecordId);
 
             // 2. 从stepResults的最后一步提取评估结果（8个字段：4个评分+4个级别）
             List<EvaluationResult> evaluationResults = extractEvaluationResults(
@@ -1617,7 +1538,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 for (EvaluationResult result : evaluationResults) {
                     evaluationResultMapper.insert(result);
                 }
-                log.info("批量保存评估结果成功，共 {} 条", evaluationResults.size());
             }
 
             return executionRecordId;
@@ -1642,11 +1562,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // data_source字段限制为varchar(20)，使用简短标识
         String dataSource = (modelId == 3) ? "township" : "community";
 
-        log.info("开始提取评估结果，stepResults 包含 {} 个步骤", stepResults.size());
-        for (String key : stepResults.keySet()) {
-            log.info("  步骤key: {}", key);
-        }
-
         // 需要从多个步骤中提取数据：
         // - Score字段可能在 TOPSIS_DISTANCE 步骤
         // - Grade字段可能在 CAPABILITY_GRADE 步骤
@@ -1658,22 +1573,15 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             String stepCode = stepEntry.getKey();
             Map<String, Object> stepResult = (Map<String, Object>) stepEntry.getValue();
 
-            log.info("处理步骤: {}", stepCode);
-
             @SuppressWarnings("unchecked")
             Map<String, Map<String, Object>> regionResults =
                     (Map<String, Map<String, Object>>) stepResult.get("regionResults");
 
             if (regionResults != null) {
-                log.info("  步骤 {} 包含 {} 个地区的结果", stepCode, regionResults.size());
-
                 // 遍历该步骤的每个地区结果
                 for (Map.Entry<String, Map<String, Object>> regionEntry : regionResults.entrySet()) {
                     String regionCode = regionEntry.getKey();
                     Map<String, Object> outputs = regionEntry.getValue();
-
-                    // 打印该步骤该地区的输出
-                    log.info("    地区 {} 在步骤 {} 的输出: {}", regionCode, stepCode, outputs.keySet());
 
                     // 合并到全局输出中
                     allRegionOutputs.computeIfAbsent(regionCode, k -> new LinkedHashMap<>()).putAll(outputs);
@@ -1681,18 +1589,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
 
-        log.info("合并后共有 {} 个地区的完整输出", allRegionOutputs.size());
-
         // 遍历每个地区的合并后的结果
         for (Map.Entry<String, Map<String, Object>> regionEntry : allRegionOutputs.entrySet()) {
             String regionCode = regionEntry.getKey();
             Map<String, Object> outputs = regionEntry.getValue();
-
-            // 打印该地区的所有输出参数，便于调试
-            log.info("=== 地区 {} 的合并后输出参数 ===", regionCode);
-            for (Map.Entry<String, Object> output : outputs.entrySet()) {
-                log.info("  参数: {} = {}", output.getKey(), output.getValue());
-            }
 
             // 获取地区名称
             String regionName = getRegionName(regionCode);
@@ -1728,7 +1628,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             results.add(result);
         }
 
-        log.info("评估结果提取完成，共 {} 条记录", results.size());
         return results;
     }
 
@@ -1771,11 +1670,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         for (String key : keys) {
             Object value = map.get(key);
             if (value != null) {
-                log.info("✓ 成功匹配字段 {} = {}", key, value);
                 return toBigDecimal(value);
             }
         }
-        log.warn("✗ 未找到匹配的字段: {}，可用字段: {}", String.join(", ", keys), map.keySet());
         return null;
     }
 
@@ -1786,11 +1683,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         for (String key : keys) {
             Object value = map.get(key);
             if (value != null) {
-                log.info("✓ 成功匹配字段 {} = {}", key, value);
                 return toString(value);
             }
         }
-        log.warn("✗ 未找到匹配的字段: {}，可用字段: {}", String.join(", ", keys), map.keySet());
         return null;
     }
 
@@ -1812,11 +1707,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             try {
                 return new java.math.BigDecimal((String) value);
             } catch (NumberFormatException e) {
-                log.warn("无法将字符串转换为BigDecimal: {}", value);
                 return null;
             }
         }
-        log.warn("无法转换为BigDecimal的类型: {}", value.getClass());
         return null;
     }
 
