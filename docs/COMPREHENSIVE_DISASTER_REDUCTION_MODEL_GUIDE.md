@@ -161,7 +161,40 @@ D- = SQRT(SUM((min_value - current_value)²))
 
 ### 1. 数据库配置
 
-**必须先执行**以下SQL脚本来配置综合减灾能力评估模型：
+#### 步骤1.1：诊断当前配置
+
+**首先运行诊断脚本**检查数据库中的配置状态：
+
+```bash
+# 使用MySQL命令行执行诊断
+mysql -h192.168.15.203 -P30314 -uroot -p123456 evaluate_db < sql/diagnose_comprehensive_model.sql
+```
+
+诊断脚本会检查：
+- 综合减灾模型是否存在
+- 模型步骤配置是否正确
+- 步骤算法配置是否完整
+- evaluation_result表中是否有模型3和模型8的数据
+- 是否存在重复的区域代码
+
+#### 步骤1.2：修复配置
+
+**如果诊断发现问题**（例如第一步没有数据，或者算法配置不正确），执行修复脚本：
+
+```bash
+# 执行修复脚本
+mysql -h192.168.15.203 -P30314 -uroot -p123456 evaluate_db < sql/fix_comprehensive_model.sql
+```
+
+修复脚本会：
+- 更新第一步的名称和代码为"数据融合"（DATA_FUSION）
+- 删除旧的算法配置
+- 添加6个@LOAD_EVAL_RESULT算法，从evaluation_result表加载数据
+- 验证配置是否正确
+
+#### 步骤1.3：全新安装（可选）
+
+**如果是首次配置**，可以直接执行完整配置脚本：
 
 ```bash
 # 方式1：使用MySQL命令行
@@ -170,6 +203,8 @@ mysql -h192.168.15.203 -P30314 -uroot -p123456 evaluate_db < sql/comprehensive_m
 # 方式2：使用DBeaver或其他数据库工具
 # 直接打开 sql/comprehensive_model_setup.sql 文件并执行
 ```
+
+⚠️ **注意**：如果数据库中已存在综合减灾模型，执行此脚本会创建重复的模型。建议先运行诊断和修复脚本。
 
 ### 2. 评估结果数据
 
@@ -312,15 +347,75 @@ ORDER BY 综合评估 DESC;
 
 ## 八、常见问题
 
-### Q1: 为什么综合减灾能力评估模型执行失败？
+### Q1: 第一步"数据获取"或"数据融合"没有数据，columns和tableData都是空的？
+
+**A**: 这是最常见的问题，可能原因和解决方案：
+
+#### 原因1：数据库配置不正确
+
+**解决方案：**
+```bash
+# 步骤1：运行诊断脚本
+mysql -h192.168.15.203 -P30314 -uroot -p123456 evaluate_db < sql/diagnose_comprehensive_model.sql
+
+# 步骤2：查看诊断结果，特别关注：
+# - 第一步的算法数量（应该是6个）
+# - 算法的ql_expression（应该包含@LOAD_EVAL_RESULT）
+
+# 步骤3：如果配置不正确，运行修复脚本
+mysql -h192.168.15.203 -P30314 -uroot -p123456 evaluate_db < sql/fix_comprehensive_model.sql
+```
+
+#### 原因2：evaluation_result表中没有数据
+
+**解决方案：**
+```sql
+-- 检查模型3和模型8的评估结果
+SELECT
+    evaluation_model_id,
+    COUNT(*) AS count,
+    COUNT(DISTINCT region_code) AS region_count
+FROM evaluation_result
+WHERE evaluation_model_id IN (3, 8)
+GROUP BY evaluation_model_id;
+```
+
+如果结果为空或数量很少，说明需要先运行：
+1. 乡镇减灾能力评估模型（模型ID=3）
+2. 社区-乡镇减灾能力评估模型（模型ID=8）
+
+#### 原因3：区域代码不匹配
+
+**解决方案：**
+```sql
+-- 检查evaluation_result表中的区域代码
+SELECT DISTINCT region_code, region_name
+FROM evaluation_result
+WHERE evaluation_model_id IN (3, 8)
+ORDER BY region_code;
+
+-- 确保综合减灾模型评估时选择的区域在上述结果中
+```
+
+#### 原因4：后端日志显示错误
+
+**解决方案：**
+查看后端日志（通常在 logs/ 目录），搜索关键字：
+- `[LOAD_EVAL_RESULT]`
+- `未找到评估结果`
+- `参数不完整`
+
+根据日志信息进行相应的修复。
+
+### Q2: 为什么综合减灾能力评估模型执行失败？
 
 **A**: 检查以下几点：
-1. 是否已执行 `comprehensive_model_setup.sql` 配置脚本
+1. 是否已执行诊断和修复脚本（见Q1）
 2. 是否已先运行乡镇评估模型（模型ID=3）
 3. 是否已先运行社区-乡镇评估模型（模型ID=8）
 4. 选择的区域是否与前两个模型的评估区域一致
 
-### Q2: 如何确认数据是否加载成功？
+### Q3: 如何确认数据是否加载成功？
 
 **A**: 查看后端日志，搜索 `[LOAD_EVAL_RESULT]` 关键字：
 ```
@@ -328,7 +423,7 @@ ORDER BY 综合评估 DESC;
 [LOAD_EVAL_RESULT] 加载成功: modelId=3, region=511425108, field=management_capability_score, value=0.7657
 ```
 
-### Q3: 综合能力值为什么是0？
+### Q4: 综合能力值为什么是0？
 
 **A**: 可能原因：
 1. 乡镇或社区评估结果数据为空或为0
@@ -344,7 +439,7 @@ AND region_code = '你的区域代码'
 ORDER BY create_time DESC;
 ```
 
-### Q4: 能否修改权重配置？
+### Q5: 能否修改权重配置？
 
 **A**: 可以，修改 `step_algorithm` 表中的 `ql_expression` 字段：
 
@@ -356,7 +451,7 @@ WHERE algorithm_code = 'WEIGHT_TOWNSHIP_MGMT'
 AND step_id IN (SELECT id FROM model_step WHERE model_id = 9);
 ```
 
-### Q5: 分级结果是否符合预期？
+### Q6: 分级结果是否符合预期？
 
 **A**: 分级算法完全按照Excel公式实现，基于均值和标准差进行统计分级。如果样本量较小（少于3个乡镇），分级可能不够准确。
 
