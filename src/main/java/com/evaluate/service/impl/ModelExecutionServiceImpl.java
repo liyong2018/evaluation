@@ -1601,7 +1601,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         log.warn("鏃犳硶杞崲涓篋ouble鐨勭被鍨? {}", value.getClass());
         return 0.0;
     }
-}
     // derive 9 township inputs from community context when missing (ASCII only)
     private Map<String, Double> deriveTownshipInputsFromCommunity(Map<String, Object> c) {
         Map<String, Double> r = new HashMap<>();
@@ -1662,3 +1661,4 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     }
     private double clamp01(double v) { return v < 0 ? 0.0 : (v > 1 ? 1.0 : v); }
     private double round8(double v) { return Double.parseDouble(String.format("%.8f", v)); }
+}
