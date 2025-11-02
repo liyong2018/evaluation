@@ -1310,8 +1310,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         for (String regionCode : regionCodes) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("regionCode", regionCode);
-            
-            // 获取地区名称 - 优先从community表，然后survey_data表
+
             String regionName = regionCode;
             QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
             communityQuery.eq("region_code", regionCode);
@@ -1330,17 +1329,53 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     regionName = surveyData.getTownship();
                 }
             }
-            
-            // 添加该地区的所有输出结果
+
             Map<String, Object> outputs = regionResults.get(regionCode);
+            String townshipNameMeta = null;
+            String communityNameMeta = null;
+            String firstCommunityCodeMeta = null;
+            boolean isTownship = false;
+
             if (outputs != null) {
-                if ((regionName == null || regionName.equals(regionCode))) {
-                    if (outputs.containsKey("_townshipName")) {
-                        regionName = toString(outputs.get("_townshipName"));
-                    } else if (outputs.containsKey("_communityName")) {
-                        regionName = toString(outputs.get("_communityName"));
+                townshipNameMeta = toString(outputs.get("_townshipName"));
+                communityNameMeta = toString(outputs.get("_communityName"));
+                firstCommunityCodeMeta = toString(outputs.get("_firstCommunityCode"));
+                Object flag = outputs.get("_isTownship");
+                if (flag instanceof Boolean) {
+                    isTownship = (Boolean) flag;
+                } else if (flag != null) {
+                    isTownship = "true".equalsIgnoreCase(flag.toString());
+                }
+                if (!isTownship && outputs.containsKey("_townshipRegionCode")) {
+                    isTownship = true;
+                }
+
+                if (isTownship) {
+                    if (!isEmptyString(townshipNameMeta)) {
+                        regionName = townshipNameMeta;
+                    } else if (!isEmptyString(firstCommunityCodeMeta)) {
+                        String name = getTownshipNameByCommunityCode(firstCommunityCodeMeta);
+                        if (!isEmptyString(name)) {
+                            regionName = name;
+                        }
+                    }
+                    if (!isEmptyString(regionName)) {
+                        row.put("townshipName", regionName);
+                    }
+                } else {
+                    if (!isEmptyString(communityNameMeta)) {
+                        regionName = communityNameMeta;
+                    } else if (!isEmptyString(townshipNameMeta)) {
+                        regionName = townshipNameMeta;
+                    }
+                    if (!isEmptyString(townshipNameMeta)) {
+                        row.put("townshipName", townshipNameMeta);
+                    }
+                    if (!isEmptyString(communityNameMeta)) {
+                        row.put("communityName", communityNameMeta);
                     }
                 }
+
                 for (Map.Entry<String, Object> output : outputs.entrySet()) {
                     String outputParam = output.getKey();
                     if (outputParam.startsWith("_")) {
@@ -1365,11 +1400,55 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 }
             }
 
+            if (isCodeLike(regionName)) {
+                String lookupCode = !isEmptyString(firstCommunityCodeMeta) ? firstCommunityCodeMeta : regionCode;
+                String resolved = getTownshipNameByCommunityCode(lookupCode);
+                if (isEmptyString(resolved)) {
+                    String derived = deriveTownshipCodeForStorage(lookupCode);
+                    resolved = resolveTownshipNameByPrefix(derived);
+                }
+                if (!isEmptyString(resolved)) {
+                    regionName = resolved;
+                }
+            }
+
             row.put("regionName", regionName);
+            if (!isEmptyString(townshipNameMeta)) {
+                row.put("townshipName", townshipNameMeta);
+            }
+            if (!isEmptyString(communityNameMeta)) {
+                row.put("communityName", communityNameMeta);
+            }
+            if (!isEmptyString(firstCommunityCodeMeta)) {
+                row.put("_firstCommunityCode", firstCommunityCodeMeta);
+            }
             
             tableData.add(row);
         }
 
+        Integer currentStepOrder = null;
+        Object orderObj = stepResult.get("stepOrder");
+        if (orderObj instanceof Number) {
+            currentStepOrder = ((Number) orderObj).intValue();
+        } else if (orderObj instanceof String) {
+            try {
+                currentStepOrder = Integer.parseInt((String) orderObj);
+            } catch (NumberFormatException ignore) {
+                currentStepOrder = null;
+            }
+        }
+
+        if (currentStepOrder != null && currentStepOrder >= 6 && !tableData.isEmpty()) {
+            int sampleCount = Math.min(3, tableData.size());
+            for (int i = 0; i < sampleCount; i++) {
+                Map<String, Object> sample = tableData.get(i);
+                log.info("[Step {} sample] regionCode={}, regionName={}",
+                        currentStepOrder,
+                        sample.get("regionCode"),
+                        sample.get("regionName"));
+            }
+        }
+        
         return tableData;
     }
 
@@ -2156,6 +2235,50 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
 
         return null;
+    }
+
+    private String getTownshipNameByCommunityCode(String communityRegionCode) {
+        if (communityRegionCode == null || communityRegionCode.trim().isEmpty()) {
+            return null;
+        }
+        String normalized = communityRegionCode.trim();
+
+        QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+        communityQuery.eq("region_code", normalized);
+        communityQuery.last("LIMIT 1");
+        CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
+        if (communityData == null && normalized.matches("\\d{1,9}")) {
+            communityQuery = new QueryWrapper<>();
+            communityQuery.likeRight("region_code", normalized);
+            communityQuery.last("LIMIT 1");
+            communityData = communityDataMapper.selectOne(communityQuery);
+        }
+        if (communityData != null && !isEmptyString(communityData.getTownshipName())) {
+            return communityData.getTownshipName();
+        }
+
+        QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
+        surveyQuery.eq("region_code", normalized);
+        surveyQuery.last("LIMIT 1");
+        SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
+        if (surveyData == null && normalized.matches("\\d{1,9}")) {
+            surveyQuery = new QueryWrapper<>();
+            surveyQuery.likeRight("region_code", normalized);
+            surveyQuery.last("LIMIT 1");
+            surveyData = surveyDataMapper.selectOne(surveyQuery);
+        }
+        if (surveyData != null && !isEmptyString(surveyData.getTownship())) {
+            return surveyData.getTownship();
+        }
+        return null;
+    }
+
+    private boolean isCodeLike(String value) {
+        return value != null && value.matches("\\d+");
+    }
+
+    private boolean isEmptyString(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     /**
