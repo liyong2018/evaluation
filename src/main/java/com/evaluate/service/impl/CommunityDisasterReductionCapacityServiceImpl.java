@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
 import com.evaluate.mapper.CommunityDisasterReductionCapacityMapper;
 import com.evaluate.service.ICommunityDisasterReductionCapacityService;
+import com.evaluate.service.IOrganizationService;
 import com.evaluate.util.ExcelUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
@@ -34,6 +35,9 @@ public class CommunityDisasterReductionCapacityServiceImpl
 
     @Autowired
     private CommunityDisasterReductionCapacityMapper communityDisasterReductionCapacityMapper;
+
+    @Autowired
+    private IOrganizationService organizationService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -81,6 +85,7 @@ public class CommunityDisasterReductionCapacityServiceImpl
                         save(entity);
                         log.debug("新增社区减灾能力数据: {} - {}", entity.getRegionCode(), entity.getCommunityName());
                     }
+                    organizationService.syncFromCommunityData(entity);
                     successCount++;
                 } catch (Exception e) {
                     errorCount++;

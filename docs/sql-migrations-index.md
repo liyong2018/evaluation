@@ -8,6 +8,7 @@
 - 002_create_model_management.sql
 - 003_init_model_formulas.sql
 - 004_fix_chinese_encoding.sql（按需）
+- 005_create_organization_table.sql（如需组织机构支持，推荐执行）
 
 脚本说明
 - create_region_data_table.sql
@@ -29,6 +30,10 @@
 - 004_fix_chinese_encoding.sql
   - 功能：修复中文编码或批量内容编码问题（如 UTF-8/排序规则），统一字符集。
   - 说明：按需执行；建议在数据导入完成后进行。
+
+- 005_create_organization_table.sql
+  - 功能：创建统一的组织机构表，支撑乡镇/社区数据按层级引用。
+  - 依赖：需在基础库结构初始化后执行，可在导入业务数据前准备。
 
 维护说明
 - 新增迁移脚本时，请在“推荐顺序”与“脚本说明”补充条目，标注依赖与是否可跳过。
