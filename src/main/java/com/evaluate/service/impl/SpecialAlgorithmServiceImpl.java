@@ -1,7 +1,11 @@
 package com.evaluate.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.evaluate.entity.EvaluationResult;
+import com.evaluate.mapper.EvaluationResultMapper;
 import com.evaluate.service.SpecialAlgorithmService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -17,6 +21,9 @@ import java.util.stream.Collectors;
 @Service
 public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
 
+    @Autowired
+    private EvaluationResultMapper evaluationResultMapper;
+
     @Override
     public Object executeSpecialAlgorithm(
             String marker,
@@ -24,29 +31,121 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String currentRegionCode,
             Map<String, Object> regionContext,
             Map<String, Map<String, Object>> allRegionData) {
-        
-        log.info("执行特殊算法: marker={}, params={}, region={}", marker, params, currentRegionCode);
-        
+
+
         switch (marker) {
+            case "LOAD_EVAL_RESULT":
+                return loadEvaluationResult(params, currentRegionCode, regionContext);
+
             case "NORMALIZE":
                 return normalize(params, currentRegionCode, allRegionData);
-                
+
             case "TOPSIS_POSITIVE":
                 return calculateTopsisPositive(params, currentRegionCode, allRegionData);
-                
+
             case "TOPSIS_NEGATIVE":
                 return calculateTopsisNegative(params, currentRegionCode, allRegionData);
-                
+
             case "TOPSIS_SCORE":
                 return calculateTopsisScore(params, currentRegionCode, allRegionData);
-                
+
             case "GRADE":
                 return calculateGrade(params, currentRegionCode, allRegionData);
-                
+
             default:
                 log.warn("未知的特殊标记: {}", marker);
                 return 0.0;
         }
+    }
+
+    /**
+     * 从evaluation_result表加载评估结果
+     * 参数格式：modelId=3,field=management_capability_score
+     *
+     * @param params 参数字符串
+     * @param currentRegionCode 当前地区代码
+     * @param regionContext 地区上下文
+     * @return 字段值
+     */
+    private Double loadEvaluationResult(String params, String currentRegionCode, Map<String, Object> regionContext) {
+        log.info("[LOAD_EVAL_RESULT] 加载评估结果: params={}, region={}", params, currentRegionCode);
+
+        // 解析参数
+        Map<String, String> paramMap = parseParams(params);
+        String modelIdStr = paramMap.get("modelId");
+        String fieldName = paramMap.get("field");
+
+        if (modelIdStr == null || fieldName == null) {
+            log.error("[LOAD_EVAL_RESULT] 参数不完整: modelId={}, field={}", modelIdStr, fieldName);
+            return 0.0;
+        }
+
+        Long modelId = Long.parseLong(modelIdStr);
+
+        // 从数据库查询评估结果
+        QueryWrapper<EvaluationResult> query = new QueryWrapper<>();
+        query.eq("evaluation_model_id", modelId)
+             .eq("region_code", currentRegionCode)
+             .orderByDesc("id")  // 获取最新记录
+             .last("LIMIT 1");
+
+        EvaluationResult result = evaluationResultMapper.selectOne(query);
+
+        if (result == null) {
+            log.warn("[LOAD_EVAL_RESULT] 未找到评估结果: modelId={}, regionCode={}", modelId, currentRegionCode);
+            return 0.0;
+        }
+
+        // 根据字段名提取值
+        Double value = extractFieldValue(result, fieldName);
+
+        log.info("[LOAD_EVAL_RESULT] 加载成功: modelId={}, region={}, field={}, value={}",
+                modelId, currentRegionCode, fieldName, value);
+
+        return value;
+    }
+
+    /**
+     * 解析参数字符串为Map
+     * 例如：modelId=3,field=management_capability_score
+     */
+    private Map<String, String> parseParams(String params) {
+        Map<String, String> paramMap = new HashMap<>();
+        String[] pairs = params.split(",");
+        for (String pair : pairs) {
+            String[] kv = pair.split("=");
+            if (kv.length == 2) {
+                paramMap.put(kv[0].trim(), kv[1].trim());
+            }
+        }
+        return paramMap;
+    }
+
+    /**
+     * 从EvaluationResult对象中提取指定字段的值
+     */
+    private Double extractFieldValue(EvaluationResult result, String fieldName) {
+        java.math.BigDecimal bdValue = null;
+
+        switch (fieldName) {
+            case "management_capability_score":
+                bdValue = result.getManagementCapabilityScore();
+                break;
+            case "support_capability_score":
+                bdValue = result.getSupportCapabilityScore();
+                break;
+            case "self_rescue_capability_score":
+                bdValue = result.getSelfRescueCapabilityScore();
+                break;
+            case "comprehensive_capability_score":
+                bdValue = result.getComprehensiveCapabilityScore();
+                break;
+            default:
+                log.warn("未知的字段名: {}", fieldName);
+                return 0.0;
+        }
+
+        return bdValue != null ? bdValue.doubleValue() : 0.0;
     }
 
     @Override
@@ -55,14 +154,13 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
         
-        log.info("[归一化调试] 开始归一化: indicator={}, region={}, allRegionData.size={}", 
-                indicatorName, currentRegionCode, allRegionData.size());
+   
         
         // 1. 收集所有区域的指标值
         List<Double> allValues = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> entry : allRegionData.entrySet()) {
             Object value = entry.getValue().get(indicatorName);
-            log.info("[归一化调试] 地区={}, {}={}", entry.getKey(), indicatorName, value);
+       
             
             // 特别为 riskAssessment 添加详细调试
             if ("riskAssessment".equals(indicatorName)) {
@@ -76,7 +174,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             }
         }
         
-        log.info("[归一化调试] 收集到的所有值: {}", allValues);
+
         
         if (allValues.isEmpty()) {
             log.warn("未找到任何指标值: {}", indicatorName);
@@ -118,10 +216,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         
         // 4. 计算归一化值
         double normalized = toDouble(currentValue) / denominator;
-        
-        log.info("[归一化调试] 归一化结果: indicator={}, region={}, currentValue={}, sumSquares={}, denominator={}, normalized={}", 
-                indicatorName, currentRegionCode, currentValue, allValues.stream().mapToDouble(v -> v * v).sum(), denominator, normalized);
-        
+     
         return normalized;
     }
 
@@ -131,7 +226,6 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
         
-        log.info("[TOPSIS-DEBUG] 优解计算: indicators={}, region={}", indicators, currentRegionCode);
         log.debug("TOPSIS优解计算: indicators={}, region={}", indicators, currentRegionCode);
         
         // 检查是否为单区域情况
@@ -287,12 +381,10 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
         
-        log.info("[TOPSIS得分] 开始计算: params={}, region={}", params, currentRegionCode);
         
         // 1. 解析参数：正理想解字段名,负理想解字段名
         String[] fields = params.split(",");
         if (fields.length != 2) {
-            log.error("TOPSIS_SCORE参数格式错误，应为: POSITIVE_FIELD,NEGATIVE_FIELD，实际: {}", params);
             return 0.0;
         }
         
@@ -325,18 +417,10 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         // 5. 计算TOPSIS得分：D- / (D+ + D-)
         double denominator = dPositive + dNegative;
         if (denominator == 0) {
-            log.warn("TOPSIS得分分母为0: D+={}, D-={}", dPositive, dNegative);
             return 0.0;
         }
         
         double score = dNegative / denominator;
-        
-        log.info("[TOPSIS得分] region={}, D+={}, D-={}, score={}", 
-                currentRegionCode, 
-                String.format("%.8f", dPositive), 
-                String.format("%.8f", dNegative), 
-                String.format("%.8f", score));
-        
         return score;
     }
 
@@ -345,8 +429,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String scoreField,
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
-        
-        log.debug("能力分级计算: scoreField={}, region={}", scoreField, currentRegionCode);
+
         
         // 1. 收集所有区域的分数
         List<Double> allScores = new ArrayList<>();
@@ -381,7 +464,6 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
                 .sum();
         double stdev = Math.sqrt(sumSquaredDiff / (n - 1));  // 样本标准差：除以(n-1)
         
-        log.info("[分级] {} 统计: n={}, μ={}, σ={}", scoreField, n, String.format("%.4f", mean), String.format("%.4f", stdev));
         
         // 4. 获取当前区域的分数
         Map<String, Object> currentData = allRegionData.get(currentRegionCode);
@@ -400,9 +482,6 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         
         // 5. 根据分级规则计算等级
         String grade = determineGrade(score, mean, stdev);
-        
-        log.info("[分级结果] 地区 {} {} 分数={} 等级={}", 
-                currentRegionCode, scoreField, String.format("%.4f", score), grade);
         
         return grade;
     }
@@ -534,17 +613,13 @@ private String determineGrade(double value, double mean, double stdev) {
         double meanMinusHalf = mean - halfStdev;
         double meanMinusOneAndHalf = mean - oneAndHalfStdev;
         
-        log.info("[分级规则] v={} μ={} σ={} 阈值: +1.5σ={} +0.5σ={} -0.5σ={} -1.5σ={}", 
-                String.format("%.4f", value), String.format("%.4f", mean), String.format("%.4f", stdev), 
-                String.format("%.4f", meanPlusOneAndHalf), String.format("%.4f", meanPlusHalf), 
-                String.format("%.4f", meanMinusHalf), String.format("%.4f", meanMinusOneAndHalf));
+  
         
         // 确保值不小于0（根据规则中的[0,...)区间)
         value = Math.max(0, value);
         
         if (mean <= halfStdev) {
             // 情况1：μ ≤ 0.5σ，分为3级
-            log.info("[分级规则] 3级分类: μ({}) ≤ 0.5σ({})", String.format("%.4f", mean), String.format("%.4f", halfStdev));
             if (value >= meanPlusOneAndHalf) {
                 return "强";
             } else if (value >= meanPlusHalf) {
@@ -554,7 +629,6 @@ private String determineGrade(double value, double mean, double stdev) {
             }
         } else if (mean <= oneAndHalfStdev) {
             // 情况2：0.5σ < μ ≤ 1.5σ，分为4级
-            log.info("[分级规则] 4级分类: 0.5σ({}) < μ({}) ≤ 1.5σ({})", String.format("%.4f", halfStdev), String.format("%.4f", mean), String.format("%.4f", oneAndHalfStdev));
             
             if (value >= meanPlusOneAndHalf) {
                 return "强";
@@ -567,7 +641,6 @@ private String determineGrade(double value, double mean, double stdev) {
             }
         } else {
             // 情况3：μ > 1.5σ，默认情况，使用5级分类
-            log.info("[分级规则] 5级分类: μ({}) > 1.5σ({})", String.format("%.4f", mean), String.format("%.4f", oneAndHalfStdev));
             if (value >= meanPlusOneAndHalf) {
                 return "强";
             } else if (value >= meanPlusHalf) {

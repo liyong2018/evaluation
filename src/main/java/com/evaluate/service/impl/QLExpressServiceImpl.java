@@ -63,14 +63,17 @@ public class QLExpressServiceImpl implements QLExpressService {
 
     @Override
     public boolean validate(String expression) {
+        // 跳过特殊标记的验证（以@开头的特殊算法标记）
+        if (expression != null && expression.startsWith("@")) {
+            log.debug("跳过特殊标记的验证: {}", expression);
+            return true;
+        }
+
         try {
-            DefaultContext<String, Object> context = new DefaultContext<>();
-            // 添加一些测试变量
-            context.put("test", 1.0);
-            context.put("management_staff", 10);
-            context.put("population", 1000);
-            
-            runner.execute(expression, context, null, true, true);
+            // 使用编译模式验证语法（不执行表达式）
+            // 这样可以检查语法错误，但不会因为变量不存在而失败
+            runner.parseInstructionSet(expression);
+            log.debug("表达式验证通过: {}", expression);
             return true;
         } catch (Exception e) {
             log.warn("表达式验证失败: {}, 错误: {}", expression, e.getMessage());

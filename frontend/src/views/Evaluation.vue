@@ -1225,9 +1225,34 @@ const displayModelResults = (resultData: any) => {
     hasColumns: !!resultData?.columns,
     tableDataLength: resultData?.tableData?.length,
     columnsLength: resultData?.columns?.length,
-    columnsDetail: resultData?.columns
+    columnsDetail: resultData?.columns,
+    isMultiStep: resultData?.isMultiStep,
+    stepResultsListLength: resultData?.stepResultsList?.length,
+    rawStepResultsType: typeof resultData?.stepResults
   })
   
+  // 优先处理多步骤结果
+  if (resultData?.isMultiStep && Array.isArray(resultData?.stepResultsList) && resultData.stepResultsList.length > 0) {
+    console.log('✓ 检测到多步骤数据，直接传递给 ResultDialog')
+    currentStepInfo.value = {
+      stepNumber: 0,
+      stepName: '算法步骤执行结果',
+      description: `共执行了 ${resultData.stepResultsList.length} 个步骤`,
+      stepCode: 'multi_steps',
+      formula: '',
+      formulaName: '',
+      formulaDescription: ''
+    }
+    
+    currentCalculationResult.value = {
+      isMultiStep: true,
+      stepResults: resultData.stepResultsList
+    }
+    
+    resultDialogVisible.value = true
+    return
+  }
+
   // 使用后端返回的 columns（已包含 stepOrder）
   // 如果后端没有返回 columns，则从 tableData 推断
   let columns: any[] = []

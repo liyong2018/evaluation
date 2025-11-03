@@ -16,7 +16,7 @@ spring:
   # 数据源配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://192.168.15.203:30314/evaluate_db?serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true&useSSL=false&autoReconnect=true&zeroDateTimeBehavior=convertToNull&allowMultiQueries=true&nullCatalogMeansCurrent=true&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://127.0.0.1:30314/evaluate_db?serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true&useSSL=false&autoReconnect=true&zeroDateTimeBehavior=convertToNull&allowMultiQueries=true&nullCatalogMeansCurrent=true&allowPublicKeyRetrieval=true
     username: root
     password: 123456
     
@@ -58,14 +58,14 @@ mybatis-plus:
     map-underscore-to-camel-case: true
     # 开启缓存
     cache-enabled: false
-    # 打印SQL
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 打印SQL（关闭）
+    # log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 # 日志配置
 logging:
   level:
-    com.evaluate: debug
-    com.evaluate.mapper: debug
+    com.evaluate: info
+    com.evaluate.mapper: info
   pattern:
     console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
     file: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
