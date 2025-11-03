@@ -4,10 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.evaluate.entity.SurveyData;
 import com.evaluate.mapper.SurveyDataMapper;
+import com.evaluate.service.IOrganizationService;
 import com.evaluate.service.ISurveyDataService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -29,6 +31,9 @@ import java.util.List;
 @Slf4j
 @Service
 public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyData> implements ISurveyDataService {
+
+    @Autowired
+    private IOrganizationService organizationService;
 
     @Override
     public List<SurveyData> getBySurveyName(String surveyName) {
@@ -90,7 +95,11 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             }
         }
         
-        return saveBatch(dataList);
+        boolean saved = saveBatch(dataList);
+        if (saved) {
+            dataList.forEach(organizationService::syncFromSurveyData);
+        }
+        return saved;
     }
 
     @Override
