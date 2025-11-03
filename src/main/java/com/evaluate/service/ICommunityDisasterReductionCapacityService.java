@@ -19,9 +19,10 @@ public interface ICommunityDisasterReductionCapacityService extends IService<Com
      * 批量导入社区行政村减灾能力数据
      *
      * @param file Excel文件
+     * @param year 数据所属年份
      * @return 导入结果
      */
-    Map<String, Object> importCommunityCapacityData(MultipartFile file);
+    Map<String, Object> importCommunityCapacityData(MultipartFile file, Integer year);
 
     /**
      * 分页查询社区行政村减灾能力数据

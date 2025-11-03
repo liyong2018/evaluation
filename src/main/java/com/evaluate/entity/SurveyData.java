@@ -59,6 +59,12 @@ public class SurveyData implements Serializable {
     private String township;
 
     /**
+     * 数据所属年份
+     */
+    @TableField("year")
+    private Integer year;
+
+    /**
      * 常住人口数量
      */
     @TableField("population")

@@ -48,11 +48,12 @@ public interface ISurveyDataService extends IService<SurveyData> {
 
     /**
      * 从Excel文件导入调查数据
-     * 
+     *
      * @param file Excel文件
+     * @param year 数据所属年份
      * @return 导入结果
      */
-    boolean importFromExcel(MultipartFile file);
+    boolean importFromExcel(MultipartFile file, Integer year);
 
     /**
      * 导出调查数据到Excel
