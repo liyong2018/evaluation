@@ -16,8 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.Arrays;
-import java.util.Collections;
 
 /**
  * 模型执行服务实现类
@@ -75,7 +73,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId) {
+    public Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode) {
         // 1. 验证模型是否存在且启用
         EvaluationModel model = evaluationModelMapper.selectById(modelId);
         if (model == null || model.getStatus() == 0) {
@@ -99,6 +97,30 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         globalContext.put("modelName", model.getModelName());
         globalContext.put("regionCodes", regionCodes);
         globalContext.put("weightConfigId", weightConfigId);
+        if (year != null) {
+            globalContext.put("year", year);
+        }
+
+        // 如果指定了年份，则严格校验该年份是否存在数据，避免错误回退到其它年份
+        if (year != null) {
+            for (String regionCode : regionCodes) {
+                if (modelId != null && (modelId == 4 || modelId == 8)) {
+                    QueryWrapper<CommunityDisasterReductionCapacity> q = new QueryWrapper<>();
+                    q.eq("region_code", regionCode).eq("year", year);
+                    CommunityDisasterReductionCapacity exists = communityDataMapper.selectOne(q);
+                    if (exists == null) {
+                        throw new RuntimeException("地区 " + regionCode + " 在年份 " + year + " 无社区级数据");
+                    }
+                } else {
+                    QueryWrapper<SurveyData> q = new QueryWrapper<>();
+                    q.eq("region_code", regionCode).eq("year", year);
+                    SurveyData exists = surveyDataMapper.selectOne(q);
+                    if (exists == null) {
+                        throw new RuntimeException("地区 " + regionCode + " 在年份 " + year + " 无乡镇级数据");
+                    }
+                }
+            }
+        }
 
         // 4. 加载基础数据到上下文
         loadBaseDataToContext(globalContext, regionCodes, weightConfigId);
@@ -208,7 +230,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 currentRegionCodes,
                 weightConfigId,
                 stepResults,
-                tableData);
+                tableData,
+                year);
 
         // 7. 构建最终结果
         Map<String, Object> result = new HashMap<>();
@@ -218,7 +241,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         result.put("stepResults", stepResults);
         result.put("stepResultsList", orderedStepResults);
         result.put("isMultiStep", true);
-        result.put("tableData", tableData);
+        result.put("tableData", tableData,
+                year,
+                orgCode);
         result.put("columns", columns);
         result.put("success", true);
         result.put("executionRecordId", executionRecordId);
@@ -266,6 +291,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 获取modelId以决定使用哪个数据源
         Long modelId = (Long) inputData.get("modelId");
 
+        // 年份（如提供则严格匹配该年）
+        Integer ctxYear = null;
+        Object yearObj = inputData.get("year");
+        if (yearObj != null) {
+            try { ctxYear = Integer.valueOf(yearObj.toString()); } catch (Exception ignore) {}
+        }
+
         for (String regionCode : regionCodes) {
             Map<String, Object> regionContext = new HashMap<>(inputData);
             regionContext.put("currentRegionCode", regionCode);
@@ -276,6 +308,12 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 // 使用selectMaps直接返回Map，key为数据库字段名，可直接匹配算法表达式中的变量名
                 QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
                 communityQuery.eq("region_code", regionCode);
+                if (ctxYear != null) {
+                    communityQuery.eq("year", ctxYear);
+                } else {
+                    communityQuery.orderByDesc("year");
+                }
+                communityQuery.last("LIMIT 1");
                 List<Map<String, Object>> communityDataList = communityDataMapper.selectMaps(communityQuery);
 
                 if (communityDataList != null && !communityDataList.isEmpty()) {
@@ -287,6 +325,11 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 // 乡镇模型(modelId=3)：从survey_data表加载数据
                 QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
                 dataQuery.eq("region_code", regionCode);
+                if (ctxYear != null) {
+                    dataQuery.eq("year", ctxYear);
+                } else {
+                    dataQuery.orderByDesc("year").last("LIMIT 1");
+                }
                 SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
 
                 if (surveyData != null) {
@@ -573,9 +616,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             if (isTownshipAggregated) {
                 // 乡镇聚合数据
                 if (townshipName == null || townshipName.isEmpty()) {
-                    // 优先使用survey_data中的乡镇名称
+                    // 优先使用survey_data中的乡镇名称（优先最新年份）
                     QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
                     surveyQuery.eq("region_code", regionCode);
+                    surveyQuery.orderByDesc("year").last("LIMIT 1");
                     SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
                     if (surveyData != null && surveyData.getTownship() != null) {
                         townshipName = surveyData.getTownship();
@@ -612,6 +656,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 // 社区级数据
                 QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
                 communityQuery.eq("region_code", regionCode);
+                communityQuery.orderByDesc("year");
+                communityQuery.last("LIMIT 1");
                 CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
                 if (communityData != null) {
                     townshipName = communityData.getTownshipName();
@@ -620,6 +666,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 } else {
                     QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
                     surveyQuery.eq("region_code", regionCode);
+                    surveyQuery.orderByDesc("year").last("LIMIT 1");
                     SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
                     if (surveyData != null && surveyData.getTownship() != null) {
                         regionName = surveyData.getTownship();
@@ -949,7 +996,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      * @return 步骤执行结果，包含2D表格数据
      */
     @Override
-    public Map<String, Object> executeAlgorithmStep(Long algorithmId, Integer stepOrder, List<String> regionCodes, Long weightConfigId) {
+    public Map<String, Object> executeAlgorithmStep(Long algorithmId, Integer stepOrder, List<String> regionCodes, Long weightConfigId, Integer year) {
 
         try {
             // 1. 获取算法配置的所有步骤
@@ -974,6 +1021,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             globalContext.put("algorithmId", algorithmId);
             globalContext.put("regionCodes", regionCodes);
             globalContext.put("weightConfigId", weightConfigId);
+            if (year != null) {
+                globalContext.put("year", year);
+            }
 
             // 加载基础数据
             loadBaseDataToContext(globalContext, regionCodes, weightConfigId);
@@ -1000,7 +1050,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         result.put("stepCode", targetStep.getStepCode());
         result.put("description", targetStep.getStepDescription());
         result.put("executionResult", stepExecutionResult);
-        result.put("tableData", tableData);
+        result.put("tableData", tableData,
+                year,
+                orgCode);
         result.put("columns", columns);
         result.put("success", true);
         result.put("executionTime", new Date());
@@ -1072,7 +1124,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      * @return 所有已执行步骤的结果
      */
     @Override
-    public Map<String, Object> executeAlgorithmStepsUpTo(Long algorithmId, Integer upToStepOrder, List<String> regionCodes, Long weightConfigId) {
+    public Map<String, Object> executeAlgorithmStepsUpTo(Long algorithmId, Integer upToStepOrder, List<String> regionCodes, Long weightConfigId, Integer year) {
 
         try {
             // 1. 获取算法配置的所有步骤
@@ -1098,6 +1150,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             globalContext.put("algorithmId", algorithmId);
             globalContext.put("regionCodes", regionCodes);
             globalContext.put("weightConfigId", weightConfigId);
+            if (year != null) {
+                globalContext.put("year", year);
+            }
 
             // 加载基础数据
             loadBaseDataToContext(globalContext, regionCodes, weightConfigId);
@@ -1113,7 +1168,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
                     List<Map<String, Object>> tableData = generateStepResultTable(stepResult, regionCodes);
-                    allTableData.put(stepKey, tableData);
+                    allTableData.put(stepKey, tableData,
+                year,
+                orgCode);
                 }
             }
 
@@ -1939,7 +1996,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             List<String> regionCodes,
             Long weightConfigId,
             Map<String, Object> stepResults,
-            List<Map<String, Object>> tableData) {
+            List<Map<String, Object>> tableData,
+            Integer year) {
 
         try {
             java.time.LocalDateTime startTime = java.time.LocalDateTime.now();
@@ -1953,6 +2011,15 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             executionRecord.setExecutionStatus("SUCCESS");
             executionRecord.setStartTime(startTime);
             executionRecord.setEndTime(java.time.LocalDateTime.now());
+            if (year != null) {
+                executionRecord.setYear(year);
+            }
+            if (orgCode != null && !orgCode.trim().isEmpty()) {
+                executionRecord.setOrgCode(orgCode.trim());
+            }
+            if (year != null) {
+                executionRecord.setYear(year);
+            }
 
             // 生成结果摘要
             StringBuilder summary = new StringBuilder();
@@ -1967,7 +2034,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
             // 2. 从stepResults的最后一步提取评估结果（8个字段：4个评分+4个级别）
             List<EvaluationResult> evaluationResults = extractEvaluationResults(
-                    modelId, executionRecordId, stepResults, tableData);
+                    modelId, executionRecordId, stepResults, tableData,
+                year,
+                orgCode);
 
             // 批量保存评估结果
             if (!evaluationResults.isEmpty()) {
@@ -1991,7 +2060,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             Long modelId,
             Long executionRecordId,
             Map<String, Object> stepResults,
-            List<Map<String, Object>> tableData) {
+            List<Map<String, Object>> tableData,
+            Integer year,
+            String orgCode) {
 
         Map<String, Object> finalStepResult = null;
         Integer finalStepOrder = null;
@@ -2100,6 +2171,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             result.setEvaluationModelId(modelId);
             result.setDataSource(dataSource);
             result.setExecutionRecordId(executionRecordId);
+            if (orgCode != null && !orgCode.trim().isEmpty()) {
+                result.setOrgCode(orgCode.trim());
+            }
 
             result.setManagementCapabilityScore(
                     getDecimalValueFromMap(outputs,
@@ -2396,4 +2470,5 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         return columnName;
     }
+    
 }

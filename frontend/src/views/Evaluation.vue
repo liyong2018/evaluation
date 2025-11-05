@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="evaluation">
     <!-- 页面标题 -->
     <div class="page-header">
@@ -1164,6 +1164,15 @@ const executeModelEvaluation = async () => {
       evaluationProgress.detail = ''
 
       // 直接使用 execute-model 返回的数据（已包含 columns 和 tableData）
+      const hasTable = Array.isArray(response.data?.tableData) && (response.data?.tableData?.length > 0)
+      if (!hasTable) {
+        evaluationProgress.percentage = 100
+        evaluationProgress.status = 'warning'
+        evaluationProgress.message = '所选年份无数据'
+        evaluationProgress.detail = ''
+        ElMessage.warning('所选年份无数据')
+        return
+      }
       displayModelResults(response.data)
       ElMessage.success('评估执行成功')
     } else {
