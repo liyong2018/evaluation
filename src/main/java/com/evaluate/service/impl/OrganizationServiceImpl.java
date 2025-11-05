@@ -1,6 +1,8 @@
 package com.evaluate.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
 import com.evaluate.entity.Organization;
@@ -12,7 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 组织机构服务实现
@@ -257,5 +260,250 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             return null;
         }
         return normalized.substring(0, length);
+    }
+
+    @Override
+    public Map<String, Object> getOrganizationList(Integer page, Integer size, String code, String name, Integer level, Long parentId) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            Page<Organization> pageParam = new Page<>(page, size);
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+
+            if (StringUtils.hasText(code)) {
+                queryWrapper.like("code", code.trim());
+            }
+            if (StringUtils.hasText(name)) {
+                queryWrapper.like("name", name.trim());
+            }
+            if (level != null) {
+                queryWrapper.eq("level", level);
+            }
+            if (parentId != null) {
+                queryWrapper.eq("parent_id", parentId);
+            }
+
+            queryWrapper.orderByAsc("level", "code");
+
+            IPage<Organization> pageResult = page(pageParam, queryWrapper);
+
+            result.put("success", true);
+            result.put("data", pageResult.getRecords());
+            result.put("total", pageResult.getTotal());
+            result.put("page", page);
+            result.put("size", size);
+            result.put("pages", pageResult.getPages());
+
+        } catch (Exception e) {
+            log.error("查询组织机构列表失败", e);
+            result.put("success", false);
+            result.put("message", "查询失败: " + e.getMessage());
+        }
+
+        return result;
+    }
+
+    @Override
+    public Organization getByCode(String code) {
+        if (!StringUtils.hasText(code)) {
+            return null;
+        }
+        QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("code", code.trim());
+        return getOne(queryWrapper, false);
+    }
+
+    @Override
+    public List<Map<String, Object>> getOrganizationTree(Long parentId, Integer maxLevel) {
+        try {
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            if (parentId != null) {
+                queryWrapper.eq("parent_id", parentId);
+            } else {
+                queryWrapper.isNull("parent_id").or().eq("parent_id", 0);
+            }
+            if (maxLevel != null) {
+                queryWrapper.le("level", maxLevel);
+            }
+            queryWrapper.orderByAsc("level", "code");
+
+            List<Organization> allOrganizations = list(queryWrapper);
+            return buildTree(allOrganizations, parentId);
+        } catch (Exception e) {
+            log.error("获取组织机构树形结构失败", e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public List<Organization> getChildrenByParentId(Long parentId) {
+        try {
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            if (parentId != null) {
+                queryWrapper.eq("parent_id", parentId);
+            } else {
+                queryWrapper.isNull("parent_id").or().eq("parent_id", 0);
+            }
+            queryWrapper.orderByAsc("code");
+            return list(queryWrapper);
+        } catch (Exception e) {
+            log.error("根据父级ID获取子级组织机构失败，parentId: {}", parentId, e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public List<Organization> searchOrganization(String keyword, Integer level) {
+        try {
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+
+            if (StringUtils.hasText(keyword)) {
+                String searchKeyword = keyword.trim();
+                queryWrapper.and(wrapper -> wrapper
+                        .like("code", searchKeyword)
+                        .or().like("name", searchKeyword)
+                        .or().like("province_name", searchKeyword)
+                        .or().like("city_name", searchKeyword)
+                        .or().like("county_name", searchKeyword)
+                        .or().like("township_name", searchKeyword)
+                        .or().like("community_name", searchKeyword)
+                );
+            }
+
+            if (level != null) {
+                queryWrapper.eq("level", level);
+            }
+
+            queryWrapper.orderByAsc("level", "code");
+            return list(queryWrapper);
+        } catch (Exception e) {
+            log.error("搜索组织机构失败: keyword={}, level={}", keyword, level, e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public List<Organization> getOrganizationsByLevel(Integer level) {
+        try {
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("level", level);
+            queryWrapper.orderByAsc("code");
+            return list(queryWrapper);
+        } catch (Exception e) {
+            log.error("根据级别获取组织机构列表失败: level={}", level, e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public List<Organization> getCitiesByProvinceCode(String provinceCode) {
+        try {
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("level", LEVEL_CITY);
+            if (StringUtils.hasText(provinceCode)) {
+                queryWrapper.likeRight("code", provinceCode.trim());
+            }
+            queryWrapper.orderByAsc("code");
+            return list(queryWrapper);
+        } catch (Exception e) {
+            log.error("根据省编码获取市级组织机构列表失败: provinceCode={}", provinceCode, e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public List<Organization> getCountiesByCityCode(String cityCode) {
+        try {
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("level", LEVEL_COUNTY);
+            if (StringUtils.hasText(cityCode)) {
+                queryWrapper.likeRight("code", cityCode.trim());
+            }
+            queryWrapper.orderByAsc("code");
+            return list(queryWrapper);
+        } catch (Exception e) {
+            log.error("根据市编码获取县级组织机构列表失败: cityCode={}", cityCode, e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public List<Organization> getTownshipsByCountyCode(String countyCode) {
+        try {
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("level", LEVEL_TOWNSHIP);
+            if (StringUtils.hasText(countyCode)) {
+                queryWrapper.likeRight("code", countyCode.trim());
+            }
+            queryWrapper.orderByAsc("code");
+            return list(queryWrapper);
+        } catch (Exception e) {
+            log.error("根据县编码获取乡镇级组织机构列表失败: countyCode={}", countyCode, e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public List<Organization> getCommunitiesByTownshipCode(String townshipCode) {
+        try {
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("level", LEVEL_COMMUNITY);
+            if (StringUtils.hasText(townshipCode)) {
+                queryWrapper.likeRight("code", townshipCode.trim());
+            }
+            queryWrapper.orderByAsc("code");
+            return list(queryWrapper);
+        } catch (Exception e) {
+            log.error("根据乡镇编码获取社区级组织机构列表失败: townshipCode={}", townshipCode, e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 构建树形结构
+     */
+    private List<Map<String, Object>> buildTree(List<Organization> organizations, Long parentId) {
+        if (organizations == null || organizations.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Map<Long, List<Organization>> parentMap = organizations.stream()
+                .collect(Collectors.groupingBy(
+                        org -> org.getParentId() != null ? org.getParentId() : 0L
+                ));
+
+        return buildTreeRecursive(parentId != null ? parentId : 0L, parentMap);
+    }
+
+    /**
+     * 递归构建树形结构
+     */
+    private List<Map<String, Object>> buildTreeRecursive(Long parentId, Map<Long, List<Organization>> parentMap) {
+        List<Organization> children = parentMap.get(parentId);
+        if (children == null || children.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return children.stream().map(org -> {
+            Map<String, Object> node = new HashMap<>();
+            node.put("id", org.getId());
+            node.put("parentId", org.getParentId());
+            node.put("code", org.getCode());
+            node.put("name", org.getName());
+            node.put("level", org.getLevel());
+            node.put("dataSource", org.getDataSource());
+            node.put("provinceName", org.getProvinceName());
+            node.put("cityName", org.getCityName());
+            node.put("countyName", org.getCountyName());
+            node.put("townshipName", org.getTownshipName());
+            node.put("communityName", org.getCommunityName());
+
+            List<Map<String, Object>> childNodes = buildTreeRecursive(org.getId(), parentMap);
+            if (!childNodes.isEmpty()) {
+                node.put("children", childNodes);
+            }
+
+            return node;
+        }).collect(Collectors.toList());
     }
 }

@@ -5,6 +5,9 @@ import com.evaluate.entity.CommunityDisasterReductionCapacity;
 import com.evaluate.entity.Organization;
 import com.evaluate.entity.SurveyData;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 组织机构服务
  */
@@ -23,4 +26,91 @@ public interface IOrganizationService extends IService<Organization> {
      * @param surveyData 调查数据
      */
     void syncFromSurveyData(SurveyData surveyData);
+
+    /**
+     * 分页查询组织机构列表
+     *
+     * @param page 页码
+     * @param size 每页大小
+     * @param code 机构编码
+     * @param name 机构名称
+     * @param level 级别
+     * @param parentId 父级ID
+     * @return 查询结果
+     */
+    Map<String, Object> getOrganizationList(Integer page, Integer size, String code, String name, Integer level, Long parentId);
+
+    /**
+     * 根据编码获取组织机构
+     *
+     * @param code 机构编码
+     * @return 组织机构
+     */
+    Organization getByCode(String code);
+
+    /**
+     * 获取组织机构树形结构
+     *
+     * @param parentId 父级ID
+     * @param maxLevel 最大层级
+     * @return 树形结构
+     */
+    List<Map<String, Object>> getOrganizationTree(Long parentId, Integer maxLevel);
+
+    /**
+     * 根据父级ID获取子级组织机构
+     *
+     * @param parentId 父级ID
+     * @return 子级组织机构列表
+     */
+    List<Organization> getChildrenByParentId(Long parentId);
+
+    /**
+     * 搜索组织机构
+     *
+     * @param keyword 关键词
+     * @param level 级别
+     * @return 组织机构列表
+     */
+    List<Organization> searchOrganization(String keyword, Integer level);
+
+    /**
+     * 根据级别获取组织机构列表
+     *
+     * @param level 级别
+     * @return 组织机构列表
+     */
+    List<Organization> getOrganizationsByLevel(Integer level);
+
+    /**
+     * 根据省编码获取市级组织机构列表
+     *
+     * @param provinceCode 省编码
+     * @return 市级组织机构列表
+     */
+    List<Organization> getCitiesByProvinceCode(String provinceCode);
+
+    /**
+     * 根据市编码获取县级组织机构列表
+     *
+     * @param cityCode 市编码
+     * @return 县级组织机构列表
+     */
+    List<Organization> getCountiesByCityCode(String cityCode);
+
+    /**
+     * 根据县编码获取乡镇级组织机构列表
+     *
+     * @param countyCode 县编码
+     * @return 乡镇级组织机构列表
+     */
+    List<Organization> getTownshipsByCountyCode(String countyCode);
+
+    /**
+     * 根据乡镇编码获取社区级组织机构列表
+     *
+     * @param townshipCode 乡镇编码
+     * @return 社区级组织机构列表
+     */
+    List<Organization> getCommunitiesByTownshipCode(String townshipCode);
 }
