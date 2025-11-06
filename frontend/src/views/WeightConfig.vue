@@ -83,7 +83,6 @@
               </template>
             </el-table-column>
             <el-table-column prop="description" label="描述" />
-            <el-table-column prop="configVersion" label="版本" width="100" />
             <el-table-column label="状态" width="120">
               <template #default="{ row }">
                 <el-tag type="success">
@@ -288,9 +287,6 @@
             placeholder="请输入配置描述"
           />
         </el-form-item>
-        <el-form-item label="版本" prop="configVersion">
-          <el-input v-model="configForm.configVersion" placeholder="请输入版本号" />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible.config = false">取消</el-button>
@@ -425,7 +421,6 @@ const configForm = reactive({
   id: null,
   configName: '',
   description: '',
-  configVersion: '',
   orgcode: '' // 组织机构编码
 })
 
@@ -442,8 +437,7 @@ const weightForm = reactive({
 
 const configRules = {
   configName: [{ required: true, message: '请输入配置名称', trigger: 'blur' }],
-  description: [{ required: true, message: '请输入配置描述', trigger: 'blur' }],
-  configVersion: [{ required: true, message: '请输入版本号', trigger: 'blur' }]
+  description: [{ required: true, message: '请输入配置描述', trigger: 'blur' }]
 }
 
 const weightRules = {
@@ -610,7 +604,6 @@ const resetConfigForm = () => {
     id: null,
     configName: '',
     description: '',
-    configVersion: '',
     orgcode: '' // 重置组织机构编码
   })
   configFormRef.value?.resetFields()
