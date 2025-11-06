@@ -281,18 +281,28 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     public List<Map<String, Object>> getOrganizationTree(Long parentId, Integer maxLevel) {
         try {
             QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+
+            // When parentId is null, fetch ALL organizations to build the complete tree
+            // When parentId is provided, only fetch that subtree
             if (parentId != null) {
-                queryWrapper.eq("parent_id", parentId);
-            } else {
-                queryWrapper.isNull("parent_id").or().eq("parent_id", 0);
+                // Fetch the specified parent and all its descendants
+                Organization parent = getById(parentId);
+                if (parent != null) {
+                    // Find all descendants by code prefix matching
+                    queryWrapper.likeRight("code", parent.getCode());
+                }
             }
+
             if (maxLevel != null) {
                 queryWrapper.le("level", maxLevel);
             }
             queryWrapper.orderByAsc("level", "code");
 
             List<Organization> allOrganizations = list(queryWrapper);
-            return buildTree(allOrganizations, parentId);
+
+            // When parentId is null, start building from root (parent_id = 0 or null)
+            // When parentId is provided, start building from that parent
+            return buildTree(allOrganizations, parentId != null ? parentId : 0L);
         } catch (Exception e) {
             log.error("获取组织机构树形结构失败", e);
             return new ArrayList<>();
