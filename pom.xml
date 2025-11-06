@@ -68,11 +68,18 @@
             <version>${mybatis-plus.version}</version>
         </dependency>
 
-        <!-- MySQL Driver -->
+        <!-- MySQL Driver (保留用于迁移) -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
             <version>${mysql.version}</version>
+        </dependency>
+
+        <!-- PostgreSQL Driver for Supabase -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.3</version>
         </dependency>
 
         <!-- Apache POI for Excel processing -->
