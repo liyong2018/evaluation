@@ -964,6 +964,13 @@ const handleProvinceChange = async (provinceName: string) => {
       if (response.code === 200) {
         cities.value = response.data || []
         console.log('获取到城市列表:', cities.value)
+
+        // 如果城市列表有数据，默认选择第一条
+        if (cities.value.length > 0) {
+          evaluationForm.selectedCity = cities.value[0].name
+          // 触发城市变化事件以加载区县数据
+          await handleCityChange(cities.value[0].name)
+        }
       } else {
         ElMessage.error(response.message || '获取城市列表失败')
       }
@@ -990,6 +997,13 @@ const handleCityChange = async (cityName: string) => {
       if (response.code === 200) {
         counties.value = response.data || []
         console.log('获取到区县列表:', counties.value)
+
+        // 如果区县列表有数据，默认选择第一条
+        if (counties.value.length > 0) {
+          evaluationForm.selectedCounty = counties.value[0].code
+          // 触发区县变化事件以加载数据
+          await handleCountyChange(counties.value[0].code)
+        }
       } else {
         ElMessage.error(response.message || '获取区县列表失败')
       }
