@@ -154,7 +154,9 @@
                   <div class="node-content">
                     <div class="node-info">
                       <span class="node-code">{{ data.indicatorCode }}</span>
-                      <span class="node-name">{{ data.indicatorName }}</span>
+                      <el-tooltip :content="data.indicatorName" placement="top" :show-after="300">
+                        <span class="node-name">{{ data.indicatorName }}</span>
+                      </el-tooltip>
                       <el-tag 
                         :type="data.indicatorLevel === 1 ? 'primary' : 'success'" 
                         size="small"
@@ -857,7 +859,9 @@ onMounted(() => {
 
 /* 树形结构样式 */
 .tree-container {
-  padding: 16px;
+  padding: 20px;
+  background: linear-gradient(to bottom, #fafbfc, #ffffff);
+  border-radius: 8px;
 }
 
 .weight-tree-component {
@@ -866,7 +870,7 @@ onMounted(() => {
 
 .tree-node {
   width: 100%;
-  padding: 8px 0;
+  padding: 12px 0;
 }
 
 .node-content {
@@ -874,88 +878,388 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  background-color: #fafafa;
-  margin-bottom: 4px;
+  height: 30px;
+  padding: 14px 16px;
+  border: 1px solid #e8eef5;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  margin: 12px 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.node-content::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  background: linear-gradient(180deg, #409eff, #79bbff);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.node-content:hover {
+  border-color: #409eff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+  transform: translateX(2px);
+}
+
+.node-content:hover::before {
+  opacity: 1;
 }
 
 .node-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex: 1;
+  min-width: 0;
 }
 
 .node-code {
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
   color: #409eff;
-  min-width: 120px;
+  background: rgba(64, 158, 255, 0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(64, 158, 255, 0.2);
+  min-width: 100px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .node-name {
   font-weight: 500;
   color: #303133;
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
 }
 
 .level-tag {
   margin-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
 }
 
 .node-weight {
-  margin: 0 16px;
+  margin: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.node-weight::before {
+  content: '权重';
+  font-size: 12px;
+  color: #909399;
+  font-weight: 500;
 }
 
 .weight-input {
-  width: 120px;
+  width: 130px;
+}
+
+.weight-input :deep(.el-input__wrapper) {
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #e8eef5 inset;
+  transition: all 0.3s ease;
+}
+
+.weight-input :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px #409eff inset;
+}
+
+.weight-input :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #409eff inset;
 }
 
 .node-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.node-content:hover .node-actions {
+  opacity: 1;
+}
+
+.node-actions .el-button {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.node-actions .el-button:hover {
+  transform: translateY(-1px);
 }
 
 /* 权重总计样式 */
 .weight-summary {
-  margin-top: 16px;
+  margin-top: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #eef1f5 100%);
+  border-radius: 8px;
+  border: 1px solid #e8eef5;
 }
 
 .summary-item {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 12px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
+  gap: 16px;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .summary-label {
   font-weight: 600;
   color: #606266;
+  font-size: 14px;
 }
 
 .summary-value {
-  font-size: 18px;
-  font-weight: bold;
-  color: #303133;
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #409eff, #79bbff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  min-width: 80px;
+  text-align: center;
 }
 
 .summary-tag {
-  margin-left: 8px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 4px;
 }
 
 /* 树形节点层级样式 */
 .el-tree-node__content {
   height: auto !important;
-  padding: 4px 0 !important;
+  padding: 6px 0 !important;
 }
 
+.el-tree-node__expand-icon {
+  font-size: 14px;
+  color: #909399;
+  transition: all 0.3s ease;
+}
+
+.el-tree-node__expand-icon:hover {
+  color: #409eff;
+}
+
+/* 子节点样式增强 */
 .el-tree-node__children .node-content {
-  background-color: #f0f9ff;
+  background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%);
   border-left: 3px solid #409eff;
+  margin-left: 32px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.el-tree-node__children .node-content::before {
+  background: linear-gradient(180deg, #79bbff, #409eff);
+}
+
+.el-tree-node__children .el-tree-node__children .node-content {
+  background: linear-gradient(135deg, #f0fff4 0%, #ffffff 100%);
+  border-left-color: #67c23a;
+  margin-left: 64px;
+  margin-top: 18px;
+  margin-bottom: 18px;
+}
+
+.el-tree-node__children .el-tree-node__children .node-content::before {
+  background: linear-gradient(180deg, #95d475, #67c23a);
+}
+
+.el-tree-node__children .el-tree-node__children .el-tree-node__children .node-content {
+  background: linear-gradient(135deg, #fef0f0 0%, #ffffff 100%);
+  border-left-color: #f56c6c;
+  margin-left: 96px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.el-tree-node__children .el-tree-node__children .el-tree-node__children .node-content::before {
+  background: linear-gradient(180deg, #f78989, #f56c6c);
+}
+
+/* 层级标签颜色增强 */
+.level-tag.el-tag--primary {
+  background: linear-gradient(135deg, #409eff, #79bbff);
+  border-color: #409eff;
+  color: white;
+  font-weight: 600;
+}
+
+.level-tag.el-tag--success {
+  background: linear-gradient(135deg, #67c23a, #95d475);
+  border-color: #67c23a;
+  color: white;
+  font-weight: 600;
+}
+
+/* 响应式优化 */
+@media (max-width: 1200px) {
+  .node-name {
+    max-width: 200px;
+  }
+
+  .node-weight {
+    margin: 0 12px;
+  }
+
+  .weight-input {
+    width: 110px;
+  }
+}
+
+@media (max-width: 768px) {
+  .node-content {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .node-info {
+    flex-wrap: wrap;
+  }
+
+  .node-weight {
+    justify-content: space-between;
+    margin: 0;
+  }
+
+  .node-actions {
+    opacity: 1;
+    justify-content: flex-end;
+  }
+
+  .el-tree-node__children .node-content,
+  .el-tree-node__children .el-tree-node__children .node-content,
+  .el-tree-node__children .el-tree-node__children .el-tree-node__children .node-content {
+    margin-left: 0;
+  }
+}
+
+/* ========== Optimized tree visuals (overrides) ========== */
+:deep(.weight-tree .tree-container) {
+  padding: 16px;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+}
+
+:deep(.weight-tree .tree-node) {
+  padding: 8px 0;
+}
+
+:deep(.weight-tree .node-content) {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border-color: #e6edf5;
+  margin: 8px 0;
+  background: #fff;
+  min-height: 44px;
+  line-height: 1.4;
+}
+
+/* Add vertical rhythm between siblings explicitly */
+:deep(.weight-tree .el-tree-node) {
+  margin: 8px 0;
+}
+
+:deep(.weight-tree .el-tree-node > .el-tree-node__children > .el-tree-node) {
+  margin: 10px 0;
+}
+
+:deep(.weight-tree .el-tree-node > .el-tree-node__children > .el-tree-node:not(:last-child) .node-content) {
+  margin-bottom: 18px;
+}
+
+/* Ensure wrapper content gives vertical space */
+:deep(.weight-tree .el-tree-node__content) {
+  height: auto !important;
+  padding: 8px 0 !important;
+}
+
+/* Nudge expand icon so rows feel taller */
+:deep(.weight-tree .el-tree-node__expand-icon) {
+  margin-top: 6px;
+}
+
+:deep(.weight-tree .node-content:hover) {
+  border-color: #c8e1ff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.12);
+  transform: translateX(1px);
+}
+
+:deep(.weight-tree .node-code) {
+  font-size: 12px;
+  color: #337ecc;
+  background: rgba(51, 126, 204, 0.08);
+  border-color: rgba(51, 126, 204, 0.25);
+  padding: 3px 8px;
+  border-radius: 6px;
+  min-width: 88px;
+}
+
+:deep(.weight-tree .node-name) {
+  max-width: 360px;
+}
+
+:deep(.weight-tree .node-weight) {
+  margin: 0 14px;
+}
+
+:deep(.weight-tree .weight-input) {
+  width: 110px;
+}
+
+/* Indentation + subtle connectors per level */
+:deep(.weight-tree .el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 28px;
+  margin-top: 14px;
+  margin-bottom: 14px;
+  border-left: 2px solid #409eff;
+  background: linear-gradient(135deg, #f7fbff 0%, #ffffff 100%);
+}
+
+:deep(.weight-tree .el-tree-node__children .el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 56px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  border-left-color: #67c23a;
+  background: linear-gradient(135deg, #f6fff8 0%, #ffffff 100%);
+}
+
+:deep(.weight-tree .el-tree-node__children .el-tree-node__children .el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 84px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  border-left-color: #f56c6c;
+  background: linear-gradient(135deg, #fff6f6 0%, #ffffff 100%);
+}
+
+@media (max-width: 1200px) {
+  :deep(.weight-tree .node-name) { max-width: 220px; }
+  :deep(.weight-tree .node-weight) { margin: 0 10px; }
+  :deep(.weight-tree .weight-input) { width: 100px; }
 }
 </style>
