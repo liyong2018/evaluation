@@ -6,23 +6,63 @@
       <p>调查数据的导入、查询、编辑和管理</p>
     </div>
 
-    <!-- 数据类型切换 -->
-    <el-card class="type-switch-card">
-      <el-radio-group v-model="dataType" size="large" @change="handleDataTypeChange">
-        <el-radio-button label="township">乡镇数据 (survey_data)</el-radio-button>
-        <el-radio-button label="community">社区数据 (community_disaster_reduction_capacity)</el-radio-button>
-      </el-radio-group>
-      <el-tag :type="dataType === 'township' ? 'success' : 'warning'" style="margin-left: 20px">
-        当前: {{ dataType === 'township' ? '乡镇数据表' : '社区数据表' }}
-      </el-tag>
-    </el-card>
+    <!-- 左右布局容器 -->
+    <div class="layout-container">
+      <!-- 左侧：组织机构树 -->
+      <el-card class="org-tree-panel">
+        <template #header>
+          <div class="card-header">
+            <span>组织机构</span>
+            <el-button type="primary" size="small" @click="refreshOrganizations">
+              <el-icon><Refresh /></el-icon>
+            </el-button>
+          </div>
+        </template>
+        <el-tree
+          ref="orgTreeRef"
+          v-loading="loading.organizations"
+          :data="organizationList"
+          :props="{ label: 'name', children: 'children' }"
+          node-key="code"
+          highlight-current
+          :expand-on-click-node="false"
+          default-expand-all
+          @node-click="handleOrgNodeClick"
+        >
+          <template #default="{ node, data }">
+            <div class="org-tree-node">
+              <span class="org-name">{{ data.name }}</span>
+              <span class="org-code">{{ data.code }}</span>
+            </div>
+          </template>
+        </el-tree>
+      </el-card>
 
-    <!-- 操作工具栏 -->
-    <el-card class="toolbar-card">
-      <el-row :gutter="20" justify="space-between">
-        <el-col :span="16">
-          <el-row :gutter="12">
-            <el-col :span="8">
+      <!-- 右侧：数据管理面板 -->
+      <div class="data-panel">
+        <!-- 当前选中组织机构信息 -->
+        <el-card v-if="selectedOrg" class="selected-org-info">
+          <div class="org-info-content">
+            <el-tag type="primary" size="large">{{ selectedOrg.name }}</el-tag>
+            <span class="org-info-code">组织机构代码: {{ selectedOrg.code }}</span>
+          </div>
+        </el-card>
+
+        <!-- 数据类型切换 -->
+        <el-card class="type-switch-card">
+          <el-radio-group v-model="dataType" size="large" @change="handleDataTypeChange">
+            <el-radio-button label="township">乡镇数据 (survey_data)</el-radio-button>
+            <el-radio-button label="community">社区数据 (community_disaster_reduction_capacity)</el-radio-button>
+          </el-radio-group>
+          <el-tag :type="dataType === 'township' ? 'success' : 'warning'" style="margin-left: 20px">
+            当前: {{ dataType === 'township' ? '乡镇数据表' : '社区数据表' }}
+          </el-tag>
+        </el-card>
+
+        <!-- 操作工具栏 -->
+        <el-card class="toolbar-card">
+          <el-row :gutter="20" justify="space-between">
+            <el-col :span="12">
               <el-input
                 v-model="searchForm.keyword"
                 placeholder="搜索地区名称或代码"
@@ -34,51 +74,27 @@
                 </template>
               </el-input>
             </el-col>
-            <el-col :span="6">
-              <el-select
-                v-model="searchForm.selectedRegion"
-                placeholder="选择地区"
-                clearable
-                filterable
-              >
-                <el-option label="全部地区" :value="null" />
-                <el-option
-                  v-for="region in regionSelectOptions"
-                  :key="region.code"
-                  :label="`${region.name} (${region.code})`"
-                  :value="region"
-                />
-              </el-select>
-            </el-col>
-            <el-col :span="4">
-              <el-button type="primary" @click="handleSearch">
-                <el-icon><Search /></el-icon>
-                搜索
-              </el-button>
+            <el-col :span="12">
+              <div class="toolbar-actions">
+                <el-button type="success" @click="showAddDialog">
+                  <el-icon><Plus /></el-icon>
+                  新增数据
+                </el-button>
+                <el-button type="warning" @click="showImportDialog">
+                  <el-icon><Upload /></el-icon>
+                  批量导入
+                </el-button>
+                <el-button type="info" @click="exportData">
+                  <el-icon><Download /></el-icon>
+                  导出数据
+                </el-button>
+              </div>
             </el-col>
           </el-row>
-        </el-col>
-        <el-col :span="8">
-          <div class="toolbar-actions">
-            <el-button type="success" @click="showAddDialog">
-              <el-icon><Plus /></el-icon>
-              新增数据
-            </el-button>
-            <el-button type="warning" @click="showImportDialog">
-              <el-icon><Upload /></el-icon>
-              批量导入
-            </el-button>
-            <el-button type="info" @click="exportData">
-              <el-icon><Download /></el-icon>
-              导出数据
-            </el-button>
-          </div>
-        </el-col>
-      </el-row>
-    </el-card>
+        </el-card>
 
-    <!-- 数据表格 -->
-    <el-card class="table-card">
+        <!-- 数据表格 -->
+        <el-card class="table-card">
       <el-table
         v-loading="loading.table"
         :data="tableData"
@@ -210,6 +226,8 @@
         />
       </div>
     </el-card>
+      </div>
+    </div>
 
     <!-- 新增/编辑对话框 -->
     <el-dialog
@@ -439,9 +457,10 @@ import {
   Download,
   Edit,
   Delete,
-  UploadFilled
+  UploadFilled,
+  Refresh
 } from '@element-plus/icons-vue'
-import { surveyDataApi, communityCapacityApi } from '@/api'
+import { surveyDataApi, communityCapacityApi, organizationApi } from '@/api'
 
 // 修复ResizeObserver错误
 const originalError = console.error
@@ -460,6 +479,10 @@ const selectedRows = ref<any[]>([])
 const regionNameMap = ref<Record<string, string>>({})
 // 下拉选项（从后端获取），包含代码与名称
 const regionSelectOptions = ref<Array<{ code: string; name: string }>>([])
+// 组织机构相关
+const selectedOrg = ref<any>(null) // 当前选中的组织机构
+const organizationList = ref<any[]>([]) // 组织机构树列表
+const orgTreeRef = ref() // 组织机构树引用
 
 const searchForm = reactive({
   keyword: '',
@@ -475,7 +498,8 @@ const pagination = reactive({
 const loading = reactive({
   table: false,
   submit: false,
-  import: false
+  import: false,
+  organizations: false
 })
 
 const dialogVisible = reactive({
@@ -545,6 +569,37 @@ const loadRegionNameMap = async () => {
   }
 }
 
+// 获取组织机构列表（树形结构）
+const getOrganizationList = async () => {
+  loading.organizations = true
+  try {
+    const response = await organizationApi.getTree()
+    if (response.success && response.data) {
+      organizationList.value = response.data || []
+      console.log('组织机构树形数据:', organizationList.value)
+    }
+  } catch (error) {
+    console.error('获取组织机构列表失败:', error)
+    ElMessage.error('获取组织机构列表失败')
+  } finally {
+    loading.organizations = false
+  }
+}
+
+// 刷新组织机构树
+const refreshOrganizations = () => {
+  getOrganizationList()
+}
+
+// 处理组织机构节点点击
+const handleOrgNodeClick = (data: any) => {
+  console.log('选中组织机构:', data)
+  selectedOrg.value = data
+  // 清空搜索关键字，加载该组织机构的数据
+  searchForm.keyword = ''
+  getDataList()
+}
+
 // 根据代码获取地区名称（带鲁棒回退）
 const getRegionName = (row?: any) => {
   const code = row?.regionCode
@@ -578,16 +633,52 @@ const getDataList = async () => {
   loading.table = true
   try {
     let response
+    let allData: any[] = []
+
     if (dataType.value === 'township') {
       // 乡镇数据 - 直接返回数组
       response = await surveyDataApi.getAll()
+      if (response.success) {
+        allData = response.data || []
+      }
     } else {
       // 社区数据 - 使用 search API (返回数组) 而不是 getList (返回分页对象)
       response = await communityCapacityApi.search({})
+      if (response.success) {
+        allData = response.data || []
+      }
+    }
+
+    // 如果选中了组织机构，过滤数据
+    if (selectedOrg.value && allData.length > 0) {
+      const orgCode = selectedOrg.value.code
+      allData = allData.filter((row: any) => {
+        // 根据数据类型过滤
+        if (dataType.value === 'township') {
+          // 乡镇数据：匹配省、市、县、乡镇代码
+          return (
+            String(row.regionCode || '').startsWith(orgCode) ||
+            String(row.province || '').includes(selectedOrg.value.name) ||
+            String(row.city || '').includes(selectedOrg.value.name) ||
+            String(row.county || '').includes(selectedOrg.value.name) ||
+            String(row.township || '').includes(selectedOrg.value.name)
+          )
+        } else {
+          // 社区数据：匹配省、市、县、乡镇、社区名称
+          return (
+            String(row.regionCode || '').startsWith(orgCode) ||
+            String(row.provinceName || '').includes(selectedOrg.value.name) ||
+            String(row.cityName || '').includes(selectedOrg.value.name) ||
+            String(row.countyName || '').includes(selectedOrg.value.name) ||
+            String(row.townshipName || '').includes(selectedOrg.value.name) ||
+            String(row.communityName || '').includes(selectedOrg.value.name)
+          )
+        }
+      })
     }
 
     if (response.success) {
-      tableData.value = response.data || []
+      tableData.value = allData
       pagination.total = tableData.value.length
       // 如果下拉选项还未加载成功，基于现有表格构建一个临时选项集
       if (!regionSelectOptions.value?.length && tableData.value?.length) {
@@ -911,7 +1002,9 @@ const exportData = async () => {
 onMounted(async () => {
   console.info('[DataManagement] onMounted -> start loadRegionNameMap')
   await loadRegionNameMap()
-  console.info('[DataManagement] onMounted -> loadRegionNameMap done, start getDataList')
+  console.info('[DataManagement] onMounted -> loadRegionNameMap done, start getOrganizationList')
+  await getOrganizationList()
+  console.info('[DataManagement] onMounted -> getOrganizationList done, start getDataList')
   await getDataList()
   console.info('[DataManagement] onMounted -> getDataList done')
   generateYearOptions()
@@ -946,8 +1039,74 @@ onMounted(async () => {
   font-size: 14px;
 }
 
+/* 左右布局容器 */
+.layout-container {
+  display: flex;
+  gap: 16px;
+  height: calc(100vh - 200px);
+}
+
+/* 左侧组织机构树面板 */
+.org-tree-panel {
+  width: 300px;
+  flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 组织机构树节点样式 */
+.org-tree-node {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding-right: 8px;
+}
+
+.org-name {
+  font-weight: 500;
+  color: #303133;
+}
+
+.org-code {
+  font-size: 12px;
+  color: #909399;
+  font-family: 'Courier New', monospace;
+}
+
+/* 右侧数据管理面板 */
+.data-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+/* 选中组织机构信息卡片 */
+.selected-org-info {
+  margin-bottom: 0;
+}
+
+.org-info-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.org-info-code {
+  color: #606266;
+  font-size: 14px;
+}
+
 .type-switch-card {
-  margin-bottom: 16px;
+  margin-bottom: 0;
   text-align: center;
 }
 
@@ -956,7 +1115,7 @@ onMounted(async () => {
 }
 
 .toolbar-card {
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .toolbar-actions {
@@ -966,7 +1125,8 @@ onMounted(async () => {
 }
 
 .table-card {
-  min-height: 600px;
+  min-height: 400px;
+  flex: 1;
 }
 
 .pagination-wrapper {
