@@ -37,7 +37,7 @@
     </repositories>
 
     <dependencyManagement>
-        <dependencies>
+  <dependencies>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
@@ -188,3 +188,14 @@
         </plugins>
     </build>
 </project>
+    <!-- Apache POI for Word (.docx) processing -->
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>5.2.5</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-collections4</artifactId>
+      <version>4.4</version>
+    </dependency>
