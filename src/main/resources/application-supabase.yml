@@ -1,0 +1,33 @@
+# Supabase生产环境配置
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
+    username: postgres.olcdeeonmpjijxtvolum
+    password: Htht@12#$
+
+# Supabase连接池配置（针对云数据库优化）
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-test-query: SELECT 1
+
+# MyBatis Plus配置 - PostgreSQL版本
+mybatis-plus:
+  configuration:
+    # PostgreSQL不需要开启这个
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      # PostgreSQL使用IDENTITY自增
+      id-type: ASSIGN_ID
+
+# 迁移配置 - 生产环境
+migration:
+  enabled: false
+  truncate: false
+  exitOnFinish: false
