@@ -605,25 +605,55 @@ export const modelExecutionRecordApi = {
   getStatistics: () => request.get('/api/model-execution-record/statistics')
 }
 
-// 模型执行记录API
-export const modelExecutionRecordApi = {
-  // 获取执行记录列表（分页）
-  getList: (params: {
-    current?: number;
+// 组织机构相关API
+export const organizationApi = {
+  // 获取所有组织机构
+  getAll: (params?: {
+    page?: number;
     size?: number;
-    modelId?: number;
-    executionStatus?: string
-  }) => request.get('/api/model-execution-record/list', { params }),
+    code?: string;
+    name?: string;
+    level?: number;
+    parentId?: number;
+  }) => request.get('/api/organization/list', { params }),
 
-  // 根据ID获取执行记录详情
-  getById: (id: number) => request.get(`/api/model-execution-record/${id}`),
+  // 根据ID获取组织机构
+  getById: (id: number) => request.get(`/api/organization/${id}`),
 
-  // 根据执行记录ID获取评估结果
-  getResults: (id: number) => request.get(`/api/model-execution-record/${id}/results`),
+  // 根据编码获取组织机构
+  getByCode: (code: string) => request.get(`/api/organization/code/${code}`),
 
-  // 删除执行记录
-  delete: (id: number) => request.delete(`/api/model-execution-record/${id}`),
+  // 获取组织机构树形结构
+  getTree: (params?: {
+    parentId?: number;
+    maxLevel?: number;
+  }) => request.get('/api/organization/tree', { params }),
 
-  // 获取执行记录统计信息
-  getStatistics: () => request.get('/api/model-execution-record/statistics')
+  // 根据父级ID获取子级组织机构
+  getChildrenByParentId: (parentId: number) => request.get(`/api/organization/children/${parentId}`),
+
+  // 搜索组织机构
+  search: (params: {
+    keyword?: string;
+    level?: number;
+  }) => request.get('/api/organization/search', { params }),
+
+  // 获取省级组织机构列表
+  getProvinces: () => request.get('/api/organization/provinces'),
+
+  // 获取市级组织机构列表
+  getCities: (provinceCode?: string) =>
+    request.get('/api/organization/cities', { params: { provinceCode } }),
+
+  // 获取县级组织机构列表
+  getCounties: (cityCode?: string) =>
+    request.get('/api/organization/counties', { params: { cityCode } }),
+
+  // 获取乡镇级组织机构列表
+  getTownships: (countyCode?: string) =>
+    request.get('/api/organization/townships', { params: { countyCode } }),
+
+  // 获取社区级组织机构列表
+  getCommunities: (townshipCode?: string) =>
+    request.get('/api/organization/communities', { params: { townshipCode } })
 }
