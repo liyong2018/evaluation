@@ -58,37 +58,45 @@ export const surveyDataApi = {
 
 // 权重配置相关API
 export const weightConfigApi = {
-  // 获取所有权重配置
-  getAll: () => request.get('/api/weight-config'),
-  
+  // 获取所有权重配置（支持按组织机构过滤）
+  getAll: (orgcode?: string) => {
+    if (orgcode) {
+      return request.get('/api/weight-config', { params: { orgcode } })
+    }
+    return request.get('/api/weight-config')
+  },
+
   // 根据ID获取权重配置
   getById: (id: number) => request.get(`/api/weight-config/${id}`),
-  
+
   // 根据名称获取权重配置
   getByName: (configName: string) => request.get(`/api/weight-config/name/${configName}`),
-  
+
+  // 根据组织机构编码获取权重配置
+  getByOrgcode: (orgcode: string) => request.get(`/api/weight-config/by-org/${orgcode}`),
+
   // 获取激活的权重配置
   getActive: () => request.get('/api/weight-config/active'),
-  
+
   // 创建权重配置
   create: (data: any) => request.post('/api/weight-config', data),
-  
+
   // 更新权重配置
   update: (data: any) => request.put('/api/weight-config', data),
-  
+
   // 删除权重配置
   delete: (id: number) => request.delete(`/api/weight-config/${id}`),
-  
+
   // 激活权重配置
   activate: (id: number) => request.post(`/api/weight-config/activate/${id}`),
-  
+
   // 停用权重配置
   deactivate: (id: number) => request.post(`/api/weight-config/deactivate/${id}`),
-  
+
   // 复制权重配置
-  copy: (id: number, newConfigName: string) => 
+  copy: (id: number, newConfigName: string) =>
     request.post(`/api/weight-config/copy/${id}`, null, { params: { newConfigName } }),
-  
+
   // 验证权重配置
   validate: (data: any) => request.post('/api/weight-config/validate', data)
 }
@@ -562,6 +570,59 @@ export const modelManagementApi = {
     request.post('/api/model-management/validate-expression', data),
   
   // 测试QLExpress表达式
-  testQLExpression: (data: { expression: string; context: any }) => 
+  testQLExpression: (data: { expression: string; context: any }) =>
     request.post('/api/model-management/test-expression', data)
+}
+
+// 组织机构相关API
+export const organizationApi = {
+  // 获取所有组织机构
+  getAll: (params?: {
+    page?: number;
+    size?: number;
+    code?: string;
+    name?: string;
+    level?: number;
+    parentId?: number;
+  }) => request.get('/api/organization/list', { params }),
+
+  // 根据ID获取组织机构
+  getById: (id: number) => request.get(`/api/organization/${id}`),
+
+  // 根据编码获取组织机构
+  getByCode: (code: string) => request.get(`/api/organization/code/${code}`),
+
+  // 获取组织机构树形结构
+  getTree: (params?: {
+    parentId?: number;
+    maxLevel?: number;
+  }) => request.get('/api/organization/tree', { params }),
+
+  // 根据父级ID获取子级组织机构
+  getChildrenByParentId: (parentId: number) => request.get(`/api/organization/children/${parentId}`),
+
+  // 搜索组织机构
+  search: (params: {
+    keyword?: string;
+    level?: number;
+  }) => request.get('/api/organization/search', { params }),
+
+  // 获取省级组织机构列表
+  getProvinces: () => request.get('/api/organization/provinces'),
+
+  // 获取市级组织机构列表
+  getCities: (provinceCode?: string) =>
+    request.get('/api/organization/cities', { params: { provinceCode } }),
+
+  // 获取县级组织机构列表
+  getCounties: (cityCode?: string) =>
+    request.get('/api/organization/counties', { params: { cityCode } }),
+
+  // 获取乡镇级组织机构列表
+  getTownships: (countyCode?: string) =>
+    request.get('/api/organization/townships', { params: { countyCode } }),
+
+  // 获取社区级组织机构列表
+  getCommunities: (townshipCode?: string) =>
+    request.get('/api/organization/communities', { params: { townshipCode } })
 }

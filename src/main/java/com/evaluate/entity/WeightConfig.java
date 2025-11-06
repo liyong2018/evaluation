@@ -41,6 +41,12 @@ public class WeightConfig implements Serializable {
     private String description;
 
     /**
+     * 组织机构编码（行政区划代码）
+     */
+    @TableField("orgcode")
+    private String orgcode;
+
+    /**
      * 创建时间
      */
     @TableField(value = "create_time", fill = FieldFill.INSERT)

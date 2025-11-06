@@ -167,4 +167,15 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
         // status字段不存在于weight_config表，直接返回true
         return true;
     }
+
+    @Override
+    public List<WeightConfig> getByOrgcode(String orgcode) {
+        if (!StringUtils.hasText(orgcode)) {
+            return list();
+        }
+        QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("orgcode", orgcode);
+        queryWrapper.eq("is_deleted", 0);
+        return list(queryWrapper);
+    }
 }
