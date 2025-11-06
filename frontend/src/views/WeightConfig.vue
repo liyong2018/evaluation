@@ -108,11 +108,19 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="createTime" label="创建时间" width="180" />
-                <el-table-column label="操作" width="300" fixed="right">
+                <el-table-column label="操作" width="400" fixed="right">
                   <template #default="{ row }">
                     <el-button type="primary" size="small" @click="editConfig(row)">
                       <el-icon><Edit /></el-icon>
                       编辑
+                    </el-button>
+                    <el-button type="warning" size="small" @click="openScoreDialog(row)">
+                      <el-icon><DocumentAdd /></el-icon>
+                      打分
+                    </el-button>
+                    <el-button type="info" size="small" @click="openStatisticsDialog(row)">
+                      <el-icon><DataLine /></el-icon>
+                      详情
                     </el-button>
                     <el-button
                       type="success"
@@ -387,6 +395,166 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 专家打分对话框 -->
+    <el-dialog
+      v-model="dialogVisible.score"
+      :title="`专家打分 - ${currentScoreConfig?.configName || ''}`"
+      width="900px"
+      :close-on-click-modal="false"
+    >
+      <div class="score-dialog-content">
+        <!-- 专家信息 -->
+        <el-card class="expert-info-card" shadow="never">
+          <template #header>
+            <span>专家信息</span>
+          </template>
+          <el-form label-width="100px">
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="专家姓名" required>
+                  <el-input v-model="scoreForm.expertName" placeholder="请输入专家姓名" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="联系电话">
+                  <el-input v-model="scoreForm.expertPhone" placeholder="请输入联系电话（可选）" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
+        </el-card>
+
+        <!-- 指标权重打分 -->
+        <el-card class="score-tree-card" shadow="never">
+          <template #header>
+            <span>指标权重打分（同层级权重总和必须为1）</span>
+          </template>
+          <div class="score-tree-container">
+            <el-tree
+              :data="scoreTreeData"
+              :props="{ label: 'indicatorName', children: 'children' }"
+              node-key="indicatorCode"
+              default-expand-all
+            >
+              <template #default="{ node, data }">
+                <div class="score-tree-node">
+                  <div class="node-info">
+                    <span class="node-code">{{ data.indicatorCode }}</span>
+                    <span class="node-name">{{ data.indicatorName }}</span>
+                    <el-tag size="small" :type="data.indicatorLevel === 1 ? 'primary' : 'success'">
+                      L{{ data.indicatorLevel }}
+                    </el-tag>
+                    <span class="current-weight">参考: {{ data.currentWeight }}</span>
+                  </div>
+                  <div class="node-input">
+                    <el-input-number
+                      v-model="data.weight"
+                      :min="0"
+                      :max="1"
+                      :step="0.01"
+                      :precision="3"
+                      size="small"
+                      placeholder="权重值"
+                    />
+                  </div>
+                </div>
+              </template>
+            </el-tree>
+          </div>
+        </el-card>
+      </div>
+
+      <template #footer>
+        <el-button @click="dialogVisible.score = false">取消</el-button>
+        <el-button type="primary" @click="submitScore" :loading="loading.submit">
+          提交打分
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 统计详情对话框 -->
+    <el-dialog
+      v-model="dialogVisible.statistics"
+      :title="`打分统计详情 - ${currentScoreConfig?.configName || ''}`"
+      width="1000px"
+      :close-on-click-modal="false"
+    >
+      <div v-if="statisticsData" class="statistics-content">
+        <!-- 总体统计 -->
+        <el-card class="summary-card" shadow="never">
+          <template #header>
+            <span>总体统计</span>
+          </template>
+          <el-descriptions :column="3" border>
+            <el-descriptions-item label="总打分记录数">
+              {{ statisticsData.totalScores }}
+            </el-descriptions-item>
+            <el-descriptions-item label="参与专家数">
+              {{ statisticsData.experts?.length || 0 }}
+            </el-descriptions-item>
+            <el-descriptions-item label="指标数">
+              {{ statisticsData.indicatorStats?.length || 0 }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+
+        <!-- 专家列表 -->
+        <el-card class="experts-card" shadow="never">
+          <template #header>
+            <span>参与专家</span>
+          </template>
+          <el-tag
+            v-for="(expert, index) in statisticsData.experts"
+            :key="index"
+            type="info"
+            style="margin-right: 10px; margin-bottom: 10px"
+          >
+            {{ expert.expert_name }}
+            <span v-if="expert.expert_phone"> ({{ expert.expert_phone }})</span>
+          </el-tag>
+        </el-card>
+
+        <!-- 各指标统计详情 -->
+        <el-card class="indicators-card" shadow="never">
+          <template #header>
+            <span>各指标打分详情</span>
+          </template>
+          <el-collapse>
+            <el-collapse-item
+              v-for="(stat, index) in statisticsData.indicatorStats"
+              :key="index"
+              :name="stat.indicatorCode"
+            >
+              <template #title>
+                <div class="indicator-title">
+                  <el-tag size="small">{{ stat.indicatorCode }}</el-tag>
+                  <span style="margin-left: 10px">平均权重: <strong>{{ stat.avgWeight.toFixed(3) }}</strong></span>
+                  <span style="margin-left: 10px; color: #909399">打分人数: {{ stat.scoreCount }}</span>
+                </div>
+              </template>
+              <el-table :data="stat.expertScores" border>
+                <el-table-column prop="expertName" label="专家姓名" width="150" />
+                <el-table-column prop="expertPhone" label="联系电话" width="150" />
+                <el-table-column prop="weight" label="权重值" width="150">
+                  <template #default="{ row }">
+                    {{ row.weight.toFixed(3) }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="createTime" label="打分时间" />
+              </el-table>
+            </el-collapse-item>
+          </el-collapse>
+        </el-card>
+      </div>
+
+      <template #footer>
+        <el-button @click="dialogVisible.statistics = false">关闭</el-button>
+        <el-button type="primary" @click="applyAverageWeights" :loading="loading.submit">
+          应用平均权重到正式配置
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -402,9 +570,11 @@ import {
   Switch,
   CopyDocument,
   Upload,
-  Check
+  Check,
+  DocumentAdd,
+  DataLine
 } from '@element-plus/icons-vue'
-import { weightConfigApi, indicatorWeightApi, organizationApi } from '@/api'
+import { weightConfigApi, indicatorWeightApi, organizationApi, indicatorWeightScoreApi } from '@/api'
 
 // 响应式数据
 const activeTab = ref('config')
@@ -432,7 +602,9 @@ const loading = reactive({
 
 const dialogVisible = reactive({
   config: false,
-  weight: false
+  weight: false,
+  score: false,      // 打分对话框
+  statistics: false  // 详情对话框
 })
 
 const isEditConfig = ref(false)
@@ -457,6 +629,18 @@ const weightForm = reactive({
   parentId: null,
   description: ''
 })
+
+// 打分表单数据
+const scoreForm = reactive({
+  configId: null,
+  expertName: '',
+  expertPhone: '',
+  scores: [] as any[]  // 存储所有指标的打分
+})
+
+// 统计信息数据
+const statisticsData = ref<any>(null)
+const currentScoreConfig = ref<any>(null)  // 当前正在打分/查看的配置
 
 const configRules = {
   configName: [{ required: true, message: '请输入配置名称', trigger: 'blur' }],
@@ -887,7 +1071,7 @@ const batchAddWeights = async () => {
 // 验证权重
 const validateWeights = async () => {
   if (!selectedConfigId.value) return
-  
+
   try {
     const response = await indicatorWeightApi.validate(selectedConfigId.value)
     if (response.success) {
@@ -901,7 +1085,170 @@ const validateWeights = async () => {
   }
 }
 
+// ========== 专家打分相关方法 ==========
 
+// 打开打分对话框
+const openScoreDialog = async (row: any) => {
+  try {
+    currentScoreConfig.value = row
+    scoreForm.configId = row.id
+    scoreForm.expertName = ''
+    scoreForm.expertPhone = ''
+
+    // 加载该配置的所有指标权重
+    const response = await indicatorWeightApi.getByConfigId(row.id)
+    if (response.success && response.data) {
+      // 初始化打分数据
+      scoreForm.scores = response.data.map((item: any) => ({
+        indicatorCode: item.indicatorCode,
+        indicatorName: item.indicatorName,
+        indicatorLevel: item.indicatorLevel,
+        parentId: item.parentId,
+        weight: 0,  // 初始权重为0
+        currentWeight: item.weight  // 保存当前权重值作为参考
+      }))
+
+      dialogVisible.score = true
+    } else {
+      ElMessage.error('获取指标列表失败')
+    }
+  } catch (error) {
+    console.error('打开打分对话框失败:', error)
+    ElMessage.error('打开打分对话框失败')
+  }
+}
+
+// 提交打分
+const submitScore = async () => {
+  // 验证专家信息
+  if (!scoreForm.expertName) {
+    ElMessage.warning('请输入专家姓名')
+    return
+  }
+
+  // 验证权重和是否为1（按层级分组验证）
+  const groups = new Map()
+  scoreForm.scores.forEach(item => {
+    const key = `${item.indicatorLevel}-${item.parentId || 'root'}`
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
+    groups.get(key).push(item)
+  })
+
+  for (const [key, items] of groups) {
+    const sum = items.reduce((s: number, item: any) => s + (item.weight || 0), 0)
+    if (Math.abs(sum - 1) > 0.001) {
+      ElMessage.warning(`同层级指标权重总和必须为1，当前为 ${sum.toFixed(3)}`)
+      return
+    }
+  }
+
+  loading.submit = true
+  try {
+    // 构建打分记录
+    const scores = scoreForm.scores.map(item => ({
+      configId: scoreForm.configId,
+      indicatorCode: item.indicatorCode,
+      weight: item.weight,
+      expertName: scoreForm.expertName,
+      expertPhone: scoreForm.expertPhone
+    }))
+
+    const response = await indicatorWeightScoreApi.saveScores(scores)
+    if (response.success) {
+      ElMessage.success('打分提交成功')
+      dialogVisible.score = false
+    } else {
+      ElMessage.error(response.message || '打分提交失败')
+    }
+  } catch (error) {
+    console.error('提交打分失败:', error)
+    ElMessage.error('提交打分失败')
+  } finally {
+    loading.submit = false
+  }
+}
+
+// 打开统计详情对话框
+const openStatisticsDialog = async (row: any) => {
+  try {
+    currentScoreConfig.value = row
+    loading.submit = true
+
+    // 获取打分统计信息
+    const response = await indicatorWeightScoreApi.getScoreStatistics(row.id)
+    if (response.success) {
+      statisticsData.value = response.data
+      dialogVisible.statistics = true
+    } else {
+      ElMessage.error(response.message || '获取统计信息失败')
+    }
+  } catch (error) {
+    console.error('获取统计信息失败:', error)
+    ElMessage.error('获取统计信息失败')
+  } finally {
+    loading.submit = false
+  }
+}
+
+// 应用平均权重到正式配置
+const applyAverageWeights = async () => {
+  if (!currentScoreConfig.value) return
+
+  try {
+    await ElMessageBox.confirm('确定要将平均权重应用到正式配置吗？这将覆盖当前的权重值。', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    loading.submit = true
+    const response = await indicatorWeightScoreApi.applyAverageWeights(currentScoreConfig.value.id)
+    if (response.success) {
+      ElMessage.success('平均权重应用成功')
+      dialogVisible.statistics = false
+      // 刷新配置列表
+      getConfigList()
+    } else {
+      ElMessage.error(response.message || '应用失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('应用平均权重失败:', error)
+      ElMessage.error('应用失败')
+    }
+  } finally {
+    loading.submit = false
+  }
+}
+
+// 构建打分的树形数据
+const scoreTreeData = computed(() => {
+  if (!scoreForm.scores.length) return []
+
+  const nodeMap = new Map()
+  const rootNodes: any[] = []
+
+  scoreForm.scores.forEach(item => {
+    nodeMap.set(item.indicatorCode, {
+      ...item,
+      children: []
+    })
+  })
+
+  scoreForm.scores.forEach(item => {
+    const node = nodeMap.get(item.indicatorCode)
+    if (item.parentId && nodeMap.has(item.parentId)) {
+      const parentNode = nodeMap.get(item.parentId)
+      parentNode.children.push(node)
+    } else {
+      rootNodes.push(node)
+    }
+  })
+
+  return rootNodes
+})
 
 // 组件挂载时获取数据
 onMounted(() => {
@@ -1432,5 +1779,104 @@ onMounted(() => {
   :deep(.weight-tree .node-name) { max-width: 220px; }
   :deep(.weight-tree .node-weight) { margin: 0 10px; }
   :deep(.weight-tree .weight-input) { width: 100px; }
+}
+
+/* ========== 专家打分对话框样式 ========== */
+.score-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.expert-info-card,
+.score-tree-card {
+  margin-bottom: 0;
+}
+
+.score-tree-container {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 16px;
+  background: #fafbfc;
+  border-radius: 8px;
+}
+
+.score-tree-node {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e8eef5;
+  border-radius: 6px;
+  background: white;
+  margin: 4px 0;
+}
+
+.score-tree-node .node-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.score-tree-node .node-code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #409eff;
+  background: rgba(64, 158, 255, 0.1);
+  padding: 3px 8px;
+  border-radius: 4px;
+  min-width: 60px;
+  text-align: center;
+}
+
+.score-tree-node .node-name {
+  font-weight: 500;
+  color: #303133;
+}
+
+.score-tree-node .current-weight {
+  font-size: 12px;
+  color: #909399;
+  margin-left: auto;
+}
+
+.score-tree-node .node-input {
+  min-width: 150px;
+}
+
+/* ========== 统计详情对话框样式 ========== */
+.statistics-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.summary-card,
+.experts-card,
+.indicators-card {
+  margin-bottom: 0;
+}
+
+.indicator-title {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* 对话框内的卡片样式调整 */
+:deep(.el-card__header) {
+  background: #f5f7fa;
+  padding: 12px 20px;
+  font-weight: 600;
+}
+
+:deep(.el-collapse-item__header) {
+  padding: 12px 16px;
+  background: #fafbfc;
 }
 </style>
