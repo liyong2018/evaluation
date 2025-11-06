@@ -13,7 +13,7 @@
         <!-- 操作工具栏 -->
         <el-card class="toolbar-card">
           <el-row :gutter="20" justify="space-between">
-            <el-col :span="12">
+            <el-col :span="8">
               <el-input
                 v-model="configSearch"
                 placeholder="搜索配置名称"
@@ -25,7 +25,25 @@
                 </template>
               </el-input>
             </el-col>
-            <el-col :span="12">
+            <el-col :span="8">
+              <el-select
+                v-model="orgcodeFilter"
+                placeholder="选择组织机构"
+                clearable
+                filterable
+                @change="filterByOrgcode"
+                @clear="clearOrgcodeFilter"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="org in organizationList"
+                  :key="org.code"
+                  :label="`${org.name} (${org.code})`"
+                  :value="org.code"
+                />
+              </el-select>
+            </el-col>
+            <el-col :span="8">
               <div class="toolbar-actions">
                 <el-button type="primary" @click="showConfigDialog">
                   <el-icon><Plus /></el-icon>
@@ -50,6 +68,14 @@
           >
             <el-table-column prop="id" label="ID" width="80" />
             <el-table-column prop="configName" label="配置名称" width="200" />
+            <el-table-column prop="orgcode" label="组织机构" width="150">
+              <template #default="{ row }">
+                <el-tag v-if="row.orgcode" type="info" size="small">
+                  {{ row.orgcode }}
+                </el-tag>
+                <span v-else style="color: #c0c4cc">-</span>
+              </template>
+            </el-table-column>
             <el-table-column prop="description" label="描述" />
             <el-table-column prop="configVersion" label="版本" width="100" />
             <el-table-column label="状态" width="120">
@@ -226,6 +252,22 @@
         <el-form-item label="配置名称" prop="configName">
           <el-input v-model="configForm.configName" placeholder="请输入配置名称" />
         </el-form-item>
+        <el-form-item label="组织机构" prop="orgcode">
+          <el-select
+            v-model="configForm.orgcode"
+            placeholder="请选择组织机构（可选）"
+            clearable
+            filterable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="org in organizationList"
+              :key="org.code"
+              :label="`${org.name} (${org.code})`"
+              :value="org.code"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input
             v-model="configForm.description"
@@ -333,7 +375,7 @@ import {
   Upload,
   Check
 } from '@element-plus/icons-vue'
-import { weightConfigApi, indicatorWeightApi } from '@/api'
+import { weightConfigApi, indicatorWeightApi, organizationApi } from '@/api'
 
 // 响应式数据
 const activeTab = ref('config')
@@ -342,6 +384,8 @@ const weightList = ref<any[]>([])
 const configSearch = ref('')
 const weightSearch = ref('')
 const selectedConfigId = ref<number | null>(null)
+const orgcodeFilter = ref('') // 组织机构过滤
+const organizationList = ref<any[]>([]) // 组织机构列表
 
 // 树形组件配置
 const treeProps = {
@@ -369,7 +413,8 @@ const configForm = reactive({
   id: null,
   configName: '',
   description: '',
-  configVersion: ''
+  configVersion: '',
+  orgcode: '' // 组织机构编码
 })
 
 const weightForm = reactive({
@@ -465,7 +510,8 @@ const getConfigList = async () => {
   console.log('开始获取权重配置列表')
   loading.configs = true
   try {
-    const response = await weightConfigApi.getAll()
+    // 支持按组织机构过滤
+    const response = await weightConfigApi.getAll(orgcodeFilter.value || undefined)
     console.log('权重配置API响应:', response)
     if (response.success) {
       configList.value = response.data || []
@@ -479,6 +525,29 @@ const getConfigList = async () => {
   } finally {
     loading.configs = false
   }
+}
+
+// 获取组织机构列表
+const getOrganizationList = async () => {
+  try {
+    const response = await organizationApi.getAll({ page: 1, size: 1000 })
+    if (response.success && response.data) {
+      organizationList.value = response.data.data || response.data || []
+    }
+  } catch (error) {
+    console.error('获取组织机构列表失败:', error)
+  }
+}
+
+// 按组织机构过滤
+const filterByOrgcode = () => {
+  getConfigList()
+}
+
+// 清除组织机构过滤
+const clearOrgcodeFilter = () => {
+  orgcodeFilter.value = ''
+  getConfigList()
 }
 
 // 搜索配置
@@ -528,7 +597,8 @@ const resetConfigForm = () => {
     id: null,
     configName: '',
     description: '',
-    configVersion: ''
+    configVersion: '',
+    orgcode: '' // 重置组织机构编码
   })
   configFormRef.value?.resetFields()
 }
@@ -801,6 +871,7 @@ const validateWeights = async () => {
 onMounted(() => {
   console.log('WeightConfig组件已挂载，开始加载数据')
   getConfigList()
+  getOrganizationList() // 获取组织机构列表
 })
 </script>
 
