@@ -604,3 +604,26 @@ export const modelExecutionRecordApi = {
   // 获取执行记录统计信息
   getStatistics: () => request.get('/api/model-execution-record/statistics')
 }
+
+// 模型执行记录API
+export const modelExecutionRecordApi = {
+  // 获取执行记录列表（分页）
+  getList: (params: {
+    current?: number;
+    size?: number;
+    modelId?: number;
+    executionStatus?: string
+  }) => request.get('/api/model-execution-record/list', { params }),
+
+  // 根据ID获取执行记录详情
+  getById: (id: number) => request.get(`/api/model-execution-record/${id}`),
+
+  // 根据执行记录ID获取评估结果
+  getResults: (id: number) => request.get(`/api/model-execution-record/${id}/results`),
+
+  // 删除执行记录
+  delete: (id: number) => request.delete(`/api/model-execution-record/${id}`),
+
+  // 获取执行记录统计信息
+  getStatistics: () => request.get('/api/model-execution-record/statistics')
+}
