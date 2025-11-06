@@ -5,12 +5,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/dashboard'
-    },
-    {
-      path: '/dashboard',
-      name: 'Dashboard',
-      component: () => import('@/views/Dashboard.vue')
+      redirect: '/data-management'
     },
     {
       path: '/data-management',
