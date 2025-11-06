@@ -627,7 +627,7 @@ const submitConfig = async () => {
     try {
       let response
       if (isEditConfig.value) {
-        response = await weightConfigApi.update(configForm.id!, configForm)
+        response = await weightConfigApi.update(configForm)
       } else {
         response = await weightConfigApi.create(configForm)
       }
@@ -796,7 +796,7 @@ const submitWeight = async () => {
     try {
       let response
       if (isEditWeight.value) {
-        response = await indicatorWeightApi.update(weightForm.id!, weightForm)
+        response = await indicatorWeightApi.update(weightForm)
       } else {
         response = await indicatorWeightApi.create(weightForm)
       }
