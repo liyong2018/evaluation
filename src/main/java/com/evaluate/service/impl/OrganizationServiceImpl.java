@@ -194,6 +194,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
         Long parentId = parent != null ? parent.getId() : null;
         if (organization == null) {
+            // 组织机构不存在，创建新记录
             organization = new Organization();
             organization.setCode(normalizedCode);
             organization.setName(normalizedName);
@@ -208,47 +209,10 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             save(organization);
             log.debug("新增组织机构: code={}, name={}, level={}", normalizedCode, normalizedName, level);
         } else {
-            boolean updated = false;
-            if (StringUtils.hasText(normalizedName) && !Objects.equals(organization.getName(), normalizedName)) {
-                organization.setName(normalizedName);
-                updated = true;
-            }
-            if (!Objects.equals(organization.getLevel(), level)) {
-                organization.setLevel(level);
-                updated = true;
-            }
-            if (!Objects.equals(organization.getParentId(), parentId)) {
-                organization.setParentId(parentId);
-                updated = true;
-            }
-            if (StringUtils.hasText(source) && !Objects.equals(organization.getDataSource(), source)) {
-                organization.setDataSource(source);
-                updated = true;
-            }
-            updated |= updateIfChanged(organization::setProvinceName, organization.getProvinceName(), provinceName);
-            updated |= updateIfChanged(organization::setCityName, organization.getCityName(), cityName);
-            updated |= updateIfChanged(organization::setCountyName, organization.getCountyName(), countyName);
-            updated |= updateIfChanged(organization::setTownshipName, organization.getTownshipName(), townshipName);
-            updated |= updateIfChanged(organization::setCommunityName, organization.getCommunityName(), communityName);
-
-            if (updated) {
-                updateById(organization);
-                log.debug("更新组织机构: code={}, name={}, level={}", normalizedCode, normalizedName, level);
-            }
+            // 组织机构已存在，跳过不做任何更新
+            log.debug("组织机构已存在，跳过: code={}, name={}, level={}", normalizedCode, normalizedName, level);
         }
         return organization;
-    }
-
-    private boolean updateIfChanged(java.util.function.Consumer<String> setter, String currentValue, String newValue) {
-        if (!StringUtils.hasText(newValue)) {
-            return false;
-        }
-        String normalized = newValue.trim();
-        if (!Objects.equals(currentValue, normalized)) {
-            setter.accept(normalized);
-            return true;
-        }
-        return false;
     }
 
     private String extractCode(String regionCode, int length) {
