@@ -10,113 +10,132 @@
     <el-tabs v-model="activeTab" class="config-tabs">
       <!-- 权重配置管理 -->
       <el-tab-pane label="权重配置" name="config">
-        <!-- 操作工具栏 -->
-        <el-card class="toolbar-card">
-          <el-row :gutter="20" justify="space-between">
-            <el-col :span="8">
-              <el-input
-                v-model="configSearch"
-                placeholder="搜索配置名称"
-                clearable
-                @keyup.enter="searchConfigs"
-              >
-                <template #prefix>
-                  <el-icon><Search /></el-icon>
-                </template>
-              </el-input>
-            </el-col>
-            <el-col :span="8">
-              <el-tree-select
-                v-model="orgcodeFilter"
-                :data="organizationList"
-                placeholder="选择组织机构"
-                clearable
-                filterable
-                check-strictly
-                :render-after-expand="false"
-                @change="filterByOrgcode"
-                @clear="clearOrgcodeFilter"
-                style="width: 100%"
-                node-key="code"
-                :props="{
-                  value: 'code',
-                  label: 'name',
-                  children: 'children'
-                }"
-              >
-                <template #default="{ data }">
-                  <span>{{ data.name }} <span style="color: #909399; font-size: 12px;">({{ data.code }})</span></span>
-                </template>
-              </el-tree-select>
-            </el-col>
-            <el-col :span="8">
-              <div class="toolbar-actions">
-                <el-button type="primary" @click="showConfigDialog">
-                  <el-icon><Plus /></el-icon>
-                  新建配置
-                </el-button>
-                <el-button type="success" @click="refreshConfigs">
+        <div class="layout-container">
+          <!-- 左侧：组织机构树 -->
+          <el-card class="org-tree-panel">
+            <template #header>
+              <div class="card-header">
+                <span>组织机构</span>
+                <el-button type="primary" size="small" @click="refreshOrganizations">
                   <el-icon><Refresh /></el-icon>
-                  刷新
                 </el-button>
               </div>
-            </el-col>
-          </el-row>
-        </el-card>
+            </template>
+            <el-tree
+              ref="orgTreeRef"
+              v-loading="loading.organizations"
+              :data="organizationList"
+              :props="{ label: 'name', children: 'children' }"
+              node-key="code"
+              highlight-current
+              :expand-on-click-node="false"
+              default-expand-all
+              @node-click="handleOrgNodeClick"
+            >
+              <template #default="{ node, data }">
+                <div class="org-tree-node">
+                  <span class="org-name">{{ data.name }}</span>
+                  <span class="org-code">{{ data.code }}</span>
+                </div>
+              </template>
+            </el-tree>
+          </el-card>
 
-        <!-- 配置列表 -->
-        <el-card class="config-list">
-          <el-table
-            v-loading="loading.configs"
-            :data="configList"
-            stripe
-            border
-          >
-            <el-table-column prop="id" label="ID" width="80" />
-            <el-table-column prop="configName" label="配置名称" width="200" />
-            <el-table-column prop="orgcode" label="组织机构" width="150">
-              <template #default="{ row }">
-                <el-tag v-if="row.orgcode" type="info" size="small">
-                  {{ row.orgcode }}
-                </el-tag>
-                <span v-else style="color: #c0c4cc">-</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="description" label="描述" />
-            <el-table-column label="状态" width="120">
-              <template #default="{ row }">
-                <el-tag type="success">
-                  激活
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="createTime" label="创建时间" width="180" />
-            <el-table-column label="操作" width="300" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" size="small" @click="editConfig(row)">
-                  <el-icon><Edit /></el-icon>
-                  编辑
-                </el-button>
-                <el-button 
-                  type="success" 
-                  size="small" 
-                  @click="activateConfig(row)"
-                >
-                  <el-icon><Switch /></el-icon>
-                  激活
-                </el-button>
-                <el-button type="info" size="small" @click="copyConfig(row)">
-                  <el-icon><CopyDocument /></el-icon>
-                  复制
-                </el-button>
-                <el-button type="danger" size="small" @click="deleteConfig(row)">
-                  <el-icon><Delete /></el-icon>
-                  删除
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
+          <!-- 右侧：权重配置列表 -->
+          <div class="config-panel">
+            <!-- 工具栏 -->
+            <el-card class="toolbar-card">
+              <el-row :gutter="20" justify="space-between">
+                <el-col :span="12">
+                  <el-input
+                    v-model="configSearch"
+                    placeholder="搜索配置名称"
+                    clearable
+                    @keyup.enter="searchConfigs"
+                  >
+                    <template #prefix>
+                      <el-icon><Search /></el-icon>
+                    </template>
+                  </el-input>
+                </el-col>
+                <el-col :span="12">
+                  <div class="toolbar-actions">
+                    <el-button type="primary" @click="showConfigDialog">
+                      <el-icon><Plus /></el-icon>
+                      新建配置
+                    </el-button>
+                    <el-button type="success" @click="refreshConfigs">
+                      <el-icon><Refresh /></el-icon>
+                      刷新
+                    </el-button>
+                  </div>
+                </el-col>
+              </el-row>
+            </el-card>
+
+            <!-- 当前选中组织机构信息 -->
+            <el-card v-if="selectedOrg" class="selected-org-info">
+              <div class="org-info-content">
+                <el-tag type="primary" size="large">{{ selectedOrg.name }}</el-tag>
+                <span class="org-info-code">组织机构代码: {{ selectedOrg.code }}</span>
+              </div>
+            </el-card>
+
+            <!-- 配置列表 -->
+            <el-card class="config-list">
+              <el-table
+                v-loading="loading.configs"
+                :data="configList"
+                stripe
+                border
+              >
+                <el-table-column prop="id" label="ID" width="80" />
+                <el-table-column prop="configName" label="配置名称" width="200" />
+                <el-table-column prop="orgcode" label="组织机构" width="150">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.orgcode" type="info" size="small">
+                      {{ row.orgcode }}
+                    </el-tag>
+                    <span v-else style="color: #c0c4cc">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="description" label="描述" />
+                <el-table-column label="状态" width="120">
+                  <template #default="{ row }">
+                    <el-tag type="success">
+                      激活
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="createTime" label="创建时间" width="180" />
+                <el-table-column label="操作" width="300" fixed="right">
+                  <template #default="{ row }">
+                    <el-button type="primary" size="small" @click="editConfig(row)">
+                      <el-icon><Edit /></el-icon>
+                      编辑
+                    </el-button>
+                    <el-button
+                      type="success"
+                      size="small"
+                      @click="activateConfig(row)"
+                    >
+                      <el-icon><Switch /></el-icon>
+                      激活
+                    </el-button>
+                    <el-button type="info" size="small" @click="copyConfig(row)">
+                      <el-icon><CopyDocument /></el-icon>
+                      复制
+                    </el-button>
+                    <el-button type="danger" size="small" @click="deleteConfig(row)">
+                      <el-icon><Delete /></el-icon>
+                      删除
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-card>
+          </div>
+        </div>
       </el-tab-pane>
 
       <!-- 指标权重管理 -->
@@ -394,8 +413,9 @@ const weightList = ref<any[]>([])
 const configSearch = ref('')
 const weightSearch = ref('')
 const selectedConfigId = ref<number | null>(null)
-const orgcodeFilter = ref('') // 组织机构过滤
+const selectedOrg = ref<any>(null) // 当前选中的组织机构
 const organizationList = ref<any[]>([]) // 组织机构列表
+const orgTreeRef = ref() // 组织机构树引用
 
 // 树形组件配置
 const treeProps = {
@@ -406,7 +426,8 @@ const treeProps = {
 const loading = reactive({
   configs: false,
   weights: false,
-  submit: false
+  submit: false,
+  organizations: false
 })
 
 const dialogVisible = reactive({
@@ -519,7 +540,8 @@ const getConfigList = async () => {
   loading.configs = true
   try {
     // 支持按组织机构过滤
-    const response = await weightConfigApi.getAll(orgcodeFilter.value || undefined)
+    const orgcode = selectedOrg.value ? selectedOrg.value.code : undefined
+    const response = await weightConfigApi.getAll(orgcode)
     console.log('权重配置API响应:', response)
     if (response.success) {
       configList.value = response.data || []
@@ -537,6 +559,7 @@ const getConfigList = async () => {
 
 // 获取组织机构列表（树形结构）
 const getOrganizationList = async () => {
+  loading.organizations = true
   try {
     const response = await organizationApi.getTree()
     if (response.success && response.data) {
@@ -545,17 +568,22 @@ const getOrganizationList = async () => {
     }
   } catch (error) {
     console.error('获取组织机构列表失败:', error)
+    ElMessage.error('获取组织机构列表失败')
+  } finally {
+    loading.organizations = false
   }
 }
 
-// 按组织机构过滤
-const filterByOrgcode = () => {
-  getConfigList()
+// 刷新组织机构树
+const refreshOrganizations = () => {
+  getOrganizationList()
 }
 
-// 清除组织机构过滤
-const clearOrgcodeFilter = () => {
-  orgcodeFilter.value = ''
+// 处理组织机构节点点击
+const handleOrgNodeClick = (data: any) => {
+  console.log('选中组织机构:', data)
+  selectedOrg.value = data
+  // 加载该组织机构的权重配置
   getConfigList()
 }
 
@@ -909,9 +937,75 @@ onMounted(() => {
   margin-top: 16px;
 }
 
+/* 左右布局容器 */
+.layout-container {
+  display: flex;
+  gap: 16px;
+  height: calc(100vh - 250px);
+}
+
+/* 左侧组织机构树面板 */
+.org-tree-panel {
+  width: 300px;
+  flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 组织机构树节点样式 */
+.org-tree-node {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding-right: 8px;
+}
+
+.org-name {
+  font-weight: 500;
+  color: #303133;
+}
+
+.org-code {
+  font-size: 12px;
+  color: #909399;
+  font-family: 'Courier New', monospace;
+}
+
+/* 右侧配置面板 */
+.config-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+/* 选中组织机构信息卡片 */
+.selected-org-info {
+  margin-bottom: 0;
+}
+
+.org-info-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.org-info-code {
+  color: #606266;
+  font-size: 14px;
+}
+
 .toolbar-card,
 .weight-toolbar {
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .toolbar-actions {
@@ -922,7 +1016,7 @@ onMounted(() => {
 
 .config-list,
 .weight-tree {
-  min-height: 600px;
+  min-height: 400px;
 }
 
 .weight-tree {
