@@ -58,8 +58,13 @@ export const surveyDataApi = {
 
 // 权重配置相关API
 export const weightConfigApi = {
-  // 获取所有权重配置
-  getAll: () => request.get('/api/weight-config'),
+  // 获取所有权重配置（支持按组织机构过滤）
+  getAll: (orgcode?: string) => {
+    if (orgcode) {
+      return request.get('/api/weight-config', { params: { orgcode } })
+    }
+    return request.get('/api/weight-config')
+  },
   
   // 根据ID获取权重配置
   getById: (id: number) => request.get(`/api/weight-config/${id}`),
