@@ -26,22 +26,28 @@
               </el-input>
             </el-col>
             <el-col :span="8">
-              <el-select
+              <el-tree-select
                 v-model="orgcodeFilter"
+                :data="organizationList"
                 placeholder="选择组织机构"
                 clearable
                 filterable
+                check-strictly
+                :render-after-expand="false"
                 @change="filterByOrgcode"
                 @clear="clearOrgcodeFilter"
                 style="width: 100%"
+                node-key="code"
+                :props="{
+                  value: 'code',
+                  label: 'name',
+                  children: 'children'
+                }"
               >
-                <el-option
-                  v-for="org in organizationList"
-                  :key="org.code"
-                  :label="`${org.name} (${org.code})`"
-                  :value="org.code"
-                />
-              </el-select>
+                <template #default="{ data }">
+                  <span>{{ data.name }} <span style="color: #909399; font-size: 12px;">({{ data.code }})</span></span>
+                </template>
+              </el-tree-select>
             </el-col>
             <el-col :span="8">
               <div class="toolbar-actions">
@@ -255,20 +261,26 @@
           <el-input v-model="configForm.configName" placeholder="请输入配置名称" />
         </el-form-item>
         <el-form-item label="组织机构" prop="orgcode">
-          <el-select
+          <el-tree-select
             v-model="configForm.orgcode"
+            :data="organizationList"
             placeholder="请选择组织机构（可选）"
             clearable
             filterable
+            check-strictly
+            :render-after-expand="false"
             style="width: 100%"
+            node-key="code"
+            :props="{
+              value: 'code',
+              label: 'name',
+              children: 'children'
+            }"
           >
-            <el-option
-              v-for="org in organizationList"
-              :key="org.code"
-              :label="`${org.name} (${org.code})`"
-              :value="org.code"
-            />
-          </el-select>
+            <template #default="{ data }">
+              <span>{{ data.name }} <span style="color: #909399; font-size: 12px;">({{ data.code }})</span></span>
+            </template>
+          </el-tree-select>
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input
@@ -529,12 +541,13 @@ const getConfigList = async () => {
   }
 }
 
-// 获取组织机构列表
+// 获取组织机构列表（树形结构）
 const getOrganizationList = async () => {
   try {
-    const response = await organizationApi.getAll({ page: 1, size: 1000 })
+    const response = await organizationApi.getTree()
     if (response.success && response.data) {
-      organizationList.value = response.data.data || response.data || []
+      organizationList.value = response.data || []
+      console.log('组织机构树形数据:', organizationList.value)
     }
   } catch (error) {
     console.error('获取组织机构列表失败:', error)
