@@ -90,6 +90,7 @@ public class SupabaseMigrationRunner implements ApplicationRunner {
                 " id bigserial PRIMARY KEY," +
                 " region_code text NOT NULL," +
                 " region_name text," +
+                " org_code text," +
                 " management_capability_score numeric(18,6)," +
                 " support_capability_score numeric(18,6)," +
                 " self_rescue_capability_score numeric(18,6)," +
