@@ -389,9 +389,6 @@
         border
       >
         <el-table-column prop="executionCode" label="执行编号" width="200" />
-        <el-table-column prop="modelId" label="模型ID" width="120" />
-        <el-table-column prop="orgCode" label="机构代码" width="150" />
-        <el-table-column prop="year" label="评估年份" width="150" />
         <el-table-column label="状态" width="120">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.executionStatus)">
@@ -399,17 +396,17 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="startTime" label="开始时间" width="180">
+        <el-table-column prop="startTime" label="开始时间" width="280">
           <template #default="{ row }">
             {{ formatDate(row.startTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="endTime" label="结束时间" width="180">
+        <el-table-column prop="endTime" label="结束时间" width="280">
           <template #default="{ row }">
             {{ formatDate(row.endTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="viewEvaluationDetail(row)">
               <el-icon><View /></el-icon>
