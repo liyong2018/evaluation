@@ -66,26 +66,7 @@
               </el-radio-group>
             </el-form-item>
           </el-col>
-        </el-row>
-
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="评估算法" prop="algorithmId">
-              <el-select v-model="evaluationForm.algorithmId" placeholder="选择评估算法">
-                <el-option
-                  v-for="algorithm in algorithmConfigs"
-                  :key="algorithm.id"
-                  :label="algorithm.configName"
-                  :value="algorithm.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <!-- 留空或者可以添加其他配置 -->
-          </el-col>
-        </el-row>
-        
+        </el-row>        
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="选择省份" prop="province">
@@ -949,6 +930,13 @@ const getProvinces = async () => {
     if (response.code === 200) {
       provinces.value = response.data || []
       console.log('获取到省份列表:', provinces.value)
+
+      // 如果省份列表有数据，默认选择第一条
+      if (provinces.value.length > 0) {
+        evaluationForm.selectedProvince = provinces.value[0].name
+        // 触发省份变化事件以加载城市数据
+        await handleProvinceChange(provinces.value[0].name)
+      }
     } else {
       ElMessage.error(response.message || '获取省份列表失败')
     }
