@@ -10,7 +10,8 @@
       "Bash(mysql -uroot -p123456 evaluate:*)",
       "Bash(mysql -h192.168.15.203 -P30314 -uroot -p123456 evaluate_db -e:*)",
       "Bash(iconv:*)",
-      "Bash(mvn clean compile:*)"
+      "Bash(mvn clean compile:*)",
+      "Bash(mvn compile -DskipTests)"
     ],
     "deny": [],
     "ask": []
