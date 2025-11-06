@@ -95,10 +95,18 @@ public interface IWeightConfigService extends IService<WeightConfig> {
 
     /**
      * 启用/禁用权重配置
-     * 
+     *
      * @param id 配置ID
      * @param status 状态(0-禁用，1-启用)
      * @return 操作结果
      */
     boolean updateStatus(Long id, Integer status);
+
+    /**
+     * 根据组织机构编码查询配置列表
+     *
+     * @param orgcode 组织机构编码
+     * @return 权重配置列表
+     */
+    List<WeightConfig> getByOrgcode(String orgcode);
 }

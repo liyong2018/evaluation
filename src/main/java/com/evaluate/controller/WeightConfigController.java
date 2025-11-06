@@ -24,13 +24,29 @@ public class WeightConfigController {
     private IWeightConfigService weightConfigService;
 
     @GetMapping
-    public Result<List<WeightConfig>> getAllWeightConfigs() {
+    public Result<List<WeightConfig>> getAllWeightConfigs(@RequestParam(required = false) String orgcode) {
         try {
-            List<WeightConfig> list = weightConfigService.list();
+            List<WeightConfig> list;
+            if (orgcode != null && !orgcode.trim().isEmpty()) {
+                list = weightConfigService.getByOrgcode(orgcode);
+            } else {
+                list = weightConfigService.list();
+            }
             return Result.success(list);
         } catch (Exception e) {
             log.error("获取权重配置列表失败", e);
             return Result.error("获取权重配置列表失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/by-org/{orgcode}")
+    public Result<List<WeightConfig>> getWeightConfigsByOrgcode(@PathVariable String orgcode) {
+        try {
+            List<WeightConfig> list = weightConfigService.getByOrgcode(orgcode);
+            return Result.success(list);
+        } catch (Exception e) {
+            log.error("根据组织机构获取权重配置失败", e);
+            return Result.error("根据组织机构获取权重配置失败: " + e.getMessage());
         }
     }
 
