@@ -32,13 +32,13 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="权重配置" prop="weightConfigId">
-              <el-select v-model="evaluationForm.weightConfigId" placeholder="选择权重配置">
+            <el-form-item label="评估年份" prop="year">
+              <el-select v-model="evaluationForm.year" placeholder="选择评估年份">
                 <el-option
-                  v-for="config in weightConfigs"
-                  :key="config.id"
-                  :label="config.name"
-                  :value="config.id"
+                  v-for="y in years"
+                  :key="y"
+                  :label="String(y)"
+                  :value="y"
                 />
               </el-select>
             </el-form-item>
@@ -356,7 +356,7 @@
     </el-card>
 
     <!-- 评估历史 -->
-    <!-- <el-card class="history-card">
+    <el-card class="history-card">
       <template #header>
         <div class="card-header">
           <span>评估历史</span>
@@ -366,49 +366,99 @@
           </el-button>
         </div>
       </template>
-      
+
+      <!-- 筛选条件（使用评估配置表单的值） -->
+      <div class="history-filters">
+        <el-row :gutter="16" style="margin-bottom: 16px;">
+          <el-col :span="8">
+            <el-select
+              v-model="filterForm.status"
+              placeholder="执行状态（默认全部）"
+              clearable
+              @change="handleFilterChange"
+              style="width: 100%;"
+            >
+              <el-option label="成功" value="SUCCESS" />
+              <el-option label="失败" value="FAILED" />
+              <el-option label="进行中" value="RUNNING" />
+            </el-select>
+          </el-col>
+          <el-col :span="8">
+            <el-button type="primary" @click="showAllHistory">
+              <el-icon><List /></el-icon>
+              显示全部历史
+            </el-button>
+            <el-button @click="refreshHistory" style="margin-left: 8px;">
+              <el-icon><Refresh /></el-icon>
+              刷新
+            </el-button>
+          </el-col>
+          <el-col :span="8" style="text-align: right; color: #666; font-size: 14px;">
+            <span v-if="evaluationForm.year">筛选条件：{{ evaluationForm.year }}年</span>
+            <span v-if="evaluationForm.orgCode" style="margin-left: 8px;">{{ getCountyName(evaluationForm.orgCode) }}</span>
+            <span v-if="evaluationForm.modelId" style="margin-left: 8px;">模型ID：{{ evaluationForm.modelId }}</span>
+          </el-col>
+        </el-row>
+      </div>
+
       <el-table
         v-loading="loading.history"
-        :data="evaluationHistory"
+        :data="evaluationHistory.records || []"
         stripe
         border
       >
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="评估名称" width="200" />
-        <el-table-column prop="algorithm" label="算法" width="120" />
-        <el-table-column prop="dataCount" label="数据量" width="100" />
+        <el-table-column prop="executionCode" label="执行编号" width="200" />
+        <el-table-column prop="modelId" label="模型ID" width="120" />
+        <el-table-column prop="orgCode" label="机构代码" width="150" />
+        <el-table-column prop="year" label="评估年份" width="150" />
         <el-table-column label="状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">
-              {{ getStatusText(row.status) }}
+            <el-tag :type="getStatusType(row.executionStatus)">
+              {{ getStatusText(row.executionStatus) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="duration" label="耗时" width="120" />
-        <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column prop="startTime" label="开始时间" width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.startTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="endTime" label="结束时间" width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.endTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="viewEvaluationDetail(row)">
               <el-icon><View /></el-icon>
               详情
             </el-button>
-            <el-button 
-              type="success" 
-              size="small" 
-              @click="rerunEvaluation(row)"
-              :disabled="row.status === 'RUNNING'"
+            <el-button
+              type="success"
+              size="small"
+              @click="viewExecutionDetail(row)"
             >
-              <el-icon><Refresh /></el-icon>
-              重新计算
-            </el-button>
-            <el-button type="danger" size="small" @click="deleteEvaluation(row)">
-              <el-icon><Delete /></el-icon>
-              删除
+              <el-icon><Document /></el-icon>
+              执行记录
             </el-button>
           </template>
         </el-table-column>
       </el-table>
-    </el-card> -->
+
+      <!-- 分页 -->
+      <div class="pagination-wrapper" v-if="evaluationHistory.total > 0">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="evaluationHistory.total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </el-card>
 
     <!-- 数据预览对话框 -->
     <el-dialog v-model="dialogVisible.preview" title="数据预览" width="80%">
@@ -422,6 +472,80 @@
       </el-table>
       <template #footer>
         <el-button @click="dialogVisible.preview = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 评估结果详情对话框 -->
+    <el-dialog v-model="dialogVisible.evaluationDetail" :title="`评估结果详情 - ${currentExecutionRecord?.executionCode || ''}`" width="90%" top="5vh">
+      <div v-loading="loading.evaluationDetail" style="min-height: 400px;">
+        <!-- 执行记录信息 -->
+        <el-card v-if="currentExecutionRecord" class="record-info-card" style="margin-bottom: 20px;">
+          <el-descriptions title="执行信息" :column="3" border>
+            <el-descriptions-item label="执行编号">{{ currentExecutionRecord.executionCode }}</el-descriptions-item>
+            <el-descriptions-item label="执行状态">
+              <el-tag :type="getStatusType(currentExecutionRecord.executionStatus)">
+                {{ getStatusText(currentExecutionRecord.executionStatus) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="模型ID">{{ currentExecutionRecord.modelId }}</el-descriptions-item>
+            <el-descriptions-item label="开始时间">{{ formatDate(currentExecutionRecord.startTime) }}</el-descriptions-item>
+            <el-descriptions-item label="结束时间">{{ formatDate(currentExecutionRecord.endTime) }}</el-descriptions-item>
+            <el-descriptions-item label="年份">{{ currentExecutionRecord.year || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="结果摘要" :span="3">{{ currentExecutionRecord.resultSummary }}</el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+
+        <!-- 评估结果列表 -->
+        <el-table
+          :data="evaluationResults"
+          stripe
+          border
+          v-if="evaluationResults.length > 0"
+          style="width: 100%"
+        >
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="regionCode" label="地区代码" width="120" />
+          <el-table-column prop="regionName" label="地区名称" width="150" />
+          <el-table-column label="管理能力" align="center">
+            <el-table-column prop="managementCapabilityScore" label="得分" width="100" />
+            <el-table-column prop="managementCapabilityLevel" label="等级" width="100" />
+          </el-table-column>
+          <el-table-column label="支持能力" align="center">
+            <el-table-column prop="supportCapabilityScore" label="得分" width="100" />
+            <el-table-column prop="supportCapabilityLevel" label="等级" width="100" />
+          </el-table-column>
+          <el-table-column label="自救能力" align="center">
+            <el-table-column prop="selfRescueCapabilityScore" label="得分" width="100" />
+            <el-table-column prop="selfRescueCapabilityLevel" label="等级" width="100" />
+          </el-table-column>
+          <el-table-column prop="comprehensiveCapabilityScore" label="综合能力得分" width="130" />
+          <el-table-column prop="comprehensiveCapabilityLevel" label="综合能力等级" width="130" />
+          <el-table-column prop="createTime" label="创建时间" width="180">
+            <template #default="{ row }">
+              {{ formatDate(row.createTime) }}
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <el-empty v-else description="暂无评估结果数据" :image-size="100" />
+
+        <!-- 统计信息 -->
+        <div v-if="evaluationResults.length > 0" class="statistics-info">
+          <el-alert
+            :title="`共 ${evaluationResults.length} 条评估结果`"
+            type="info"
+            :closable="false"
+            show-icon
+            style="margin-top: 20px;"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="dialogVisible.evaluationDetail = false">关闭</el-button>
+        <el-button v-if="evaluationResults.length > 0" type="primary" @click="exportEvaluationResults">
+          <el-icon><Download /></el-icon>
+          导出结果
+        </el-button>
       </template>
     </el-dialog>
 
@@ -448,9 +572,11 @@ import {
   Check,
   View,
   Download,
-  Delete
+  Delete,
+  Document,
+  Filter
 } from '@element-plus/icons-vue'
-import { evaluationApi, weightConfigApi, surveyDataApi, regionApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi, communityCapacityApi, regionDataApi } from '@/api'
+import { evaluationApi, surveyDataApi, regionApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi, communityCapacityApi, regionDataApi } from '@/api'
 import ResultDialog from '@/components/ResultDialog.vue'
 
 // 处理ResizeObserver警告
@@ -471,13 +597,21 @@ const selectedAlgorithm = computed(() => {
 
 // 响应式数据
 const evaluationFormRef = ref<FormInstance>()
-const weightConfigs = ref<any[]>([])
 const algorithmConfigs = ref<any[]>([])
 const evaluationModels = ref<any[]>([])
 const algorithmSteps = ref<any[]>([])
 const regionTreeData = ref<any[]>([])
-const evaluationHistory = ref<any[]>([])
+const evaluationHistory = ref<any>({ records: [], total: 0, current: 1, size: 10, pages: 0 })
 const previewData = ref<any[]>([])
+
+// 筛选表单（仅状态需要独立选择，其他使用评估配置表单的值）
+const filterForm = reactive({
+  status: ''
+})
+
+// 分页相关
+const currentPage = ref(1)
+const pageSize = ref(10)
 
 // 三级联动数据
 const provinces = ref<any[]>([])
@@ -486,12 +620,18 @@ const counties = ref<any[]>([])
 
 const loading = reactive({
   evaluation: false,
-  history: false
+  history: false,
+  evaluationDetail: false
 })
 
 const dialogVisible = reactive({
-  preview: false
+  preview: false,
+  evaluationDetail: false
 })
+
+// 评估结果详情相关数据
+const currentExecutionRecord = ref<any>(null)
+const evaluationResults = ref<any[]>([])
 
 // 计算结果弹窗相关数据
 const resultDialogVisible = ref(false)
@@ -506,14 +646,19 @@ const formulaTooltip = reactive({
   step: null
 })
 
+const currentYear = new Date().getFullYear()
+const years = ref<number[]>(Array.from({ length: 6 }, (_, i) => currentYear - i))
+
 const evaluationForm = reactive({
   name: '',
   modelId: null,
   weightConfigId: null,
+  year: currentYear,
   algorithmId: null,
   dataType: 'township', // 默认选择乡镇数据
   dataSource: 'REGION',
   regions: [],
+  orgCode: '', // 机构代码
   // 三级联动数据
   selectedProvince: '',
   selectedCity: '',
@@ -544,20 +689,10 @@ const evaluationProgress = reactive({
 
 const evaluationRules = {
   name: [{ required: true, message: '请输入评估名称', trigger: 'blur' }],
-  weightConfigId: [{ required: true, message: '请选择权重配置', trigger: 'change' }]
+  year: [{ required: true, message: '请选择评估年份', trigger: 'change' }]
 }
 
-// 获取权重配置列表
-const getWeightConfigs = async () => {
-  try {
-    const response = await weightConfigApi.getActive()
-    if (response.success) {
-      weightConfigs.value = response.data || []
-    }
-  } catch (error) {
-    console.error('获取权重配置失败:', error)
-  }
-}
+// 移除权重配置获取逻辑，年份下拉改为最近六年
 
 // 获取地区树形数据
 const getRegionTreeData = async () => {
@@ -878,13 +1013,33 @@ const handleCityChange = async (cityName: string) => {
 }
 
 // 处理区县变化
-const handleCountyChange = async (countyName: string) => {
-  console.log('区县变化:', countyName)
+const handleCountyChange = async (countyCode: string) => {
+  console.log('区县变化:', countyCode)
   // 清空之前的数据
   evaluationForm.countyData = []
   evaluationForm.regions = []
 
-  if (countyName && evaluationForm.selectedProvince && evaluationForm.selectedCity) {
+  if (countyCode && evaluationForm.selectedProvince && evaluationForm.selectedCity) {
+    // 从counties数组中查找区县详细信息，确认数据结构
+    const selectedCountyObj = counties.value.find((c: any) => c.code === countyCode)
+    console.log('选中的区县对象:', selectedCountyObj)
+    console.log('所有区县数据:', counties.value)
+
+    // 获取区县名称和代码
+    const countyName = selectedCountyObj?.name || countyCode
+    const extractedCountyCode = selectedCountyObj?.code || countyCode
+
+    // 设置机构代码为区县代码（如511425）
+    // 如果 selectedCountyObj 中有专门的 code 字段且不是名称，就使用它
+    // 否则从返回的县数据中提取区县代码
+    evaluationForm.orgCode = extractedCountyCode
+
+    console.log('机构代码设置:', {
+      countyName,
+      extractedCountyCode,
+      orgCode: evaluationForm.orgCode
+    })
+
     // 获取该县的数据
     try {
       const response = await regionDataApi.getDataByCounty(
@@ -895,6 +1050,26 @@ const handleCountyChange = async (countyName: string) => {
       )
       if (response.code === 200) {
         evaluationForm.countyData = response.data || []
+        console.log('返回的县数据样本:', evaluationForm.countyData[0])
+
+        // 从县数据中提取区县代码（取 regionCode 的前6位，如 511425001 -> 511425）
+        if (evaluationForm.countyData.length > 0) {
+          const firstItem = evaluationForm.countyData[0]
+          if (firstItem.regionCode) {
+            // 提取前6位作为区县代码
+            evaluationForm.orgCode = firstItem.regionCode.substring(0, 6)
+            console.log('从 regionCode 提取的区县代码:', evaluationForm.orgCode, '（原始值:', firstItem.regionCode, '）')
+          } else {
+            // 如果没有 regionCode，使用 county 字段（但这可能是名称）
+            console.warn('未找到 regionCode 字段，使用 county 字段作为备选:', firstItem.county)
+            if (firstItem.county && /^\d+$/.test(firstItem.county)) {
+              evaluationForm.orgCode = firstItem.county
+            } else {
+              evaluationForm.orgCode = firstItem.county || countyName
+            }
+          }
+        }
+
         // 将数据转换为regions格式用于评估
         evaluationForm.regions = evaluationForm.countyData.map((item: any) => {
           if (evaluationForm.dataType === 'community') {
@@ -905,6 +1080,8 @@ const handleCountyChange = async (countyName: string) => {
         })
         console.log('获取到县数据:', {
           county: countyName,
+          countyCode: extractedCountyCode,
+          orgCode: evaluationForm.orgCode,
           dataType: evaluationForm.dataType,
           dataCount: evaluationForm.countyData.length,
           regions: evaluationForm.regions
@@ -988,26 +1165,49 @@ const getAlgorithmSteps = async (algorithmId: number) => {
   }
 }
 
-// 获取评估历史
-const getEvaluationHistory = async () => {
+// 获取评估历史（使用评估配置表单的值作为筛选条件）
+const getEvaluationHistory = async (page: number = currentPage.value, size: number = pageSize.value) => {
   loading.history = true
   try {
-    // 暂时使用第一个调查数据的ID，实际应该根据选择的调查数据来获取
-    const surveyResponse = await surveyDataApi.getAll()
-    if (surveyResponse.success && surveyResponse.data && surveyResponse.data.length > 0) {
-      const surveyId = surveyResponse.data[0].id
-      const response = await evaluationApi.getHistory(surveyId)
-      if (response.success) {
-        evaluationHistory.value = response.data || []
-      } else {
-        ElMessage.error(response.message || '获取评估历史失败')
-      }
+    // 构建查询参数，直接使用评估表单的值
+    const params: any = {
+      page,
+      size
+    }
+
+    // 从评估配置表单获取筛选条件
+    if (evaluationForm.year) {
+      params.year = evaluationForm.year
+    }
+    if (evaluationForm.orgCode) {
+      params.orgCode = evaluationForm.orgCode
+    }
+    if (evaluationForm.modelId) {
+      params.modelId = evaluationForm.modelId
+    }
+    // 状态从独立的筛选表单获取
+    if (filterForm.status) {
+      params.executionStatus = filterForm.status
+    }
+
+    console.log('获取评估历史，筛选条件:', params)
+
+    // 调用API
+    const result = await evaluationApi.getEvaluationHistoryList(params)
+
+    if (result.success) {
+      evaluationHistory.value = result.data || { records: [], total: 0, current: 1, size: 10, pages: 0 }
+      // 更新分页状态
+      currentPage.value = evaluationHistory.value.current || 1
+      pageSize.value = evaluationHistory.value.size || 10
     } else {
-      evaluationHistory.value = []
+      ElMessage.error(result.message || '获取评估历史失败')
+      evaluationHistory.value = { records: [], total: 0, current: 1, size: 10, pages: 0 }
     }
   } catch (error) {
     console.error('获取评估历史失败:', error)
     ElMessage.error('获取评估历史失败')
+    evaluationHistory.value = { records: [], total: 0, current: 1, size: 10, pages: 0 }
   } finally {
     loading.history = false
   }
@@ -1018,12 +1218,173 @@ const refreshHistory = () => {
   getEvaluationHistory()
 }
 
+// 处理筛选条件变化
+const handleFilterChange = () => {
+  console.log('筛选条件变化:', filterForm)
+  // 状态筛选变化时自动刷新
+  currentPage.value = 1
+  getEvaluationHistory(1, pageSize.value)
+}
+
+// 显示全部历史（不清空状态筛选）
+const showAllHistory = () => {
+  currentPage.value = 1
+  getEvaluationHistory(1, pageSize.value)
+}
+
+// 清空筛选条件（仅清空状态）
+const clearFilters = () => {
+  filterForm.status = ''
+  currentPage.value = 1
+  getEvaluationHistory(1, pageSize.value)
+}
+
+// 获取区县名称
+const getCountyName = (code: string) => {
+  const county = counties.value.find((c: any) => c.code === code)
+  return county?.name || code
+}
+
+// 格式化日期
+const formatDate = (dateString: string) => {
+  if (!dateString) return '-'
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  } catch (error) {
+    return dateString
+  }
+}
+
+// 处理页面大小变化
+const handleSizeChange = (size: number) => {
+  pageSize.value = size
+  currentPage.value = 1
+  getEvaluationHistory(1, size)
+}
+
+// 处理当前页变化
+const handleCurrentChange = (page: number) => {
+  currentPage.value = page
+  getEvaluationHistory(page, pageSize.value)
+}
+
+// 查看执行记录详情
+const viewExecutionDetail = async (row: any) => {
+  loading.evaluationDetail = true
+  try {
+    // 调用后端API获取评估结果详情
+    const response = await fetch(`/api/evaluation/history/detail/${row.id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (response.ok) {
+      const result = await response.json()
+      if (result.success) {
+        // 设置当前执行记录和评估结果
+        currentExecutionRecord.value = result.data.executionRecord
+        evaluationResults.value = result.data.evaluationResults || []
+        // 显示对话框
+        dialogVisible.evaluationDetail = true
+        console.log('获取评估结果详情成功:', {
+          executionRecord: result.data.executionRecord,
+          evaluationResultsCount: result.data.evaluationResults?.length
+        })
+      } else {
+        ElMessage.error(result.message || '获取评估结果详情失败')
+      }
+    } else {
+      ElMessage.error('获取评估结果详情失败')
+    }
+  } catch (error) {
+    console.error('获取评估结果详情失败:', error)
+    ElMessage.error('获取评估结果详情失败')
+  } finally {
+    loading.evaluationDetail = false
+  }
+}
+
+// 导出评估结果
+const exportEvaluationResults = () => {
+  if (evaluationResults.value.length === 0) {
+    ElMessage.warning('没有可导出的数据')
+    return
+  }
+
+  try {
+    // 创建CSV内容
+    let csvContent = 'data:text/csv;charset=utf-8,\n'
+    csvContent += `评估结果详情 - ${currentExecutionRecord.value?.executionCode || ''}\n\n`
+
+    // 添加表头
+    const headers = [
+      'ID',
+      '地区代码',
+      '地区名称',
+      '管理能力得分',
+      '管理能力等级',
+      '支持能力得分',
+      '支持能力等级',
+      '自救能力得分',
+      '自救能力等级',
+      '综合能力得分',
+      '综合能力等级',
+      '创建时间'
+    ]
+    csvContent += headers.join(',') + '\n'
+
+    // 添加数据行
+    evaluationResults.value.forEach((row: any) => {
+      const values = [
+        row.id,
+        row.regionCode,
+        row.regionName,
+        row.managementCapabilityScore,
+        row.managementCapabilityLevel,
+        row.supportCapabilityScore,
+        row.supportCapabilityLevel,
+        row.selfRescueCapabilityScore,
+        row.selfRescueCapabilityLevel,
+        row.comprehensiveCapabilityScore,
+        row.comprehensiveCapabilityLevel,
+        formatDate(row.createTime)
+      ]
+      csvContent += values.join(',') + '\n'
+    })
+
+    // 创建下载链接
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', `评估结果_${currentExecutionRecord.value?.executionCode || 'unknown'}_${new Date().getTime()}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    ElMessage.success('导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+    ElMessage.error('导出失败')
+  }
+}
+
 // 重置评估表单
 const resetEvaluationForm = () => {
   Object.assign(evaluationForm, {
     name: '',
     modelId: null,
     weightConfigId: null,
+    year: currentYear,
     algorithmId: null,
     dataType: 'township', // 重置为默认乡镇数据
     dataSource: 'REGION',
@@ -1095,8 +1456,8 @@ const startEvaluation = async () => {
     if (!valid) return
 
     // 验证必需参数
-    if (!evaluationForm.weightConfigId) {
-      ElMessage.error('请选择权重配置')
+    if (!evaluationForm.year) {
+      ElMessage.error('请选择评估年份')
       return
     }
 
@@ -1140,7 +1501,9 @@ const executeModelEvaluation = async () => {
     const response = await evaluationApi.executeModel(
       evaluationForm.modelId,
       regionCodes,
-      evaluationForm.weightConfigId
+      evaluationForm.weightConfigId,
+      evaluationForm.year,
+      evaluationForm.orgCode || ''
     )
 
     evaluationProgress.percentage = 80
@@ -1328,7 +1691,8 @@ const downloadReport = async () => {
 
 // 查看评估详情
 const viewEvaluationDetail = (row: any) => {
-  router.push(`/results?evaluationId=${row.id}`)
+  // 调用相同的查看执行记录详情方法
+  viewExecutionDetail(row)
 }
 
 // 重新计算
@@ -2102,14 +2466,11 @@ watch(() => evaluationForm.algorithmId, (newAlgorithmId) => {
 const setDefaultValues = async () => {
   // 等待数据加载完成
   await Promise.all([
-    getWeightConfigs(),
     getEvaluationModels()
   ])
 
   // 设置默认权重配置为第一项
-  if (weightConfigs.value.length > 0) {
-    evaluationForm.weightConfigId = weightConfigs.value[0].id
-  }
+  
 
   // 设置默认评估模型为第一项
   if (evaluationModels.value.length > 0) {
@@ -2153,7 +2514,6 @@ const setDefaultValues = async () => {
 
 // 组件挂载时获取数据
 onMounted(() => {
-  getWeightConfigs()
   getAlgorithmConfigs()
   getEvaluationModels()
   getEvaluationHistory()
@@ -2163,6 +2523,38 @@ onMounted(() => {
   // 设置默认值
   setDefaultValues()
 })
+
+// 监听评估表单变化，自动更新筛选条件
+watch(
+  () => [evaluationForm.year, evaluationForm.selectedCounty, evaluationForm.orgCode, evaluationForm.modelId],
+  ([year, countyName, orgCode, modelId], [oldYear, oldCountyName, oldOrgCode, oldModelId]) => {
+    console.log('评估表单变化:', { year, countyName, orgCode, modelId })
+
+    // 更新筛选条件中的年份
+    if (year && year !== oldYear) {
+      filterForm.year = year
+      currentPage.value = 1
+      getEvaluationHistory(1, pageSize.value)
+    }
+
+    // 更新筛选条件中的区县（使用机构代码）
+    if (orgCode && orgCode !== oldOrgCode) {
+      // 根据机构代码查找区县名称
+      const selectedCountyObj = counties.value.find((c: any) => c.code === orgCode)
+      filterForm.county = selectedCountyObj?.name || ''
+      currentPage.value = 1
+      getEvaluationHistory(1, pageSize.value)
+    }
+
+    // 更新筛选条件中的模型ID
+    if (modelId !== undefined && modelId !== oldModelId) {
+      filterForm.modelId = modelId
+      currentPage.value = 1
+      getEvaluationHistory(1, pageSize.value)
+    }
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>
@@ -2451,6 +2843,21 @@ onMounted(() => {
 .no-steps {
   text-align: center;
   padding: 40px 20px;
+}
+
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+/* 评估历史筛选区域 */
+.history-filters {
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border: 1px solid #e2e8f0;
 }
 
 /* 响应式设计 */

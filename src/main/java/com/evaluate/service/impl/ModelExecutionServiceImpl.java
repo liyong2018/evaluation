@@ -1,6 +1,7 @@
 package com.evaluate.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.evaluate.entity.*;
 import com.evaluate.mapper.*;
 import com.evaluate.service.ModelExecutionService;
@@ -231,7 +232,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 weightConfigId,
                 stepResults,
                 tableData,
-                year);
+                year,orgCode);
 
         // 7. 构建最终结果
         Map<String, Object> result = new HashMap<>();
@@ -241,9 +242,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         result.put("stepResults", stepResults);
         result.put("stepResultsList", orderedStepResults);
         result.put("isMultiStep", true);
-        result.put("tableData", tableData,
-                year,
-                orgCode);
+        result.put("tableData", tableData);
         result.put("columns", columns);
         result.put("success", true);
         result.put("executionRecordId", executionRecordId);
@@ -1050,9 +1049,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         result.put("stepCode", targetStep.getStepCode());
         result.put("description", targetStep.getStepDescription());
         result.put("executionResult", stepExecutionResult);
-        result.put("tableData", tableData,
-                year,
-                orgCode);
+        result.put("tableData", tableData);
         result.put("columns", columns);
         result.put("success", true);
         result.put("executionTime", new Date());
@@ -1168,9 +1165,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
                     List<Map<String, Object>> tableData = generateStepResultTable(stepResult, regionCodes);
-                    allTableData.put(stepKey, tableData,
-                year,
-                orgCode);
+                    allTableData.put(stepKey, tableData);
                 }
             }
 
@@ -1997,7 +1992,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             Long weightConfigId,
             Map<String, Object> stepResults,
             List<Map<String, Object>> tableData,
-            Integer year) {
+            Integer year,
+            String orgCode
+            ) {
 
         try {
             java.time.LocalDateTime startTime = java.time.LocalDateTime.now();
@@ -2034,9 +2031,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
             // 2. 从stepResults的最后一步提取评估结果（8个字段：4个评分+4个级别）
             List<EvaluationResult> evaluationResults = extractEvaluationResults(
-                    modelId, executionRecordId, stepResults, tableData,
-                year,
-                orgCode);
+                    modelId, executionRecordId, stepResults, tableData,year,orgCode);
 
             // 批量保存评估结果
             if (!evaluationResults.isEmpty()) {
@@ -2470,5 +2465,109 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         return columnName;
     }
-    
+
+    /**
+     * 获取执行记录详情
+     *
+     * @param executionRecordId 执行记录ID
+     * @return 执行记录详情
+     */
+    @Override
+    public Map<String, Object> getExecutionRecordDetail(Long executionRecordId) {
+        try {
+            // 获取执行记录
+            ModelExecutionRecord executionRecord = modelExecutionRecordMapper.selectById(executionRecordId);
+            if (executionRecord == null) {
+                throw new RuntimeException("执行记录不存在");
+            }
+
+            // 获取该执行记录的所有评估结果
+            QueryWrapper<EvaluationResult> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("execution_record_id", executionRecordId);
+            List<EvaluationResult> evaluationResults = evaluationResultMapper.selectList(queryWrapper);
+
+            // 构建返回结果
+            Map<String, Object> result = new HashMap<>();
+            result.put("executionRecord", executionRecord);
+            result.put("evaluationResults", evaluationResults);
+            result.put("totalResults", evaluationResults.size());
+
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("获取执行记录详情失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 获取评估历史列表（分页）
+     *
+     * @param page 页码（从1开始）
+     * @param size 每页大小
+     * @param modelId 模型ID（可选）
+     * @param executionStatus 执行状态（可选）
+     * @param year 评估年份（可选）
+     * @param county 区县名称（可选）
+     * @return 分页的评估历史列表
+     */
+    @Override
+    public Map<String, Object> getEvaluationHistoryList(Integer page, Integer size, Long modelId, String executionStatus) {
+        return getEvaluationHistoryList(page, size, modelId, executionStatus, null, null);
+    }
+
+    /**
+     * 获取评估历史列表（分页，支持更多筛选条件）
+     *
+     * @param page 页码（从1开始）
+     * @param size 每页大小
+     * @param modelId 模型ID（可选）
+     * @param executionStatus 执行状态（可选）
+     * @param year 评估年份（可选）
+     * @param orgCode 机构代码（可选，如区县代码511425）
+     * @return 分页的评估历史列表
+     */
+    @Override
+    public Map<String, Object> getEvaluationHistoryList(Integer page, Integer size, Long modelId, String executionStatus, Integer year, String orgCode) {
+        try {
+            // 创建分页对象
+            Page<ModelExecutionRecord> pageRequest = new Page<>(page, size);
+
+            // 构建查询条件
+            QueryWrapper<ModelExecutionRecord> queryWrapper = new QueryWrapper<>();
+
+            if (modelId != null) {
+                queryWrapper.eq("model_id", modelId);
+            }
+
+            if (executionStatus != null && !executionStatus.isEmpty()) {
+                queryWrapper.eq("execution_status", executionStatus);
+            }
+
+            if (year != null) {
+                queryWrapper.eq("year", year);
+            }
+
+            if (orgCode != null && !orgCode.isEmpty()) {
+                queryWrapper.eq("org_code", orgCode);
+            }
+
+            // 按开始时间倒序排列
+            queryWrapper.orderByDesc("start_time");
+
+            // 执行分页查询
+            Page<ModelExecutionRecord> resultPage = modelExecutionRecordMapper.selectPage(pageRequest, queryWrapper);
+
+            // 构建返回结果
+            Map<String, Object> result = new HashMap<>();
+            result.put("records", resultPage.getRecords());
+            result.put("total", resultPage.getTotal());
+            result.put("current", resultPage.getCurrent());
+            result.put("size", resultPage.getSize());
+            result.put("pages", resultPage.getPages());
+
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("获取评估历史列表失败: " + e.getMessage(), e);
+        }
+    }
+
 }

@@ -48,4 +48,8 @@ public class ModelExecutionRecord implements Serializable {
     private Integer resultCount;
 
     private String createBy;
+
+    private Integer year;
+
+    private String orgCode;
 }

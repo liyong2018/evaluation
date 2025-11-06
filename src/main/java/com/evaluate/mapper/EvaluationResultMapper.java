@@ -49,4 +49,9 @@ public interface EvaluationResultMapper extends BaseMapper<EvaluationResult> {
      * @return 插入的记录数
      */
     int insertBatch(@Param("evaluationResults") List<EvaluationResult> evaluationResults);
+
+    /**
+     * 物理删除：根据执行记录ID删除评估结果（绕过逻辑删除）
+     */
+    int deletePhysicalByExecutionRecordId(@Param("executionRecordId") Long executionRecordId);
 }

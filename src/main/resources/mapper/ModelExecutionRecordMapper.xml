@@ -17,12 +17,14 @@
         <result column="result_ids" property="resultIds"/>
         <result column="result_count" property="resultCount"/>
         <result column="create_by" property="createBy"/>
+        <result column="org_code" property="orgCode"/>
+        <result column="year" property="year"/>
     </resultMap>
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
         id, model_id, execution_code, region_ids, weight_config_id, execution_status,
-        start_time, end_time, error_message, result_summary, result_ids, result_count, create_by
+        start_time, end_time, error_message, result_summary, result_ids, result_count, create_by, org_code, year
     </sql>
 
     <!-- 根据模型ID查询执行记录 -->

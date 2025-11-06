@@ -20,7 +20,7 @@ public interface ModelExecutionService {
      * @param weightConfigId 权重配置ID
      * @return 执行结果（包含每个步骤的输出）
      */
-    Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId);
+    Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode);
 
     /**
      * 执行单个步骤
@@ -49,7 +49,7 @@ public interface ModelExecutionService {
      * @param weightConfigId 权重配置ID
      * @return 步骤执行结果，包含2D表格数据
      */
-    Map<String, Object> executeAlgorithmStep(Long algorithmId, Integer stepOrder, List<String> regionCodes, Long weightConfigId);
+    Map<String, Object> executeAlgorithmStep(Long algorithmId, Integer stepOrder, List<String> regionCodes, Long weightConfigId, Integer year);
 
     /**
      * 获取算法所有步骤的基本信息
@@ -61,12 +61,44 @@ public interface ModelExecutionService {
 
     /**
      * 批量执行算法步骤（直到指定步骤）
-     * 
+     *
      * @param algorithmId 算法ID
      * @param upToStepOrder 执行到第几步（包含该步骤）
      * @param regionCodes 地区代码列表
      * @param weightConfigId 权重配置ID
      * @return 所有已执行步骤的结果
      */
-    Map<String, Object> executeAlgorithmStepsUpTo(Long algorithmId, Integer upToStepOrder, List<String> regionCodes, Long weightConfigId);
+    Map<String, Object> executeAlgorithmStepsUpTo(Long algorithmId, Integer upToStepOrder, List<String> regionCodes, Long weightConfigId, Integer year);
+
+    /**
+     * 获取执行记录详情
+     *
+     * @param executionRecordId 执行记录ID
+     * @return 执行记录详情
+     */
+    Map<String, Object> getExecutionRecordDetail(Long executionRecordId);
+
+    /**
+     * 获取评估历史列表（分页）
+     *
+     * @param page 页码（从1开始）
+     * @param size 每页大小
+     * @param modelId 模型ID（可选）
+     * @param executionStatus 执行状态（可选）
+     * @return 分页的评估历史列表
+     */
+    Map<String, Object> getEvaluationHistoryList(Integer page, Integer size, Long modelId, String executionStatus);
+
+    /**
+     * 获取评估历史列表（分页，支持更多筛选条件）
+     *
+     * @param page 页码（从1开始）
+     * @param size 每页大小
+     * @param modelId 模型ID（可选）
+     * @param executionStatus 执行状态（可选）
+     * @param year 评估年份（可选）
+     * @param county 区县名称（可选）
+     * @return 分页的评估历史列表
+     */
+    Map<String, Object> getEvaluationHistoryList(Integer page, Integer size, Long modelId, String executionStatus, Integer year, String county);
 }

@@ -136,6 +136,12 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
         return evaluationResultMapper.selectList(queryWrapper);
     }
 
+    @Override
+    public void deleteByExecutionRecordId(Long executionRecordId) {
+        int affected = evaluationResultMapper.deletePhysicalByExecutionRecordId(executionRecordId);        
+        log.info("Physically deleted {} evaluation results for execution record {}", affected, executionRecordId); 
+    }
+
     /**
      * 生成执行代码
      *

@@ -50,6 +50,10 @@ public class EvaluationResult implements Serializable {
 
     private Long executionRecordId;
 
+    // 所属组织机构代码
+    @TableField("org_code")
+    private String orgCode;
+
     private String createBy;
 
     @TableField(fill = FieldFill.INSERT)

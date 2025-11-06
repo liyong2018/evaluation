@@ -18,6 +18,7 @@
         <result column="evaluation_model_id" property="evaluationModelId"/>
         <result column="data_source" property="dataSource"/>
         <result column="execution_record_id" property="executionRecordId"/>
+        <result column="org_code" property="orgCode"/>
         <result column="create_by" property="createBy"/>
         <result column="create_time" property="createTime"/>
         <result column="update_by" property="updateBy"/>
@@ -30,7 +31,7 @@
         id, region_code, region_name, management_capability_score, support_capability_score,
         self_rescue_capability_score, comprehensive_capability_score, management_capability_level,
         support_capability_level, self_rescue_capability_level, comprehensive_capability_level,
-        evaluation_model_id, data_source, execution_record_id, create_by, create_time,
+        evaluation_model_id, data_source, execution_record_id, org_code, create_by, create_time,
         update_by, update_time, is_deleted
     </sql>
 
@@ -71,7 +72,7 @@
             region_code, region_name, management_capability_score, support_capability_score,
             self_rescue_capability_score, comprehensive_capability_score, management_capability_level,
             support_capability_level, self_rescue_capability_level, comprehensive_capability_level,
-            evaluation_model_id, data_source, execution_record_id, create_by
+            evaluation_model_id, data_source, execution_record_id, org_code, create_by
         ) VALUES
         <foreach collection="evaluationResults" item="item" separator=",">
             (
@@ -80,9 +81,17 @@
                 #{item.comprehensiveCapabilityScore}, #{item.managementCapabilityLevel},
                 #{item.supportCapabilityLevel}, #{item.selfRescueCapabilityLevel},
                 #{item.comprehensiveCapabilityLevel}, #{item.evaluationModelId},
-                #{item.dataSource}, #{item.executionRecordId}, #{item.createBy}
+                #{item.dataSource}, #{item.executionRecordId}, #{item.orgCode}, #{item.createBy}
             )
         </foreach>
     </insert>
+
+
+
+    <!-- 物理删除：根据执行记录ID删除评估结果（绕过逻辑删除） -->
+    <delete id="deletePhysicalByExecutionRecordId">
+        DELETE FROM evaluation_result
+        WHERE execution_record_id = #{executionRecordId}
+    </delete>
 
 </mapper>

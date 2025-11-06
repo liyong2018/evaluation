@@ -1,4 +1,4 @@
-import request from '@/utils/request'
+﻿import request from '@/utils/request'
 
 // 系统相关API
 export const systemApi = {
@@ -210,14 +210,30 @@ export const evaluationApi = {
   finalize: (evaluationId: number) => request.post(`/api/evaluation/finalize/${evaluationId}`),
 
   // 执行评估模型（基于模型配置）
-  executeModel: (modelId: number, regionCodes: string[], weightConfigId: number) => 
-    request.post('/api/evaluation/execute-model', regionCodes, {
-      params: { modelId, weightConfigId }
-    }),
+  executeModel: (modelId: number, regionCodes: string[], weightConfigId: number, year?: number, orgCode?: string) => {
+    const requestBody = {
+      modelId,
+      regionCodes,
+      weightConfigId,
+      year,
+      orgCode
+    };
+    return request.post('/api/evaluation/execute-model', requestBody);
+  },
 
   // 生成评估结果二维表
-  generateResultTable: (executionResults: any) => 
-    request.post('/api/evaluation/generate-table', executionResults)
+  generateResultTable: (executionResults: any) =>
+    request.post('/api/evaluation/generate-table', executionResults),
+
+  // 获取评估历史列表（支持筛选）
+  getEvaluationHistoryList: (params: {
+    page?: number;
+    size?: number;
+    modelId?: number;
+    executionStatus?: string;
+    year?: number;
+    orgCode?: string;
+  }) => request.get('/api/evaluation/history', { params })
 }
 
 // 算法执行相关API
@@ -564,4 +580,27 @@ export const modelManagementApi = {
   // 测试QLExpress表达式
   testQLExpression: (data: { expression: string; context: any }) => 
     request.post('/api/model-management/test-expression', data)
+}
+
+// 模型执行记录API
+export const modelExecutionRecordApi = {
+  // 获取执行记录列表（分页）
+  getList: (params: { 
+    current?: number; 
+    size?: number; 
+    modelId?: number; 
+    executionStatus?: string 
+  }) => request.get('/api/model-execution-record/list', { params }),
+  
+  // 根据ID获取执行记录详情
+  getById: (id: number) => request.get(`/api/model-execution-record/${id}`),
+  
+  // 根据执行记录ID获取评估结果
+  getResults: (id: number) => request.get(`/api/model-execution-record/${id}/results`),
+  
+  // 删除执行记录
+  delete: (id: number) => request.delete(`/api/model-execution-record/${id}`),
+  
+  // 获取执行记录统计信息
+  getStatistics: () => request.get('/api/model-execution-record/statistics')
 }

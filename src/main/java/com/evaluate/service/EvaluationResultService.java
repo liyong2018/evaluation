@@ -99,4 +99,11 @@ public interface EvaluationResultService {
      * @return 所有评估结果列表
      */
     List<EvaluationResult> getAllEvaluationResults();
+
+    /**
+     * 根据执行记录ID删除评估结果
+     *
+     * @param executionRecordId 执行记录ID
+     */
+    void deleteByExecutionRecordId(Long executionRecordId);
 }
