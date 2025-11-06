@@ -8,6 +8,7 @@ import com.evaluate.service.IOrganizationService;
 import com.evaluate.service.ISurveyDataService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.NumberToTextConverter;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -395,12 +396,26 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
         if (cell == null) {
             return null;
         }
-        
+
         switch (cell.getCellType()) {
             case STRING:
                 return cell.getStringCellValue();
             case NUMERIC:
-                return String.valueOf(cell.getNumericCellValue());
+                // 使用 NumberToTextConverter 避免科学计数法
+                // 这对于地区编码等长数字字符串非常重要
+                String numStr = NumberToTextConverter.toText(cell.getNumericCellValue());
+                // 如果是整数，去掉小数点和后面的0
+                if (numStr.contains(".")) {
+                    try {
+                        double d = Double.parseDouble(numStr);
+                        if (d == Math.floor(d)) {
+                            return String.valueOf((long) d);
+                        }
+                    } catch (NumberFormatException e) {
+                        // 如果转换失败，直接返回原始字符串
+                    }
+                }
+                return numStr;
             case BOOLEAN:
                 return String.valueOf(cell.getBooleanCellValue());
             default:

@@ -2,6 +2,7 @@ package com.evaluate.util;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.NumberToTextConverter;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -162,7 +163,7 @@ public class ExcelUtil {
         if (cell == null) {
             return null;
         }
-        
+
         switch (cell.getCellType()) {
             case STRING:
                 return cell.getStringCellValue().trim();
@@ -170,13 +171,21 @@ public class ExcelUtil {
                 if (DateUtil.isCellDateFormatted(cell)) {
                     return DATE_TIME_FORMATTER.format(cell.getLocalDateTimeCellValue());
                 } else {
-                    double numericValue = cell.getNumericCellValue();
-                    // 如果是整数，返回整数格式
-                    if (numericValue == Math.floor(numericValue)) {
-                        return String.valueOf((long) numericValue);
-                    } else {
-                        return String.valueOf(numericValue);
+                    // 使用 NumberToTextConverter 避免科学计数法
+                    // 这对于地区编码等长数字字符串非常重要
+                    String numStr = NumberToTextConverter.toText(cell.getNumericCellValue());
+                    // 如果是整数，去掉小数点和后面的0
+                    if (numStr.contains(".")) {
+                        try {
+                            double d = Double.parseDouble(numStr);
+                            if (d == Math.floor(d)) {
+                                return String.valueOf((long) d);
+                            }
+                        } catch (NumberFormatException e) {
+                            // 如果转换失败，直接返回原始字符串
+                        }
                     }
+                    return numStr.trim();
                 }
             case BOOLEAN:
                 return String.valueOf(cell.getBooleanCellValue());
