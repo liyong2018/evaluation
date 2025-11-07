@@ -1249,24 +1249,22 @@ const scoreTreeData = computed(() => {
   const nodeMap = new Map()
   const rootNodes: any[] = []
 
-  // 第一步：使用 id 作为 key 创建所有节点
+  // 第一步：清空所有 children 并建立映射
   scoreForm.scores.forEach(item => {
-    nodeMap.set(item.id, {
-      ...item,
-      children: []
-    })
+    // 直接使用原对象，不创建新对象，这样修改 weight 会直接影响原数据
+    item.children = []  // 每次重新构建树时清空 children
+    nodeMap.set(item.id, item)
   })
 
   // 第二步：建立父子关系
   scoreForm.scores.forEach(item => {
-    const node = nodeMap.get(item.id)
     if (item.parentId && nodeMap.has(item.parentId)) {
       // 有父节点，添加到父节点的 children 中
       const parentNode = nodeMap.get(item.parentId)
-      parentNode.children.push(node)
+      parentNode.children.push(item)
     } else {
       // 没有父节点或父节点不存在，作为根节点
-      rootNodes.push(node)
+      rootNodes.push(item)
     }
   })
 
