@@ -581,16 +581,33 @@
             </template>
             <div v-if="selectedExpert" class="expert-score-content">
               <el-scrollbar height="400px">
-                <div v-for="item in selectedExpertScoreTree" :key="item.indicatorCode" class="score-item">
-                  <div class="score-item-header">
-                    <el-tag size="small">{{ item.indicatorCode }}</el-tag>
-                    <span class="indicator-name">{{ item.indicatorName }}</span>
+                <template v-for="item in selectedExpertScoreTree" :key="item.id">
+                  <!-- 一级指标 -->
+                  <div class="score-item level1">
+                    <div class="score-item-header">
+                      <el-tag type="primary" size="small">{{ item.indicatorCode }}</el-tag>
+                      <span class="indicator-name">{{ item.indicatorName }}</span>
+                    </div>
+                    <div class="score-item-value">
+                      <span class="weight-label">权重值:</span>
+                      <span class="weight-value-large">{{ item.weight.toFixed(3) }}</span>
+                    </div>
                   </div>
-                  <div class="score-item-value">
-                    <span class="weight-label">权重值:</span>
-                    <span class="weight-value-large">{{ item.weight.toFixed(3) }}</span>
-                  </div>
-                </div>
+
+                  <!-- 二级指标（子节点） -->
+                  <template v-if="item.children && item.children.length > 0">
+                    <div v-for="child in item.children" :key="child.id" class="score-item level2">
+                      <div class="score-item-header">
+                        <el-tag type="success" size="small">{{ child.indicatorCode }}</el-tag>
+                        <span class="indicator-name">{{ child.indicatorName }}</span>
+                      </div>
+                      <div class="score-item-value">
+                        <span class="weight-label">权重值:</span>
+                        <span class="weight-value-large">{{ child.weight.toFixed(3) }}</span>
+                      </div>
+                    </div>
+                  </template>
+                </template>
               </el-scrollbar>
             </div>
             <el-empty v-else description="请选择左侧专家" :image-size="100" />
@@ -720,34 +737,48 @@ const averageScoreTableData = computed(() => {
   const stats = statisticsData.value.indicatorStats
   const level1Map = new Map()
 
-  // 按一级指标分组
+  // 按一级指标分组（使用 indicatorLevel 判断）
   stats.forEach((stat: any) => {
-    // 假设指标代码格式：A, A1, A2, B, B1, B2...
-    const level1Code = stat.indicatorCode.match(/^[A-Z]+/)?.[0] || stat.indicatorCode
-
-    if (!level1Map.has(level1Code)) {
-      level1Map.set(level1Code, {
-        level1Code,
-        level1Name: '',
-        level1Avg: 0,
-        children: []
-      })
-    }
-
-    const group = level1Map.get(level1Code)
-
-    if (stat.indicatorCode === level1Code) {
+    if (stat.indicatorLevel === 1) {
       // 一级指标
-      group.level1Name = stat.indicatorName
-      group.level1Avg = stat.avgWeight
-    } else {
-      // 二级指标
-      group.children.push({
-        indicatorCode: stat.indicatorCode,
-        indicatorName: stat.indicatorName,
-        avgWeight: stat.avgWeight,
-        scoreCount: stat.scoreCount
-      })
+      if (!level1Map.has(stat.indicatorCode)) {
+        level1Map.set(stat.indicatorCode, {
+          level1Code: stat.indicatorCode,
+          level1Name: stat.indicatorName,
+          level1Avg: stat.avgWeight,
+          level1Id: stat.id,
+          children: []
+        })
+      } else {
+        const group = level1Map.get(stat.indicatorCode)
+        group.level1Name = stat.indicatorName
+        group.level1Avg = stat.avgWeight
+        group.level1Id = stat.id
+      }
+    } else if (stat.indicatorLevel === 2) {
+      // 二级指标，需要找到其父级（一级指标）
+      // 先确保父级存在
+      const parentIndicator = stats.find((s: any) => s.id === stat.parentId && s.indicatorLevel === 1)
+      if (parentIndicator) {
+        const parentCode = parentIndicator.indicatorCode
+        if (!level1Map.has(parentCode)) {
+          level1Map.set(parentCode, {
+            level1Code: parentCode,
+            level1Name: parentIndicator.indicatorName,
+            level1Avg: parentIndicator.avgWeight,
+            level1Id: parentIndicator.id,
+            children: []
+          })
+        }
+
+        const group = level1Map.get(parentCode)
+        group.children.push({
+          indicatorCode: stat.indicatorCode,
+          indicatorName: stat.indicatorName,
+          avgWeight: stat.avgWeight,
+          scoreCount: stat.scoreCount
+        })
+      }
     }
   })
 
@@ -767,17 +798,39 @@ const selectedExpertScoreTree = computed(() => {
     const expertScore = stat.expertScores?.find((s: any) => s.expertName === expertName)
     if (expertScore) {
       expertScores.push({
-        id: stat.indicatorCode,
+        id: stat.id,
         indicatorCode: stat.indicatorCode,
         indicatorName: stat.indicatorName,
+        indicatorLevel: stat.indicatorLevel,
+        parentId: stat.parentId,
         weight: expertScore.weight,
-        createTime: expertScore.createTime
+        createTime: expertScore.createTime,
+        children: []
       })
     }
   })
 
-  // 构建树形结构（简单处理，可以根据实际情况优化）
-  return expertScores
+  // 构建树形结构
+  const nodeMap = new Map()
+  const roots: any[] = []
+
+  // 第一遍：创建所有节点
+  expertScores.forEach(item => {
+    nodeMap.set(item.id, item)
+  })
+
+  // 第二遍：建立父子关系
+  expertScores.forEach(item => {
+    if (item.parentId !== null && item.parentId !== undefined && nodeMap.has(item.parentId)) {
+      const parent = nodeMap.get(item.parentId)
+      parent.children.push(item)
+    } else {
+      // 一级指标（没有父节点）
+      roots.push(item)
+    }
+  })
+
+  return roots
 })
 
 // 构建树形数据
@@ -2315,6 +2368,20 @@ onMounted(() => {
 .score-item:hover {
   border-color: #409eff;
   box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
+}
+
+/* 一级指标样式 */
+.score-item.level1 {
+  background: linear-gradient(135deg, #e8f4ff 0%, #f0f9ff 100%);
+  border-left: 4px solid #409eff;
+  font-weight: 600;
+}
+
+/* 二级指标样式 */
+.score-item.level2 {
+  margin-left: 32px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #f8fef9 100%);
+  border-left: 3px solid #67c23a;
 }
 
 .score-item-header {

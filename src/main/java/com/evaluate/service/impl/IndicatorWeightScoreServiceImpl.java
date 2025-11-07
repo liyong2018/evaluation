@@ -74,6 +74,15 @@ public class IndicatorWeightScoreServiceImpl extends ServiceImpl<IndicatorWeight
         // 获取所有专家打分记录
         List<IndicatorWeightScore> scores = getScoresByConfigId(configId);
 
+        // 获取该配置下的所有指标信息
+        LambdaQueryWrapper<IndicatorWeight> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(IndicatorWeight::getConfigId, configId);
+        List<IndicatorWeight> indicators = indicatorWeightService.list(queryWrapper);
+
+        // 构建指标代码到指标信息的映射
+        Map<String, IndicatorWeight> indicatorMap = indicators.stream()
+                .collect(Collectors.toMap(IndicatorWeight::getIndicatorCode, ind -> ind));
+
         // 按指标代码分组
         Map<String, List<IndicatorWeightScore>> groupedByIndicator = scores.stream()
                 .collect(Collectors.groupingBy(IndicatorWeightScore::getIndicatorCode));
@@ -87,6 +96,15 @@ public class IndicatorWeightScoreServiceImpl extends ServiceImpl<IndicatorWeight
             Map<String, Object> stat = new HashMap<>();
             stat.put("indicatorCode", indicatorCode);
             stat.put("scoreCount", indicatorScores.size());
+
+            // 从indicator_weight表获取指标名称、级别、父ID等信息
+            IndicatorWeight indicator = indicatorMap.get(indicatorCode);
+            if (indicator != null) {
+                stat.put("indicatorName", indicator.getIndicatorName());
+                stat.put("indicatorLevel", indicator.getIndicatorLevel());
+                stat.put("parentId", indicator.getParentId());
+                stat.put("id", indicator.getId());
+            }
 
             // 计算平均值
             double avgWeight = indicatorScores.stream()
