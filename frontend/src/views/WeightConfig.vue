@@ -437,7 +437,7 @@
             <el-tree
               :data="scoreTreeData"
               :props="{ label: 'indicatorName', children: 'children' }"
-              node-key="indicatorCode"
+              node-key="id"
               default-expand-all
               :expand-on-click-node="false"
               class="score-weight-tree"
@@ -1118,6 +1118,7 @@ const openScoreDialog = async (row: any) => {
     if (response.success && response.data) {
       // 初始化打分数据
       scoreForm.scores = response.data.map((item: any) => ({
+        id: item.id,  // 添加 id 字段，用于构建树形结构
         indicatorCode: item.indicatorCode,
         indicatorName: item.indicatorName,
         indicatorLevel: item.indicatorLevel,
@@ -1248,19 +1249,23 @@ const scoreTreeData = computed(() => {
   const nodeMap = new Map()
   const rootNodes: any[] = []
 
+  // 第一步：使用 id 作为 key 创建所有节点
   scoreForm.scores.forEach(item => {
-    nodeMap.set(item.indicatorCode, {
+    nodeMap.set(item.id, {
       ...item,
       children: []
     })
   })
 
+  // 第二步：建立父子关系
   scoreForm.scores.forEach(item => {
-    const node = nodeMap.get(item.indicatorCode)
+    const node = nodeMap.get(item.id)
     if (item.parentId && nodeMap.has(item.parentId)) {
+      // 有父节点，添加到父节点的 children 中
       const parentNode = nodeMap.get(item.parentId)
       parentNode.children.push(node)
     } else {
+      // 没有父节点或父节点不存在，作为根节点
       rootNodes.push(node)
     }
   })
@@ -1819,7 +1824,7 @@ onMounted(() => {
 }
 
 .score-tree-container {
-  max-height: 500px;
+  max-height: 350px;
   overflow-y: auto;
   padding: 16px;
   background: linear-gradient(to bottom, #fafbfc, #ffffff);
