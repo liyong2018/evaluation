@@ -104,7 +104,7 @@ migration:
   enabled: true
   full:
     enabled: true
-  truncate: false
+  truncate: true
   exitOnFinish: true
 
 # 应用自定义配置
