@@ -12,13 +12,13 @@ server:
 spring:
   application:
     name: disaster-reduction-evaluation
-  
-  # 数据源配置 (默认MySQL)
+
+  # 数据源配置 (使用Supabase PostgreSQL)
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:30314/evaluate_db?serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true&useSSL=false&autoReconnect=true&zeroDateTimeBehavior=convertToNull&allowMultiQueries=true&nullCatalogMeansCurrent=true&allowPublicKeyRetrieval=true
-    username: root
-    password: 123456
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
+    username: postgres.olcdeeonmpjijxtvolum
+    password: Htht@12#$
 
     # Hikari连接池配置
     hikari:
@@ -49,10 +49,10 @@ mybatis-plus:
   # 全局配置
   global-config:
     db-config:
-      # 主键类型 (MySQL用auto, PostgreSQL用ASSIGN_ID)
-      id-type: auto
+      # 主键类型 (PostgreSQL用INPUT，需要手动指定序列)
+      id-type: INPUT
       # 逻辑删除字段
-      logic-delete-field: deleted
+      logic-delete-field: is_deleted
       # 逻辑删除值
       logic-delete-value: 1
       # 逻辑未删除值
@@ -67,10 +67,10 @@ mybatis-plus:
     map-underscore-to-camel-case: true
     # 开启缓存
     cache-enabled: false
-    # 打印SQL（关闭）
+    # 打印SQL（开启用于调试）
     # log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     # 数据库方言适配
-    database-id: mysql
+    database-id: postgresql
 
 # 日志配置
 logging:
@@ -99,12 +99,12 @@ supabase:
     user: postgres.olcdeeonmpjijxtvolum
     password: Htht@12#$
 
-# 迁移配置
+# 迁移配置 (已切换到Supabase，禁用迁移)
 migration:
-  enabled: true
+  enabled: false
   full:
-    enabled: true
-  truncate: true
-  exitOnFinish: true
+    enabled: false
+  truncate: false
+  exitOnFinish: false
 
 # 应用自定义配置

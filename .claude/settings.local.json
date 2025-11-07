@@ -16,7 +16,13 @@
       "Bash(rm:*)",
       "Bash(git commit:*)",
       "Bash(git pull)",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(netstat:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs:*)",
+      "Bash(findstr:*)",
+      "Bash(wmic:*)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": []
