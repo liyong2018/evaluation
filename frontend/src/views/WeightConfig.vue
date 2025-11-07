@@ -579,35 +579,39 @@
               </span>
               <span v-else style="color: #909399">请选择左侧专家查看打分详情</span>
             </template>
-            <div v-if="selectedExpert" class="expert-score-content">
+            <div v-if="selectedExpert" class="expert-score-tree-container">
               <el-scrollbar height="400px">
-                <template v-for="item in selectedExpertScoreTree" :key="item.id">
-                  <!-- 一级指标 -->
-                  <div class="score-item level1">
-                    <div class="score-item-header">
-                      <el-tag type="primary" size="small">{{ item.indicatorCode }}</el-tag>
-                      <span class="indicator-name">{{ item.indicatorName }}</span>
-                    </div>
-                    <div class="score-item-value">
-                      <span class="weight-label">权重值:</span>
-                      <span class="weight-value-large">{{ item.weight.toFixed(3) }}</span>
-                    </div>
-                  </div>
-
-                  <!-- 二级指标（子节点） -->
-                  <template v-if="item.children && item.children.length > 0">
-                    <div v-for="child in item.children" :key="child.id" class="score-item level2">
-                      <div class="score-item-header">
-                        <el-tag type="success" size="small">{{ child.indicatorCode }}</el-tag>
-                        <span class="indicator-name">{{ child.indicatorName }}</span>
-                      </div>
-                      <div class="score-item-value">
-                        <span class="weight-label">权重值:</span>
-                        <span class="weight-value-large">{{ child.weight.toFixed(3) }}</span>
+                <el-tree
+                  :data="selectedExpertScoreTree"
+                  node-key="id"
+                  default-expand-all
+                  :expand-on-click-node="false"
+                  class="expert-score-tree"
+                >
+                  <template #default="{ node, data }">
+                    <div class="tree-node">
+                      <div class="node-content">
+                        <div class="node-info">
+                          <span class="node-code">{{ data.indicatorCode }}</span>
+                          <el-tooltip :content="data.indicatorName" placement="top" :show-after="300">
+                            <span class="node-name">{{ data.indicatorName }}</span>
+                          </el-tooltip>
+                          <el-tag
+                            :type="data.indicatorLevel === 1 ? 'primary' : 'success'"
+                            size="small"
+                            class="level-tag"
+                          >
+                            {{ data.indicatorLevel === 1 ? '一级' : '二级' }}
+                          </el-tag>
+                        </div>
+                        <div class="node-weight">
+                          <span class="weight-label">权重:</span>
+                          <span class="weight-value-display">{{ data.weight.toFixed(3) }}</span>
+                        </div>
                       </div>
                     </div>
                   </template>
-                </template>
+                </el-tree>
               </el-scrollbar>
             </div>
             <el-empty v-else description="请选择左侧专家" :image-size="100" />
@@ -2349,68 +2353,164 @@ onMounted(() => {
   flex: 1;
 }
 
-.expert-score-content {
-  padding: 12px;
+.expert-score-tree-container {
+  padding: 16px;
 }
 
-.score-item {
+/* 专家打分树形结构样式 - 复用权重配置树的样式 */
+.expert-score-tree {
+  width: 100%;
+}
+
+.expert-score-tree .tree-node {
+  width: 100%;
+  padding: 8px 0;
+}
+
+.expert-score-tree .node-content {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  margin-bottom: 12px;
-  border: 1px solid #e8eef5;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #e6edf5;
   border-radius: 8px;
-  background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
-  transition: all 0.3s;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  margin: 8px 0;
+  position: relative;
+  transition: all 0.3s ease;
+  overflow: hidden;
 }
 
-.score-item:hover {
+.expert-score-tree .node-content::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  background: linear-gradient(180deg, #409eff, #79bbff);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.expert-score-tree .node-content:hover {
   border-color: #409eff;
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+  transform: translateX(2px);
 }
 
-/* 一级指标样式 */
-.score-item.level1 {
-  background: linear-gradient(135deg, #e8f4ff 0%, #f0f9ff 100%);
-  border-left: 4px solid #409eff;
-  font-weight: 600;
+.expert-score-tree .node-content:hover::before {
+  opacity: 1;
 }
 
-/* 二级指标样式 */
-.score-item.level2 {
-  margin-left: 32px;
-  background: linear-gradient(135deg, #f0fdf4 0%, #f8fef9 100%);
-  border-left: 3px solid #67c23a;
-}
-
-.score-item-header {
+.expert-score-tree .node-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex: 1;
+  min-width: 0;
 }
 
-.score-item-header .indicator-name {
+.expert-score-tree .node-code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #337ecc;
+  background: rgba(51, 126, 204, 0.08);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(51, 126, 204, 0.25);
+  min-width: 80px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.expert-score-tree .node-name {
   font-weight: 500;
   color: #303133;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
 }
 
-.score-item-value {
+.expert-score-tree .level-tag {
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.expert-score-tree .node-weight {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: 16px;
 }
 
-.weight-label {
+.expert-score-tree .weight-label {
   font-size: 12px;
-  color: #909399;
+  color: #606266;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.weight-value-large {
-  font-size: 18px;
+.expert-score-tree .weight-value-display {
+  font-size: 16px;
   font-weight: 700;
   color: #409eff;
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+/* 树形节点层级样式 */
+.expert-score-tree :deep(.el-tree-node__content) {
+  height: auto !important;
+  padding: 6px 0 !important;
+}
+
+.expert-score-tree :deep(.el-tree-node__expand-icon) {
+  font-size: 14px;
+  color: #909399;
+  transition: all 0.3s ease;
+  margin-top: 4px;
+}
+
+.expert-score-tree :deep(.el-tree-node__expand-icon:hover) {
+  color: #409eff;
+}
+
+/* 子节点样式增强 - 不同层级不同颜色 */
+.expert-score-tree :deep(.el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 24px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  border-left: 3px solid #409eff;
+  background: linear-gradient(135deg, #f7fbff 0%, #ffffff 100%);
+}
+
+.expert-score-tree :deep(.el-tree-node__children .el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 48px;
+  border-left-color: #67c23a;
+  background: linear-gradient(135deg, #f6fff8 0%, #ffffff 100%);
+}
+
+.expert-score-tree :deep(.el-tree-node__children .el-tree-node__children .el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 72px;
+  border-left-color: #e6a23c;
+  background: linear-gradient(135deg, #fef9f0 0%, #ffffff 100%);
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+  .expert-score-tree .node-name {
+    max-width: 180px;
+  }
+
+  .expert-score-tree .weight-value-display {
+    font-size: 14px;
+  }
 }
 
 /* 对话框内的卡片样式调整 */
