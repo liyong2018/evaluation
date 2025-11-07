@@ -91,7 +91,6 @@
               >
                 <el-table-column prop="id" label="ID" width="80" />
                 <el-table-column prop="configName" label="配置名称" width="200" />
-                <el-table-column prop="description" label="描述" />
                 <el-table-column label="状态" width="70">
                   <template #default="{ row }">
                     <el-tag type="success">
@@ -100,7 +99,7 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="createTime" label="创建时间" width="180" />
-                <el-table-column label="操作" width="400" fixed="right">
+                <el-table-column label="操作" width="500" fixed="right">
                   <template #default="{ row }">
                     <el-button type="primary" size="small" @click="editConfig(row)">
                       <el-icon><Edit /></el-icon>
@@ -113,14 +112,6 @@
                     <el-button type="info" size="small" @click="openStatisticsDialog(row)">
                       <el-icon><DataLine /></el-icon>
                       详情
-                    </el-button>
-                    <el-button
-                      type="success"
-                      size="small"
-                      @click="activateConfig(row)"
-                    >
-                      <el-icon><Switch /></el-icon>
-                      激活
                     </el-button>
                     <el-button type="info" size="small" @click="copyConfig(row)">
                       <el-icon><CopyDocument /></el-icon>
@@ -136,129 +127,6 @@
             </el-card>
           </div>
         </div>
-      </el-tab-pane>
-
-      <!-- 指标权重管理 -->
-      <el-tab-pane label="指标权重" name="weights">
-        <!-- 配置选择 -->
-        <el-card class="weight-toolbar">
-          <el-row :gutter="20" align="middle">
-            <el-col :span="6">
-              <el-select 
-                v-model="selectedConfigId" 
-                placeholder="选择权重配置"
-                @change="loadIndicatorWeights"
-              >
-                <el-option
-                  v-for="config in activeConfigs"
-                  :key="config.id"
-                  :label="config.configName"
-                  :value="config.id"
-                />
-              </el-select>
-            </el-col>
-            <el-col :span="6">
-              <el-input
-                v-model="weightSearch"
-                placeholder="搜索指标代码"
-                clearable
-                @keyup.enter="searchWeights"
-              >
-                <template #prefix>
-                  <el-icon><Search /></el-icon>
-                </template>
-              </el-input>
-            </el-col>
-            <el-col :span="12">
-              <div class="toolbar-actions">
-                <el-button type="primary" @click="showWeightDialog" :disabled="!selectedConfigId">
-                  <el-icon><Plus /></el-icon>
-                  添加指标
-                </el-button>
-                <el-button type="success" @click="batchAddWeights" :disabled="!selectedConfigId">
-                  <el-icon><Upload /></el-icon>
-                  批量添加
-                </el-button>
-                <el-button type="warning" @click="validateWeights" :disabled="!selectedConfigId">
-                  <el-icon><Check /></el-icon>
-                  验证权重
-                </el-button>
-              </div>
-            </el-col>
-          </el-row>
-        </el-card>
-
-        <!-- 权重树形结构 -->
-        <el-card class="weight-tree">
-          <div v-loading="loading.weights" class="tree-container">
-            <el-tree
-              :data="treeData"
-              :props="treeProps"
-              node-key="id"
-              default-expand-all
-              :expand-on-click-node="false"
-              class="weight-tree-component"
-            >
-              <template #default="{ node, data }">
-                <div class="tree-node">
-                  <div class="node-content">
-                    <div class="node-info">
-                      <span class="node-code">{{ data.indicatorCode }}</span>
-                      <el-tooltip :content="data.indicatorName" placement="top" :show-after="300">
-                        <span class="node-name">{{ data.indicatorName }}</span>
-                      </el-tooltip>
-                      <el-tag 
-                        :type="data.indicatorLevel === 1 ? 'primary' : 'success'" 
-                        size="small"
-                        class="level-tag"
-                      >
-                        L{{ data.indicatorLevel }}
-                      </el-tag>
-                    </div>
-                    <div class="node-weight">
-                      <el-input-number
-                        v-model="data.weight"
-                        :min="0"
-                        :max="1"
-                        :step="0.01"
-                        :precision="3"
-                        size="small"
-                        @change="updateWeight(data)"
-                        class="weight-input"
-                      />
-                    </div>
-                    <div class="node-actions">
-                      <el-button type="primary" size="small" @click="editWeight(data)">
-                        <el-icon><Edit /></el-icon>
-                        编辑
-                      </el-button>
-                      <el-button type="danger" size="small" @click="deleteWeight(data)">
-                        <el-icon><Delete /></el-icon>
-                        删除
-                      </el-button>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </el-tree>
-            
-            <!-- 权重总计 -->
-            <div class="weight-summary" v-if="treeData.length > 0">
-              <el-divider />
-              <div class="summary-item">
-                <span class="summary-label">权重总计：</span>
-                <span class="summary-value">{{ totalWeight.toFixed(3) }}</span>
-                <el-tag 
-                  :type="totalWeight === 1 ? 'success' : 'warning'" 
-                  size="small"
-                  class="summary-tag"
-                >
-                  {{ totalWeight === 1 ? '正常' : '异常' }}
-                </el-tag>
-              </div>
-            </div>
-          </div>
-        </el-card>
       </el-tab-pane>
     </el-tabs>
 
@@ -1560,7 +1428,7 @@ onMounted(() => {
 
 .config-list,
 .weight-tree {
-  min-height: 400px;
+  height: 100%;
 }
 
 .weight-tree {
