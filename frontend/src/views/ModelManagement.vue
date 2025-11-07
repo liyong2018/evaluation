@@ -1201,7 +1201,7 @@ const handleWeightOrgNodeClick = async (data: any) => {
 const loadWeightConfigs = async (orgcode: string) => {
   loadingWeightData.value = true
   try {
-    const response = await request.get('/api/weight-config/list', {
+    const response = await request.get('/api/weight-config', {
       params: { orgcode }
     })
     weightConfigs.value = response.data || []
