@@ -86,7 +86,8 @@ public class SupabaseMigrationRunner implements ApplicationRunner {
 
     private void createTablesIfMissing(Connection pg) throws SQLException {
         String ddlEvaluationResult = "" +
-                "CREATE TABLE IF NOT EXISTS public.evaluation_result (" +
+                "DROP TABLE IF EXISTS public.evaluation_result CASCADE;" +
+                "CREATE TABLE public.evaluation_result (" +
                 " id bigserial PRIMARY KEY," +
                 " region_code text NOT NULL," +
                 " region_name text," +
@@ -110,7 +111,8 @@ public class SupabaseMigrationRunner implements ApplicationRunner {
                 ")";
 
         String ddlModelExecution = "" +
-                "CREATE TABLE IF NOT EXISTS public.model_execution_record (" +
+                "DROP TABLE IF EXISTS public.model_execution_record CASCADE;" +
+                "CREATE TABLE public.model_execution_record (" +
                 " id bigserial PRIMARY KEY," +
                 " model_id bigint," +
                 " execution_code text UNIQUE," +
@@ -123,27 +125,29 @@ public class SupabaseMigrationRunner implements ApplicationRunner {
                 " result_summary text," +
                 " result_ids text," +
                 " result_count integer," +
-                " create_by text" +
+                " create_by text," +
+                " org_code text," +
+                " year integer" +
                 ")";
 
         exec(pg, ddlEvaluationResult);
         exec(pg, ddlModelExecution);
         pg.commit();
-        log.info("Ensured target tables exist in Supabase");
+        log.info("Recreated target tables in Supabase");
     }
 
     private long migrateEvaluationResult(Connection mysql, Connection pg) throws SQLException {
-        String select = "SELECT id, region_code, region_name, " +
+        String select = "SELECT id, region_code, region_name, org_code, " +
                 "management_capability_score, support_capability_score, self_rescue_capability_score, comprehensive_capability_score, " +
                 "management_capability_level, support_capability_level, self_rescue_capability_level, comprehensive_capability_level, " +
                 "evaluation_model_id, data_source, execution_record_id, create_by, create_time, update_by, update_time, is_deleted " +
                 "FROM evaluation_result";
 
         String insert = "INSERT INTO evaluation_result (" +
-                "id, region_code, region_name, management_capability_score, support_capability_score, self_rescue_capability_score, comprehensive_capability_score, " +
+                "id, region_code, region_name, org_code, management_capability_score, support_capability_score, self_rescue_capability_score, comprehensive_capability_score, " +
                 "management_capability_level, support_capability_level, self_rescue_capability_level, comprehensive_capability_level, " +
                 "evaluation_model_id, data_source, execution_record_id, create_by, create_time, update_by, update_time, is_deleted" +
-                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
+                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
                 "ON CONFLICT (id) DO NOTHING";
 
         long count = 0;
@@ -157,6 +161,7 @@ public class SupabaseMigrationRunner implements ApplicationRunner {
                     ps.setLong(i++, rs.getLong("id"));
                     ps.setString(i++, rs.getString("region_code"));
                     ps.setString(i++, rs.getString("region_name"));
+                    ps.setString(i++, rs.getString("org_code"));
                     setNumeric(ps, i++, rs.getBigDecimal("management_capability_score"));
                     setNumeric(ps, i++, rs.getBigDecimal("support_capability_score"));
                     setNumeric(ps, i++, rs.getBigDecimal("self_rescue_capability_score"));
@@ -172,7 +177,7 @@ public class SupabaseMigrationRunner implements ApplicationRunner {
                     setTimestamp(ps, i++, rs.getTimestamp("create_time"));
                     ps.setString(i++, rs.getString("update_by"));
                     setTimestamp(ps, i++, rs.getTimestamp("update_time"));
-                    ps.setObject(i++, rs.getObject("is_deleted"));
+                    setNullableInt(ps, i++, rs, "is_deleted");
 
                     ps.addBatch();
                     batch++;
@@ -195,12 +200,12 @@ public class SupabaseMigrationRunner implements ApplicationRunner {
 
     private long migrateModelExecutionRecord(Connection mysql, Connection pg) throws SQLException {
         String select = "SELECT id, model_id, execution_code, region_ids, weight_config_id, execution_status, start_time, end_time, " +
-                "error_message, result_summary, result_ids, result_count, create_by FROM model_execution_record";
+                "error_message, result_summary, result_ids, result_count, create_by, org_code, year FROM model_execution_record";
 
         String insert = "INSERT INTO model_execution_record (" +
                 "id, model_id, execution_code, region_ids, weight_config_id, execution_status, start_time, end_time, " +
-                "error_message, result_summary, result_ids, result_count, create_by" +
-                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) " +
+                "error_message, result_summary, result_ids, result_count, create_by, org_code, year" +
+                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
                 "ON CONFLICT (id) DO NOTHING";
 
         long count = 0;
@@ -224,6 +229,8 @@ public class SupabaseMigrationRunner implements ApplicationRunner {
                     ps.setString(i++, rs.getString("result_ids"));
                     setNullableInt(ps, i++, rs, "result_count");
                     ps.setString(i++, rs.getString("create_by"));
+                    ps.setString(i++, rs.getString("org_code"));
+                    setNullableInt(ps, i++, rs, "year");
 
                     ps.addBatch();
                     batch++;

@@ -1,0 +1,94 @@
+═══════════════════════════════════════════════════════════════
+    MySQL → Supabase 数据库迁移脚本文件列表
+═══════════════════════════════════════════════════════════════
+
+📁 migration_scripts/ 目录
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  DDL 结构文件
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📄 01_create_all_tables.sql (6.6K)
+     包含 12 个表的 PostgreSQL DDL 定义
+     - organization (组织机构)
+     - evaluation_model (评估模型)  
+     - algorithm_config (算法配置)
+     - weight_config (权重配置)
+     - indicator_weight (指标权重)
+     - survey_data (调查数据)
+     - community_disaster_reduction_capacity (社区减灾能力)
+     - model_step (模型步骤)
+     - algorithm_step (算法步骤)
+     - step_algorithm (步骤算法)
+     - step_execution_result (步骤执行结果)
+     - report (报告)
+
+2️⃣  数据迁移文件
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📄 02_data_dump.sql (23K) - MySQL 原始格式
+  📄 04_data_for_pg.sql (22K) - PostgreSQL 格式 (核心表)
+     包含数据:
+     - survey_data (7 行)
+     - weight_config (5 行)
+     - indicator_weight (54 行)
+     - evaluation_model (4 行)
+     - algorithm_config (3 行)
+
+  📄 05_remaining_data.sql (136K) - MySQL 原始格式
+  📄 05_remaining_data_pg.sql (128K) - PostgreSQL 格式 (剩余表)
+     包含数据:
+     - model_step (21 行)
+     - community_disaster_reduction_capacity (58 行)
+     - step_algorithm (189 行)
+     - 其他表
+
+3️⃣  工具脚本
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 convert_mysql_to_pg.py (2.0K)
+     Python 数据转换脚本
+     功能: MySQL → PostgreSQL 格式转换
+
+  📝 03_convert_data.sql (789 字节)
+     数据类型转换规则说明
+
+4️⃣  文档文件
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📖 README.md (3.1K)
+     详细迁移指南
+     - 迁移步骤说明
+     - 数据类型对照表
+     - 验证查询脚本
+     - 注意事项
+
+  📊 MIGRATION_SUMMARY.md (5.8K)
+     完整迁移报告
+     - 迁移状态概览
+     - 表清单及优先级
+     - 已完成事项
+     - 下一步操作
+
+  🚀 QUICK_START.txt
+     快速开始指南
+     - 3步完成迁移
+     - 关键文件说明
+     - 重要提醒
+
+═══════════════════════════════════════════════════════════════
+
+✨ 使用建议
+
+首次迁移 (推荐)
+├─ 先读 QUICK_START.txt 了解概况
+├─ 执行 01_create_all_tables.sql 创建表结构
+├─ 执行 04_data_for_pg.sql 导入核心表数据
+├─ 查看 README.md 验证数据
+
+完整迁移
+├─ 执行 01_create_all_tables.sql
+├─ 依次执行 04_data_for_pg.sql 和 05_remaining_data_pg.sql
+├─ 查看 MIGRATION_SUMMARY.md 了解全部表状态
+
+═══════════════════════════════════════════════════════════════
+文件总数: 9 个
+总大小: ~324 KB
+生成日期: 2025-11-06
+═══════════════════════════════════════════════════════════════

@@ -11,7 +11,9 @@
       "Bash(mysql -h192.168.15.203 -P30314 -uroot -p123456 evaluate_db -e:*)",
       "Bash(iconv:*)",
       "Bash(mvn clean compile:*)",
-      "Bash(mvn compile -DskipTests)"
+      "Bash(mvn compile -DskipTests)",
+      "Bash(git add:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
