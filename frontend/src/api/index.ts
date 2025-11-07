@@ -102,30 +102,59 @@ export const weightConfigApi = {
 export const indicatorWeightApi = {
   // 获取所有指标权重
   getAll: () => request.get('/api/indicator-weight'),
-  
+
   // 根据ID获取指标权重
   getById: (id: number) => request.get(`/api/indicator-weight/${id}`),
-  
+
   // 根据配置ID获取指标权重
   getByConfigId: (configId: number) => request.get(`/api/indicator-weight/config/${configId}`),
-  
+
   // 根据指标代码获取权重
   getByIndicatorCode: (indicatorCode: string) => request.get(`/api/indicator-weight/indicator/${indicatorCode}`),
-  
+
   // 创建指标权重
   create: (data: any) => request.post('/api/indicator-weight', data),
-  
+
   // 批量创建指标权重
   batchCreate: (dataList: any[]) => request.post('/api/indicator-weight/batch', dataList),
-  
+
   // 更新指标权重
   update: (data: any) => request.put('/api/indicator-weight', data),
-  
+
   // 删除指标权重
   delete: (id: number) => request.delete(`/api/indicator-weight/${id}`),
-  
+
   // 验证权重配置
   validate: (weights: any[]) => request.post('/api/indicator-weight/validate', weights)
+}
+
+// 专家权重打分记录相关API
+export const indicatorWeightScoreApi = {
+  // 保存专家打分记录（批量）
+  saveScores: (scores: any[]) => request.post('/api/indicator-weight-score/batch', scores),
+
+  // 获取指定配置的所有专家打分记录
+  getScoresByConfigId: (configId: number) => request.get(`/api/indicator-weight-score/config/${configId}`),
+
+  // 获取指定配置和指标的所有专家打分记录
+  getScoresByConfigIdAndIndicatorCode: (configId: number, indicatorCode: string) =>
+    request.get(`/api/indicator-weight-score/config/${configId}/indicator/${indicatorCode}`),
+
+  // 计算指定配置下每个指标的平均权重值
+  calculateAverageWeights: (configId: number) =>
+    request.get(`/api/indicator-weight-score/config/${configId}/average`),
+
+  // 获取指定配置下的所有专家列表（去重）
+  getExpertsByConfigId: (configId: number) =>
+    request.get(`/api/indicator-weight-score/config/${configId}/experts`),
+
+  // 获取指定配置的打分统计信息
+  getScoreStatistics: (configId: number) =>
+    request.get(`/api/indicator-weight-score/config/${configId}/statistics`),
+
+  // 将平均权重应用到正式的 indicator_weight 表
+  applyAverageWeights: (configId: number) =>
+    request.post(`/api/indicator-weight-score/config/${configId}/apply-average`)
 }
 
 // 地区组织机构相关API (已废弃 - 使用 regionDataApi 替代)

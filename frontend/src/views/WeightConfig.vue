@@ -100,11 +100,19 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="createTime" label="创建时间" width="180" />
-                <el-table-column label="操作" width="350" fixed="right">
+                <el-table-column label="操作" width="400" fixed="right">
                   <template #default="{ row }">
                     <el-button type="primary" size="small" @click="editConfig(row)">
                       <el-icon><Edit /></el-icon>
                       编辑
+                    </el-button>
+                    <el-button type="warning" size="small" @click="openScoreDialog(row)">
+                      <el-icon><DocumentAdd /></el-icon>
+                      打分
+                    </el-button>
+                    <el-button type="info" size="small" @click="openStatisticsDialog(row)">
+                      <el-icon><DataLine /></el-icon>
+                      详情
                     </el-button>
                     <el-button
                       type="success"
@@ -379,6 +387,237 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 专家打分对话框 -->
+    <el-dialog
+      v-model="dialogVisible.score"
+      :title="`专家打分 - ${currentScoreConfig?.configName || ''}`"
+      width="900px"
+      :close-on-click-modal="false"
+    >
+      <div class="score-dialog-content">
+        <!-- 专家信息 -->
+        <el-card class="expert-info-card" shadow="never">
+          <template #header>
+            <span>专家信息</span>
+          </template>
+          <el-form label-width="100px">
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="专家姓名" required>
+                  <el-input v-model="scoreForm.expertName" placeholder="请输入专家姓名" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="联系电话">
+                  <el-input v-model="scoreForm.expertPhone" placeholder="请输入联系电话（可选）" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
+        </el-card>
+
+        <!-- 指标权重打分 -->
+        <el-card class="score-tree-card" shadow="never">
+          <template #header>
+            <div class="card-header-with-tip">
+              <span>指标权重打分</span>
+              <el-tag type="warning" size="small">同层级权重总和必须为1</el-tag>
+            </div>
+          </template>
+          <div class="score-tree-container">
+            <el-tree
+              :data="scoreTreeData"
+              :props="{ label: 'indicatorName', children: 'children' }"
+              node-key="id"
+              default-expand-all
+              :expand-on-click-node="false"
+              class="score-weight-tree"
+            >
+              <template #default="{ node, data }">
+                <div class="tree-node">
+                  <div class="node-content">
+                    <div class="node-info">
+                      <span class="node-code">{{ data.indicatorCode }}</span>
+                      <el-tooltip :content="data.indicatorName" placement="top" :show-after="300">
+                        <span class="node-name">{{ data.indicatorName }}</span>
+                      </el-tooltip>
+                      <el-tag
+                        :type="data.indicatorLevel === 1 ? 'primary' : 'success'"
+                        size="small"
+                        class="level-tag"
+                      >
+                        L{{ data.indicatorLevel }}
+                      </el-tag>
+                      <span class="current-weight-ref">
+                        <el-icon><View /></el-icon>
+                        参考: {{ data.currentWeight?.toFixed(3) || '0.000' }}
+                      </span>
+                    </div>
+                    <div class="node-weight">
+                      <span class="weight-label">打分:</span>
+                      <el-input-number
+                        v-model="data.weight"
+                        :min="0"
+                        :max="1"
+                        :step="0.01"
+                        :precision="3"
+                        size="small"
+                        class="weight-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </el-tree>
+          </div>
+        </el-card>
+      </div>
+
+      <template #footer>
+        <el-button @click="dialogVisible.score = false">取消</el-button>
+        <el-button type="primary" @click="submitScore" :loading="loading.submit">
+          提交打分
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 统计详情对话框 -->
+    <el-dialog
+      v-model="dialogVisible.statistics"
+      :title="`打分统计详情 - ${currentScoreConfig?.configName || ''}`"
+      width="1200px"
+      :close-on-click-modal="false"
+    >
+      <div v-if="statisticsData" class="statistics-content-new">
+        <!-- 顶部：平均分表格 -->
+        <el-card class="average-table-card" shadow="never">
+          <template #header>
+            <div class="card-header-flex">
+              <span>各指标平均权重</span>
+              <el-tag type="success" size="small">
+                参与专家: {{ statisticsData.experts?.length || 0 }} 人
+              </el-tag>
+            </div>
+          </template>
+          <el-table :data="averageScoreTableData" border stripe>
+            <el-table-column label="一级指标" width="200">
+              <template #default="{ row }">
+                <div class="level1-cell">
+                  <el-tag type="primary" size="small">{{ row.level1Code }}</el-tag>
+                  <span class="indicator-name">{{ row.level1Name }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="平均权重" width="120" align="center">
+              <template #default="{ row }">
+                <span class="weight-value">{{ row.level1Avg?.toFixed(3) || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="二级指标">
+              <template #default="{ row }">
+                <div v-if="row.children.length > 0" class="level2-list">
+                  <div
+                    v-for="(child, idx) in row.children"
+                    :key="idx"
+                    class="level2-item"
+                  >
+                    <el-tag size="small" type="success">{{ child.indicatorCode }}</el-tag>
+                    <span class="indicator-name">{{ child.indicatorName }}</span>
+                    <span class="weight-badge">{{ child.avgWeight.toFixed(3) }}</span>
+                    <span class="score-count">({{ child.scoreCount }}人)</span>
+                  </div>
+                </div>
+                <span v-else style="color: #909399">无二级指标</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+
+        <!-- 底部：左右布局 -->
+        <div class="bottom-layout">
+          <!-- 左侧：专家列表 -->
+          <el-card class="experts-list-card" shadow="never">
+            <template #header>
+              <span>参与专家</span>
+            </template>
+            <el-scrollbar height="400px">
+              <div
+                v-for="(expert, index) in statisticsData.experts"
+                :key="index"
+                class="expert-item"
+                :class="{ active: selectedExpert?.expert_name === expert.expert_name }"
+                @click="selectExpert(expert)"
+              >
+                <div class="expert-info">
+                  <el-icon class="expert-icon"><User /></el-icon>
+                  <div class="expert-details">
+                    <div class="expert-name">{{ expert.expert_name }}</div>
+                    <div class="expert-phone">{{ expert.expert_phone || '未填写电话' }}</div>
+                  </div>
+                </div>
+                <el-icon v-if="selectedExpert?.expert_name === expert.expert_name" class="check-icon">
+                  <Check />
+                </el-icon>
+              </div>
+            </el-scrollbar>
+          </el-card>
+
+          <!-- 右侧：选中专家的打分详情 -->
+          <el-card class="expert-score-card" shadow="never">
+            <template #header>
+              <span v-if="selectedExpert">
+                {{ selectedExpert.expert_name }} 的打分详情
+              </span>
+              <span v-else style="color: #909399">请选择左侧专家查看打分详情</span>
+            </template>
+            <div v-if="selectedExpert" class="expert-score-tree-container">
+              <el-scrollbar height="400px">
+                <el-tree
+                  :data="selectedExpertScoreTree"
+                  node-key="id"
+                  default-expand-all
+                  :expand-on-click-node="false"
+                  class="expert-score-tree"
+                >
+                  <template #default="{ node, data }">
+                    <div class="tree-node">
+                      <div class="node-content">
+                        <div class="node-info">
+                          <span class="node-code">{{ data.indicatorCode }}</span>
+                          <el-tooltip :content="data.indicatorName" placement="top" :show-after="300">
+                            <span class="node-name">{{ data.indicatorName }}</span>
+                          </el-tooltip>
+                          <el-tag
+                            :type="data.indicatorLevel === 1 ? 'primary' : 'success'"
+                            size="small"
+                            class="level-tag"
+                          >
+                            {{ data.indicatorLevel === 1 ? '一级' : '二级' }}
+                          </el-tag>
+                        </div>
+                        <div class="node-weight">
+                          <span class="weight-label">权重:</span>
+                          <span class="weight-value-display">{{ data.weight.toFixed(3) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </el-tree>
+              </el-scrollbar>
+            </div>
+            <el-empty v-else description="请选择左侧专家" :image-size="100" />
+          </el-card>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="dialogVisible.statistics = false">关闭</el-button>
+        <el-button type="primary" @click="applyAverageWeights" :loading="loading.submit">
+          应用平均权重到正式配置
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -394,9 +633,13 @@ import {
   Switch,
   CopyDocument,
   Upload,
-  Check
+  Check,
+  DocumentAdd,
+  DataLine,
+  View,
+  User
 } from '@element-plus/icons-vue'
-import { weightConfigApi, indicatorWeightApi, organizationApi } from '@/api'
+import { weightConfigApi, indicatorWeightApi, organizationApi, indicatorWeightScoreApi } from '@/api'
 
 // 响应式数据
 const activeTab = ref('config')
@@ -424,7 +667,9 @@ const loading = reactive({
 
 const dialogVisible = reactive({
   config: false,
-  weight: false
+  weight: false,
+  score: false,      // 打分对话框
+  statistics: false  // 详情对话框
 })
 
 const isEditConfig = ref(false)
@@ -450,6 +695,20 @@ const weightForm = reactive({
   description: ''
 })
 
+// 打分表单数据
+const scoreForm = reactive({
+  configId: null,
+  orgcode: '',         // 组织机构代码
+  expertName: '',
+  expertPhone: '',
+  scores: [] as any[]  // 存储所有指标的打分
+})
+
+// 统计信息数据
+const statisticsData = ref<any>(null)
+const currentScoreConfig = ref<any>(null)  // 当前正在打分/查看的配置
+const selectedExpert = ref<any>(null)  // 选中的专家
+
 const configRules = {
   configName: [{ required: true, message: '请输入配置名称', trigger: 'blur' }],
   description: [{ required: true, message: '请输入配置描述', trigger: 'blur' }]
@@ -465,6 +724,109 @@ const weightRules = {
 // 计算属性
 const activeConfigs = computed(() => {
   return configList.value // 暂时返回所有配置，因为后端没有isActive字段
+})
+
+// 构建平均分表格数据（支持一级指标表头合并）
+const averageScoreTableData = computed(() => {
+  if (!statisticsData.value?.indicatorStats) return []
+
+  const stats = statisticsData.value.indicatorStats
+  const level1Map = new Map()
+
+  // 按一级指标分组（使用 indicatorLevel 判断）
+  stats.forEach((stat: any) => {
+    if (stat.indicatorLevel === 1) {
+      // 一级指标
+      if (!level1Map.has(stat.indicatorCode)) {
+        level1Map.set(stat.indicatorCode, {
+          level1Code: stat.indicatorCode,
+          level1Name: stat.indicatorName,
+          level1Avg: stat.avgWeight,
+          level1Id: stat.id,
+          children: []
+        })
+      } else {
+        const group = level1Map.get(stat.indicatorCode)
+        group.level1Name = stat.indicatorName
+        group.level1Avg = stat.avgWeight
+        group.level1Id = stat.id
+      }
+    } else if (stat.indicatorLevel === 2) {
+      // 二级指标，需要找到其父级（一级指标）
+      // 先确保父级存在
+      const parentIndicator = stats.find((s: any) => s.id === stat.parentId && s.indicatorLevel === 1)
+      if (parentIndicator) {
+        const parentCode = parentIndicator.indicatorCode
+        if (!level1Map.has(parentCode)) {
+          level1Map.set(parentCode, {
+            level1Code: parentCode,
+            level1Name: parentIndicator.indicatorName,
+            level1Avg: parentIndicator.avgWeight,
+            level1Id: parentIndicator.id,
+            children: []
+          })
+        }
+
+        const group = level1Map.get(parentCode)
+        group.children.push({
+          indicatorCode: stat.indicatorCode,
+          indicatorName: stat.indicatorName,
+          avgWeight: stat.avgWeight,
+          scoreCount: stat.scoreCount
+        })
+      }
+    }
+  })
+
+  return Array.from(level1Map.values())
+})
+
+// 构建选中专家的打分树形数据
+const selectedExpertScoreTree = computed(() => {
+  if (!selectedExpert.value || !statisticsData.value) return []
+
+  const expertName = selectedExpert.value.expert_name
+  const allStats = statisticsData.value.indicatorStats || []
+
+  // 获取该专家的所有打分
+  const expertScores: any[] = []
+  allStats.forEach((stat: any) => {
+    const expertScore = stat.expertScores?.find((s: any) => s.expertName === expertName)
+    if (expertScore) {
+      expertScores.push({
+        id: stat.id,
+        indicatorCode: stat.indicatorCode,
+        indicatorName: stat.indicatorName,
+        indicatorLevel: stat.indicatorLevel,
+        parentId: stat.parentId,
+        weight: expertScore.weight,
+        createTime: expertScore.createTime,
+        children: []
+      })
+    }
+  })
+
+  // 构建树形结构
+  const nodeMap = new Map()
+  const roots: any[] = []
+
+  // 第一遍：创建所有节点
+  expertScores.forEach(item => {
+    nodeMap.set(item.id, item)
+  })
+
+  // 第二遍：建立父子关系
+  expertScores.forEach(item => {
+    if (item.parentId !== null && item.parentId !== undefined && nodeMap.has(item.parentId)) {
+      const parent = nodeMap.get(item.parentId)
+      parent.children.push(item)
+    } else {
+      // 一级指标（没有父节点）
+      roots.push(item)
+    }
+  })
+
+  return roots
 })
 
 // 构建树形数据
@@ -879,7 +1241,7 @@ const batchAddWeights = async () => {
 // 验证权重
 const validateWeights = async () => {
   if (!selectedConfigId.value) return
-  
+
   try {
     const response = await indicatorWeightApi.validate(selectedConfigId.value)
     if (response.success) {
@@ -893,7 +1255,197 @@ const validateWeights = async () => {
   }
 }
 
+// ========== 专家打分相关方法 ==========
 
+// 打开打分对话框
+const openScoreDialog = async (row: any) => {
+  try {
+    currentScoreConfig.value = row
+    scoreForm.configId = row.id
+    scoreForm.orgcode = row.orgcode || ''  // 保存配置的组织机构代码
+    scoreForm.expertName = ''
+    scoreForm.expertPhone = ''
+
+    // 加载该配置的所有指标权重
+    const response = await indicatorWeightApi.getByConfigId(row.id)
+    if (response.success && response.data) {
+      // 初始化打分数据
+      scoreForm.scores = response.data.map((item: any) => ({
+        id: item.id,  // 添加 id 字段，用于构建树形结构
+        indicatorCode: item.indicatorCode,
+        indicatorName: item.indicatorName,
+        indicatorLevel: item.indicatorLevel,
+        parentId: item.parentId,
+        weight: 0,  // 初始权重为0
+        currentWeight: item.weight  // 保存当前权重值作为参考
+      }))
+
+      dialogVisible.score = true
+    } else {
+      ElMessage.error('获取指标列表失败')
+    }
+  } catch (error) {
+    console.error('打开打分对话框失败:', error)
+    ElMessage.error('打开打分对话框失败')
+  }
+}
+
+// 提交打分
+const submitScore = async () => {
+  // 验证专家信息
+  if (!scoreForm.expertName) {
+    ElMessage.warning('请输入专家姓名')
+    return
+  }
+
+  // 验证权重和是否为1（按层级分组验证）
+  const groups = new Map()
+  scoreForm.scores.forEach(item => {
+    const key = `${item.indicatorLevel}-${item.parentId || 'root'}`
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
+    groups.get(key).push(item)
+  })
+
+  for (const [key, items] of groups) {
+    const sum = items.reduce((s: number, item: any) => s + (item.weight || 0), 0)
+    if (Math.abs(sum - 1) > 0.001) {
+      ElMessage.warning(`同层级指标权重总和必须为1，当前为 ${sum.toFixed(3)}`)
+      return
+    }
+  }
+
+  loading.submit = true
+  try {
+    // 构建打分记录
+    const scores = scoreForm.scores.map(item => ({
+      configId: scoreForm.configId,
+      orgcode: scoreForm.orgcode,  // 包含组织机构代码
+      indicatorCode: item.indicatorCode,
+      weight: item.weight,
+      expertName: scoreForm.expertName,
+      expertPhone: scoreForm.expertPhone
+    }))
+
+    const response = await indicatorWeightScoreApi.saveScores(scores)
+    if (response.success) {
+      ElMessage.success('打分提交成功')
+      dialogVisible.score = false
+    } else {
+      ElMessage.error(response.message || '打分提交失败')
+    }
+  } catch (error) {
+    console.error('提交打分失败:', error)
+    ElMessage.error('提交打分失败')
+  } finally {
+    loading.submit = false
+  }
+}
+
+// 打开统计详情对话框
+const openStatisticsDialog = async (row: any) => {
+  try {
+    currentScoreConfig.value = row
+    selectedExpert.value = null  // 清空选中的专家
+    loading.submit = true
+
+    // 获取打分统计信息
+    const response = await indicatorWeightScoreApi.getScoreStatistics(row.id)
+    if (response.success) {
+      statisticsData.value = response.data
+      dialogVisible.statistics = true
+    } else {
+      ElMessage.error(response.message || '获取统计信息失败')
+    }
+  } catch (error) {
+    console.error('获取统计信息失败:', error)
+    ElMessage.error('获取统计信息失败')
+  } finally {
+    loading.submit = false
+  }
+}
+
+// 选择专家
+const selectExpert = (expert: any) => {
+  selectedExpert.value = expert
+  console.log('选中专家:', expert)
+}
+
+// 应用平均权重到正式配置
+const applyAverageWeights = async () => {
+  if (!currentScoreConfig.value) return
+
+  try {
+    await ElMessageBox.confirm('确定要将平均权重应用到正式配置吗？这将覆盖当前的权重值。', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    loading.submit = true
+    const response = await indicatorWeightScoreApi.applyAverageWeights(currentScoreConfig.value.id)
+    if (response.success) {
+      ElMessage.success('平均权重应用成功')
+      dialogVisible.statistics = false
+      // 刷新配置列表
+      getConfigList()
+    } else {
+      ElMessage.error(response.message || '应用失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('应用平均权重失败:', error)
+      ElMessage.error('应用失败')
+    }
+  } finally {
+    loading.submit = false
+  }
+}
+
+// 构建打分的树形数据
+const scoreTreeData = computed(() => {
+  if (!scoreForm.scores.length) return []
+
+  const nodeMap = new Map()
+  const rootNodes: any[] = []
+
+  // 第一步：清空所有 children 并建立映射
+  scoreForm.scores.forEach(item => {
+    // 直接使用原对象，不创建新对象，这样修改 weight 会直接影响原数据
+    item.children = []  // 每次重新构建树时清空 children
+    nodeMap.set(item.id, item)
+  })
+
+  console.log('打分数据总数:', scoreForm.scores.length)
+  console.log('所有节点ID映射:', Array.from(nodeMap.keys()))
+
+  // 第二步：建立父子关系
+  scoreForm.scores.forEach(item => {
+    // 使用 !== null && !== undefined 来判断是否有父节点，避免 parentId 为 0 时被误判
+    if (item.parentId !== null && item.parentId !== undefined) {
+      if (nodeMap.has(item.parentId)) {
+        // 有父节点，添加到父节点的 children 中
+        const parentNode = nodeMap.get(item.parentId)
+        parentNode.children.push(item)
+        console.log(`节点 ${item.indicatorCode} (id=${item.id}) 作为子节点添加到父节点 (parentId=${item.parentId})`)
+      } else {
+        // 父节点不存在，作为根节点
+        rootNodes.push(item)
+        console.warn(`节点 ${item.indicatorCode} (id=${item.id}) 的父节点不存在 (parentId=${item.parentId})，作为根节点`)
+      }
+    } else {
+      // 没有父节点，作为根节点
+      rootNodes.push(item)
+      console.log(`节点 ${item.indicatorCode} (id=${item.id}) 没有父节点，作为根节点`)
+    }
+  })
+
+  console.log('根节点数量:', rootNodes.length)
+  console.log('根节点列表:', rootNodes.map(n => `${n.indicatorCode}(id=${n.id})`))
+
+  return rootNodes
+})
 
 // 组件挂载时获取数据
 onMounted(() => {
@@ -1437,5 +1989,539 @@ onMounted(() => {
   :deep(.weight-tree .node-name) { max-width: 220px; }
   :deep(.weight-tree .node-weight) { margin: 0 10px; }
   :deep(.weight-tree .weight-input) { width: 100px; }
+}
+
+/* ========== 专家打分对话框样式 ========== */
+.score-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.expert-info-card,
+.score-tree-card {
+  margin-bottom: 0;
+}
+
+.card-header-with-tip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.score-tree-container {
+  max-height: 350px;
+  overflow-y: auto;
+  padding: 16px;
+  background: linear-gradient(to bottom, #fafbfc, #ffffff);
+  border-radius: 8px;
+  border: 1px solid #eef2f7;
+}
+
+/* 打分树形结构样式 - 复用指标权重管理的样式 */
+.score-weight-tree {
+  width: 100%;
+}
+
+.score-weight-tree .tree-node {
+  width: 100%;
+  padding: 8px 0;
+}
+
+.score-weight-tree .node-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #e6edf5;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  margin: 8px 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.score-weight-tree .node-content::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  background: linear-gradient(180deg, #409eff, #79bbff);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.score-weight-tree .node-content:hover {
+  border-color: #409eff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+  transform: translateX(2px);
+}
+
+.score-weight-tree .node-content:hover::before {
+  opacity: 1;
+}
+
+.score-weight-tree .node-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.score-weight-tree .node-code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #337ecc;
+  background: rgba(51, 126, 204, 0.08);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(51, 126, 204, 0.25);
+  min-width: 80px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.score-weight-tree .node-name {
+  font-weight: 500;
+  color: #303133;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
+}
+
+.score-weight-tree .level-tag {
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.score-weight-tree .current-weight-ref {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #67c23a;
+  font-weight: 500;
+  background: rgba(103, 194, 58, 0.1);
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.score-weight-tree .current-weight-ref .el-icon {
+  font-size: 14px;
+}
+
+.score-weight-tree .node-weight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+}
+
+.score-weight-tree .weight-label {
+  font-size: 12px;
+  color: #606266;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.score-weight-tree .weight-input {
+  width: 130px;
+}
+
+.score-weight-tree .weight-input :deep(.el-input__wrapper) {
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #e8eef5 inset;
+  transition: all 0.3s ease;
+}
+
+.score-weight-tree .weight-input :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px #409eff inset;
+}
+
+.score-weight-tree .weight-input :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #409eff inset;
+}
+
+/* 树形节点层级样式 */
+.score-weight-tree :deep(.el-tree-node__content) {
+  height: auto !important;
+  padding: 6px 0 !important;
+}
+
+.score-weight-tree :deep(.el-tree-node__expand-icon) {
+  font-size: 14px;
+  color: #909399;
+  transition: all 0.3s ease;
+  margin-top: 4px;
+}
+
+.score-weight-tree :deep(.el-tree-node__expand-icon:hover) {
+  color: #409eff;
+}
+
+/* 子节点样式增强 - 不同层级不同颜色 */
+.score-weight-tree :deep(.el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 24px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  border-left: 3px solid #409eff;
+  background: linear-gradient(135deg, #f7fbff 0%, #ffffff 100%);
+}
+
+.score-weight-tree :deep(.el-tree-node__children .el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 48px;
+  border-left-color: #67c23a;
+  background: linear-gradient(135deg, #f6fff8 0%, #ffffff 100%);
+}
+
+.score-weight-tree :deep(.el-tree-node__children .el-tree-node__children .el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 72px;
+  border-left-color: #e6a23c;
+  background: linear-gradient(135deg, #fef9f0 0%, #ffffff 100%);
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+  .score-weight-tree .node-name {
+    max-width: 180px;
+  }
+
+  .score-weight-tree .weight-input {
+    width: 110px;
+  }
+}
+
+/* ========== 统计详情对话框样式（新版） ========== */
+.statistics-content-new {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 顶部平均分表格 */
+.average-table-card {
+  margin-bottom: 0;
+}
+
+.card-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.level1-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.level1-cell .indicator-name {
+  font-weight: 600;
+  color: #303133;
+}
+
+.weight-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #409eff;
+}
+
+.level2-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.level2-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+.level2-item:hover {
+  background: #e8eef5;
+}
+
+.level2-item .indicator-name {
+  flex: 1;
+  font-size: 14px;
+  color: #606266;
+}
+
+.weight-badge {
+  font-weight: 600;
+  color: #67c23a;
+  background: rgba(103, 194, 58, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.score-count {
+  font-size: 12px;
+  color: #909399;
+}
+
+/* 底部左右布局 */
+.bottom-layout {
+  display: flex;
+  gap: 16px;
+  height: 500px;
+}
+
+/* 左侧专家列表 */
+.experts-list-card {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.expert-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border: 1px solid #e8eef5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: white;
+}
+
+.expert-item:hover {
+  border-color: #409eff;
+  background: #f0f9ff;
+  transform: translateX(4px);
+}
+
+.expert-item.active {
+  border-color: #409eff;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e8f4ff 100%);
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+}
+
+.expert-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.expert-icon {
+  font-size: 24px;
+  color: #409eff;
+}
+
+.expert-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expert-name {
+  font-weight: 600;
+  color: #303133;
+  font-size: 14px;
+}
+
+.expert-phone {
+  font-size: 12px;
+  color: #909399;
+}
+
+.check-icon {
+  font-size: 20px;
+  color: #67c23a;
+}
+
+/* 右侧专家打分详情 */
+.expert-score-card {
+  flex: 1;
+}
+
+.expert-score-tree-container {
+  padding: 16px;
+}
+
+/* 专家打分树形结构样式 - 复用权重配置树的样式 */
+.expert-score-tree {
+  width: 100%;
+}
+
+.expert-score-tree .tree-node {
+  width: 100%;
+  padding: 8px 0;
+}
+
+.expert-score-tree .node-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #e6edf5;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  margin: 8px 0;
+  position: relative;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.expert-score-tree .node-content::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  background: linear-gradient(180deg, #409eff, #79bbff);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.expert-score-tree .node-content:hover {
+  border-color: #409eff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+  transform: translateX(2px);
+}
+
+.expert-score-tree .node-content:hover::before {
+  opacity: 1;
+}
+
+.expert-score-tree .node-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.expert-score-tree .node-code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #337ecc;
+  background: rgba(51, 126, 204, 0.08);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(51, 126, 204, 0.25);
+  min-width: 80px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.expert-score-tree .node-name {
+  font-weight: 500;
+  color: #303133;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
+}
+
+.expert-score-tree .level-tag {
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.expert-score-tree .node-weight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+}
+
+.expert-score-tree .weight-label {
+  font-size: 12px;
+  color: #606266;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.expert-score-tree .weight-value-display {
+  font-size: 16px;
+  font-weight: 700;
+  color: #409eff;
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+/* 树形节点层级样式 */
+.expert-score-tree :deep(.el-tree-node__content) {
+  height: auto !important;
+  padding: 6px 0 !important;
+}
+
+.expert-score-tree :deep(.el-tree-node__expand-icon) {
+  font-size: 14px;
+  color: #909399;
+  transition: all 0.3s ease;
+  margin-top: 4px;
+}
+
+.expert-score-tree :deep(.el-tree-node__expand-icon:hover) {
+  color: #409eff;
+}
+
+/* 子节点样式增强 - 不同层级不同颜色 */
+.expert-score-tree :deep(.el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 24px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  border-left: 3px solid #409eff;
+  background: linear-gradient(135deg, #f7fbff 0%, #ffffff 100%);
+}
+
+.expert-score-tree :deep(.el-tree-node__children .el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 48px;
+  border-left-color: #67c23a;
+  background: linear-gradient(135deg, #f6fff8 0%, #ffffff 100%);
+}
+
+.expert-score-tree :deep(.el-tree-node__children .el-tree-node__children .el-tree-node__children > .el-tree-node .node-content) {
+  margin-left: 72px;
+  border-left-color: #e6a23c;
+  background: linear-gradient(135deg, #fef9f0 0%, #ffffff 100%);
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+  .expert-score-tree .node-name {
+    max-width: 180px;
+  }
+
+  .expert-score-tree .weight-value-display {
+    font-size: 14px;
+  }
+}
+
+/* 对话框内的卡片样式调整 */
+:deep(.statistics-content-new .el-card__header) {
+  background: #f5f7fa;
+  padding: 12px 20px;
+  font-weight: 600;
 }
 </style>
