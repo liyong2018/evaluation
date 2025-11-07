@@ -13,7 +13,9 @@
       "Bash(mvn clean compile:*)",
       "Bash(mvn compile -DskipTests)",
       "Bash(git add:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git pull)"
     ],
     "deny": [],
     "ask": []

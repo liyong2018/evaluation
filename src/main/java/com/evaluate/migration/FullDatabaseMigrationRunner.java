@@ -239,7 +239,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
         // 9. algorithm_step 表
         exec(pg, "DROP TABLE IF EXISTS public.algorithm_step CASCADE;" +
                 "CREATE TABLE public.algorithm_step (" +
-                " id bigint NOT NULL," +
+                " id bigint PRIMARY KEY," +
                 " algorithm_config_id bigint NOT NULL," +
                 " step_name varchar(100) NOT NULL," +
                 " step_code varchar(50) NOT NULL," +
@@ -485,6 +485,15 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
         // 添加ON CONFLICT DO NOTHING以处理重复主键
         String insert = "INSERT INTO " + tableName + " (" + selectFields + ") VALUES (" + placeholders + ") ON CONFLICT (id) DO NOTHING";
 
+        // 解析字段名列表
+        String[] fieldNames = selectFields.split(", ");
+        // 识别逻辑删除字段（这些字段在PostgreSQL中是integer，但MySQL的tinyint会被当作Boolean）
+        boolean[] isLogicDeleteField = new boolean[fieldNames.length];
+        for (int i = 0; i < fieldNames.length; i++) {
+            String field = fieldNames[i].trim();
+            isLogicDeleteField[i] = field.equals("is_deleted");
+        }
+
         long count = 0;
         try (Statement st = mysql.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)) {
             try { st.setFetchSize(1000); } catch (Exception ignore) {}
@@ -496,12 +505,11 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                         Object value = rs.getObject(i);
                         if (value == null) {
                             ps.setObject(i, null);
-                        } else if (value instanceof Boolean) {
-                            // Boolean类型转换为Short (0或1)
-                            // MySQL的tinyint(1)被转换为Boolean，需要转换为数字类型
-                            ps.setShort(i, (short) (((Boolean) value) ? 1 : 0));
+                        } else if (value instanceof Boolean && isLogicDeleteField[i-1]) {
+                            // 逻辑删除字段：Boolean转换为Integer (true->1, false->0)
+                            ps.setInt(i, (Boolean) value ? 1 : 0);
                         } else {
-                            // 其他类型直接传递，让JDBC处理
+                            // 其他类型直接传递，让JDBC处理类型转换
                             ps.setObject(i, value);
                         }
                     }
