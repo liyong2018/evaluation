@@ -651,6 +651,7 @@ const weightForm = reactive({
 // 打分表单数据
 const scoreForm = reactive({
   configId: null,
+  orgcode: '',         // 组织机构代码
   expertName: '',
   expertPhone: '',
   scores: [] as any[]  // 存储所有指标的打分
@@ -1110,6 +1111,7 @@ const openScoreDialog = async (row: any) => {
   try {
     currentScoreConfig.value = row
     scoreForm.configId = row.id
+    scoreForm.orgcode = row.orgcode || ''  // 保存配置的组织机构代码
     scoreForm.expertName = ''
     scoreForm.expertPhone = ''
 
@@ -1168,6 +1170,7 @@ const submitScore = async () => {
     // 构建打分记录
     const scores = scoreForm.scores.map(item => ({
       configId: scoreForm.configId,
+      orgcode: scoreForm.orgcode,  // 包含组织机构代码
       indicatorCode: item.indicatorCode,
       weight: item.weight,
       expertName: scoreForm.expertName,

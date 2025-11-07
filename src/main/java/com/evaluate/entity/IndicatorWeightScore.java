@@ -36,6 +36,12 @@ public class IndicatorWeightScore implements Serializable {
     private Long configId;
 
     /**
+     * 组织机构编码（行政区划代码）
+     */
+    @TableField("orgcode")
+    private String orgcode;
+
+    /**
      * 指标代码
      */
     @TableField("indicator_code")
