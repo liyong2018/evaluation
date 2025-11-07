@@ -56,6 +56,10 @@ public interface IndicatorWeightScoreMapper extends BaseMapper<IndicatorWeightSc
      * @param configId 配置ID
      * @return 专家列表
      */
-    @Select("SELECT DISTINCT expert_name, expert_phone FROM indicator_weight_score WHERE config_id = #{configId} ORDER BY create_time DESC")
+    @Select("SELECT expert_name, expert_phone, MAX(create_time) as create_time " +
+            "FROM indicator_weight_score " +
+            "WHERE config_id = #{configId} " +
+            "GROUP BY expert_name, expert_phone " +
+            "ORDER BY create_time DESC")
     List<Map<String, Object>> selectExpertsByConfigId(@Param("configId") Long configId);
 }
