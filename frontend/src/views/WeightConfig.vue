@@ -91,16 +91,8 @@
               >
                 <el-table-column prop="id" label="ID" width="80" />
                 <el-table-column prop="configName" label="配置名称" width="200" />
-                <el-table-column prop="orgcode" label="组织机构" width="150">
-                  <template #default="{ row }">
-                    <el-tag v-if="row.orgcode" type="info" size="small">
-                      {{ row.orgcode }}
-                    </el-tag>
-                    <span v-else style="color: #c0c4cc">-</span>
-                  </template>
-                </el-table-column>
                 <el-table-column prop="description" label="描述" />
-                <el-table-column label="状态" width="120">
+                <el-table-column label="状态" width="70">
                   <template #default="{ row }">
                     <el-tag type="success">
                       激活
@@ -1884,7 +1876,7 @@ onMounted(() => {
 
 /* ========== Optimized tree visuals (overrides) ========== */
 :deep(.weight-tree .tree-container) {
-  padding: 16px;
+  padding: 8px;
   border: 1px solid #eef2f7;
   border-radius: 10px;
 }
@@ -1894,37 +1886,37 @@ onMounted(() => {
 }
 
 :deep(.weight-tree .node-content) {
-  padding: 10px 12px;
+  padding: 6px 8px;
   border-radius: 10px;
   border-color: #e6edf5;
-  margin: 8px 0;
+  margin: 3px 0;
   background: #fff;
-  min-height: 44px;
-  line-height: 1.4;
+  min-height: 30px;
+  line-height: 1.15;
 }
 
 /* Add vertical rhythm between siblings explicitly */
 :deep(.weight-tree .el-tree-node) {
-  margin: 8px 0;
+  margin: 1px 0;
 }
 
 :deep(.weight-tree .el-tree-node > .el-tree-node__children > .el-tree-node) {
-  margin: 10px 0;
+  margin: 3px 0;
 }
 
 :deep(.weight-tree .el-tree-node > .el-tree-node__children > .el-tree-node:not(:last-child) .node-content) {
-  margin-bottom: 18px;
+  margin-bottom: 4px;
 }
 
 /* Ensure wrapper content gives vertical space */
 :deep(.weight-tree .el-tree-node__content) {
   height: auto !important;
-  padding: 8px 0 !important;
+  padding: 2px 0 !important;
 }
 
 /* Nudge expand icon so rows feel taller */
 :deep(.weight-tree .el-tree-node__expand-icon) {
-  margin-top: 6px;
+  margin-top: 2px;
 }
 
 :deep(.weight-tree .node-content:hover) {
@@ -1958,26 +1950,39 @@ onMounted(() => {
 /* Indentation + subtle connectors per level */
 :deep(.weight-tree .el-tree-node__children > .el-tree-node .node-content) {
   margin-left: 28px;
-  margin-top: 14px;
-  margin-bottom: 14px;
+  margin-top: 4px;
+  margin-bottom: 4px;
   border-left: 2px solid #409eff;
   background: linear-gradient(135deg, #f7fbff 0%, #ffffff 100%);
 }
 
 :deep(.weight-tree .el-tree-node__children .el-tree-node__children > .el-tree-node .node-content) {
   margin-left: 56px;
-  margin-top: 12px;
-  margin-bottom: 12px;
+  margin-top: 4px;
+  margin-bottom: 4px;
   border-left-color: #67c23a;
   background: linear-gradient(135deg, #f6fff8 0%, #ffffff 100%);
 }
 
 :deep(.weight-tree .el-tree-node__children .el-tree-node__children .el-tree-node__children > .el-tree-node .node-content) {
   margin-left: 84px;
-  margin-top: 12px;
-  margin-bottom: 12px;
+  margin-top: 4px;
+  margin-bottom: 4px;
   border-left-color: #f56c6c;
   background: linear-gradient(135deg, #fff6f6 0%, #ffffff 100%);
+}
+
+/* Slightly tighter gaps and inputs */
+:deep(.weight-tree .node-info) {
+  gap: 10px;
+}
+
+:deep(.weight-tree .node-weight) {
+  margin: 0 8px;
+}
+
+:deep(.weight-tree .weight-input) {
+  width: 92px;
 }
 
 @media (max-width: 1200px) {

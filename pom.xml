@@ -37,7 +37,7 @@
     </repositories>
 
     <dependencyManagement>
-        <dependencies>
+  <dependencies>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
@@ -68,11 +68,18 @@
             <version>${mybatis-plus.version}</version>
         </dependency>
 
-        <!-- MySQL Driver -->
+        <!-- MySQL Driver (保留用于迁移) -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
             <version>${mysql.version}</version>
+        </dependency>
+
+        <!-- PostgreSQL Driver for Supabase -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.3</version>
         </dependency>
 
         <!-- Apache POI for Excel processing -->
@@ -188,3 +195,14 @@
         </plugins>
     </build>
 </project>
+    <!-- Apache POI for Word (.docx) processing -->
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>5.2.5</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-collections4</artifactId>
+      <version>4.4</version>
+    </dependency>
