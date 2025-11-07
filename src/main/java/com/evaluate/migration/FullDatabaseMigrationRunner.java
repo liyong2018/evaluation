@@ -97,8 +97,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
 
     private void createAllTables(Connection pg) throws SQLException {
         // 1. organization 表
-        exec(pg, "DROP TABLE IF EXISTS public.organization CASCADE;" +
-                "CREATE TABLE public.organization (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.organization (" +
                 " id bigserial PRIMARY KEY," +
                 " parent_id bigint," +
                 " code varchar(32) UNIQUE NOT NULL," +
@@ -116,8 +115,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 ")");
 
         // 2. evaluation_model 表
-        exec(pg, "DROP TABLE IF EXISTS public.evaluation_model CASCADE;" +
-                "CREATE TABLE public.evaluation_model (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.evaluation_model (" +
                 " id bigserial PRIMARY KEY," +
                 " model_name varchar(100) NOT NULL," +
                 " model_code varchar(50) UNIQUE NOT NULL," +
@@ -132,8 +130,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 ")");
 
         // 3. algorithm_config 表
-        exec(pg, "DROP TABLE IF EXISTS public.algorithm_config CASCADE;" +
-                "CREATE TABLE public.algorithm_config (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.algorithm_config (" +
                 " id bigserial PRIMARY KEY," +
                 " config_name varchar(100) NOT NULL," +
                 " description varchar(255)," +
@@ -143,8 +140,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 ")");
 
         // 4. weight_config 表
-        exec(pg, "DROP TABLE IF EXISTS public.weight_config CASCADE;" +
-                "CREATE TABLE public.weight_config (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.weight_config (" +
                 " id bigserial PRIMARY KEY," +
                 " config_name varchar(100) NOT NULL," +
                 " description varchar(255)," +
@@ -156,8 +152,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 ")");
 
         // 5. indicator_weight 表
-        exec(pg, "DROP TABLE IF EXISTS public.indicator_weight CASCADE;" +
-                "CREATE TABLE public.indicator_weight (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.indicator_weight (" +
                 " id bigserial PRIMARY KEY," +
                 " config_id bigint NOT NULL," +
                 " indicator_code varchar(50) NOT NULL," +
@@ -170,8 +165,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 ")");
 
         // 6. survey_data 表
-        exec(pg, "DROP TABLE IF EXISTS public.survey_data CASCADE;" +
-                "CREATE TABLE public.survey_data (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.survey_data (" +
                 " id bigserial PRIMARY KEY," +
                 " region_code varchar(20) NOT NULL," +
                 " province varchar(50) NOT NULL," +
@@ -196,8 +190,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 ")");
 
         // 7. community_disaster_reduction_capacity 表
-        exec(pg, "DROP TABLE IF EXISTS public.community_disaster_reduction_capacity CASCADE;" +
-                "CREATE TABLE public.community_disaster_reduction_capacity (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.community_disaster_reduction_capacity (" +
                 " id bigserial PRIMARY KEY," +
                 " region_code varchar(50) NOT NULL," +
                 " province_name varchar(100)," +
@@ -219,9 +212,8 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " update_time timestamptz" +
                 ")");
 
-        // 8. model_step 表 - 关键修正: 包含缺失字段
-        exec(pg, "DROP TABLE IF EXISTS public.model_step CASCADE;" +
-                "CREATE TABLE public.model_step (" +
+        // 8. model_step 表
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.model_step (" +
                 " id bigserial PRIMARY KEY," +
                 " model_id bigint NOT NULL," +
                 " step_name varchar(100) NOT NULL," +
@@ -237,8 +229,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 ")");
 
         // 9. algorithm_step 表
-        exec(pg, "DROP TABLE IF EXISTS public.algorithm_step CASCADE;" +
-                "CREATE TABLE public.algorithm_step (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.algorithm_step (" +
                 " id bigint PRIMARY KEY," +
                 " algorithm_config_id bigint NOT NULL," +
                 " step_name varchar(100) NOT NULL," +
@@ -252,8 +243,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 ")");
 
         // 10. step_algorithm 表
-        exec(pg, "DROP TABLE IF EXISTS public.step_algorithm CASCADE;" +
-                "CREATE TABLE public.step_algorithm (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.step_algorithm (" +
                 " id bigserial PRIMARY KEY," +
                 " step_id bigint NOT NULL," +
                 " algorithm_name varchar(100) NOT NULL," +
@@ -268,8 +258,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 ")");
 
         // 11. step_execution_result 表
-        exec(pg, "DROP TABLE IF EXISTS public.step_execution_result CASCADE;" +
-                "CREATE TABLE public.step_execution_result (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.step_execution_result (" +
                 " id bigserial PRIMARY KEY," +
                 " execution_record_id bigint NOT NULL," +
                 " step_id bigint NOT NULL," +
@@ -283,8 +272,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 ")");
 
         // 12. report 表
-        exec(pg, "DROP TABLE IF EXISTS public.report CASCADE;" +
-                "CREATE TABLE public.report (" +
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.report (" +
                 " id bigserial PRIMARY KEY," +
                 " primary_result_id bigint NOT NULL," +
                 " report_name varchar(100) NOT NULL," +
@@ -294,9 +282,8 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " generate_time timestamptz DEFAULT now()" +
                 ")");
 
-        // 13. evaluation_result 表 (已存在，但确保结构正确)
-        exec(pg, "DROP TABLE IF EXISTS public.evaluation_result CASCADE;" +
-                "CREATE TABLE public.evaluation_result (" +
+        // 13. evaluation_result 表
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.evaluation_result (" +
                 " id bigserial PRIMARY KEY," +
                 " region_code text NOT NULL," +
                 " region_name text," +
@@ -319,9 +306,8 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " is_deleted integer DEFAULT 0" +
                 ")");
 
-        // 14. model_execution_record 表 (已存在，但确保结构正确)
-        exec(pg, "DROP TABLE IF EXISTS public.model_execution_record CASCADE;" +
-                "CREATE TABLE public.model_execution_record (" +
+        // 14. model_execution_record 表
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.model_execution_record (" +
                 " id bigserial PRIMARY KEY," +
                 " model_id bigint," +
                 " execution_code text UNIQUE," +
@@ -339,13 +325,25 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " year integer" +
                 ")");
 
+        // 15. indicator_weight_score 表
+        exec(pg, "CREATE TABLE IF NOT EXISTS public.indicator_weight_score (" +
+                " id bigserial PRIMARY KEY," +
+                " config_id bigint NOT NULL," +
+                " orgcode varchar(32)," +
+                " indicator_code varchar(50) NOT NULL," +
+                " weight double precision NOT NULL," +
+                " expert_name varchar(100) NOT NULL," +
+                " expert_phone varchar(20)," +
+                " create_time timestamptz DEFAULT now()" +
+                ")");
+
         pg.commit();
         log.info("所有表创建完成");
     }
 
     private void truncateAllTables(Connection pg) throws SQLException {
         String[] tables = {
-            "evaluation_result", "model_execution_record", "organization", "evaluation_model",
+            "evaluation_result", "model_execution_record", "indicator_weight_score", "organization", "evaluation_model",
             "algorithm_config", "weight_config", "indicator_weight", "survey_data",
             "community_disaster_reduction_capacity", "model_step", "algorithm_step",
             "step_algorithm", "step_execution_result", "report"
@@ -365,6 +363,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
         migrationCounts.put("algorithm_config", migrateAlgorithmConfig(mysql, pg));
         migrationCounts.put("weight_config", migrateWeightConfig(mysql, pg));
         migrationCounts.put("indicator_weight", migrateIndicatorWeight(mysql, pg));
+        migrationCounts.put("indicator_weight_score", migrateIndicatorWeightScore(mysql, pg));
         migrationCounts.put("survey_data", migrateSurveyData(mysql, pg));
         migrationCounts.put("community_disaster_reduction_capacity", migrateCommunityCapacity(mysql, pg));
         migrationCounts.put("model_step", migrateModelStep(mysql, pg));
@@ -412,6 +411,13 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
         return migrateTable(mysql, pg, "indicator_weight",
             "id, config_id, indicator_code, indicator_name, indicator_level, weight, parent_id, sort_order, create_time",
             "?, ?, ?, ?, ?, ?, ?, ?, ?");
+    }
+
+    private long migrateIndicatorWeightScore(Connection mysql, Connection pg) throws SQLException {
+        log.info("迁移 indicator_weight_score 表...");
+        return migrateTable(mysql, pg, "indicator_weight_score",
+            "id, config_id, orgcode, indicator_code, weight, expert_name, expert_phone, create_time",
+            "?, ?, ?, ?, ?, ?, ?, ?");
     }
 
     private long migrateSurveyData(Connection mysql, Connection pg) throws SQLException {
@@ -535,7 +541,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
     private void alignAllSequences(Connection pg) throws SQLException {
         String[] tables = {
             "organization", "evaluation_model", "algorithm_config", "weight_config",
-            "indicator_weight", "survey_data", "community_disaster_reduction_capacity",
+            "indicator_weight", "indicator_weight_score", "survey_data", "community_disaster_reduction_capacity",
             "model_step", "step_algorithm", "step_execution_result", "report",
             "evaluation_result", "model_execution_record"
         };
