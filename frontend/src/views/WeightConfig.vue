@@ -494,75 +494,108 @@
     <el-dialog
       v-model="dialogVisible.statistics"
       :title="`打分统计详情 - ${currentScoreConfig?.configName || ''}`"
-      width="1000px"
+      width="1200px"
       :close-on-click-modal="false"
     >
-      <div v-if="statisticsData" class="statistics-content">
-        <!-- 总体统计 -->
-        <el-card class="summary-card" shadow="never">
+      <div v-if="statisticsData" class="statistics-content-new">
+        <!-- 顶部：平均分表格 -->
+        <el-card class="average-table-card" shadow="never">
           <template #header>
-            <span>总体统计</span>
+            <div class="card-header-flex">
+              <span>各指标平均权重</span>
+              <el-tag type="success" size="small">
+                参与专家: {{ statisticsData.experts?.length || 0 }} 人
+              </el-tag>
+            </div>
           </template>
-          <el-descriptions :column="3" border>
-            <el-descriptions-item label="总打分记录数">
-              {{ statisticsData.totalScores }}
-            </el-descriptions-item>
-            <el-descriptions-item label="参与专家数">
-              {{ statisticsData.experts?.length || 0 }}
-            </el-descriptions-item>
-            <el-descriptions-item label="指标数">
-              {{ statisticsData.indicatorStats?.length || 0 }}
-            </el-descriptions-item>
-          </el-descriptions>
-        </el-card>
-
-        <!-- 专家列表 -->
-        <el-card class="experts-card" shadow="never">
-          <template #header>
-            <span>参与专家</span>
-          </template>
-          <el-tag
-            v-for="(expert, index) in statisticsData.experts"
-            :key="index"
-            type="info"
-            style="margin-right: 10px; margin-bottom: 10px"
-          >
-            {{ expert.expert_name }}
-            <span v-if="expert.expert_phone"> ({{ expert.expert_phone }})</span>
-          </el-tag>
-        </el-card>
-
-        <!-- 各指标统计详情 -->
-        <el-card class="indicators-card" shadow="never">
-          <template #header>
-            <span>各指标打分详情</span>
-          </template>
-          <el-collapse>
-            <el-collapse-item
-              v-for="(stat, index) in statisticsData.indicatorStats"
-              :key="index"
-              :name="stat.indicatorCode"
-            >
-              <template #title>
-                <div class="indicator-title">
-                  <el-tag size="small">{{ stat.indicatorCode }}</el-tag>
-                  <span style="margin-left: 10px">平均权重: <strong>{{ stat.avgWeight.toFixed(3) }}</strong></span>
-                  <span style="margin-left: 10px; color: #909399">打分人数: {{ stat.scoreCount }}</span>
+          <el-table :data="averageScoreTableData" border stripe>
+            <el-table-column label="一级指标" width="200">
+              <template #default="{ row }">
+                <div class="level1-cell">
+                  <el-tag type="primary" size="small">{{ row.level1Code }}</el-tag>
+                  <span class="indicator-name">{{ row.level1Name }}</span>
                 </div>
               </template>
-              <el-table :data="stat.expertScores" border>
-                <el-table-column prop="expertName" label="专家姓名" width="150" />
-                <el-table-column prop="expertPhone" label="联系电话" width="150" />
-                <el-table-column prop="weight" label="权重值" width="150">
-                  <template #default="{ row }">
-                    {{ row.weight.toFixed(3) }}
-                  </template>
-                </el-table-column>
-                <el-table-column prop="createTime" label="打分时间" />
-              </el-table>
-            </el-collapse-item>
-          </el-collapse>
+            </el-table-column>
+            <el-table-column label="平均权重" width="120" align="center">
+              <template #default="{ row }">
+                <span class="weight-value">{{ row.level1Avg?.toFixed(3) || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="二级指标">
+              <template #default="{ row }">
+                <div v-if="row.children.length > 0" class="level2-list">
+                  <div
+                    v-for="(child, idx) in row.children"
+                    :key="idx"
+                    class="level2-item"
+                  >
+                    <el-tag size="small" type="success">{{ child.indicatorCode }}</el-tag>
+                    <span class="indicator-name">{{ child.indicatorName }}</span>
+                    <span class="weight-badge">{{ child.avgWeight.toFixed(3) }}</span>
+                    <span class="score-count">({{ child.scoreCount }}人)</span>
+                  </div>
+                </div>
+                <span v-else style="color: #909399">无二级指标</span>
+              </template>
+            </el-table-column>
+          </el-table>
         </el-card>
+
+        <!-- 底部：左右布局 -->
+        <div class="bottom-layout">
+          <!-- 左侧：专家列表 -->
+          <el-card class="experts-list-card" shadow="never">
+            <template #header>
+              <span>参与专家</span>
+            </template>
+            <el-scrollbar height="400px">
+              <div
+                v-for="(expert, index) in statisticsData.experts"
+                :key="index"
+                class="expert-item"
+                :class="{ active: selectedExpert?.expert_name === expert.expert_name }"
+                @click="selectExpert(expert)"
+              >
+                <div class="expert-info">
+                  <el-icon class="expert-icon"><User /></el-icon>
+                  <div class="expert-details">
+                    <div class="expert-name">{{ expert.expert_name }}</div>
+                    <div class="expert-phone">{{ expert.expert_phone || '未填写电话' }}</div>
+                  </div>
+                </div>
+                <el-icon v-if="selectedExpert?.expert_name === expert.expert_name" class="check-icon">
+                  <Check />
+                </el-icon>
+              </div>
+            </el-scrollbar>
+          </el-card>
+
+          <!-- 右侧：选中专家的打分详情 -->
+          <el-card class="expert-score-card" shadow="never">
+            <template #header>
+              <span v-if="selectedExpert">
+                {{ selectedExpert.expert_name }} 的打分详情
+              </span>
+              <span v-else style="color: #909399">请选择左侧专家查看打分详情</span>
+            </template>
+            <div v-if="selectedExpert" class="expert-score-content">
+              <el-scrollbar height="400px">
+                <div v-for="item in selectedExpertScoreTree" :key="item.indicatorCode" class="score-item">
+                  <div class="score-item-header">
+                    <el-tag size="small">{{ item.indicatorCode }}</el-tag>
+                    <span class="indicator-name">{{ item.indicatorName }}</span>
+                  </div>
+                  <div class="score-item-value">
+                    <span class="weight-label">权重值:</span>
+                    <span class="weight-value-large">{{ item.weight.toFixed(3) }}</span>
+                  </div>
+                </div>
+              </el-scrollbar>
+            </div>
+            <el-empty v-else description="请选择左侧专家" :image-size="100" />
+          </el-card>
+        </div>
       </div>
 
       <template #footer>
@@ -590,7 +623,8 @@ import {
   Check,
   DocumentAdd,
   DataLine,
-  View
+  View,
+  User
 } from '@element-plus/icons-vue'
 import { weightConfigApi, indicatorWeightApi, organizationApi, indicatorWeightScoreApi } from '@/api'
 
@@ -660,6 +694,7 @@ const scoreForm = reactive({
 // 统计信息数据
 const statisticsData = ref<any>(null)
 const currentScoreConfig = ref<any>(null)  // 当前正在打分/查看的配置
+const selectedExpert = ref<any>(null)  // 选中的专家
 
 const configRules = {
   configName: [{ required: true, message: '请输入配置名称', trigger: 'blur' }],
@@ -676,6 +711,73 @@ const weightRules = {
 // 计算属性
 const activeConfigs = computed(() => {
   return configList.value // 暂时返回所有配置，因为后端没有isActive字段
+})
+
+// 构建平均分表格数据（支持一级指标表头合并）
+const averageScoreTableData = computed(() => {
+  if (!statisticsData.value?.indicatorStats) return []
+
+  const stats = statisticsData.value.indicatorStats
+  const level1Map = new Map()
+
+  // 按一级指标分组
+  stats.forEach((stat: any) => {
+    // 假设指标代码格式：A, A1, A2, B, B1, B2...
+    const level1Code = stat.indicatorCode.match(/^[A-Z]+/)?.[0] || stat.indicatorCode
+
+    if (!level1Map.has(level1Code)) {
+      level1Map.set(level1Code, {
+        level1Code,
+        level1Name: '',
+        level1Avg: 0,
+        children: []
+      })
+    }
+
+    const group = level1Map.get(level1Code)
+
+    if (stat.indicatorCode === level1Code) {
+      // 一级指标
+      group.level1Name = stat.indicatorName
+      group.level1Avg = stat.avgWeight
+    } else {
+      // 二级指标
+      group.children.push({
+        indicatorCode: stat.indicatorCode,
+        indicatorName: stat.indicatorName,
+        avgWeight: stat.avgWeight,
+        scoreCount: stat.scoreCount
+      })
+    }
+  })
+
+  return Array.from(level1Map.values())
+})
+
+// 构建选中专家的打分树形数据
+const selectedExpertScoreTree = computed(() => {
+  if (!selectedExpert.value || !statisticsData.value) return []
+
+  const expertName = selectedExpert.value.expert_name
+  const allStats = statisticsData.value.indicatorStats || []
+
+  // 获取该专家的所有打分
+  const expertScores: any[] = []
+  allStats.forEach((stat: any) => {
+    const expertScore = stat.expertScores?.find((s: any) => s.expertName === expertName)
+    if (expertScore) {
+      expertScores.push({
+        id: stat.indicatorCode,
+        indicatorCode: stat.indicatorCode,
+        indicatorName: stat.indicatorName,
+        weight: expertScore.weight,
+        createTime: expertScore.createTime
+      })
+    }
+  })
+
+  // 构建树形结构（简单处理，可以根据实际情况优化）
+  return expertScores
 })
 
 // 构建树形数据
@@ -1196,6 +1298,7 @@ const submitScore = async () => {
 const openStatisticsDialog = async (row: any) => {
   try {
     currentScoreConfig.value = row
+    selectedExpert.value = null  // 清空选中的专家
     loading.submit = true
 
     // 获取打分统计信息
@@ -1212,6 +1315,12 @@ const openStatisticsDialog = async (row: any) => {
   } finally {
     loading.submit = false
   }
+}
+
+// 选择专家
+const selectExpert = (expert: any) => {
+  selectedExpert.value = expert
+  console.log('选中专家:', expert)
 }
 
 // 应用平均权重到正式配置
@@ -2033,36 +2142,214 @@ onMounted(() => {
   }
 }
 
-/* ========== 统计详情对话框样式 ========== */
-.statistics-content {
+/* ========== 统计详情对话框样式（新版） ========== */
+.statistics-content-new {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-height: 600px;
-  overflow-y: auto;
+  gap: 20px;
 }
 
-.summary-card,
-.experts-card,
-.indicators-card {
+/* 顶部平均分表格 */
+.average-table-card {
   margin-bottom: 0;
 }
 
-.indicator-title {
+.card-header-flex {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   width: 100%;
 }
 
+.level1-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.level1-cell .indicator-name {
+  font-weight: 600;
+  color: #303133;
+}
+
+.weight-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #409eff;
+}
+
+.level2-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.level2-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+.level2-item:hover {
+  background: #e8eef5;
+}
+
+.level2-item .indicator-name {
+  flex: 1;
+  font-size: 14px;
+  color: #606266;
+}
+
+.weight-badge {
+  font-weight: 600;
+  color: #67c23a;
+  background: rgba(103, 194, 58, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.score-count {
+  font-size: 12px;
+  color: #909399;
+}
+
+/* 底部左右布局 */
+.bottom-layout {
+  display: flex;
+  gap: 16px;
+  height: 500px;
+}
+
+/* 左侧专家列表 */
+.experts-list-card {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.expert-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border: 1px solid #e8eef5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: white;
+}
+
+.expert-item:hover {
+  border-color: #409eff;
+  background: #f0f9ff;
+  transform: translateX(4px);
+}
+
+.expert-item.active {
+  border-color: #409eff;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e8f4ff 100%);
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+}
+
+.expert-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.expert-icon {
+  font-size: 24px;
+  color: #409eff;
+}
+
+.expert-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expert-name {
+  font-weight: 600;
+  color: #303133;
+  font-size: 14px;
+}
+
+.expert-phone {
+  font-size: 12px;
+  color: #909399;
+}
+
+.check-icon {
+  font-size: 20px;
+  color: #67c23a;
+}
+
+/* 右侧专家打分详情 */
+.expert-score-card {
+  flex: 1;
+}
+
+.expert-score-content {
+  padding: 12px;
+}
+
+.score-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border: 1px solid #e8eef5;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+  transition: all 0.3s;
+}
+
+.score-item:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
+}
+
+.score-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.score-item-header .indicator-name {
+  font-weight: 500;
+  color: #303133;
+}
+
+.score-item-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weight-label {
+  font-size: 12px;
+  color: #909399;
+}
+
+.weight-value-large {
+  font-size: 18px;
+  font-weight: 700;
+  color: #409eff;
+}
+
 /* 对话框内的卡片样式调整 */
-:deep(.el-card__header) {
+:deep(.statistics-content-new .el-card__header) {
   background: #f5f7fa;
   padding: 12px 20px;
   font-weight: 600;
-}
-
-:deep(.el-collapse-item__header) {
-  padding: 12px 16px;
-  background: #fafbfc;
 }
 </style>
