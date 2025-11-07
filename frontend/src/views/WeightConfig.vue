@@ -1259,17 +1259,32 @@ const scoreTreeData = computed(() => {
     nodeMap.set(item.id, item)
   })
 
+  console.log('打分数据总数:', scoreForm.scores.length)
+  console.log('所有节点ID映射:', Array.from(nodeMap.keys()))
+
   // 第二步：建立父子关系
   scoreForm.scores.forEach(item => {
-    if (item.parentId && nodeMap.has(item.parentId)) {
-      // 有父节点，添加到父节点的 children 中
-      const parentNode = nodeMap.get(item.parentId)
-      parentNode.children.push(item)
+    // 使用 !== null && !== undefined 来判断是否有父节点，避免 parentId 为 0 时被误判
+    if (item.parentId !== null && item.parentId !== undefined) {
+      if (nodeMap.has(item.parentId)) {
+        // 有父节点，添加到父节点的 children 中
+        const parentNode = nodeMap.get(item.parentId)
+        parentNode.children.push(item)
+        console.log(`节点 ${item.indicatorCode} (id=${item.id}) 作为子节点添加到父节点 (parentId=${item.parentId})`)
+      } else {
+        // 父节点不存在，作为根节点
+        rootNodes.push(item)
+        console.warn(`节点 ${item.indicatorCode} (id=${item.id}) 的父节点不存在 (parentId=${item.parentId})，作为根节点`)
+      }
     } else {
-      // 没有父节点或父节点不存在，作为根节点
+      // 没有父节点，作为根节点
       rootNodes.push(item)
+      console.log(`节点 ${item.indicatorCode} (id=${item.id}) 没有父节点，作为根节点`)
     }
   })
+
+  console.log('根节点数量:', rootNodes.length)
+  console.log('根节点列表:', rootNodes.map(n => `${n.indicatorCode}(id=${n.id})`))
 
   return rootNodes
 })
