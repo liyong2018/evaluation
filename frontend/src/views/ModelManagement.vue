@@ -279,6 +279,15 @@
                   <el-button @click="insertOperator(' ) ')">)</el-button>
                 </el-button-group>
 
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click="showWeightSelectorDialog"
+                >
+                  <el-icon><Grid /></el-icon>
+                  选择权重
+                </el-button>
+
                 <el-divider direction="vertical" />
                 <span class="toolbar-label">高级函数：</span>
                 <el-select
@@ -379,13 +388,117 @@
         <el-button type="primary" @click="saveAlgorithm" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 权重选择对话框 -->
+    <el-dialog
+      v-model="weightSelectorDialogVisible"
+      title="选择权重"
+      width="1200px"
+      :close-on-click-modal="false"
+    >
+      <div class="weight-selector-container">
+        <!-- 左侧：组织机构树 -->
+        <el-card class="org-tree-card" shadow="never">
+          <template #header>
+            <span>组织机构</span>
+          </template>
+          <el-tree
+            ref="weightOrgTreeRef"
+            v-loading="loadingWeightOrgs"
+            :data="weightOrganizationList"
+            :props="{ label: 'name', children: 'children' }"
+            node-key="code"
+            highlight-current
+            :expand-on-click-node="false"
+            default-expand-all
+            @node-click="handleWeightOrgNodeClick"
+          >
+            <template #default="{ node, data }">
+              <div class="org-tree-node">
+                <span class="org-name">{{ data.name }}</span>
+                <span class="org-code">{{ data.code }}</span>
+              </div>
+            </template>
+          </el-tree>
+        </el-card>
+
+        <!-- 右侧：权重值树 -->
+        <el-card class="weight-tree-card" shadow="never">
+          <template #header>
+            <div class="weight-tree-header">
+              <span>权重配置</span>
+              <el-tag v-if="selectedWeightOrg" type="primary" size="small">
+                {{ selectedWeightOrg.name }}
+              </el-tag>
+            </div>
+          </template>
+          <div v-if="selectedWeightOrg" v-loading="loadingWeightData" class="weight-tree-content">
+            <el-empty v-if="!weightConfigs.length" description="该组织机构暂无权重配置" />
+            <div v-else>
+              <!-- 权重配置选择 -->
+              <el-select
+                v-model="selectedWeightConfigId"
+                placeholder="请选择权重配置"
+                style="width: 100%; margin-bottom: 16px"
+                @change="loadWeightValues"
+              >
+                <el-option
+                  v-for="config in weightConfigs"
+                  :key="config.id"
+                  :label="config.configName"
+                  :value="config.id"
+                >
+                  <div style="display: flex; justify-content: space-between">
+                    <span>{{ config.configName }}</span>
+                    <el-tag size="small" type="info">{{ config.description }}</el-tag>
+                  </div>
+                </el-option>
+              </el-select>
+
+              <!-- 权重值树形结构 -->
+              <el-tree
+                v-if="weightTreeData.length"
+                :data="weightTreeData"
+                node-key="id"
+                default-expand-all
+                :expand-on-click-node="false"
+                class="weight-values-tree"
+              >
+                <template #default="{ node, data }">
+                  <div class="weight-tree-node" @click="selectWeightValue(data)">
+                    <div class="weight-node-info">
+                      <el-tag :type="data.indicatorLevel === 1 ? 'primary' : 'success'" size="small">
+                        {{ data.indicatorCode }}
+                      </el-tag>
+                      <span class="indicator-name">{{ data.indicatorName }}</span>
+                    </div>
+                    <div class="weight-value-display">
+                      <span class="weight-label">权重:</span>
+                      <span class="weight-number">{{ data.weight.toFixed(3) }}</span>
+                      <el-button
+                        type="primary"
+                        size="small"
+                        @click.stop="selectWeightValue(data)"
+                      >
+                        选择
+                      </el-button>
+                    </div>
+                  </div>
+                </template>
+              </el-tree>
+            </div>
+          </div>
+          <el-empty v-else description="请选择左侧组织机构" />
+        </el-card>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Check, QuestionFilled } from '@element-plus/icons-vue'
+import { Plus, Check, QuestionFilled, Grid } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 
 // 状态管理
@@ -400,6 +513,17 @@ const modelDialogVisible = ref(false)
 const detailDialogVisible = ref(false)
 const stepDialogVisible = ref(false)
 const algorithmDialogVisible = ref(false)
+const weightSelectorDialogVisible = ref(false)
+
+// 权重选择相关
+const weightOrganizationList = ref<any[]>([])
+const weightOrgTreeRef = ref()
+const selectedWeightOrg = ref<any>(null)
+const weightConfigs = ref<any[]>([])
+const selectedWeightConfigId = ref<number | null>(null)
+const weightTreeData = ref<any[]>([])
+const loadingWeightOrgs = ref(false)
+const loadingWeightData = ref(false)
 
 // 表单数据
 const modelDialogMode = ref<'create' | 'edit'>('create')
@@ -1041,6 +1165,134 @@ const getStepTypeColor = (type: string) => {
   return colors[type] || ''
 }
 
+// ========== 权重选择相关方法 ==========
+
+// 显示权重选择对话框
+const showWeightSelectorDialog = async () => {
+  weightSelectorDialogVisible.value = true
+  // 加载组织机构树
+  await loadWeightOrganizations()
+}
+
+// 加载组织机构列表
+const loadWeightOrganizations = async () => {
+  loadingWeightOrgs.value = true
+  try {
+    const response = await request.get('/api/organization/tree')
+    weightOrganizationList.value = response.data || []
+  } catch (error: any) {
+    ElMessage.error('加载组织机构失败: ' + (error.message || ''))
+  } finally {
+    loadingWeightOrgs.value = false
+  }
+}
+
+// 处理组织机构节点点击
+const handleWeightOrgNodeClick = async (data: any) => {
+  selectedWeightOrg.value = data
+  selectedWeightConfigId.value = null
+  weightTreeData.value = []
+
+  // 加载该组织机构的权重配置列表
+  await loadWeightConfigs(data.code)
+}
+
+// 加载权重配置列表（根据组织机构代码）
+const loadWeightConfigs = async (orgcode: string) => {
+  loadingWeightData.value = true
+  try {
+    const response = await request.get('/api/weight-config/list', {
+      params: { orgcode }
+    })
+    weightConfigs.value = response.data || []
+
+    // 如果只有一个配置，自动选中
+    if (weightConfigs.value.length === 1) {
+      selectedWeightConfigId.value = weightConfigs.value[0].id
+      await loadWeightValues()
+    }
+  } catch (error: any) {
+    ElMessage.error('加载权重配置失败: ' + (error.message || ''))
+  } finally {
+    loadingWeightData.value = false
+  }
+}
+
+// 加载权重值列表（根据配置ID）
+const loadWeightValues = async () => {
+  if (!selectedWeightConfigId.value) return
+
+  loadingWeightData.value = true
+  try {
+    const response = await request.get(`/api/indicator-weight/config/${selectedWeightConfigId.value}`)
+    const weights = response.data || []
+
+    // 构建树形结构
+    weightTreeData.value = buildWeightTree(weights)
+  } catch (error: any) {
+    ElMessage.error('加载权重值失败: ' + (error.message || ''))
+  } finally {
+    loadingWeightData.value = false
+  }
+}
+
+// 构建权重树形结构
+const buildWeightTree = (weights: any[]) => {
+  const nodeMap = new Map()
+  const roots: any[] = []
+
+  // 第一遍：创建所有节点
+  weights.forEach((item: any) => {
+    item.children = []
+    nodeMap.set(item.id, item)
+  })
+
+  // 第二遍：建立父子关系
+  weights.forEach((item: any) => {
+    if (item.parentId !== null && item.parentId !== undefined && nodeMap.has(item.parentId)) {
+      const parent = nodeMap.get(item.parentId)
+      parent.children.push(item)
+    } else {
+      // 一级指标（没有父节点）
+      roots.push(item)
+    }
+  })
+
+  return roots
+}
+
+// 选择权重值
+const selectWeightValue = async (data: any) => {
+  const weightValue = data.weight.toFixed(3)
+
+  // 插入到表达式文本框的光标位置
+  await nextTick()
+  const textarea = expressionInput.value?.$el?.querySelector('textarea')
+  if (!textarea) {
+    currentAlgorithm.value.qlExpression += weightValue
+  } else {
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const text = currentAlgorithm.value.qlExpression || ''
+
+    currentAlgorithm.value.qlExpression =
+      text.substring(0, start) +
+      weightValue +
+      text.substring(end)
+
+    // 重置光标位置
+    await nextTick()
+    const newPos = start + weightValue.length
+    textarea.setSelectionRange(newPos, newPos)
+    textarea.focus()
+  }
+
+  // 关闭对话框
+  weightSelectorDialogVisible.value = false
+
+  ElMessage.success(`已插入权重值: ${weightValue}`)
+}
+
 // 初始化
 onMounted(() => {
   loadModels()
@@ -1144,5 +1396,134 @@ onMounted(() => {
 
 :deep(.el-dialog__body) {
   padding-top: 10px;
+}
+
+/* ========== 权重选择对话框样式 ========== */
+.weight-selector-container {
+  display: flex;
+  gap: 16px;
+  height: 600px;
+}
+
+.org-tree-card {
+  flex: 0 0 300px;
+  overflow-y: auto;
+}
+
+.weight-tree-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.weight-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.weight-tree-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.org-tree-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 8px;
+}
+
+.org-name {
+  font-weight: 500;
+  color: #303133;
+}
+
+.org-code {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 8px;
+}
+
+.weight-values-tree {
+  margin-top: 8px;
+}
+
+.weight-tree-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e8eef5;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  margin: 8px 0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.weight-tree-node:hover {
+  border-color: #409eff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+  transform: translateX(2px);
+}
+
+.weight-node-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.indicator-name {
+  font-weight: 500;
+  color: #303133;
+  flex: 1;
+}
+
+.weight-value-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.weight-label {
+  font-size: 12px;
+  color: #606266;
+  font-weight: 600;
+}
+
+.weight-number {
+  font-size: 18px;
+  font-weight: 700;
+  color: #409eff;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  min-width: 70px;
+  text-align: right;
+}
+
+/* 子节点缩进样式 */
+.weight-values-tree :deep(.el-tree-node__children > .el-tree-node .weight-tree-node) {
+  margin-left: 24px;
+  border-left: 3px solid #409eff;
+  background: linear-gradient(135deg, #f7fbff 0%, #ffffff 100%);
+}
+
+.weight-values-tree :deep(.el-tree-node__content) {
+  height: auto !important;
+  padding: 6px 0 !important;
+}
+
+.weight-values-tree :deep(.el-tree-node__expand-icon) {
+  font-size: 14px;
+  color: #909399;
+  transition: all 0.3s ease;
+}
+
+.weight-values-tree :deep(.el-tree-node__expand-icon:hover) {
+  color: #409eff;
 }
 </style>
