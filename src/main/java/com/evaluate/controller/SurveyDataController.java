@@ -75,19 +75,16 @@ public class SurveyDataController {
     public Result<List<SurveyData>> searchSurveyData(
             @RequestParam(required = false) String surveyName,
             @RequestParam(required = false) String region,
-            @RequestParam(required = false) String year,
+            @RequestParam(required = false) Integer year,
             @RequestParam(required = false) String keyword) {
         try {
             List<SurveyData> list;
             if (keyword != null && !keyword.isEmpty()) {
                 // 支持按关键词模糊搜索多个字段
                 list = surveyDataService.searchByKeyword(keyword);
-            } else if (surveyName != null && !surveyName.isEmpty()) {
-                list = surveyDataService.getBySurveyName(surveyName);
-            } else if (region != null && !region.isEmpty()) {
-                list = surveyDataService.getBySurveyRegion(region);
             } else {
-                list = surveyDataService.list();
+                // 使用复合查询条件
+                list = surveyDataService.getByConditions(surveyName, region, year);
             }
             return Result.success(list);
         } catch (Exception e) {

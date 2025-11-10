@@ -22,7 +22,8 @@
       "Bash(xargs:*)",
       "Bash(findstr:*)",
       "Bash(wmic:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(mysql:*)"
     ],
     "deny": [],
     "ask": []

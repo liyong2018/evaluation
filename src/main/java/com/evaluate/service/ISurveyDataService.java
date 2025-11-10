@@ -96,11 +96,21 @@ public interface ISurveyDataService extends IService<SurveyData> {
 
     /**
      * 根据关键词模糊搜索调查数据
-     * 
+     *
      * @param keyword 搜索关键词
      * @return 调查数据列表
      */
     List<SurveyData> searchByKeyword(String keyword);
+
+    /**
+     * 根据复合条件查询调查数据
+     *
+     * @param surveyName 调查名称（可选）
+     * @param region 地区（可选）
+     * @param year 年份（可选）
+     * @return 调查数据列表
+     */
+    List<SurveyData> getByConditions(String surveyName, String region, Integer year);
 
     /**
      * 导出所有调查数据到Excel

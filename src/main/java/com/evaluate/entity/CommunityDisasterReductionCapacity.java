@@ -158,4 +158,168 @@ public class CommunityDisasterReductionCapacity implements Serializable {
      */
     @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
+
+    // ========== 新增字段 - 对应Excel导入结构 ==========
+
+    /**
+     * 唯一码
+     */
+    @TableField("unique_id")
+    private String uniqueId;
+
+    /**
+     * 核实状态
+     */
+    @TableField("verification_status")
+    private String verificationStatus;
+
+    /**
+     * 社区（行政村）地址
+     */
+    @TableField("community_address")
+    private String communityAddress;
+
+    /**
+     * 总户数（户）
+     */
+    @TableField("total_households")
+    private Integer totalHouseholds;
+
+    /**
+     * 0-14岁人数
+     */
+    @TableField("age_0_14_count")
+    private Integer age0To14Count;
+
+    /**
+     * 65岁（含）以上人数
+     */
+    @TableField("age_65_plus_count")
+    private Integer age65PlusCount;
+
+    /**
+     * 残障人员人数
+     */
+    @TableField("disabled_person_count")
+    private Integer disabledPersonCount;
+
+    /**
+     * 是否为全国综合减灾示范社区（是/否）
+     */
+    @TableField("is_national_demo_community")
+    private String isNationalDemoCommunity;
+
+    /**
+     * 是否为省级综合减灾示范社区（是/否）
+     */
+    @TableField("is_provincial_demo_community")
+    private String isProvincialDemoCommunity;
+
+    /**
+     * 灾害信息员人数（人）
+     */
+    @TableField("disaster_info_staff_count")
+    private Integer disasterInfoStaffCount;
+
+    /**
+     * 本级灾害应急避难场所数量（个或处）
+     */
+    @TableField("emergency_shelter_count")
+    private Integer emergencyShelterCount;
+
+    /**
+     * 防灾减灾应急物资储备方式（多选）
+     */
+    @TableField("material_storage_method")
+    private String materialStorageMethod;
+
+    /**
+     * 防灾减灾应急物资储备方式-其他项说明
+     */
+    @TableField("material_storage_method_other")
+    private String materialStorageMethodOther;
+
+    /**
+     * 灾害预警信息接收方式（多选）
+     */
+    @TableField("warning_receive_method")
+    private String warningReceiveMethod;
+
+    /**
+     * 灾害预警信息接收方式-其他项说明
+     */
+    @TableField("warning_receive_method_other")
+    private String warningReceiveMethodOther;
+
+    /**
+     * 灾害预警信息传达方式（多选）
+     */
+    @TableField("warning_communication_method")
+    private String warningCommunicationMethod;
+
+    /**
+     * 灾害预警信息传达方式-其他项说明
+     */
+    @TableField("warning_communication_method_other")
+    private String warningCommunicationMethodOther;
+
+    /**
+     * 灾情信息上报方式（多选）
+     */
+    @TableField("disaster_report_method")
+    private String disasterReportMethod;
+
+    /**
+     * 灾情信息上报方式-其他项说明
+     */
+    @TableField("disaster_report_method_other")
+    private String disasterReportMethodOther;
+
+    /**
+     * 上一年度组织的防灾减灾培训活动次数（次）
+     */
+    @TableField("last_year_training_count")
+    private Integer lastYearTrainingCount;
+
+    /**
+     * 上一年度组织的防灾减灾演练活动次数（次）
+     */
+    @TableField("last_year_drill_count")
+    private Integer lastYearDrillCount;
+
+    /**
+     * 单位负责人
+     */
+    @TableField("unit_leader")
+    private String unitLeader;
+
+    /**
+     * 统计负责人
+     */
+    @TableField("statistics_leader")
+    private String statisticsLeader;
+
+    /**
+     * 填表人
+     */
+    @TableField("form_filler")
+    private String formFiller;
+
+    /**
+     * 联系电话
+     */
+    @TableField("contact_phone")
+    private String contactPhone;
+
+    /**
+     * 报出日期（年/月/日）
+     */
+    @TableField("report_date")
+    private java.time.LocalDate reportDate;
+
+    /**
+     * 填写说明
+     */
+    @TableField("fill_instructions")
+    private String fillInstructions;
 }

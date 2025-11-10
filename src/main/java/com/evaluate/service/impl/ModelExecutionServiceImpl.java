@@ -206,7 +206,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 stepRegionCodes.addAll(regionResults.keySet());
             }
 
-            List<Map<String, Object>> stepTableData = generateStepResultTable(rawStepResult, stepRegionCodes);
+            List<Map<String, Object>> stepTableData = generateStepResultTable(rawStepResult, stepRegionCodes, year);
             List<Map<String, Object>> stepColumns = generateColumnsForStep(rawStepResult, stepTableData, step.getStepOrder());
 
             Map<String, Object> packagedStep = new LinkedHashMap<>();
@@ -1036,7 +1036,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             Map<String, Object> stepExecutionResult = executeAlgorithmStepInternal(targetStep, regionCodes, globalContext);
 
         // 5. 生成该步骤的2D表格数据
-        List<Map<String, Object>> tableData = generateStepResultTable(stepExecutionResult, regionCodes);
+        List<Map<String, Object>> tableData = generateStepResultTable(stepExecutionResult, regionCodes, year);
 
         // 生成 columns 数组（包含 stepOrder 信息）
         List<Map<String, Object>> columns = generateColumnsWithStepOrder(tableData, stepOrder);
@@ -1164,7 +1164,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 if (stepKey.startsWith("step_")) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
-                    List<Map<String, Object>> tableData = generateStepResultTable(stepResult, regionCodes);
+                    List<Map<String, Object>> tableData = generateStepResultTable(stepResult, regionCodes, year);
                     allTableData.put(stepKey, tableData);
                 }
             }
@@ -1343,7 +1343,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     /**
      * 为单个步骤生成2D表格数据
      */
-    private List<Map<String, Object>> generateStepResultTable(Map<String, Object> stepResult, List<String> regionCodes) {
+    private List<Map<String, Object>> generateStepResultTable(Map<String, Object> stepResult, List<String> regionCodes, Integer year) {
         List<Map<String, Object>> tableData = new ArrayList<>();
         
         @SuppressWarnings("unchecked")
@@ -1366,6 +1366,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             String regionName = regionCode;
             QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
             communityQuery.eq("region_code", regionCode);
+            if (year != null) {
+                communityQuery.eq("year", year);
+            } else {
+                communityQuery.orderByDesc("year");
+            }
+            communityQuery.orderByDesc("create_time");
+            communityQuery.last("LIMIT 1");
             CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
             if (communityData != null) {
                 if (communityData.getCommunityName() != null) {
@@ -1376,6 +1383,14 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             } else {
                 QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
                 surveyQuery.eq("region_code", regionCode);
+                surveyQuery.eq("is_deleted", 0);
+                if (year != null) {
+                    surveyQuery.eq("year", year);
+                } else {
+                    surveyQuery.orderByDesc("year");
+                }
+                surveyQuery.orderByDesc("create_time");
+                surveyQuery.last("LIMIT 1");
                 SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
                 if (surveyData != null && surveyData.getTownship() != null) {
                     regionName = surveyData.getTownship();
@@ -1703,7 +1718,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      */
     private Map<String, Object> executeTownshipAggregation(Long stepId, List<String> regionCodes, Map<String, Object> inputData) {
         log.info("开始执行乡镇聚合, stepId={}, regionCodes.size={}", stepId, regionCodes.size());
-        
+
+        // 提取年份数据
+        Integer year = (Integer) inputData.get("year");
+
         // 1. 获取步骤信息
         ModelStep step = modelStepMapper.selectById(stepId);
         if (step == null || step.getStatus() == 0) {
@@ -1729,6 +1747,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             // 获取社区的乡镇信息
             QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
             communityQuery.eq("region_code", regionCode);
+            if (year != null) {
+                communityQuery.eq("year", year);
+            } else {
+                communityQuery.orderByDesc("year");
+            }
+            communityQuery.orderByDesc("create_time");
+            communityQuery.last("LIMIT 1");
             CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
 
             if (communityData == null) {
@@ -2110,6 +2135,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
             QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
             communityQuery.eq("region_code", lookupRegionCode);
+            if (year != null) {
+                communityQuery.eq("year", year);
+            } else {
+                communityQuery.orderByDesc("year");
+            }
+            communityQuery.orderByDesc("create_time");
+            communityQuery.last("LIMIT 1");
             CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
 
             String townshipName = communityData != null ? communityData.getTownshipName() : null;
@@ -2126,7 +2158,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 } else {
                     storedRegionName = getTownshipNameByCommunityCode(firstCommunityCode);
                     if (isEmptyString(storedRegionName)) {
-                        storedRegionName = getRegionName(stepRegionCode);
+                        storedRegionName = getRegionName(stepRegionCode, year);
                     }
                 }
                 dataSource = "township";
@@ -2137,7 +2169,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 } else if (communityName != null && !communityName.isEmpty()) {
                     storedRegionName = communityName;
                 } else {
-                    storedRegionName = getRegionName(stepRegionCode);
+                    storedRegionName = getRegionName(stepRegionCode, year);
                 }
                 dataSource = "township";
             }
@@ -2229,7 +2261,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     /**
      * 获取地区名称
      */
-    private String getRegionName(String regionCode) {
+    private String getRegionName(String regionCode, Integer year) {
         // 检查是否是乡镇虚拟代码
         if (regionCode.startsWith("TOWNSHIP_")) {
             return regionCode.substring("TOWNSHIP_".length());
@@ -2238,6 +2270,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 尝试从community表获取
         QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
         communityQuery.eq("region_code", regionCode);
+        communityQuery.last("LIMIT 1");
         CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
         if (communityData != null) {
             if (communityData.getCommunityName() != null) {
@@ -2250,6 +2283,14 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 尝试从survey_data表获取
         QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
         surveyQuery.eq("region_code", regionCode);
+        surveyQuery.eq("is_deleted", 0);
+        if (year != null) {
+            surveyQuery.eq("year", year);
+        } else {
+            surveyQuery.orderByDesc("year");
+        }
+        surveyQuery.orderByDesc("create_time");
+        surveyQuery.last("LIMIT 1");
         SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
         if (surveyData != null && surveyData.getTownship() != null) {
             return surveyData.getTownship();

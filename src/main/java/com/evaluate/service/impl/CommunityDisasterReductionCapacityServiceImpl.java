@@ -20,6 +20,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -61,17 +63,13 @@ public class CommunityDisasterReductionCapacityServiceImpl
                 throw new RuntimeException("请上传Excel文件(.xlsx或.xls)");
             }
 
-            // 读取Excel文件
-            List<Map<String, Object>> dataList = readExcelData(file, errorMessages);
+            // 读取Excel文件（使用新的解析逻辑）
+            List<CommunityDisasterReductionCapacity> dataList = readExcelDataWithNewFormat(file, year, errorMessages);
             log.info("从Excel中读取到 {} 条数据", dataList.size());
 
             // 批量保存数据
-            for (Map<String, Object> data : dataList) {
+            for (CommunityDisasterReductionCapacity entity : dataList) {
                 try {
-                    CommunityDisasterReductionCapacity entity = convertToEntity(data);
-                    // 设置年份
-                    entity.setYear(year);
-
                     // 检查是否已存在相同的数据
                     CommunityDisasterReductionCapacity existing = getByRegionAndCommunity(
                             entity.getRegionCode(), entity.getCommunityName());
@@ -408,5 +406,405 @@ public class CommunityDisasterReductionCapacityServiceImpl
         String normalized = value.trim();
         return normalized.equals("是") || normalized.equalsIgnoreCase("yes") ||
                normalized.equals("1") || normalized.equalsIgnoreCase("true") ? "是" : "否";
+    }
+
+    /**
+     * 使用新格式读取Excel数据（跳过前两行表头）
+     */
+    private List<CommunityDisasterReductionCapacity> readExcelDataWithNewFormat(MultipartFile file, Integer year, List<String> errorMessages) throws Exception {
+        List<CommunityDisasterReductionCapacity> dataList = new ArrayList<>();
+
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(file.getInputStream())) {
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(0);
+
+            // 跳过前两行表头，从第三行开始读取数据
+            for (int i = 2; i <= sheet.getLastRowNum(); i++) {
+                org.apache.poi.ss.usermodel.Row row = sheet.getRow(i);
+                if (row == null) continue;
+
+                CommunityDisasterReductionCapacity data = parseRowToCommunityData(row);
+                if (data != null) {
+                    // 设置年份
+                    data.setYear(year);
+                    dataList.add(data);
+                } else {
+                    errorMessages.add(String.format("第%d行：数据解析失败", i + 1));
+                }
+            }
+
+            return dataList;
+        } catch (Exception e) {
+            log.error("读取Excel文件失败", e);
+            throw new RuntimeException("读取Excel文件失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 解析Excel行数据为CommunityDisasterReductionCapacity对象
+     * 跳过前两行表头，从第3行开始解析数据
+     */
+    private CommunityDisasterReductionCapacity parseRowToCommunityData(org.apache.poi.ss.usermodel.Row row) {
+        try {
+            CommunityDisasterReductionCapacity data = new CommunityDisasterReductionCapacity();
+
+            // 第0列：唯一码
+            data.setUniqueId(getCellStringValue(row.getCell(0)));
+
+            // 第1列：核实状态
+            data.setVerificationStatus(getCellStringValue(row.getCell(1)));
+
+            // 第2列：社区（行政村）名称
+            data.setCommunityName(getCellStringValue(row.getCell(2)));
+
+            // 第3列：社区（行政村）地址
+            String communityAddress = getCellStringValue(row.getCell(3));
+            data.setCommunityAddress(communityAddress);
+
+            // 解析省市县信息
+            parseAddressToProvinceCityCounty(data, communityAddress);
+
+            // 第4列：行政区划代码
+            data.setRegionCode(getCellStringValue(row.getCell(4)));
+
+            // 第5列：总户数
+            data.setTotalHouseholds(getCellIntegerValue(row.getCell(5)));
+
+            // 第6列：常住人口数量
+            data.setResidentPopulation(getCellIntegerValue(row.getCell(6)));
+
+            // 第7列：0-14岁人数
+            data.setAge0To14Count(getCellIntegerValue(row.getCell(7)));
+
+            // 第8列：65岁（含）以上人数
+            data.setAge65PlusCount(getCellIntegerValue(row.getCell(8)));
+
+            // 第9列：残障人员人数
+            data.setDisabledPersonCount(getCellIntegerValue(row.getCell(9)));
+
+            // 第10列：社区医疗卫生服务站或村卫生室数量
+            data.setMedicalServiceCount(getCellIntegerValue(row.getCell(10)));
+
+            // 第11列：是否为全国综合减灾示范社区
+            data.setIsNationalDemoCommunity(normalizeYesNo(getCellStringValue(row.getCell(11))));
+
+            // 第12列：是否为省级综合减灾示范社区
+            data.setIsProvincialDemoCommunity(normalizeYesNo(getCellStringValue(row.getCell(12))));
+
+            // 第13列：是否有本辖区地质灾害等隐患点清单
+            data.setHasDisasterPointsList(normalizeYesNo(getCellStringValue(row.getCell(13))));
+
+            // 第14列：是否有本辖区弱势人群清单
+            data.setHasVulnerableGroupsList(normalizeYesNo(getCellStringValue(row.getCell(14))));
+
+            // 第15列：是否有社区（行政村）灾害类地图
+            data.setHasDisasterMap(normalizeYesNo(getCellStringValue(row.getCell(15))));
+
+            // 第16列：是否有社区（行政村）应急预案
+            data.setHasEmergencyPlan(normalizeYesNo(getCellStringValue(row.getCell(16))));
+
+            // 第17列：上一年度防灾减灾救灾资金投入总金额
+            BigDecimal fundingAmount = getCellBigDecimalValue(row.getCell(17));
+            if (fundingAmount != null) {
+                data.setLastYearFundingAmount(fundingAmount);
+            }
+
+            // 第18列：灾害信息员人数
+            data.setDisasterInfoStaffCount(getCellIntegerValue(row.getCell(18)));
+
+            // 第19列：登记注册志愿者人数
+            data.setRegisteredVolunteerCount(getCellIntegerValue(row.getCell(19)));
+
+            // 第20列：民兵预备役人数
+            data.setMilitiaReserveCount(getCellIntegerValue(row.getCell(20)));
+
+            // 第21列：本级灾害应急避难场所数量
+            data.setEmergencyShelterCount(getCellIntegerValue(row.getCell(21)));
+
+            // 第22列：本级灾害应急避难场所容量
+            data.setEmergencyShelterCapacity(getCellIntegerValue(row.getCell(22)));
+
+            // 第23列：防灾减灾应急物资储备方式
+            data.setMaterialStorageMethod(getCellStringValue(row.getCell(23)));
+
+            // 第24列：防灾减灾应急物资储备方式-其他项说明
+            data.setMaterialStorageMethodOther(getCellStringValue(row.getCell(24)));
+
+            // 第25列：现有储备物资、装备折合金额（实物储备时填写）
+            BigDecimal materialValue = getCellBigDecimalValue(row.getCell(25));
+            if (materialValue != null) {
+                data.setMaterialsEquipmentValue(materialValue);
+            }
+
+            // 第26列：灾害预警信息接收方式
+            data.setWarningReceiveMethod(getCellStringValue(row.getCell(26)));
+
+            // 第27列：灾害预警信息接收方式-其他项说明
+            data.setWarningReceiveMethodOther(getCellStringValue(row.getCell(27)));
+
+            // 第28列：灾害预警信息传达方式
+            data.setWarningCommunicationMethod(getCellStringValue(row.getCell(28)));
+
+            // 第29列：灾害预警信息传达方式-其他项说明
+            data.setWarningCommunicationMethodOther(getCellStringValue(row.getCell(29)));
+
+            // 第30列：灾情信息上报方式
+            data.setDisasterReportMethod(getCellStringValue(row.getCell(30)));
+
+            // 第31列：灾情信息上报方式-其他项说明
+            data.setDisasterReportMethodOther(getCellStringValue(row.getCell(31)));
+
+            // 第32列：上一年度组织的防灾减灾培训活动次数
+            data.setLastYearTrainingCount(getCellIntegerValue(row.getCell(32)));
+
+            // 第33列：上一年度防灾减灾培训活动培训人次
+            data.setLastYearTrainingParticipants(getCellIntegerValue(row.getCell(33)));
+
+            // 第34列：上一年度组织的防灾减灾演练活动次数
+            data.setLastYearDrillCount(getCellIntegerValue(row.getCell(34)));
+
+            // 第35列：参与上一年度组织的防灾减灾演练活动的居民人次
+            data.setLastYearDrillParticipants(getCellIntegerValue(row.getCell(35)));
+
+            // 第36列：单位负责人
+            data.setUnitLeader(getCellStringValue(row.getCell(36)));
+
+            // 第37列：统计负责人
+            data.setStatisticsLeader(getCellStringValue(row.getCell(37)));
+
+            // 第38列：填表人
+            data.setFormFiller(getCellStringValue(row.getCell(38)));
+
+            // 第39列：联系电话
+            data.setContactPhone(getCellStringValue(row.getCell(39)));
+
+            // 第40列：报出日期
+            org.apache.poi.ss.usermodel.Cell reportDateCell = row.getCell(40);
+            if (reportDateCell != null) {
+                try {
+                    if (reportDateCell.getCellType() == CellType.STRING) {
+                        String dateStr = reportDateCell.getStringCellValue();
+                        if (dateStr != null && !dateStr.trim().isEmpty()) {
+                            data.setReportDate(LocalDate.parse(dateStr.trim(), DateTimeFormatter.ofPattern("yyyy/MM/dd")));
+                        }
+                    } else if (reportDateCell.getCellType() == CellType.NUMERIC) {
+                        data.setReportDate(reportDateCell.getLocalDateTimeCellValue().toLocalDate());
+                    }
+                } catch (Exception e) {
+                    log.warn("解析报出日期失败: {}", e.getMessage());
+                }
+            }
+
+            // 第41列：填写说明
+            data.setFillInstructions(getCellStringValue(row.getCell(41)));
+
+            return data;
+        } catch (Exception e) {
+            log.error("解析Excel行数据失败", e);
+            return null;
+        }
+    }
+
+    /**
+     * 解析地址字符串，提取省、市、县信息
+     */
+    private void parseAddressToProvinceCityCounty(CommunityDisasterReductionCapacity data, String address) {
+        if (address == null || address.trim().isEmpty()) {
+            return;
+        }
+
+        try {
+            String addr = address.trim();
+
+            // 省级行政区匹配模式
+            String[] provincePatterns = {
+                "(北京|天津|上海|重庆)", // 直辖市
+                "(河北省|山西省|辽宁省|吉林省|黑龙江省|江苏省|浙江省|安徽省|福建省|江西省|山东省|河南省|湖北省|湖南省|广东省|海南省|四川省|贵州省|云南省|陕西省|甘肃省|青海省|台湾省)", // 省
+                "(内蒙古自治区|广西壮族自治区|西藏自治区|宁夏回族自治区|新疆维吾尔自治区)", // 自治区
+                "(香港特别行政区|澳门特别行政区)", // 特别行政区
+                "(.+省)" // 通用省份模式
+            };
+
+            // 市级行政区匹配模式
+            String[] cityPatterns = {
+                "(.*市)", // 地级市
+                "(.*自治州)", // 自治州
+                "(.*地区)", // 地区
+                "(.*盟)" // 盟
+            };
+
+            // 县级行政区匹配模式
+            String[] countyPatterns = {
+                "(.*县)",
+                "(.*区)",
+                "(.*县级市)",
+                "(.*自治县)",
+                "(.*旗)",
+                "(.*自治旗)"
+            };
+
+            String province = null;
+            String city = null;
+            String county = null;
+            String remaining = addr;
+
+            // 提取省份
+            for (String pattern : provincePatterns) {
+                java.util.regex.Pattern p = java.util.regex.Pattern.compile(pattern);
+                java.util.regex.Matcher m = p.matcher(remaining);
+                if (m.find()) {
+                    province = m.group(1);
+                    // 如果是直辖市，省级和市级可以合并处理
+                    if (province.matches("(北京|天津|上海|重庆)")) {
+                        city = province + "市";
+                        remaining = remaining.replaceFirst(province, "");
+                        break;
+                    }
+                    remaining = remaining.replaceFirst(province, "");
+                    break;
+                }
+            }
+
+            // 提取市级
+            for (String pattern : cityPatterns) {
+                java.util.regex.Pattern p = java.util.regex.Pattern.compile(pattern);
+                java.util.regex.Matcher m = p.matcher(remaining);
+                if (m.find()) {
+                    city = m.group(1);
+                    remaining = remaining.replaceFirst(city, "");
+                    break;
+                }
+            }
+
+            // 提取县级
+            for (String pattern : countyPatterns) {
+                java.util.regex.Pattern p = java.util.regex.Pattern.compile(pattern);
+                java.util.regex.Matcher m = p.matcher(remaining);
+                if (m.find()) {
+                    county = m.group(1);
+                    break;
+                }
+            }
+
+            // 设置解析结果
+            if (province != null) {
+                data.setProvinceName(province);
+            }
+            if (city != null) {
+                data.setCityName(city);
+            }
+            if (county != null) {
+                data.setCountyName(county);
+            }
+
+            // 尝试从地址中提取乡镇名称
+            String townshipName = extractTownshipName(remaining);
+            if (townshipName != null) {
+                data.setTownshipName(townshipName);
+            }
+
+            log.debug("地址解析结果 - 省份: {}, 城市: {}, 县: {}, 乡镇: {}, 原地址: {}",
+                province, city, county, townshipName, address);
+
+        } catch (Exception e) {
+            log.warn("地址解析失败: {}, 地址: {}", e.getMessage(), address);
+        }
+    }
+
+    /**
+     * 从剩余地址中提取乡镇名称（去掉前面的县名称）
+     */
+    private String extractTownshipName(String remaining) {
+        if (remaining == null || remaining.trim().isEmpty()) {
+            return null;
+        }
+
+        // 乡镇名称匹配模式
+        String[] townshipPatterns = {
+            "(.*?镇)",
+            "(.*?乡)",
+            "(.*?街道)",
+            "(.*?办事处)"
+        };
+
+        for (String pattern : townshipPatterns) {
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(pattern);
+            java.util.regex.Matcher m = p.matcher(remaining);
+            if (m.find()) {
+                String townshipName = m.group(1);
+
+                // 去掉前面可能包含的县名称
+                // 例如："青神县西龙镇" → "西龙镇"
+                townshipName = townshipName.replaceAll("^.*?(县|区|县级市|市|旗)", "");
+
+                // 再次匹配，确保只获取乡镇部分
+                java.util.regex.Pattern p2 = java.util.regex.Pattern.compile("(.*?镇|.*?乡|.*?街道|.*?办事处)");
+                java.util.regex.Matcher m2 = p2.matcher(townshipName);
+                if (m2.find()) {
+                    return m2.group(1);
+                }
+
+                return townshipName;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 获取单元格整数值（支持字符串格式的数字）
+     */
+    private Integer getCellIntegerValue(org.apache.poi.ss.usermodel.Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+
+        try {
+            switch (cell.getCellType()) {
+                case NUMERIC:
+                    return (int) cell.getNumericCellValue();
+                case STRING:
+                    String value = cell.getStringCellValue().trim();
+                    if (value.isEmpty()) {
+                        return null;
+                    }
+                    return Integer.parseInt(value.replaceAll("[,，]", ""));
+                case FORMULA:
+                    return (int) cell.getNumericCellValue();
+                default:
+                    return null;
+            }
+        } catch (Exception e) {
+            log.warn("解析整数值失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 获取单元格BigDecimal值（支持字符串格式的数字）
+     */
+    private BigDecimal getCellBigDecimalValue(org.apache.poi.ss.usermodel.Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+
+        try {
+            switch (cell.getCellType()) {
+                case NUMERIC:
+                    return BigDecimal.valueOf(cell.getNumericCellValue());
+                case STRING:
+                    String value = cell.getStringCellValue().trim();
+                    if (value.isEmpty()) {
+                        return null;
+                    }
+                    return new BigDecimal(value.replaceAll("[,，]", ""));
+                case FORMULA:
+                    return BigDecimal.valueOf(cell.getNumericCellValue());
+                default:
+                    return null;
+            }
+        } catch (Exception e) {
+            log.warn("解析BigDecimal值失败: {}", e.getMessage());
+            return null;
+        }
     }
 }

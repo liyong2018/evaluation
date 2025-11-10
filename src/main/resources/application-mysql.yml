@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${MYSQL_JDBC_URL:jdbc:mysql://127.0.0.1:30314/evaluate_db?useSSL=false&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_JDBC_USER:root}
+    password: ${MYSQL_JDBC_PASSWORD:123456}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+
+mybatis-plus:
+  type-aliases-package: com.evaluate.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+  # MySQL 可不需要，但注册也不会有副作用
+  type-handlers-package: com.evaluate.config.typehandler
+
