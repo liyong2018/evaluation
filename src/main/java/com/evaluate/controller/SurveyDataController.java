@@ -148,6 +148,18 @@ public class SurveyDataController {
         }
     }
 
+    @DeleteMapping("/batch")
+    public Result<Boolean> batchDeleteSurveyData(@RequestBody List<Long> ids) {
+        try {
+            log.info("批量删除调查数据，IDs: {}", ids);
+            boolean result = surveyDataService.removeByIds(ids);
+            return result ? Result.success(true) : Result.error("批量删除调查数据失败");
+        } catch (Exception e) {
+            log.error("批量删除调查数据失败，IDs: {}", ids, e);
+            return Result.error("批量删除失败: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/import")
     public Result<Boolean> importSurveyData(@RequestParam MultipartFile file, @RequestParam Integer year) {
         try {

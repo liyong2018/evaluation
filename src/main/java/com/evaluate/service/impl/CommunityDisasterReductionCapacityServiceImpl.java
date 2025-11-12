@@ -70,19 +70,20 @@ public class CommunityDisasterReductionCapacityServiceImpl
             // 批量保存数据
             for (CommunityDisasterReductionCapacity entity : dataList) {
                 try {
-                    // 检查是否已存在相同的数据
-                    CommunityDisasterReductionCapacity existing = getByRegionAndCommunity(
-                            entity.getRegionCode(), entity.getCommunityName());
+                    // 检查是否已存在相同地区代码、社区名称和年份的数据
+                    CommunityDisasterReductionCapacity existing = getByRegionAndCommunityAndYear(
+                            entity.getRegionCode(), entity.getCommunityName(), entity.getYear());
 
                     if (existing != null) {
-                        // 更新现有数据
+                        // 更新现有数据（相同地区代码、社区名称和年份）
                         entity.setId(existing.getId());
                         updateById(entity);
-                        log.debug("更新社区减灾能力数据: {} - {}", entity.getRegionCode(), entity.getCommunityName());
+                        log.debug("更新社区减灾能力数据: {} - {} ({}年)", entity.getRegionCode(), entity.getCommunityName(), entity.getYear());
                     } else {
-                        // 插入新数据
+                        // 插入新数据（新的年份或新的地区）
+                        entity.setId(null);
                         save(entity);
-                        log.debug("新增社区减灾能力数据: {} - {}", entity.getRegionCode(), entity.getCommunityName());
+                        log.debug("新增社区减灾能力数据: {} - {} ({}年)", entity.getRegionCode(), entity.getCommunityName(), entity.getYear());
                     }
                     organizationService.syncFromCommunityData(entity);
                     successCount++;
@@ -181,10 +182,33 @@ public class CommunityDisasterReductionCapacityServiceImpl
         }
     }
 
-    @Override
-    public List<CommunityDisasterReductionCapacity> searchCommunityCapacity(String keyword, String regionCode, String communityName) {
+    /**
+     * 根据行政区代码、社区名称和年份获取数据
+     * 用于智能导入时判断是否存在
+     */
+    public CommunityDisasterReductionCapacity getByRegionAndCommunityAndYear(String regionCode, String communityName, Integer year) {
         try {
             QueryWrapper<CommunityDisasterReductionCapacity> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("region_code", regionCode)
+                       .eq("community_name", communityName)
+                       .eq("year", year);
+            return getOne(queryWrapper);
+        } catch (Exception e) {
+            log.error("根据行政区代码、社区名称和年份查询数据失败: regionCode={}, communityName={}, year={}",
+                     regionCode, communityName, year, e);
+            return null;
+        }
+    }
+
+    @Override
+    public List<CommunityDisasterReductionCapacity> searchCommunityCapacity(String keyword, String regionCode, String communityName, Integer year) {
+        try {
+            QueryWrapper<CommunityDisasterReductionCapacity> queryWrapper = new QueryWrapper<>();
+
+            // 年份过滤
+            if (year != null) {
+                queryWrapper.eq("year", year);
+            }
 
             // 关键词搜索：社区名称、乡镇名称、县名称、市名称、省名称
             if (keyword != null && !keyword.trim().isEmpty()) {
@@ -213,8 +237,8 @@ public class CommunityDisasterReductionCapacityServiceImpl
 
             return list(queryWrapper);
         } catch (Exception e) {
-            log.error("搜索社区行政村减灾能力数据失败: keyword={}, regionCode={}, communityName={}",
-                     keyword, regionCode, communityName, e);
+            log.error("搜索社区行政村减灾能力数据失败: keyword={}, regionCode={}, communityName={}, year={}",
+                     keyword, regionCode, communityName, year, e);
             return new ArrayList<>();
         }
     }

@@ -78,6 +78,42 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
         return saveBatch(dataList);
     }
 
+    /**
+     * 智能批量保存数据：根据 region_code 和 year 判断是否存在，存在则更新，不存在则插入
+     * 这样可以避免不同年份的数据相互覆盖
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean smartBatchSave(List<SurveyData> dataList) {
+        if (dataList == null || dataList.isEmpty()) {
+            return false;
+        }
+
+        try {
+            for (SurveyData data : dataList) {
+                // 根据地区代码和年份查找现有记录
+                QueryWrapper<SurveyData> queryWrapper = new QueryWrapper<>();
+                queryWrapper.eq("region_code", data.getRegionCode())
+                           .eq("year", data.getYear());
+
+                SurveyData existingData = getOne(queryWrapper);
+
+                if (existingData != null) {
+                    // 记录已存在，更新现有记录
+                    data.setId(existingData.getId()); // 保持原有的ID
+                    updateById(data);
+                } else {
+                    // 记录不存在，插入新记录（ID为null，会自动生成）
+                    data.setId(null);
+                    save(data);
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            log.error("智能批量保存数据失败", e);
+            throw e;
+        }
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean importFromExcel(MultipartFile file, Integer year) {
@@ -108,7 +144,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                 }
             }
 
-            return batchSave(dataList);
+            return smartBatchSave(dataList);
         } catch (Exception e) {
             log.error("读取Excel文件失败", e);
             return false;

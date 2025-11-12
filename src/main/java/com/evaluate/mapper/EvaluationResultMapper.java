@@ -54,4 +54,26 @@ public interface EvaluationResultMapper extends BaseMapper<EvaluationResult> {
      * 物理删除：根据执行记录ID删除评估结果（绕过逻辑删除）
      */
     int deletePhysicalByExecutionRecordId(@Param("executionRecordId") Long executionRecordId);
+
+    /**
+     * 根据模型ID和年份查询评估结果
+     *
+     * @param modelId 模型ID
+     * @param year 年份
+     * @return 评估结果列表
+     */
+    List<EvaluationResult> selectByModelIdAndYear(@Param("modelId") Long modelId,
+                                                 @Param("year") Integer year);
+
+    /**
+     * 根据模型ID、年份和组织机构代码查询评估结果
+     *
+     * @param modelId 模型ID
+     * @param year 年份
+     * @param orgCode 组织机构代码
+     * @return 评估结果列表
+     */
+    List<EvaluationResult> selectByModelIdAndYearAndOrgCode(@Param("modelId") Long modelId,
+                                                          @Param("year") Integer year,
+                                                          @Param("orgCode") String orgCode);
 }

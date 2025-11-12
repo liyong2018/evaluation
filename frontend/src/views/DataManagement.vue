@@ -62,20 +62,44 @@
         <!-- 操作工具栏 -->
         <el-card class="toolbar-card">
           <el-row :gutter="20" justify="space-between">
-            <el-col :span="12">
+            <el-col :span="16">
               <el-input
                 v-model="searchForm.keyword"
                 placeholder="搜索地区名称或代码"
                 clearable
                 @keyup.enter="handleSearch"
+                style="width: 300px; margin-right: 12px;"
               >
                 <template #prefix>
                   <el-icon><Search /></el-icon>
                 </template>
               </el-input>
+              <el-select
+                v-model="searchForm.year"
+                placeholder="选择年份"
+                clearable
+                style="width: 120px; margin-right: 12px;"
+                @change="handleSearch"
+              >
+                <el-option
+                  v-for="year in yearOptions"
+                  :key="year"
+                  :label="year + '年'"
+                  :value="year"
+                />
+              </el-select>
             </el-col>
-            <el-col :span="12">
+            <el-col :span="8">
               <div class="toolbar-actions">
+                <el-button
+                  type="danger"
+                  :disabled="selectedRows.length === 0"
+                  :loading="loading.batchDelete"
+                  @click="handleBatchDelete"
+                >
+                  <el-icon><Delete /></el-icon>
+                  批量删除 ({{ selectedRows.length }})
+                </el-button>
                 <el-button type="success" @click="showAddDialog">
                   <el-icon><Plus /></el-icon>
                   新增数据
@@ -486,6 +510,7 @@ const orgTreeRef = ref() // 组织机构树引用
 
 const searchForm = reactive({
   keyword: '',
+  year: new Date().getFullYear() as number | null,
   selectedRegion: null as null | { code: string; name: string }
 })
 
@@ -499,7 +524,8 @@ const loading = reactive({
   table: false,
   submit: false,
   import: false,
-  organizations: false
+  organizations: false,
+  batchDelete: false
 })
 
 const dialogVisible = reactive({
@@ -595,7 +621,7 @@ const refreshOrganizations = () => {
 const handleOrgNodeClick = (data: any) => {
   console.log('选中组织机构:', data)
   selectedOrg.value = data
-  // 清空搜索关键字，加载该组织机构的数据
+  // 清空搜索关键字，保留年份过滤
   searchForm.keyword = ''
   getDataList()
 }
@@ -622,6 +648,7 @@ const handleDataTypeChange = (newType: 'township' | 'community') => {
   // 清空搜索条件和表格数据
   searchForm.keyword = ''
   searchForm.selectedRegion = null
+  searchForm.year = new Date().getFullYear() // 重置为当前年份
   tableData.value = []
   regionSelectOptions.value = []
   // 重新加载数据
@@ -642,8 +669,11 @@ const getDataList = async () => {
         allData = response.data || []
       }
     } else {
-      // 社区数据 - 使用 search API (返回数组) 而不是 getList (返回分页对象)
-      response = await communityCapacityApi.search({})
+      // 社区数据 - 使用 search API 支持年份过滤
+      const searchParams: any = {}
+      if (searchForm.year) searchParams.year = searchForm.year
+
+      response = await communityCapacityApi.search(searchParams)
       if (response.success) {
         allData = response.data || []
       }
@@ -675,6 +705,11 @@ const getDataList = async () => {
           )
         }
       })
+    }
+
+    // 对于乡镇数据，应用年份过滤（如果设置了年份）
+    if (dataType.value === 'township' && searchForm.year && allData.length > 0) {
+      allData = allData.filter((row: any) => row.year === searchForm.year)
     }
 
     if (response.success) {
@@ -709,7 +744,7 @@ const getDataList = async () => {
 
 // 搜索
 const handleSearch = async () => {
-  if (!searchForm.keyword && !searchForm.selectedRegion) {
+  if (!searchForm.keyword && !searchForm.selectedRegion && !searchForm.year) {
     getDataList()
     return
   }
@@ -723,14 +758,23 @@ const handleSearch = async () => {
         response = await surveyDataApi.search(searchForm.keyword)
       } else if (searchForm.selectedRegion) {
         response = await surveyDataApi.getByRegion(searchForm.selectedRegion.name)
+      } else {
+        // 如果只有年份过滤，使用 getAll 然后在客户端过滤
+        response = await surveyDataApi.getAll()
+        if (response.success && searchForm.year) {
+          tableData.value = (response.data || []).filter((item: any) => item.year === searchForm.year)
+          pagination.total = tableData.value.length
+          return
+        }
       }
     } else {
       // 社区数据搜索
-      if (searchForm.keyword) {
-        response = await communityCapacityApi.search({ keyword: searchForm.keyword })
-      } else if (searchForm.selectedRegion) {
-        response = await communityCapacityApi.search({ communityName: searchForm.selectedRegion.name })
-      }
+      const searchParams: any = {}
+      if (searchForm.keyword) searchParams.keyword = searchForm.keyword
+      if (searchForm.selectedRegion) searchParams.communityName = searchForm.selectedRegion.name
+      if (searchForm.year) searchParams.year = searchForm.year
+
+      response = await communityCapacityApi.search(searchParams)
     }
 
     if (response?.success) {
@@ -823,7 +867,7 @@ const handleDelete = async (row: any) => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-    
+
     const response = await surveyDataApi.delete(row.id)
     if (response.success) {
       ElMessage.success('删除成功')
@@ -836,6 +880,54 @@ const handleDelete = async (row: any) => {
       console.error('删除失败:', error)
       ElMessage.error('删除失败')
     }
+  }
+}
+
+// 批量删除数据
+const handleBatchDelete = async () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要删除的数据')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedRows.value.length} 条数据吗？此操作不可恢复！`,
+      '批量删除确认',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        dangerouslyUseHTMLString: true
+      }
+    )
+
+    loading.batchDelete = true
+    const ids = selectedRows.value.map(row => row.id)
+    let response
+
+    if (dataType.value === 'township') {
+      // 乡镇数据批量删除
+      response = await surveyDataApi.batchDelete(ids)
+    } else {
+      // 社区数据批量删除
+      response = await communityCapacityApi.batchDelete(ids)
+    }
+
+    if (response.success) {
+      ElMessage.success(`成功删除 ${selectedRows.value.length} 条数据`)
+      selectedRows.value = [] // 清空选择
+      getDataList() // 重新加载数据
+    } else {
+      ElMessage.error(response.message || '批量删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败:', error)
+      ElMessage.error('批量删除失败')
+    }
+  } finally {
+    loading.batchDelete = false
   }
 }
 

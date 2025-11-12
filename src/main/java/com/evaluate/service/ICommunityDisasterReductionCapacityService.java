@@ -66,7 +66,8 @@ public interface ICommunityDisasterReductionCapacityService extends IService<Com
      * @param keyword 关键词（社区名称、乡镇名称等）
      * @param regionCode 行政区代码
      * @param communityName 社区名称
+     * @param year 数据年份
      * @return 搜索结果列表
      */
-    List<CommunityDisasterReductionCapacity> searchCommunityCapacity(String keyword, String regionCode, String communityName);
+    List<CommunityDisasterReductionCapacity> searchCommunityCapacity(String keyword, String regionCode, String communityName, Integer year);
 }

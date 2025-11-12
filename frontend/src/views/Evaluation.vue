@@ -484,15 +484,15 @@
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="regionCode" label="地区代码" width="120" />
           <el-table-column prop="regionName" label="地区名称" width="150" />
-          <el-table-column label="管理能力" align="center">
+          <el-table-column label="灾害管理能力" align="center">
             <el-table-column prop="managementCapabilityScore" label="得分" width="100" />
             <el-table-column prop="managementCapabilityLevel" label="等级" width="100" />
           </el-table-column>
-          <el-table-column label="支持能力" align="center">
+          <el-table-column label="灾害备灾能力" align="center">
             <el-table-column prop="supportCapabilityScore" label="得分" width="100" />
             <el-table-column prop="supportCapabilityLevel" label="等级" width="100" />
           </el-table-column>
-          <el-table-column label="自救能力" align="center">
+          <el-table-column label="自救转移能力" align="center">
             <el-table-column prop="selfRescueCapabilityScore" label="得分" width="100" />
             <el-table-column prop="selfRescueCapabilityLevel" label="等级" width="100" />
           </el-table-column>

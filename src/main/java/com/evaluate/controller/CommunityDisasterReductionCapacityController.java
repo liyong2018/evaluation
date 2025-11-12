@@ -70,12 +70,13 @@ public class CommunityDisasterReductionCapacityController {
     public Result<List<CommunityDisasterReductionCapacity>> searchCommunityCapacity(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String regionCode,
-            @RequestParam(required = false) String communityName) {
-        log.info("搜索社区行政村减灾能力数据，关键词: {}, 行政区代码: {}, 社区名称: {}",
-                keyword, regionCode, communityName);
+            @RequestParam(required = false) String communityName,
+            @RequestParam(required = false) Integer year) {
+        log.info("搜索社区行政村减灾能力数据，关键词: {}, 行政区代码: {}, 社区名称: {}, 年份: {}",
+                keyword, regionCode, communityName, year);
         try {
             List<CommunityDisasterReductionCapacity> result = communityDisasterReductionCapacityService.searchCommunityCapacity(
-                    keyword, regionCode, communityName);
+                    keyword, regionCode, communityName, year);
             return Result.success(result);
         } catch (Exception e) {
             log.error("搜索社区行政村减灾能力数据失败", e);
