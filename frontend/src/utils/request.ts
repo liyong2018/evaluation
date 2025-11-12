@@ -2,7 +2,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 // 创建axios实例
-const baseURL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'http://localhost:8081'
+const baseURL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'http://localhost:8087'
 const DEFAULT_TIMEOUT = Number((import.meta as any)?.env?.VITE_API_TIMEOUT) || 60000
 
 const request = axios.create({

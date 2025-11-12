@@ -138,8 +138,19 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
 
     @Override
     public void deleteByExecutionRecordId(Long executionRecordId) {
-        int affected = evaluationResultMapper.deletePhysicalByExecutionRecordId(executionRecordId);        
-        log.info("Physically deleted {} evaluation results for execution record {}", affected, executionRecordId); 
+        int affected = evaluationResultMapper.deletePhysicalByExecutionRecordId(executionRecordId);
+
+        log.info("Physically deleted {} evaluation results for execution record {}", affected, executionRecordId);
+    }
+
+    @Override
+    public List<EvaluationResult> getResultsByModelIdAndYear(Long modelId, Integer year) {
+        return evaluationResultMapper.selectByModelIdAndYear(modelId, year);
+    }
+
+    @Override
+    public List<EvaluationResult> getResultsByModelIdAndYearAndOrgCode(Long modelId, Integer year, String orgCode) {
+        return evaluationResultMapper.selectByModelIdAndYearAndOrgCode(modelId, year, orgCode);
     }
 
     /**

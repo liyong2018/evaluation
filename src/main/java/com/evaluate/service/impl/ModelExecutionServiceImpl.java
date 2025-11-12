@@ -8,6 +8,7 @@ import com.evaluate.service.ModelExecutionService;
 import com.evaluate.service.QLExpressService;
 import com.evaluate.service.SpecialAlgorithmService;
 import com.evaluate.service.ISurveyDataService;
+import com.evaluate.service.EvaluationResultService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -61,6 +63,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
     @Autowired
     private EvaluationResultMapper evaluationResultMapper;
+
+    @Autowired
+    private EvaluationResultService evaluationResultService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -136,9 +141,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             try {
                 Map<String, Object> stepResult;
                 
-                // 特殊处理：如果是AGGREGATION类型且modelId=8，执行乡镇聚合
-                if ("AGGREGATION".equals(step.getStepType()) && modelId == 8) {
-                    stepResult = executeTownshipAggregation(step.getId(), currentRegionCodes, globalContext);
+                // 特殊处理：如果是AGGREGATION类型，执行数据聚合
+                if ("AGGREGATION".equals(step.getStepType())) {
+                    stepResult = executeDataAggregation(step.getId(), currentRegionCodes, globalContext, modelId);
                     
                     // 更新regionCodes为乡镇代码列表（用于后续步骤）
                     @SuppressWarnings("unchecked")
@@ -756,7 +761,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             QueryWrapper<IndicatorWeight> weightQuery = new QueryWrapper<>();
             weightQuery.eq("config_id", weightConfigId);
             List<IndicatorWeight> weights = indicatorWeightMapper.selectList(weightQuery);
-            
+
             // 将权重转换为Map便于查找
             Map<String, Double> weightMap = weights.stream()
                     .collect(Collectors.toMap(
@@ -765,7 +770,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                             (v1, v2) -> v1
                     ));
             context.put("weights", weightMap);
-            
+
             // 同时将每个权重作为独立变量存储（便于表达式直接引用）
             for (IndicatorWeight weight : weights) {
                 // 确保权重值为Double类型
@@ -776,6 +781,77 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 context.put("weight_" + weight.getIndicatorCode(), weightValue);
             }
         }
+
+        // 加载基础数据到上下文（根据年份、数据类型和评估区域类型筛选）
+        Integer year = (Integer) context.get("year");
+        Long modelId = (Long) context.get("modelId");
+
+        // 根据模型ID判断数据类型和评估区域类型
+        if (modelId != null) {
+            if (modelId == 4 || modelId == 8) {
+                // 社区级评估模型：加载社区数据并按年份筛选
+                loadCommunityBaseData(context, regionCodes, year);
+            } else {
+                // 乡镇级评估模型：加载乡镇数据并按年份筛选
+                loadTownshipBaseData(context, regionCodes, year);
+            }
+        }
+    }
+
+    /**
+     * 加载乡镇基础数据
+     */
+    private void loadTownshipBaseData(Map<String, Object> context, List<String> regionCodes, Integer year) {
+        QueryWrapper<SurveyData> queryWrapper = new QueryWrapper<>();
+        if (year != null) {
+            queryWrapper.eq("year", year);
+        }
+        if (regionCodes != null && !regionCodes.isEmpty()) {
+            queryWrapper.in("region_code", regionCodes);
+        }
+
+        List<SurveyData> surveyDataList = surveyDataMapper.selectList(queryWrapper);
+
+        // 将数据转换为Map，以region_code为key
+        Map<String, SurveyData> surveyDataMap = surveyDataList.stream()
+                .collect(Collectors.toMap(
+                        SurveyData::getRegionCode,
+                        data -> data,
+                        (existing, replacement) -> existing // 保留第一个
+                ));
+
+        context.put("surveyDataMap", surveyDataMap);
+        context.put("surveyDataList", surveyDataList);
+
+        log.info("加载乡镇基础数据：{} 条记录，年份：{}", surveyDataList.size(), year);
+    }
+
+    /**
+     * 加载社区基础数据
+     */
+    private void loadCommunityBaseData(Map<String, Object> context, List<String> regionCodes, Integer year) {
+        QueryWrapper<CommunityDisasterReductionCapacity> queryWrapper = new QueryWrapper<>();
+        if (year != null) {
+            queryWrapper.eq("year", year);
+        }
+        if (regionCodes != null && !regionCodes.isEmpty()) {
+            queryWrapper.in("region_code", regionCodes);
+        }
+
+        List<CommunityDisasterReductionCapacity> communityDataList = communityDataMapper.selectList(queryWrapper);
+
+        // 将数据转换为Map，以region_code为key
+        Map<String, CommunityDisasterReductionCapacity> communityDataMap = communityDataList.stream()
+                .collect(Collectors.toMap(
+                        CommunityDisasterReductionCapacity::getRegionCode,
+                        data -> data,
+                        (existing, replacement) -> existing // 保留第一个
+                ));
+
+        context.put("communityDataMap", communityDataMap);
+        context.put("communityDataList", communityDataList);
+
+        log.info("加载社区基础数据：{} 条记录，年份：{}", communityDataList.size(), year);
     }
 
     /**
@@ -1330,10 +1406,35 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             
             regionResults.put(regionCode, formulaOutputs);
         }
-        
+
+        // 对于社区评估模型(modelId=4)，确保_firstCommunityCode元数据被正确设置
+        if (modelId != null && modelId == 4) {
+            log.info("为社区评估模型设置_firstCommunityCode元数据，modelId={}", modelId);
+            for (String regionCode : regionCodes) {
+                Map<String, Object> regionResult = regionResults.get(regionCode);
+                if (regionResult != null) {
+                    // 检查是否已经包含_firstCommunityCode
+                    if (!regionResult.containsKey("_firstCommunityCode")) {
+                        // 对于社区评估，regionCode本身就是社区代码
+                        regionResult.put("_firstCommunityCode", regionCode);
+                        log.info("设置_firstCommunityCode元数据: regionCode={}, firstCommunityCode={}", regionCode, regionCode);
+                    } else {
+                        log.info("firstCommunityCode已存在: regionCode={}, firstCommunityCode={}",
+                                regionCode, regionResult.get("_firstCommunityCode"));
+                    }
+                }
+            }
+        }
+
         // 保存输出参数到公式名称的映射
         if (!outputToFormulaName.isEmpty()) {
             stepResult.put("outputToFormulaName", outputToFormulaName);
+        }
+
+        // 从全局上下文中获取modelId并保存到stepResult
+        Object modelIdObj = globalContext.get("modelId");
+        if (modelIdObj != null) {
+            stepResult.put("modelId", modelIdObj);
         }
 
         stepResult.put("regionResults", regionResults);
@@ -1344,6 +1445,16 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      * 为单个步骤生成2D表格数据
      */
     private List<Map<String, Object>> generateStepResultTable(Map<String, Object> stepResult, List<String> regionCodes, Integer year) {
+        // 从stepResult中获取modelId
+        Long modelId = null;
+        Object modelIdObj = stepResult.get("modelId");
+        if (modelIdObj instanceof Number) {
+            modelId = ((Number) modelIdObj).longValue();
+        } else if (modelIdObj instanceof String) {
+            try {
+                modelId = Long.parseLong((String) modelIdObj);
+            } catch (NumberFormatException ignore) {}
+        }
         List<Map<String, Object>> tableData = new ArrayList<>();
         
         @SuppressWarnings("unchecked")
@@ -1467,7 +1578,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 }
             }
 
-            if (isCodeLike(regionName)) {
+            // 对于社区-行政村能力评估模型(modelId=4)，不要覆盖已经设置的社区名称
+            if (isCodeLike(regionName) && (modelId == null || modelId != 4)) {
                 String lookupCode = !isEmptyString(firstCommunityCodeMeta) ? firstCommunityCodeMeta : regionCode;
                 String resolved = getTownshipNameByCommunityCode(lookupCode);
                 if (isEmptyString(resolved)) {
@@ -1708,9 +1820,291 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     private FormulaConfigMapper formulaConfigMapper;
 
     /**
-     * 执行乡镇聚合
+     * 数据聚合步骤（支持多种模型类型）
+     * 根据模型ID执行不同的聚合逻辑：
+     * - modelId=4: 社区评估模型，将社区数据聚合到乡镇级别
+     * - modelId=8: 综合评估模型，融合乡镇评估结果和社区聚合结果
+     *
+     * @param stepId 步骤ID
+     * @param regionCodes 地区代码列表
+     * @param inputData 输入数据（包含前面步骤的计算结果）
+     * @param modelId 模型ID
+     * @return 聚合结果
+     */
+    private Map<String, Object> executeDataAggregation(Long stepId, List<String> regionCodes, Map<String, Object> inputData, Long modelId) {
+        log.info("开始执行数据聚合, stepId={}, regionCodes.size={}, modelId={}", stepId, regionCodes.size(), modelId);
+
+        if (modelId == 4) {
+            // 社区-行政村能力评估模型：不进行聚合，直接处理社区数据
+            return executeDirectCommunityProcessing(stepId, regionCodes, inputData);
+        } else if (modelId == 8) {
+            // 社区-乡镇评估模型：将社区数据聚合到乡镇级别
+            return executeTownshipAggregation(stepId, regionCodes, inputData);
+        } else {
+            log.warn("不支持的模型ID进行聚合: {}", modelId);
+            return new HashMap<>();
+        }
+    }
+
+    /**
+     * 社区评估模型聚合
+     * 将社区数据聚合到乡镇级别
+     *
+     * @param stepId 步骤ID
+     * @param regionCodes 社区代码列表
+     * @param inputData 输入数据
+     * @return 乡镇级别的聚合结果
+     */
+    private Map<String, Object> executeCommunityAggregation(Long stepId, List<String> regionCodes, Map<String, Object> inputData) {
+        // 直接调用现有的乡镇聚合逻辑
+        return executeTownshipAggregation(stepId, regionCodes, inputData);
+    }
+
+    /**
+     * 执行综合评估数据聚合
+     */
+    private Map<String, Object> executeComprehensiveAggregation(Long stepId, List<String> regionCodes, Map<String, Object> inputData) {
+        log.info("执行综合评估数据聚合，步骤ID: {}, 区域数量: {}", stepId, regionCodes.size());
+
+        // 使用标准权重
+        double townshipWeight = 0.6;
+        double communityWeight = 0.4;
+
+        // 从输入数据中提取乡镇和社区评估结果
+        Map<String, Map<String, Object>> townshipResults = extractStepResults(inputData, "step_");
+        Map<String, Map<String, Object>> communityResults = new HashMap<>(); // 社区数据通常来自相同的步骤
+
+        // 标准综合聚合逻辑
+        return performStandardComprehensiveAggregation(townshipResults, communityResults, townshipWeight, communityWeight);
+    }
+
+    /**
+     * 执行标准综合聚合
+     */
+    private Map<String, Object> performStandardComprehensiveAggregation(
+            Map<String, Map<String, Object>> townshipResults,
+            Map<String, Map<String, Object>> communityResults,
+            double townshipWeight,
+            double communityWeight) {
+
+        Map<String, Map<String, Object>> fusedResults = new LinkedHashMap<>();
+
+        // 获取所有地区
+        Set<String> allRegions = new HashSet<>();
+        allRegions.addAll(townshipResults.keySet());
+        allRegions.addAll(communityResults.keySet());
+
+        // 对每个地区进行融合
+        for (String regionName : allRegions) {
+            Map<String, Object> townshipData = townshipResults.get(regionName);
+            Map<String, Object> communityData = communityResults.get(regionName);
+
+            Map<String, Object> fusedData = new LinkedHashMap<>();
+
+            // 融合综合能力分数
+            double townshipComprehensive = getScoreFromData(townshipData, "comprehensiveCapabilityScore");
+            double communityComprehensive = getScoreFromData(communityData, "comprehensiveCapabilityScore");
+            double finalComprehensive = townshipComprehensive * townshipWeight + communityComprehensive * communityWeight;
+
+            fusedData.put("regionName", regionName);
+            fusedData.put("comprehensiveCapabilityScore", finalComprehensive);
+            fusedData.put("comprehensiveCapabilityLevel", getCapabilityLevel(finalComprehensive));
+
+            fusedResults.put(regionName, fusedData);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("regionResults", fusedResults);
+        result.put("aggregationType", "comprehensive");
+        result.put("regionCount", fusedResults.size());
+
+        return result;
+    }
+
+    /**
+     * 从数据中获取分数
+     */
+    private double getScoreFromData(Map<String, Object> data, String key) {
+        if (data == null || !data.containsKey(key)) {
+            return 0.0;
+        }
+        Object value = data.get(key);
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (Exception e) {
+            return 0.0;
+        }
+    }
+
+    
+    /**
+     * 根据能力值计算能力等级（重载方法）
+     */
+    private String getCapabilityLevel(double score) {
+        if (score >= 80) {
+            return "较强";
+        } else if (score >= 60) {
+            return "一般";
+        } else {
+            return "较弱";
+        }
+    }
+
+    /**
+     * 从输入数据中提取指定前缀的步骤结果
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Map<String, Object>> extractStepResults(Map<String, Object> inputData, String prefix) {
+        Map<String, Map<String, Object>> results = new HashMap<>();
+
+        for (Map.Entry<String, Object> entry : inputData.entrySet()) {
+            String key = entry.getKey();
+            if (key.startsWith(prefix)) {
+                Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
+                Map<String, Map<String, Object>> regionResults = (Map<String, Map<String, Object>>) stepResult.get("regionResults");
+
+                if (regionResults != null) {
+                    results.putAll(regionResults);
+                }
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * 按乡镇聚合社区数据
+     */
+    private Map<String, Map<String, Object>> aggregateCommunityDataByTownship(
+            List<String> regionCodes, Map<String, Object> inputData, List<StepAlgorithm> algorithms) {
+
+        Integer year = (Integer) inputData.get("year");
+        Map<String, List<Map<String, Object>>> townshipGroups = new LinkedHashMap<>();
+
+        // 按乡镇分组社区数据
+        for (String regionCode : regionCodes) {
+            QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+            communityQuery.eq("region_code", regionCode);
+            if (year != null) {
+                communityQuery.eq("year", year);
+            }
+            communityQuery.orderByDesc("create_time");
+            communityQuery.last("LIMIT 1");
+
+            CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
+            if (communityData == null) continue;
+
+            String townshipName = communityData.getTownshipName();
+            if (townshipName == null || townshipName.isEmpty()) continue;
+
+            // 创建社区上下文数据
+            Map<String, Object> communityContext = new HashMap<>();
+            communityContext.put("currentRegionCode", regionCode);
+
+            // 从inputData中获取社区级别的计算结果
+            for (Map.Entry<String, Object> entry : inputData.entrySet()) {
+                String key = entry.getKey();
+                if (key.startsWith("step_")) {
+                    Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
+                    Map<String, Map<String, Object>> regionResults =
+                            (Map<String, Map<String, Object>>) stepResult.get("regionResults");
+
+                    if (regionResults != null && regionResults.containsKey(regionCode)) {
+                        Map<String, Object> outputs = regionResults.get(regionCode);
+                        communityContext.putAll(outputs);
+                    }
+                }
+            }
+
+            townshipGroups.computeIfAbsent(townshipName, k -> new ArrayList<>()).add(communityContext);
+        }
+
+        // 对每个乡镇执行聚合计算
+        Map<String, Map<String, Object>> aggregatedResults = new HashMap<>();
+        for (Map.Entry<String, List<Map<String, Object>>> entry : townshipGroups.entrySet()) {
+            String townshipName = entry.getKey();
+            List<Map<String, Object>> communities = entry.getValue();
+
+            Map<String, Object> townshipOutput = new LinkedHashMap<>();
+
+            // 对每个算法执行聚合（通常求平均值）
+            for (StepAlgorithm algorithm : algorithms) {
+                String outputParam = algorithm.getOutputParam();
+                if (outputParam == null || outputParam.isEmpty()) continue;
+
+                String cleanedOutputParam = outputParam.trim();
+                double sum = 0.0;
+                int count = 0;
+
+                for (Map<String, Object> community : communities) {
+                    Object value = community.get(cleanedOutputParam);
+                    if (value instanceof Number) {
+                        sum += ((Number) value).doubleValue();
+                        count++;
+                    }
+                }
+
+                double result = count > 0 ? sum / count : 0.0;
+                townshipOutput.put(cleanedOutputParam, result);
+            }
+
+            aggregatedResults.put(townshipName, townshipOutput);
+        }
+
+        return aggregatedResults;
+    }
+
+    /**
+     * 融合乡镇评估结果和社区聚合结果
+     */
+    private Map<String, Map<String, Object>> fuseTownshipAndCommunityResults(
+            Map<String, Map<String, Object>> townshipResults,
+            Map<String, Map<String, Object>> communityAggregatedResults,
+            List<StepAlgorithm> algorithms) {
+
+        Map<String, Map<String, Object>> fusedResults = new HashMap<>();
+
+        // 收集所有乡镇名称
+        Set<String> allTownships = new HashSet<>();
+        allTownships.addAll(townshipResults.keySet());
+        allTownships.addAll(communityAggregatedResults.keySet());
+
+        for (String townshipName : allTownships) {
+            Map<String, Object> townshipData = townshipResults.get(townshipName);
+            Map<String, Object> communityData = communityAggregatedResults.get(townshipName);
+
+            Map<String, Object> fusedData = new HashMap<>();
+
+            // 融合两个数据源的结果
+            for (StepAlgorithm algorithm : algorithms) {
+                String outputParam = algorithm.getOutputParam();
+                if (outputParam == null || outputParam.isEmpty()) continue;
+
+                String cleanedOutputParam = outputParam.trim();
+
+                // 优先使用乡镇评估结果，如果没有则使用社区聚合结果
+                if (townshipData != null && townshipData.containsKey(cleanedOutputParam)) {
+                    fusedData.put(cleanedOutputParam, townshipData.get(cleanedOutputParam));
+                } else if (communityData != null && communityData.containsKey(cleanedOutputParam)) {
+                    fusedData.put(cleanedOutputParam, communityData.get(cleanedOutputParam));
+                } else {
+                    fusedData.put(cleanedOutputParam, 0.0);
+                }
+            }
+
+            fusedResults.put(townshipName, fusedData);
+        }
+
+        return fusedResults;
+    }
+
+    /**
+     * 执行乡镇聚合（原方法保留）
      * 按乡镇分组，对社区数据进行聚合计算（求和后除以社区数量）
-     * 
+     *
      * @param stepId 步骤ID
      * @param regionCodes 社区代码列表
      * @param inputData 输入数据（包含步骤1的社区级别计算结果）
@@ -1920,8 +2314,16 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
                 // 计算该字段在所有社区的总和
                 double sum = 0.0;
+                log.debug("计算字段 {} 在 {} 个社区中的总和", fieldName, communities.size());
+
+                // 调试：检查第一个社区包含的所有字段
+                if (!communities.isEmpty()) {
+                    log.debug("第一个社区包含的字段: {}", communities.get(0).keySet());
+                }
+
                 for (Map<String, Object> community : communities) {
                     Object value = community.get(fieldName);
+                    log.debug("社区字段值: {} = {}", fieldName, value);
                     if (value != null) {
                         sum += toDouble(value);
                     }
@@ -1977,6 +2379,80 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
         return "TOWNSHIP_" + (townshipName == null ? "UNKNOWN" : townshipName);
+    }
+
+    /**
+     * 社区-行政村能力评估模型：直接处理社区数据，不进行聚合
+     *
+     * @param stepId 步骤ID
+     * @param regionCodes 社区代码列表
+     * @param inputData 输入数据
+     * @return 处理结果
+     */
+    private Map<String, Object> executeDirectCommunityProcessing(Long stepId, List<String> regionCodes, Map<String, Object> inputData) {
+        log.info("开始直接处理社区数据, stepId={}, regionCodes.size={}", stepId, regionCodes.size());
+
+        Map<String, Object> stepResult = new HashMap<>();
+        Map<String, Object> regionResults = new HashMap<>();
+
+        // 获取年份信息
+        Integer year = null;
+        if (inputData.containsKey("year")) {
+            year = (Integer) inputData.get("year");
+        }
+
+        // 为每个社区创建独立的输出结果，不进行聚合
+        for (String communityCode : regionCodes) {
+            Map<String, Object> communityOutput = new HashMap<>();
+
+            // 查询社区数据
+            QueryWrapper<CommunityDisasterReductionCapacity> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("region_code", communityCode);
+            if (year != null) {
+                queryWrapper.eq("year", year);
+            } else {
+                queryWrapper.orderByDesc("year");
+            }
+            queryWrapper.last("LIMIT 1");
+
+            CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(queryWrapper);
+
+            if (communityData != null) {
+                // 设置社区特定的元数据，用于结果提取
+                communityOutput.put("_firstCommunityCode", communityCode); // 社区代码作为地区代码
+                communityOutput.put("_communityName", communityData.getCommunityName()); // 社区名称
+                communityOutput.put("_isTownship", false); // 标记为非乡镇数据
+
+                // 传递原有的所有指标数据
+                for (Map.Entry<String, Object> entry : inputData.entrySet()) {
+                    if (!entry.getKey().equals("communityDataList")) {
+                        communityOutput.put(entry.getKey(), entry.getValue());
+                    }
+                }
+
+                // 为当前社区设置特定的上下文数据
+                communityOutput.put("region_code", communityCode);
+                if (communityData.getCommunityName() != null) {
+                    communityOutput.put("community_name", communityData.getCommunityName());
+                }
+                communityOutput.put("township_name", communityData.getTownshipName());
+
+                log.debug("处理社区数据: communityCode={}, communityName={}",
+                         communityCode, communityData.getCommunityName());
+            }
+
+            // 使用社区代码作为结果键，确保每个社区独立评估
+            regionResults.put(communityCode, communityOutput);
+        }
+
+        // 构建标准的步骤结果结构
+        stepResult.put("regionResults", regionResults);
+        stepResult.put("modelId", inputData.get("modelId"));
+        stepResult.put("stepId", stepId);
+        stepResult.put("stepType", "AGGREGATION"); // 标记为聚合步骤，以便后续查找
+
+        log.info("社区数据处理完成，处理了 {} 个社区", regionResults.size());
+        return stepResult;
     }
 
     /**
@@ -2131,7 +2607,44 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
 
             String firstCommunityCode = toString(outputs.get("_firstCommunityCode"));
+
+            // 对于社区评估模型(modelId=4)，如果当前步骤的输出中没有firstCommunityCode，
+            // 使用stepRegionCode作为社区代码
+            if (firstCommunityCode == null && modelId != null && modelId == 4) {
+                log.info("社区评估模型 - 使用stepRegionCode作为社区代码: stepRegionCode={}", stepRegionCode);
+                // 社区评估模型中，stepRegionCode本身就是社区代码
+                firstCommunityCode = stepRegionCode;
+            }
+
             String lookupRegionCode = firstCommunityCode != null ? firstCommunityCode : stepRegionCode;
+
+            // 添加调试日志
+            log.info("提取评估结果 - modelId={}, stepRegionCode={}, firstCommunityCode={}",
+                    modelId, stepRegionCode, firstCommunityCode);
+
+            // 详细调试：对于社区评估模型，显示所有stepResults的键
+            if (modelId != null && modelId == 4 && firstCommunityCode == null) {
+                log.info("社区评估模型调试 - stepResults包含的步骤: {}", stepResults.keySet());
+                for (Map.Entry<String, Object> stepEntry : stepResults.entrySet()) {
+                    Object stepResultObj = stepEntry.getValue();
+                    if (stepResultObj instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> stepResult = (Map<String, Object>) stepResultObj;
+                        Object regionResultsObj = stepResult.get("regionResults");
+                        if (regionResultsObj instanceof Map) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Map<String, Object>> regionResults = (Map<String, Map<String, Object>>) regionResultsObj;
+                            log.info("步骤 {} 的regionResults包含的地区: {}", stepEntry.getKey(), regionResults.keySet());
+                            // 检查当前地区是否在这个步骤的结果中
+                            Map<String, Object> currentRegionResult = regionResults.get(stepRegionCode);
+                            if (currentRegionResult != null) {
+                                String stepFirstCommunityCode = toString(currentRegionResult.get("_firstCommunityCode"));
+                                log.info("步骤 {} 中地区 {} 的_firstCommunityCode: {}", stepEntry.getKey(), stepRegionCode, stepFirstCommunityCode);
+                            }
+                        }
+                    }
+                }
+            }
 
             QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
             communityQuery.eq("region_code", lookupRegionCode);
@@ -2152,17 +2665,35 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             String dataSource;
 
             if (firstCommunityCode != null) {
-                storedRegionCode = deriveTownshipCodeForStorage(firstCommunityCode);
-                if (!isEmptyString(townshipName)) {
-                    storedRegionName = townshipName;
-                } else {
-                    storedRegionName = getTownshipNameByCommunityCode(firstCommunityCode);
-                    if (isEmptyString(storedRegionName)) {
-                        storedRegionName = getRegionName(stepRegionCode, year);
+                storedRegionCode = firstCommunityCode; // 对于社区评估，保存社区代码
+                // 对于社区-行政村能力评估模型(modelId=4)，应该显示社区名称
+                if (modelId != null && modelId == 4) {
+                    log.info("社区评估模型 - modelId=4, 使用社区代码: {}, 社区名称: {}", storedRegionCode, communityName);
+                    // 社区-行政村能力评估模型：显示社区名称
+                    if (!isEmptyString(communityName)) {
+                        storedRegionName = communityName;
+                    } else {
+                        storedRegionName = resolveCommunityNameByPrefix(firstCommunityCode);
+                        if (isEmptyString(storedRegionName)) {
+                            storedRegionName = getRegionName(firstCommunityCode, year);
+                        }
                     }
+                    dataSource = "community";
+                } else {
+                    // 其他模型：显示乡镇名称
+                    storedRegionCode = deriveTownshipCodeForStorage(firstCommunityCode);
+                    if (!isEmptyString(townshipName)) {
+                        storedRegionName = townshipName;
+                    } else {
+                        storedRegionName = getTownshipNameByCommunityCode(firstCommunityCode);
+                        if (isEmptyString(storedRegionName)) {
+                            storedRegionName = getRegionName(stepRegionCode, year);
+                        }
+                    }
+                    dataSource = "township";
                 }
-                dataSource = "township";
             } else {
+                log.info("firstCommunityCode为null，使用乡镇代码: stepRegionCode={}", stepRegionCode);
                 storedRegionCode = deriveTownshipCodeForStorage(stepRegionCode);
                 if (townshipName != null && !townshipName.isEmpty()) {
                     storedRegionName = townshipName;
@@ -2185,10 +2716,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     }
                 }
             }
-            if (isCodeLike(storedRegionName)) {
-                String fetched = getTownshipNameByCommunityCode(firstCommunityCode != null ? firstCommunityCode : storedRegionCode);
-                if (!isEmptyString(fetched)) {
-                    storedRegionName = fetched;
+            // 对于社区-行政村能力评估模型(modelId=4)，不要覆盖已经设置的社区名称
+            if (modelId == null || modelId != 4) {
+                if (isCodeLike(storedRegionName)) {
+                    String fetched = getTownshipNameByCommunityCode(firstCommunityCode != null ? firstCommunityCode : storedRegionCode);
+                    if (!isEmptyString(fetched)) {
+                        storedRegionName = fetched;
+                    }
                 }
             }
 
@@ -2197,6 +2731,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             result.setRegionName(storedRegionName);
             result.setEvaluationModelId(modelId);
             result.setDataSource(dataSource);
+
+            log.info("保存评估结果 - modelId={}, storedRegionCode={}, storedRegionName={}, dataSource={}",
+                    modelId, storedRegionCode, storedRegionName, dataSource);
             result.setExecutionRecordId(executionRecordId);
             if (orgCode != null && !orgCode.trim().isEmpty()) {
                 result.setOrgCode(orgCode.trim());

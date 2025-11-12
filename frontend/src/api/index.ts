@@ -13,34 +13,37 @@ export const systemApi = {
 export const surveyDataApi = {
   // 获取所有调查数据
   getAll: () => request.get('/api/survey-data'),
-  
+
   // 根据ID获取调查数据
   getById: (id: number) => request.get(`/api/survey-data/${id}`),
-  
+
   // 根据调查名称获取数据
   getBySurveyName: (surveyName: string) => request.get(`/api/survey-data/survey/${surveyName}`),
-  
+
   // 根据地区获取数据
   getByRegion: (region: string) => request.get(`/api/survey-data/region/${region}`),
-  
+
   // 搜索调查数据
-  search: (keyword: string) => 
+  search: (keyword: string) =>
     request.get('/api/survey-data/search', { params: { keyword: keyword } }),
-  
+
   // 创建调查数据
   create: (data: any) => request.post('/api/survey-data', data),
-  
+
   // 批量创建调查数据
   batchCreate: (dataList: any[]) => request.post('/api/survey-data/batch', dataList),
-  
+
   // 更新调查数据
   update: (data: any) => request.put('/api/survey-data', data),
-  
+
   // 删除调查数据
   delete: (id: number) => request.delete(`/api/survey-data/${id}`),
-  
+
   // 根据调查名称删除数据
   deleteBySurveyName: (surveyName: string) => request.delete(`/api/survey-data/survey/${surveyName}`),
+
+  // 批量删除调查数据
+  batchDelete: (ids: number[]) => request.delete('/api/survey-data/batch', { data: ids }),
   
   // 导入Excel文件
   importData: (file: File, year: number) => {
@@ -526,6 +529,7 @@ export const communityCapacityApi = {
     keyword?: string;
     regionCode?: string;
     communityName?: string;
+    year?: number;
   }) => request.get('/api/community-capacity/search', { params }),
 
   // 根据ID获取社区行政村减灾能力数据

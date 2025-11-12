@@ -106,4 +106,23 @@ public interface EvaluationResultService {
      * @param executionRecordId 执行记录ID
      */
     void deleteByExecutionRecordId(Long executionRecordId);
+
+    /**
+     * 根据模型ID和年份查询评估结果
+     *
+     * @param modelId 模型ID
+     * @param year 年份
+     * @return 评估结果列表
+     */
+    List<EvaluationResult> getResultsByModelIdAndYear(Long modelId, Integer year);
+
+    /**
+     * 根据模型ID、年份和组织机构代码查询评估结果
+     *
+     * @param modelId 模型ID
+     * @param year 年份
+     * @param orgCode 组织机构代码
+     * @return 评估结果列表
+     */
+    List<EvaluationResult> getResultsByModelIdAndYearAndOrgCode(Long modelId, Integer year, String orgCode);
 }
