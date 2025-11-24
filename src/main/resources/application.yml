@@ -1,6 +1,6 @@
 # 服务器配置
 server:
-  port: 8081
+  port: 8088
   servlet:
     context-path: /
     encoding:
@@ -34,8 +34,8 @@ mybatis-plus:
 # 日志配置
 logging:
   level:
-    com.evaluate: info
-    com.evaluate.mapper: info
+    com.evaluate: debug
+    com.evaluate.mapper: debug
   pattern:
     console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
     file: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'

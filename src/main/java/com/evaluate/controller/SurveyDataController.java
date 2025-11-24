@@ -198,4 +198,20 @@ public class SurveyDataController {
             return Result.error("导出所有调查数据失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 重新计算指定年份的所有调查数据的医疗床位统计
+     */
+    @PostMapping("/recalculate-medical-beds/{year}")
+    public Result<Integer> recalculateMedicalBeds(@PathVariable Integer year) {
+        try {
+            log.info("开始重新计算{}年的医疗床位统计", year);
+            int updatedCount = surveyDataService.recalculateMedicalBedsForYear(year);
+            log.info("完成重新计算{}年医疗床位统计，更新了{}条记录", year, updatedCount);
+            return Result.success(updatedCount);
+        } catch (Exception e) {
+            log.error("重新计算{}年医疗床位统计失败", year, e);
+            return Result.error("重新计算医疗床位统计失败: " + e.getMessage());
+        }
+    }
 }

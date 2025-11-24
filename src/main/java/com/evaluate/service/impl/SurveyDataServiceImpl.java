@@ -8,6 +8,7 @@ import com.evaluate.service.IOrganizationService;
 import com.evaluate.service.ISurveyDataService;
 import com.evaluate.service.IFirefighterConfigService;
 import com.evaluate.service.IVolunteerMilitiaService;
+import com.evaluate.service.IMedicalInstitutionService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.NumberToTextConverter;
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import java.util.Objects;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
@@ -46,6 +48,9 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
 
     @Autowired
     private IVolunteerMilitiaService volunteerMilitiaService;
+
+    @Autowired
+    private IMedicalInstitutionService medicalInstitutionService;
 
     @Override
     public List<SurveyData> getBySurveyName(String surveyName) {
@@ -136,7 +141,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
 
-                SurveyData data = parseRowToSurveyData(row, year);
+                SurveyData data = parseRowToSurveyData(row, year, i);
                 if (data != null) {
                     // 设置年份
                     data.setYear(year);
@@ -156,6 +161,14 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
      * 包含所有字段：唯一码和核实状态也会被处理
      */
     private SurveyData parseRowToSurveyData(Row row, Integer year) {
+        return parseRowToSurveyData(row, year, -1);  // -1 表示未知行号
+    }
+
+    /**
+     * 解析Excel行数据为SurveyData对象
+     * 包含所有字段：唯一码和核实状态也会被处理
+     */
+    private SurveyData parseRowToSurveyData(Row row, Integer year, int rowNumber) {
         try {
             SurveyData data = new SurveyData();
 
@@ -265,33 +278,79 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             // 第33列：应急医疗设备数量
             data.setEmergencyMedicalCount(getCellIntegerValue(row.getCell(33)));
 
-            // 处理医院床位数据 - 如果Excel中有hospital_beds列，需要确认列号
-            // 暂时注释掉，等确认Excel模板中hospital_beds列的具体位置后再启用
-            // data.setHospitalBeds(getCellIntegerValue(row.getCell(医院床位列号)));
+            // 第34列：医院床位数 - 现在由医疗设施数据自动统计
+            // 注意：这个字段会在setEnhancedDataFromConfig方法中被自动计算和覆盖
+            // Excel中的值将被医疗机构的实际统计数据替代
+            // data.setHospitalBeds(getCellIntegerValue(row.getCell(34)));
 
-            // 第34列：现有储备物资、装备折合金额
-            data.setMaterialValue(getCellDoubleValue(row.getCell(34)));
+            // 全面调试：输出前50列的所有内容
+            if (rowNumber <= 3) { // 只对前3行进行详细输出
+                log.info("=== 行{}的Excel内容分析 ===", rowNumber);
+                for (int col = 0; col <= 50; col++) {
+                    Cell cell = row.getCell(col);
+                    if (cell != null) {
+                        String cellStr = getCellStringValue(cell);
+                        Double cellDouble = getCellDoubleValue(cell);
+                        Integer cellInt = getCellIntegerValue(cell);
+                        log.info("列{}: 类型={}, 字符串='{}', 数值={}, 整数={}",
+                            col, cell.getCellType(), cellStr, cellDouble, cellInt);
+                    }
+                }
+                log.info("=== 行{}内容分析结束 ===", rowNumber);
+            }
 
-            // 第35列：本级灾害应急避难场所数量
-            data.setShelterCount(getCellIntegerValue(row.getCell(35)));
+            // 智能检测物资价值列（通常包含"万元"、"现有储备物资"等关键词）
+            int materialValueColumn = findMaterialValueColumn(row);
+            Cell materialValueCell = row.getCell(materialValueColumn);
+            Double materialValue = getCellDoubleValue(materialValueCell);
+            data.setMaterialValue(materialValue);
+            log.info("物资价值解析 - 行: {}, 检测到列: {}, 单元格类型: {}, 原始值: {}, 解析结果: {}",
+                rowNumber, materialValueColumn, materialValueCell != null ? materialValueCell.getCellType() : "null",
+                materialValueCell != null ? getCellStringValue(materialValueCell) : "null",
+                materialValue);
 
-            // 第36列：本级灾害应急避难场所容量
-            data.setShelterCapacity(getCellIntegerValue(row.getCell(36)));
+            // 智能检测避难场所数量列（通常包含"数量"、"个"等关键词）
+            int shelterCountColumn = findShelterCountColumn(row, materialValueColumn);
+            Cell shelterCountCell = row.getCell(shelterCountColumn);
+            Integer shelterCount = getCellIntegerValue(shelterCountCell);
+            data.setShelterCount(shelterCount);
+            log.debug("避难场所数量解析 - 行: {}, 检测到列: {}, 单元格类型: {}, 原始值: {}, 解析结果: {}",
+                rowNumber, shelterCountColumn, shelterCountCell != null ? shelterCountCell.getCellType() : "null",
+                shelterCountCell != null ? getCellStringValue(shelterCountCell) : "null",
+                shelterCount);
 
-            // 第37列：单位负责人
-            data.setUnitLeader(getCellStringValue(row.getCell(37)));
+            // 智能检测避难场所容量列（通常在避难场所数量列之后）
+            int shelterCapacityColumn = findShelterCapacityColumn(row, shelterCountColumn);
+            Cell shelterCapacityCell = row.getCell(shelterCapacityColumn);
+            Integer shelterCapacity = getCellIntegerValue(shelterCapacityCell);
+            data.setShelterCapacity(shelterCapacity);
+            log.debug("避难场所容量解析最终结果 - 行: {}, 使用列: {}, 单元格类型: {}, 原始值: {}, 解析结果: {}",
+                rowNumber, shelterCapacityColumn, shelterCapacityCell != null ? shelterCapacityCell.getCellType() : "null",
+                shelterCapacityCell != null ? getCellStringValue(shelterCapacityCell) : "null",
+                shelterCapacity);
 
-            // 第38列：统计负责人
-            data.setStatisticsLeader(getCellStringValue(row.getCell(38)));
+            // 根据实际使用的列，动态调整后续字段的列索引
+            int unitLeaderColumn = shelterCapacityColumn + 1;
+            int statisticsLeaderColumn = shelterCapacityColumn + 2;
+            int formFillerColumn = shelterCapacityColumn + 3;
+            int contactPhoneColumn = shelterCapacityColumn + 4;
+            int reportDateColumn = shelterCapacityColumn + 5;
+            int fillInstructionsColumn = shelterCapacityColumn + 6;
 
-            // 第39列：填表人
-            data.setFormFiller(getCellStringValue(row.getCell(39)));
+            // 第38列（或调整后）：单位负责人
+            data.setUnitLeader(getCellStringValue(row.getCell(unitLeaderColumn)));
 
-            // 第40列：联系电话
-            data.setContactPhone(getCellStringValue(row.getCell(40)));
+            // 第39列（或调整后）：统计负责人
+            data.setStatisticsLeader(getCellStringValue(row.getCell(statisticsLeaderColumn)));
 
-            // 第41列：报出日期
-            Cell reportDateCell = row.getCell(41);
+            // 第40列（或调整后）：填表人
+            data.setFormFiller(getCellStringValue(row.getCell(formFillerColumn)));
+
+            // 第41列（或调整后）：联系电话
+            data.setContactPhone(getCellStringValue(row.getCell(contactPhoneColumn)));
+
+            // 第42列（或调整后）：报出日期
+            Cell reportDateCell = row.getCell(reportDateColumn);
             if (reportDateCell != null) {
                 try {
                     if (reportDateCell.getCellType() == CellType.STRING) {
@@ -307,8 +366,8 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                 }
             }
 
-            // 第42列：填写说明
-            data.setFillInstructions(getCellStringValue(row.getCell(42)));
+            // 第43列（或调整后）：填写说明
+            data.setFillInstructions(getCellStringValue(row.getCell(fillInstructionsColumn)));
 
             // 使用新的数据源设置消防员、志愿者、民兵预备役数据
             setEnhancedDataFromConfig(data, year);
@@ -794,12 +853,62 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                 log.error("统计民兵预备役人数失败，区域代码: {}, 年份: {}", regionCode, year, e);
             }
 
+            // 4. 统计医疗设施实有住院床位数
+            try {
+                // 使用多种匹配策略
+                Integer hospitalBeds = null;
+                String matchPattern = null;
+
+                // 策略1：使用乡镇地址进行匹配
+                String townshipAddress = data.getTownshipAddress();
+                if (townshipAddress != null && !townshipAddress.trim().isEmpty()) {
+                    hospitalBeds = medicalInstitutionService.sumActualHospitalBedsByTownship(townshipAddress, year);
+                    matchPattern = "乡镇地址: " + townshipAddress;
+                }
+
+                // 策略2：如果策略1没找到结果，尝试使用乡镇名称匹配
+                if (hospitalBeds == null || hospitalBeds == 0) {
+                    String townshipName = data.getTownship();
+                    if (townshipName != null && !townshipName.trim().isEmpty()) {
+                        hospitalBeds = medicalInstitutionService.sumActualHospitalBedsByTownship(townshipName, year);
+                        matchPattern = "乡镇名称: " + townshipName;
+                    }
+                }
+
+                // 策略3：如果还是没找到，尝试从地址中提取县名+乡镇名进行匹配
+                if (hospitalBeds == null || hospitalBeds == 0) {
+                    String county = data.getCounty();
+                    String township = data.getTownship();
+                    if (county != null && township != null) {
+                        String searchPattern = county + township;
+                        hospitalBeds = medicalInstitutionService.sumActualHospitalBedsByTownship(searchPattern, year);
+                        matchPattern = "县乡组合: " + searchPattern;
+                    }
+                }
+
+                if (hospitalBeds != null && hospitalBeds > 0) {
+                    data.setHospitalBeds(hospitalBeds);
+                    log.info("设置医疗设施实有住院床位数成功，匹配方式: {}, 区域: {}, 年份: {}, 数量: {}",
+                             matchPattern, regionCode, year, hospitalBeds);
+                } else {
+                    // 如果没有找到医疗机构数据，设置为0
+                    data.setHospitalBeds(0);
+                    log.info("未找到医疗机构数据，设置医院床位数为0，区域代码: {}, 年份: {}, 尝试的匹配方式: {}",
+                             regionCode, year, matchPattern);
+                }
+            } catch (Exception e) {
+                log.error("统计医疗设施实有住院床位数失败，区域代码: {}, 年份: {}", regionCode, year, e);
+                // 出错时设置为0
+                data.setHospitalBeds(0);
+            }
+
             // 记录增强数据设置结果
-            log.info("增强数据设置完成，区域: {}, 消防员: {}, 志愿者: {}, 民兵预备役: {}",
+            log.info("增强数据设置完成，区域: {}, 消防员: {}, 志愿者: {}, 民兵预备役: {}, 医院床位: {}",
                 regionCode,
                 data.getFirefighters(),
                 data.getVolunteers(),
-                data.getMilitiaReserve());
+                data.getMilitiaReserve(),
+                data.getHospitalBeds());
 
         } catch (Exception e) {
             log.error("设置增强数据失败，区域代码: {}, 年份: {}", regionCode, year, e);
@@ -859,5 +968,140 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
         }
 
         return result;
+    }
+
+    @Override
+    @Transactional
+    public int recalculateMedicalBedsForYear(Integer year) {
+        log.info("开始重新计算{}年的医疗床位统计", year);
+
+        // 查询指定年份的所有调查数据
+        QueryWrapper<SurveyData> wrapper = new QueryWrapper<>();
+        wrapper.eq("year", year);
+        wrapper.eq("is_deleted", 0);
+        List<SurveyData> surveyDataList = list(wrapper);
+
+        int updatedCount = 0;
+        for (SurveyData data : surveyDataList) {
+            try {
+                // 记录更新前的床位数量
+                Integer originalBeds = data.getHospitalBeds();
+
+                // 调用setEnhancedDataFromConfig方法重新计算医疗床位
+                setEnhancedDataFromConfig(data, year);
+
+                // 只有当床位数量发生变化时才更新数据库
+                if (!Objects.equals(originalBeds, data.getHospitalBeds())) {
+                    updateById(data);
+                    updatedCount++;
+                    log.info("更新医疗床位统计 - 区域: {}, 年份: {}, 原床位: {}, 新床位: {}",
+                            data.getTownship(), year, originalBeds, data.getHospitalBeds());
+                }
+            } catch (Exception e) {
+                log.error("更新区域{}的医疗床位统计失败", data.getTownship(), e);
+            }
+        }
+
+        log.info("完成重新计算{}年医疗床位统计，总共处理了{}条记录，更新了{}条记录", year, surveyDataList.size(), updatedCount);
+        return updatedCount;
+    }
+
+    /**
+     * 智能检测物资价值列
+     * 通过检查列中的数值特征来找到包含物资价值数据的列
+     */
+    private int findMaterialValueColumn(Row row) {
+        log.debug("开始智能检测物资价值列");
+
+        // 先尝试常见的列位置
+        int[] commonColumns = {34, 35, 36, 37, 33, 32};
+        for (int col : commonColumns) {
+            Cell cell = row.getCell(col);
+            if (cell != null) {
+                Double value = getCellDoubleValue(cell);
+                String cellStr = getCellStringValue(cell);
+                log.debug("检查列{}: 值={}, 字符串={}", col, value, cellStr);
+
+                if (value != null && value > 0) {
+                    // 检查是否为合理的物资价值范围（0.1-1000万元）
+                    if (value >= 0.1 && value <= 1000) {
+                        log.info("找到物资价值列: {}, 值: {}", col, value);
+                        return col;
+                    }
+                }
+            }
+        }
+
+        // 如果常见列都没找到，扩大搜索范围
+        for (int col = 30; col <= 50; col++) {
+            Cell cell = row.getCell(col);
+            if (cell != null) {
+                Double value = getCellDoubleValue(cell);
+                String cellStr = getCellStringValue(cell);
+                log.debug("扩展搜索列{}: 值={}, 字符串={}", col, value, cellStr);
+
+                if (value != null && value > 0) {
+                    // 检查是否为合理的物资价值范围
+                    if (value >= 0.1 && value <= 1000) {
+                        log.info("扩展搜索找到物资价值列: {}, 值: {}", col, value);
+                        return col;
+                    }
+                }
+            }
+        }
+
+        // 如果没找到，返回默认的35列
+        log.warn("未找到物资价值列，使用默认列35");
+        return 35;
+    }
+
+    /**
+     * 智能检测避难场所数量列
+     * 通过检查列中的整数特征来找到包含避难场所数量的列
+     */
+    private int findShelterCountColumn(Row row, int materialValueColumn) {
+        // 从物资价值列的下一列开始搜索
+        for (int col = materialValueColumn + 1; col <= 50; col++) {
+            Cell cell = row.getCell(col);
+            if (cell != null) {
+                Integer value = getCellIntegerValue(cell);
+                if (value != null && value >= 0) {
+                    // 检查是否为合理的避难场所数量范围（0-100个）
+                    if (value <= 100) {
+                        log.debug("找到可能的避难场所数量列: {}, 值: {}", col, value);
+                        return col;
+                    }
+                }
+            }
+        }
+        // 如果没找到，使用物资价值列+1
+        int defaultCol = materialValueColumn + 1;
+        log.debug("未找到避难场所数量列，使用默认列: {}", defaultCol);
+        return defaultCol;
+    }
+
+    /**
+     * 智能检测避难场所容量列
+     * 通过检查列中的数值特征来找到包含避难场所容量的列
+     */
+    private int findShelterCapacityColumn(Row row, int shelterCountColumn) {
+        // 从避难场所数量列的下一列开始搜索
+        for (int col = shelterCountColumn + 1; col <= 50; col++) {
+            Cell cell = row.getCell(col);
+            if (cell != null) {
+                Integer value = getCellIntegerValue(cell);
+                if (value != null && value >= 0) {
+                    // 检查是否为合理的避难场所容量范围（0-10000人）
+                    if (value <= 10000) {
+                        log.debug("找到可能的避难场所容量列: {}, 值: {}", col, value);
+                        return col;
+                    }
+                }
+            }
+        }
+        // 如果没找到，使用避难场所数量列+1
+        int defaultCol = shelterCountColumn + 1;
+        log.debug("未找到避难场所容量列，使用默认列: {}", defaultCol);
+        return defaultCol;
     }
 }

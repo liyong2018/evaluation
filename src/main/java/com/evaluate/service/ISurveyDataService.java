@@ -114,8 +114,16 @@ public interface ISurveyDataService extends IService<SurveyData> {
 
     /**
      * 导出所有调查数据到Excel
-     * 
+     *
      * @return Excel文件字节数组
      */
     byte[] exportAllToExcel();
+
+    /**
+     * 重新计算指定年份的所有调查数据的医疗床位统计
+     *
+     * @param year 年份
+     * @return 更新的记录数量
+     */
+    int recalculateMedicalBedsForYear(Integer year);
 }
