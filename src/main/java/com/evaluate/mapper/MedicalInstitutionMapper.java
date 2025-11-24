@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.evaluate.entity.MedicalInstitution;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 /**
  * 医疗卫生机构Mapper接口
@@ -26,5 +27,21 @@ public interface MedicalInstitutionMapper extends BaseMapper<MedicalInstitution>
             "OR institution_name LIKE CONCAT('%', #{arg0}, '%')) " +
             "AND year = #{arg1}")
     Integer sumActualHospitalBedsByTownship(String townshipAddress, Integer year);
+
+    /**
+     * 修改医疗机构表唯一约束：从单字段改为复合字段
+     * @return 修改结果
+     */
+    @Update("ALTER TABLE medical_institution DROP INDEX unique_code")
+    int dropOldUniqueIndex();
+
+    @Update("ALTER TABLE medical_institution DROP INDEX `medical_institution.unique_code`")
+    int dropOldUniqueIndex2();
+
+    @Update("ALTER TABLE medical_institution DROP INDEX uk_unique_code")
+    int dropOldUniqueIndex3();
+
+    @Update("ALTER TABLE medical_institution ADD CONSTRAINT uk_unique_code_year UNIQUE (unique_code, year)")
+    int addCompositeUniqueIndex();
 
 }

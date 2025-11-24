@@ -548,6 +548,53 @@ export const communityCapacityApi = {
   downloadTemplate: () => request.get('/api/community-capacity/template')
 }
 
+// 医疗卫生机构相关API
+export const medicalInstitutionApi = {
+  // 导入医疗卫生机构数据
+  importData: (file: File, year: number) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('year', year.toString())
+    return request.post('/api/medical-institution/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  // 获取医疗卫生机构数据列表
+  getList: (year: number) => request.get('/api/medical-institution/list', { params: { year } }),
+
+  // 搜索医疗卫生机构数据
+  search: (institutionName: string) => request.get('/api/medical-institution/search', {
+    params: { institutionName }
+  }),
+
+  // 根据ID获取医疗卫生机构数据
+  getById: (id: number) => request.get(`/api/medical-institution/${id}`),
+
+  // 创建医疗卫生机构数据
+  create: (data: any) => request.post('/api/medical-institution', data),
+
+  // 更新医疗卫生机构数据
+  update: (data: any) => request.put('/api/medical-institution', data),
+
+  // 删除医疗卫生机构数据
+  delete: (id: number) => request.delete(`/api/medical-institution/${id}`),
+
+  // 批量删除医疗卫生机构数据
+  batchDelete: (ids: number[]) => request.delete('/api/medical-institution/batch', { data: ids }),
+
+  // 导出医疗卫生机构数据
+  exportData: (year: number) => request.get('/api/medical-institution/export', {
+    params: { year },
+    responseType: 'blob'
+  }),
+
+  // 下载导入模板
+  downloadTemplate: () => request.get('/api/medical-institution/template', {
+    responseType: 'blob'
+  })
+}
+
 // 地区数据相关API（三级联动）
 export const regionDataApi = {
   // 根据数据类型获取省份列表

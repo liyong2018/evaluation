@@ -23,7 +23,11 @@
       "Bash(findstr:*)",
       "Bash(wmic:*)",
       "Bash(powershell:*)",
-      "Bash(mysql:*)"
+      "Bash(mysql:*)",
+      "Bash(git push:*)",
+      "Bash(npm run build)",
+      "Bash(ssh:*)",
+      "Bash(cmd:*)"
     ],
     "deny": [],
     "ask": []

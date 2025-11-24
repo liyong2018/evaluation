@@ -11,11 +11,11 @@ export default defineConfig({
     vueDevTools(),
   ],
   server: {
-    host: '0.0.0.0', // 允许局域网访问
-    port: 5173,      // 可选：指定端口
+    host: '0.0.0.0', // 允许所有网络接口访问
+    port: 5173,      // 使用5173端口
     proxy: {
       '/api': {
-        target: 'http://localhost:8087',
+        target: 'http://localhost:8088', // 使用本地后端
         changeOrigin: true,
         secure: false
       }

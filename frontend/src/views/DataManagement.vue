@@ -53,9 +53,13 @@
           <el-radio-group v-model="dataType" size="large" @change="handleDataTypeChange">
             <el-radio-button label="township">乡镇数据 (survey_data)</el-radio-button>
             <el-radio-button label="community">社区数据 (community_disaster_reduction_capacity)</el-radio-button>
+            <el-radio-button label="medical">医疗卫生机构 (medical_institution)</el-radio-button>
           </el-radio-group>
-          <el-tag :type="dataType === 'township' ? 'success' : 'warning'" style="margin-left: 20px">
-            当前: {{ dataType === 'township' ? '乡镇数据表' : '社区数据表' }}
+          <el-tag
+            :type="dataType === 'township' ? 'success' : dataType === 'community' ? 'warning' : 'primary'"
+            style="margin-left: 20px"
+          >
+            当前: {{ getCurrentDataTypeName() }}
           </el-tag>
         </el-card>
 
@@ -65,7 +69,7 @@
             <el-col :span="16">
               <el-input
                 v-model="searchForm.keyword"
-                placeholder="搜索地区名称或代码"
+                :placeholder="getSearchPlaceholder()"
                 clearable
                 @keyup.enter="handleSearch"
                 style="width: 300px; margin-right: 12px;"
@@ -100,13 +104,17 @@
                   <el-icon><Delete /></el-icon>
                   批量删除 ({{ selectedRows.length }})
                 </el-button>
-                <el-button type="success" @click="showAddDialog">
+                <el-button v-if="dataType !== 'medical'" type="success" @click="showAddDialog">
                   <el-icon><Plus /></el-icon>
                   新增数据
                 </el-button>
                 <el-button type="warning" @click="showImportDialog">
                   <el-icon><Upload /></el-icon>
                   批量导入
+                </el-button>
+                <el-button v-if="dataType === 'medical'" type="primary" @click="downloadTemplate">
+                  <el-icon><Download /></el-icon>
+                  下载模板
                 </el-button>
                 <el-button type="info" @click="exportData">
                   <el-icon><Download /></el-icon>
@@ -160,14 +168,29 @@
             {{ dataType === 'township' ? row.township : row.townshipName }}
           </template>
         </el-table-column>
+        <!-- 医疗卫生机构名称 (仅医疗机构数据) -->
+        <el-table-column v-if="dataType === 'medical'" prop="institutionName" label="医疗机构名称" width="200" show-overflow-tooltip />
+        <!-- 统一社会信用代码 (仅医疗机构数据) -->
+        <el-table-column v-if="dataType === 'medical'" prop="unifiedSocialCreditCode" label="统一社会信用代码" width="150" />
+        <!-- 医疗机构地址 (仅医疗机构数据) -->
+        <el-table-column v-if="dataType === 'medical'" prop="institutionAddress" label="机构地址" width="250" show-overflow-tooltip />
+        <!-- 医疗机构类型 (仅医疗机构数据) -->
+        <el-table-column v-if="dataType === 'medical'" prop="institutionTypeLarge" label="机构类型(大类)" width="120" />
+        <!-- 医院等级 (仅医疗机构数据) -->
+        <el-table-column v-if="dataType === 'medical'" prop="hospitalLevel" label="医院等级" width="100" />
+        <!-- 实有床位数 (仅医疗机构数据) -->
+        <el-table-column v-if="dataType === 'medical'" prop="actualHospitalBeds" label="实有床位数" width="100" />
+
         <!-- 社区名称 (仅社区数据) -->
         <el-table-column v-if="dataType === 'community'" prop="communityName" label="社区(行政村)" width="140" />
         <!-- 人口数量 -->
-        <el-table-column label="人口数量" width="100">
+        <el-table-column label="人口数量" width="100" v-if="dataType !== 'medical'">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.population : row.residentPopulation }}
           </template>
         </el-table-column>
+        <!-- 在岗职工人数 (仅医疗机构数据) -->
+        <el-table-column v-if="dataType === 'medical'" prop="totalStaff" label="在岗职工人数" width="100" />
         <!-- 管理人员 (仅乡镇数据) -->
         <el-table-column v-if="dataType === 'township'" prop="managementStaff" label="管理人员" width="100" />
         <!-- 风险评估 (仅乡镇数据) -->
@@ -225,7 +248,7 @@
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="showEditDialog(row)">
+            <el-button v-if="dataType !== 'medical'" type="primary" size="small" @click="showEditDialog(row)">
               <el-icon><Edit /></el-icon>
               编辑
             </el-button>
@@ -484,7 +507,7 @@ import {
   UploadFilled,
   Refresh
 } from '@element-plus/icons-vue'
-import { surveyDataApi, communityCapacityApi, organizationApi } from '@/api'
+import { surveyDataApi, communityCapacityApi, organizationApi, medicalInstitutionApi } from '@/api'
 
 // 修复ResizeObserver错误
 const originalError = console.error
@@ -496,7 +519,7 @@ console.error = (...args: any[]) => {
 }
 
 // 响应式数据
-const dataType = ref<'township' | 'community'>('township')  // 数据类型：township(乡镇) 或 community(社区)
+const dataType = ref<'township' | 'community' | 'medical'>('township')  // 数据类型：township(乡镇)、community(社区) 或 medical(医疗机构)
 const tableData = ref<any[]>([])
 const selectedRows = ref<any[]>([])
 // 代码->名称映射表（一次性从后端加载）
@@ -626,6 +649,34 @@ const handleOrgNodeClick = (data: any) => {
   getDataList()
 }
 
+// 获取当前数据类型名称
+const getCurrentDataTypeName = () => {
+  switch (dataType.value) {
+    case 'township':
+      return '乡镇数据表'
+    case 'community':
+      return '社区数据表'
+    case 'medical':
+      return '医疗卫生机构表'
+    default:
+      return '未知数据类型'
+  }
+}
+
+// 获取搜索框占位符
+const getSearchPlaceholder = () => {
+  switch (dataType.value) {
+    case 'township':
+      return '搜索地区名称或代码'
+    case 'community':
+      return '搜索社区名称'
+    case 'medical':
+      return '搜索医疗机构名称'
+    default:
+      return '请输入搜索关键词'
+  }
+}
+
 // 根据代码获取地区名称（带鲁棒回退）
 const getRegionName = (row?: any) => {
   const code = row?.regionCode
@@ -636,13 +687,16 @@ const getRegionName = (row?: any) => {
   if (mapped) return mapped
   if (dataType.value === 'township') {
     return row?.township || row?.county || row?.city || row?.province || key || '-'
-  } else {
+  } else if (dataType.value === 'community') {
     return row?.communityName || row?.townshipName || row?.countyName || row?.cityName || row?.provinceName || key || '-'
+  } else if (dataType.value === 'medical') {
+    return row?.institutionName || key || '-'
   }
+  return key || '-'
 }
 
 // 数据类型切换处理
-const handleDataTypeChange = (newType: 'township' | 'community') => {
+const handleDataTypeChange = (newType: 'township' | 'community' | 'medical') => {
   console.info('[DataManagement] 切换数据类型:', newType)
   dataType.value = newType
   // 清空搜索条件和表格数据
@@ -668,7 +722,7 @@ const getDataList = async () => {
       if (response.success) {
         allData = response.data || []
       }
-    } else {
+    } else if (dataType.value === 'community') {
       // 社区数据 - 使用 search API 支持年份过滤
       const searchParams: any = {}
       if (searchForm.year) searchParams.year = searchForm.year
@@ -677,10 +731,17 @@ const getDataList = async () => {
       if (response.success) {
         allData = response.data || []
       }
+    } else if (dataType.value === 'medical') {
+      // 医疗卫生机构数据 - 获取指定年份的数据
+      const year = searchForm.year || new Date().getFullYear()
+      response = await medicalInstitutionApi.getList(year)
+      if (response.success) {
+        allData = response.data || []
+      }
     }
 
     // 如果选中了组织机构，过滤数据
-    if (selectedOrg.value && allData.length > 0) {
+    if (selectedOrg.value && allData.length > 0 && dataType.value !== 'medical') {
       const orgCode = selectedOrg.value.code
       allData = allData.filter((row: any) => {
         // 根据数据类型过滤
@@ -693,7 +754,7 @@ const getDataList = async () => {
             String(row.county || '').includes(selectedOrg.value.name) ||
             String(row.township || '').includes(selectedOrg.value.name)
           )
-        } else {
+        } else if (dataType.value === 'community') {
           // 社区数据：匹配省、市、县、乡镇、社区名称
           return (
             String(row.regionCode || '').startsWith(orgCode) ||
@@ -716,7 +777,7 @@ const getDataList = async () => {
       tableData.value = allData
       pagination.total = tableData.value.length
       // 如果下拉选项还未加载成功，基于现有表格构建一个临时选项集
-      if (!regionSelectOptions.value?.length && tableData.value?.length) {
+      if (!regionSelectOptions.value?.length && tableData.value?.length && dataType.value !== 'medical') {
         const uniq = new Map<string, string>()
         for (const row of tableData.value) {
           const code = String(row.regionCode || '').trim()
@@ -724,7 +785,7 @@ const getDataList = async () => {
           let name = ''
           if (dataType.value === 'township') {
             name = row.township || row.county || row.city || row.province || code
-          } else {
+          } else if (dataType.value === 'community') {
             name = row.communityName || row.townshipName || row.countyName || row.cityName || row.provinceName || code
           }
           if (!uniq.has(code)) uniq.set(code, name)
@@ -767,7 +828,7 @@ const handleSearch = async () => {
           return
         }
       }
-    } else {
+    } else if (dataType.value === 'community') {
       // 社区数据搜索
       const searchParams: any = {}
       if (searchForm.keyword) searchParams.keyword = searchForm.keyword
@@ -775,6 +836,15 @@ const handleSearch = async () => {
       if (searchForm.year) searchParams.year = searchForm.year
 
       response = await communityCapacityApi.search(searchParams)
+    } else if (dataType.value === 'medical') {
+      // 医疗卫生机构数据搜索
+      if (searchForm.keyword) {
+        response = await medicalInstitutionApi.search(searchForm.keyword)
+      } else {
+        // 如果只有年份过滤，使用 getList
+        const year = searchForm.year || new Date().getFullYear()
+        response = await medicalInstitutionApi.getList(year)
+      }
     }
 
     if (response?.success) {
@@ -909,9 +979,12 @@ const handleBatchDelete = async () => {
     if (dataType.value === 'township') {
       // 乡镇数据批量删除
       response = await surveyDataApi.batchDelete(ids)
-    } else {
+    } else if (dataType.value === 'community') {
       // 社区数据批量删除
       response = await communityCapacityApi.batchDelete(ids)
+    } else if (dataType.value === 'medical') {
+      // 医疗卫生机构数据批量删除
+      response = await medicalInstitutionApi.batchDelete(ids)
     }
 
     if (response.success) {
@@ -994,9 +1067,12 @@ const handleImport = async () => {
     if (dataType.value === 'township') {
       // 导入乡镇数据
       response = await surveyDataApi.importData(uploadFile.value, importYear.value)
-    } else {
+    } else if (dataType.value === 'community') {
       // 导入社区数据
       response = await communityCapacityApi.importData(uploadFile.value, importYear.value)
+    } else if (dataType.value === 'medical') {
+      // 导入医疗卫生机构数据
+      response = await medicalInstitutionApi.importData(uploadFile.value, importYear.value)
     }
 
     if (response.success) {
@@ -1014,76 +1090,123 @@ const handleImport = async () => {
   }
 }
 
+// 下载模板
+const downloadTemplate = async () => {
+  try {
+    const response = await medicalInstitutionApi.downloadTemplate()
+
+    // 创建blob对象
+    const blob = new Blob([response], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+
+    // 创建下载链接
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = '医疗卫生机构导入模板.xlsx'
+
+    // 触发下载
+    document.body.appendChild(link)
+    link.click()
+
+    // 清理
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    ElMessage.success('模板下载成功')
+  } catch (error) {
+    console.error('下载模板失败:', error)
+    ElMessage.error('下载模板失败')
+  }
+}
+
 // 导出数据
 const exportData = async () => {
   try {
-    console.log('开始导出数据...')
-    const response = await surveyDataApi.exportData()
+    let response
+    if (dataType.value === 'medical') {
+      // 导出医疗卫生机构数据
+      const year = searchForm.year || new Date().getFullYear()
+      response = await medicalInstitutionApi.exportData(year)
+    } else {
+      // 导出其他类型数据
+      response = await surveyDataApi.exportData()
+    }
+
     console.log('导出响应:', response)
-    
-    // 检查响应是否成功
-    if (response && response.success && response.data) {
-      console.log('响应数据类型:', typeof response.data)
-      console.log('响应数据长度:', response.data.length)
-      
-      let byteArray: Uint8Array
-      
-      if (typeof response.data === 'string') {
-        // 如果是base64字符串，进行解码
-        try {
-          const byteCharacters = atob(response.data)
-          const byteNumbers = new Array(byteCharacters.length)
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i)
+
+    let blob
+    let fileName
+
+    if (dataType.value === 'medical') {
+      // 医疗卫生机构数据导出 - 直接返回blob
+      blob = response
+      fileName = `医疗卫生机构数据_${searchForm.year || new Date().getFullYear()}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    } else {
+      // 其他类型数据导出 - 需要处理响应格式
+      if (response && response.success && response.data) {
+        console.log('响应数据类型:', typeof response.data)
+        console.log('响应数据长度:', response.data.length)
+
+        let byteArray: Uint8Array
+
+        if (typeof response.data === 'string') {
+          // 如果是base64字符串，进行解码
+          try {
+            const byteCharacters = atob(response.data)
+            const byteNumbers = new Array(byteCharacters.length)
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i)
+            }
+            byteArray = new Uint8Array(byteNumbers)
+          } catch (e) {
+            console.error('Base64解码失败:', e)
+            ElMessage.error('数据格式错误')
+            return
           }
-          byteArray = new Uint8Array(byteNumbers)
-        } catch (e) {
-          console.error('Base64解码失败:', e)
-          ElMessage.error('数据格式错误')
+        } else if (Array.isArray(response.data)) {
+          // 如果是字节数组，直接转换
+          byteArray = new Uint8Array(response.data)
+        } else {
+          console.error('未知的数据格式:', response.data)
+          ElMessage.error('数据格式不支持')
           return
         }
-      } else if (Array.isArray(response.data)) {
-        // 如果是字节数组，直接转换
-        byteArray = new Uint8Array(response.data)
+
+        console.log('处理后的字节数组长度:', byteArray.length)
+
+        if (byteArray.length === 0) {
+          ElMessage.error('导出的文件为空')
+          return
+        }
+
+        blob = new Blob([byteArray], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        })
+        fileName = `调查数据_${new Date().toISOString().slice(0, 10)}.xlsx`
       } else {
-        console.error('未知的数据格式:', response.data)
-        ElMessage.error('数据格式不支持')
+        console.error('导出失败，响应:', response)
+        ElMessage.error(response?.message || '导出失败：响应数据为空')
         return
       }
-      
-      console.log('处理后的字节数组长度:', byteArray.length)
-      
-      if (byteArray.length === 0) {
-        ElMessage.error('导出的文件为空')
-        return
-      }
-      
-      // 创建blob对象
-      const blob = new Blob([byteArray], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      })
-      
-      console.log('Blob大小:', blob.size)
-      
-      // 创建下载链接
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `调查数据_${new Date().toISOString().slice(0, 10)}.xlsx`
-      
-      // 触发下载
-      document.body.appendChild(link)
-      link.click()
-      
-      // 清理
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-      
-      ElMessage.success('导出成功')
-    } else {
-      console.error('导出失败，响应:', response)
-      ElMessage.error(response?.message || '导出失败：响应数据为空')
     }
+
+    // 创建下载链接
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+
+    // 触发下载
+    document.body.appendChild(link)
+    link.click()
+
+    // 清理
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    ElMessage.success('导出成功')
   } catch (error) {
     console.error('导出失败:', error)
     ElMessage.error('导出失败: ' + (error as Error).message)

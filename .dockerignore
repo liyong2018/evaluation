@@ -1,0 +1,63 @@
+# 构建上下文排除文件
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+
+# 前端构建产物（将在容器内构建）
+frontend/node_modules
+frontend/dist
+
+# Maven构建产物（需要包含预构建的JAR文件）
+.mvn/
+
+# 测试相关
+*.test
+*.spec
+
+# Docker相关
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# 部署脚本
+deploy/
+scripts/
+
+# 文档
+README.md
+*.md
+docs/
+
+# 配置文件（敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 数据文件
+uploads/
+data/
+
+# 备份文件
+*.bak
+*.backup

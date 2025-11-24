@@ -1,5 +1,6 @@
 package com.evaluate.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.evaluate.entity.MedicalInstitution;
 import com.evaluate.mapper.MedicalInstitutionMapper;
@@ -126,9 +127,9 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
 
             workbook.close();
 
-            // 批量保存数据
+            // 智能批量保存数据
             if (!medicalInstitutions.isEmpty()) {
-                boolean result = this.saveBatch(medicalInstitutions);
+                boolean result = smartBatchSave(medicalInstitutions);
                 log.info("成功导入{}条医疗卫生机构数据", medicalInstitutions.size());
                 return result;
             }
@@ -139,6 +140,72 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         }
 
         return false;
+    }
+
+    /**
+     * 智能批量保存数据：根据 unique_code 和 year 判断是否存在，存在则更新，不存在则插入
+     * 这样可以避免不同年份的数据相互覆盖
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean smartBatchSave(List<MedicalInstitution> dataList) {
+        if (dataList == null || dataList.isEmpty()) {
+            log.warn("智能批量保存医疗机构数据失败：数据列表为空");
+            return false;
+        }
+
+        log.info("开始智能批量保存医疗机构数据，共{}条记录", dataList.size());
+        try {
+            int successCount = 0;
+            int updateCount = 0;
+            int insertCount = 0;
+
+            for (int i = 0; i < dataList.size(); i++) {
+                MedicalInstitution data = dataList.get(i);
+                try {
+                    log.debug("处理第{}条医疗机构数据，唯一码：{}，年份：{}", i+1, data.getUniqueCode(), data.getYear());
+
+                    // 根据唯一码和年份查找现有记录
+                    QueryWrapper<MedicalInstitution> queryWrapper = new QueryWrapper<>();
+                    queryWrapper.eq("unique_code", data.getUniqueCode())
+                               .eq("year", data.getYear());
+
+                    MedicalInstitution existingData = getOne(queryWrapper);
+
+                    if (existingData != null) {
+                        // 记录已存在，更新现有记录
+                        log.debug("更新现有医疗机构记录，ID：{}，唯一码：{}，年份：{}", existingData.getId(), data.getUniqueCode(), data.getYear());
+                        data.setId(existingData.getId()); // 保持原有的ID
+                        boolean updateResult = updateById(data);
+                        if (updateResult) {
+                            updateCount++;
+                            successCount++;
+                        } else {
+                            log.error("更新医疗机构记录失败，ID：{}，唯一码：{}，年份：{}", existingData.getId(), data.getUniqueCode(), data.getYear());
+                        }
+                    } else {
+                        // 记录不存在，插入新记录（ID为null，会自动生成）
+                        log.debug("插入新医疗机构记录，唯一码：{}，年份：{}", data.getUniqueCode(), data.getYear());
+                        data.setId(null);
+                        boolean saveResult = save(data);
+                        if (saveResult) {
+                            insertCount++;
+                            successCount++;
+                        } else {
+                            log.error("插入医疗机构记录失败，唯一码：{}，年份：{}", data.getUniqueCode(), data.getYear());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("处理第{}条医疗机构数据失败，唯一码：{}，年份：{}", i+1, data.getUniqueCode(), data.getYear(), e);
+                    throw e; // 重新抛出异常以触发事务回滚
+                }
+            }
+
+            log.info("智能批量保存医疗机构数据完成，成功{}条，其中插入{}条，更新{}条", successCount, insertCount, updateCount);
+            return successCount == dataList.size();
+        } catch (Exception e) {
+            log.error("智能批量保存医疗机构数据失败", e);
+            throw e;
+        }
     }
 
     @Override
@@ -381,5 +448,53 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
     @Override
     public Integer sumActualHospitalBedsByTownship(String townshipAddress, Integer year) {
         return baseMapper.sumActualHospitalBedsByTownship(townshipAddress, year);
+    }
+
+    /**
+     * 修改数据库唯一约束，支持多年度数据
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean fixUniqueConstraint() {
+        try {
+            log.info("开始修改医疗机构表唯一约束...");
+
+            // 尝试添加新的复合唯一约束（如果不存在的话）
+            // 使用IGNORE关键字避免约束冲突
+            try {
+                int result = baseMapper.addCompositeUniqueIndex();
+                log.info("成功添加复合唯一约束");
+            } catch (Exception e) {
+                log.warn("添加复合唯一约束失败，尝试先删除旧约束: {}", e.getMessage());
+
+                // 尝试删除旧的唯一约束（可能存在多种命名方式）
+                try {
+                    baseMapper.dropOldUniqueIndex();
+                } catch (Exception e1) {
+                    log.debug("删除unique_code约束失败: {}", e1.getMessage());
+                }
+
+                try {
+                    baseMapper.dropOldUniqueIndex2();
+                } catch (Exception e1) {
+                    log.debug("删除medical_institution.unique_code约束失败: {}", e1.getMessage());
+                }
+
+                try {
+                    baseMapper.dropOldUniqueIndex3();
+                } catch (Exception e1) {
+                    log.debug("删除uk_unique_code约束失败: {}", e1.getMessage());
+                }
+
+                // 再次尝试添加新的复合唯一约束
+                int result = baseMapper.addCompositeUniqueIndex();
+                log.info("重新添加复合唯一约束成功");
+            }
+
+            log.info("成功修改医疗机构表唯一约束，改为复合约束(unique_code, year)");
+            return true;
+        } catch (Exception e) {
+            log.error("修改医疗机构表唯一约束失败", e);
+            throw new RuntimeException("修改数据库约束失败: " + e.getMessage());
+        }
     }
 }

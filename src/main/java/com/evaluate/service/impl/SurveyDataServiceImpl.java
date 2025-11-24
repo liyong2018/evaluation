@@ -90,29 +90,59 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
     @Transactional(rollbackFor = Exception.class)
     public boolean smartBatchSave(List<SurveyData> dataList) {
         if (dataList == null || dataList.isEmpty()) {
+            log.warn("智能批量保存数据失败：数据列表为空");
             return false;
         }
 
+        log.info("开始智能批量保存调查数据，共{}条记录", dataList.size());
         try {
-            for (SurveyData data : dataList) {
-                // 根据地区代码和年份查找现有记录
-                QueryWrapper<SurveyData> queryWrapper = new QueryWrapper<>();
-                queryWrapper.eq("region_code", data.getRegionCode())
-                           .eq("year", data.getYear());
+            int successCount = 0;
+            int updateCount = 0;
+            int insertCount = 0;
 
-                SurveyData existingData = getOne(queryWrapper);
+            for (int i = 0; i < dataList.size(); i++) {
+                SurveyData data = dataList.get(i);
+                try {
+                    log.debug("处理第{}条数据，地区代码：{}，年份：{}", i+1, data.getRegionCode(), data.getYear());
 
-                if (existingData != null) {
-                    // 记录已存在，更新现有记录
-                    data.setId(existingData.getId()); // 保持原有的ID
-                    updateById(data);
-                } else {
-                    // 记录不存在，插入新记录（ID为null，会自动生成）
-                    data.setId(null);
-                    save(data);
+                    // 根据地区代码和年份查找现有记录
+                    QueryWrapper<SurveyData> queryWrapper = new QueryWrapper<>();
+                    queryWrapper.eq("region_code", data.getRegionCode())
+                               .eq("year", data.getYear());
+
+                    SurveyData existingData = getOne(queryWrapper);
+
+                    if (existingData != null) {
+                        // 记录已存在，更新现有记录
+                        log.debug("更新现有记录，ID：{}，地区代码：{}，年份：{}", existingData.getId(), data.getRegionCode(), data.getYear());
+                        data.setId(existingData.getId()); // 保持原有的ID
+                        boolean updateResult = updateById(data);
+                        if (updateResult) {
+                            updateCount++;
+                            successCount++;
+                        } else {
+                            log.error("更新记录失败，ID：{}，地区代码：{}，年份：{}", existingData.getId(), data.getRegionCode(), data.getYear());
+                        }
+                    } else {
+                        // 记录不存在，插入新记录（ID为null，会自动生成）
+                        log.debug("插入新记录，地区代码：{}，年份：{}", data.getRegionCode(), data.getYear());
+                        data.setId(null);
+                        boolean saveResult = save(data);
+                        if (saveResult) {
+                            insertCount++;
+                            successCount++;
+                        } else {
+                            log.error("插入记录失败，地区代码：{}，年份：{}", data.getRegionCode(), data.getYear());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("处理第{}条数据失败，地区代码：{}，年份：{}", i+1, data.getRegionCode(), data.getYear(), e);
+                    throw e; // 重新抛出异常以触发事务回滚
                 }
             }
-            return true;
+
+            log.info("智能批量保存调查数据完成，成功{}条，其中插入{}条，更新{}条", successCount, insertCount, updateCount);
+            return successCount == dataList.size();
         } catch (Exception e) {
             log.error("智能批量保存数据失败", e);
             throw e;
@@ -132,27 +162,49 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             return false;
         }
 
+        log.info("开始导入调查数据，文件名：{}，年份：{}", file.getOriginalFilename(), year);
+
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
+            log.info("Excel文件共{}行数据", sheet.getLastRowNum() + 1);
+
             List<SurveyData> dataList = new ArrayList<>();
+            int validRowCount = 0;
+            int emptyRowCount = 0;
 
             // 跳过前两行表头，从第三行开始读取
             for (int i = 2; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
-                if (row == null) continue;
-
-                SurveyData data = parseRowToSurveyData(row, year, i);
-                if (data != null) {
-                    // 设置年份
-                    data.setYear(year);
-                    dataList.add(data);
+                if (row == null) {
+                    emptyRowCount++;
+                    continue;
                 }
+
+                try {
+                    SurveyData data = parseRowToSurveyData(row, year, i);
+                    if (data != null) {
+                        // 设置年份
+                        data.setYear(year);
+                        dataList.add(data);
+                        validRowCount++;
+                    }
+                } catch (Exception e) {
+                    log.error("解析第{}行数据失败", i + 1, e);
+                    throw e; // 重新抛出异常以触发事务回滚
+                }
+            }
+
+            log.info("Excel文件解析完成，有效数据{}行，空行{}行", validRowCount, emptyRowCount);
+
+            if (dataList.isEmpty()) {
+                log.warn("没有有效的调查数据可以导入");
+                return false;
             }
 
             return smartBatchSave(dataList);
         } catch (Exception e) {
-            log.error("读取Excel文件失败", e);
-            return false;
+            log.error("导入调查数据失败，文件名：{}，年份：{}", file.getOriginalFilename(), year, e);
+            throw new RuntimeException("导入调查数据失败: " + e.getMessage(), e);
         }
     }
 
