@@ -1,327 +1,235 @@
-# 减灾能力评估系统 Docker 部署指南
+# 部署说明（前端 SPA + 后端 API）
 
-## 部署环境
+本项目前端使用 Vue Router 的 History 模式（`createWebHistory`），生产环境需要在反向代理（Nginx）中开启 **SPA 路由回退**（`try_files ... /index.html`），否则直接访问前端路由（如 `/data-management`）将返回后端 404（Whitelabel Error Page）。
 
-- **目标服务器**: root@101.126.46.254
-- **部署方式**: Docker + Docker Compose
-- **包含服务**:
-  - Spring Boot 应用 (端口 8087)
-  - MySQL 8.0 (端口 3306)
-  - Redis 7 (端口 6379)
-  - Nginx 反向代理 (端口 80/443)
+## 1. 前端构建与部署
 
-## 快速部署
+- 在前端目录执行构建：
+  - `cd frontend`
+  - `npm ci && npm run build`
+- 将生成的 `frontend/dist` 内容复制到 Nginx 静态目录：
+  - 容器内路径：`/usr/share/nginx/html`
+  - 或根据你的环境指定的静态根目录
 
-### 1. 准备工作
+## 2. Nginx 配置（关键：SPA 回退）
 
-确保本地已安装：
-- Git
-- SSH 客户端
-- rsync
+`nginx/conf.d/default.conf` 已更新为：
 
-### 2. 执行部署
+- `location /`：
+  - `root /usr/share/nginx/html;`
+  - `try_files $uri $uri/ /index.html;`
+  - 负责前端静态资源与 SPA 路由回退
+- `location /api/`：
+  - 反向代理到后端 Spring Boot（容器服务 `app:8087`）
+- `location /ws/`：
+  - WebSocket 代理（如后端需要）
+
+注意端口：
+
+- 该配置 `listen 80`，如果你的宿主机对外端口是 `8088`，请在部署层（容器映射或上游反向代理）将 `8088 -> 80` 映射；或者改为 `listen 8088;` 并重载 Nginx。
+
+## 3. 后端服务
+
+- Spring Boot 运行在容器内 `app:8087` 或宿主机端口（例如 `8081/8088`），请保证 `/api/**` 路径可访问。
+- 数据库配置（MySQL 8.0）：`mysql://127.0.0.1:30314/evaluate_db`，用户名/密码：`root/123456`
+
+## 4. 验证步骤
+
+1. 访问首页：`http://<host>:8088/`（或对应端口）应加载前端 `index.html`
+2. 直接访问前端路由：`http://<host>:8088/data-management` 应不再出现 Whitelabel 404
+3. 打开浏览器控制台：
+   - 静态资源（`*.js`, `*.css`）应从 `/` 路径加载成功
+   - API 请求（`/api/...`）应成功代理到后端并返回数据
+4. 如果仍出现 404：
+   - 检查 `default.conf` 是否已生效（`nginx -t && nginx -s reload`）
+   - 检查前端构建产物已复制到 `root` 目录
+   - 确认上游端口映射（`8088 -> 80`）或修改 `listen` 后重载
+
+## 5. 备用方案（无法立即改 Nginx）
+
+- 临时改为 Hash 路由：在 `frontend/src/router/index.ts` 中使用 `createWebHashHistory()`，避免服务端对深链接的依赖。
+- 后端回退控制器：在 Spring Boot 添加控制器，将非 `/api/**` 请求 `forward` 到 `index.html`（不推荐作为长期方案，最佳实践是由 Nginx 处理）。
+
+## 6. 手动部署（无法自动化时）
+
+由于 SSH 认证需要密码/环境受限时，可以按以下步骤手动部署。
+
+### 6.1 服务器连接
 
 ```bash
-# 克隆项目（如果还没有）
-git clone <repository-url>
-cd evaluation
-
-# 执行一键部署脚本
-./scripts/deploy.sh
+ssh root@101.126.46.254
 ```
 
-### 3. 访问应用
-
-- **应用直接访问**: http://101.126.46.254:8087
-- **通过Nginx**: http://101.126.46.254
-
-## 详细部署步骤
-
-### 1. 服务器环境要求
-
-- 操作系统: Linux (推荐 Ubuntu 20.04+)
-- 内存: 至少 2GB RAM
-- 存储: 至少 20GB 可用空间
-- 网络: 允许访问外部网络下载Docker镜像
-
-### 2. 手动部署（可选）
-
-如果自动部署脚本无法使用，可以手动执行以下步骤：
+### 6.2 在服务器上创建部署目录
 
 ```bash
-# 2.1 连接服务器
-ssh root@101.126.46.254
-
-# 2.2 创建部署目录
 mkdir -p /opt/evaluation/{logs,uploads,backups}
+cd /opt/evaluation
+```
 
-# 2.3 安装Docker（如果未安装）
+### 6.3 安装 Docker（如果未安装）
+
+```bash
 curl -fsSL https://get.docker.com | sh -s -- --mirror Aliyun
 systemctl start docker
 systemctl enable docker
+docker --version
+```
 
-# 2.4 安装Docker Compose（如果未安装）
+### 6.4 安装 Docker Compose（如果未安装）
+
+```bash
 curl -L 'https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)' -o /usr/local/bin/docker-compose
 chmod +x /usr/local/bin/docker-compose
+docker-compose --version
+```
 
-# 2.5 退出SSH，上传项目文件
-# 在本地执行
-rsync -avz --exclude='.git' --exclude='node_modules' --exclude='target' ./ root@101.126.46.254:/opt/evaluation/
+### 6.5 上传项目文件
 
-# 2.6 在服务器上构建和启动
+方法一：使用 scp 上传压缩包
+
+```bash
+tar -czf evaluation-deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='target' --exclude='logs' --exclude='uploads' .
+scp evaluation-deploy.tar.gz root@101.126.46.254:/opt/evaluation/
 ssh root@101.126.46.254
+cd /opt/evaluation
+tar -xzf evaluation-deploy.tar.gz
+rm evaluation-deploy.tar.gz
+```
+
+方法二：使用 rsync 上传
+
+```bash
+rsync -avz --exclude='.git' --exclude='node_modules' --exclude='target' --exclude='logs' --exclude='uploads' ./ root@101.126.46.254:/opt/evaluation/
+```
+
+### 6.6 构建和启动服务
+
+```bash
 cd /opt/evaluation
 docker-compose build --no-cache
 docker-compose up -d
-```
-
-## 配置说明
-
-### 1. 环境变量配置
-
-创建 `.env` 文件（可选）：
-
-```env
-# 数据库配置
-MYSQL_ROOT_PASSWORD=123456
-MYSQL_DATABASE=evaluate_db
-
-# Redis配置
-REDIS_PASSWORD=redis123
-
-# 应用配置
-SPRING_PROFILES_ACTIVE=prod
-SERVER_PORT=8087
-```
-
-### 2. 数据库配置
-
-数据库配置文件：`mysql/conf.d/my.cnf`
-
-主要配置：
-- 字符集：utf8mb4
-- 连接数：1000
-- 缓冲区：256MB
-- 查询缓存：64MB
-
-### 3. Nginx配置
-
-Nginx配置文件：`nginx/conf.d/default.conf`
-
-功能：
-- 反向代理到后端应用
-- WebSocket支持
-- Gzip压缩
-- 静态文件服务
-
-## 服务管理
-
-### 1. 查看服务状态
-
-```bash
-# SSH连接到服务器
-ssh root@101.126.46.254
-cd /opt/evaluation
-
-# 查看所有容器状态
 docker-compose ps
+```
 
-# 查看应用日志
+### 6.7 验证部署
+
+```bash
+curl -f http://localhost:8087/actuator/health
 docker-compose logs -f app
-
-# 查看数据库日志
-docker-compose logs -f mysql
+docker-compose ps
 ```
 
-### 2. 重启服务
+### 6.8 访问地址
+
+- 应用直接访问: http://101.126.46.254:8087
+- Nginx 反向代理（docker-compose 默认映射）: http://101.126.46.254:8088
+
+### 6.9 常用管理命令
 
 ```bash
-# 重启所有服务
-docker-compose restart
-
-# 重启特定服务
-docker-compose restart app
-docker-compose restart mysql
-```
-
-### 3. 停止服务
-
-```bash
-# 停止所有服务
-docker-compose down
-
-# 停止并删除数据卷（谨慎使用）
-docker-compose down -v
-```
-
-### 4. 更新服务
-
-```bash
-# 使用更新脚本
-./scripts/update.sh
-
-# 或手动更新
-ssh root@101.126.46.254
 cd /opt/evaluation
+docker-compose ps
+docker-compose logs
+docker-compose logs -f app
+docker-compose restart
 docker-compose down
 docker-compose pull
 docker-compose build --no-cache
 docker-compose up -d
 ```
 
-## 数据备份和恢复
-
-### 1. 自动备份
+### 6.10 数据备份
 
 ```bash
-# 执行备份脚本
-./scripts/backup.sh
-```
-
-备份内容：
-- 数据库数据
-- Docker数据卷
-- 上传文件
-- 配置文件
-- 应用日志
-
-### 2. 手动备份
-
-```bash
-# 备份数据库
-ssh root@101.126.46.254
-cd /opt/evaluation
 docker-compose exec mysql mysqldump -uroot -p123456 evaluate_db > backup.sql
-
-# 备份数据卷
+cp -r uploads/ backup_uploads/
 docker run --rm -v /opt/evaluation/mysql_data:/data -v $(pwd):/backup alpine tar czf /backup/mysql_data.tar.gz -C /data .
 ```
 
-### 3. 数据恢复
+### 6.11 故障排查
+
+应用无法启动
 
 ```bash
-# 恢复数据库
-ssh root@101.126.46.254
-cd /opt/evaluation
-docker-compose exec -T mysql mysql -uroot -p123456 evaluate_db < backup.sql
-
-# 恢复数据卷
-docker-compose down
-docker run --rm -v /opt/evaluation/mysql_data:/data -v $(pwd):/backup alpine tar xzf mysql_data.tar.gz -C /data/
-docker-compose up -d
-```
-
-## 监控和维护
-
-### 1. 健康检查
-
-应用提供健康检查端点：
-- http://101.126.46.254:8087/actuator/health
-
-### 2. 日志管理
-
-日志文件位置：
-- 应用日志：`/opt/evaluation/logs/`
-- Docker日志：`docker-compose logs`
-- Nginx日志：容器内 `/var/log/nginx/`
-
-### 3. 性能监控
-
-建议配置以下监控：
-- CPU、内存、磁盘使用率
-- 数据库连接数和查询性能
-- 应用响应时间
-- 错误日志统计
-
-## 安全配置
-
-### 1. 防火墙设置
-
-```bash
-# 配置UFW防火墙
-ufw allow 22/tcp    # SSH
-ufw allow 80/tcp    # HTTP
-ufw allow 443/tcp   # HTTPS
-ufw allow 8087/tcp  # 应用端口（可选）
-ufw enable
-```
-
-### 2. SSL证书配置
-
-如需配置HTTPS：
-
-```bash
-# 创建SSL目录
-mkdir -p nginx/ssl
-
-# 放置证书文件
-cp your-cert.pem nginx/ssl/cert.pem
-cp your-key.pem nginx/ssl/key.pem
-
-# 修改nginx配置启用HTTPS
-# 编辑 nginx/conf.d/default.conf
-```
-
-### 3. 数据库安全
-
-- 修改默认的数据库密码
-- 限制数据库访问IP
-- 定期备份数据库
-- 监控数据库访问日志
-
-## 故障排查
-
-### 1. 常见问题
-
-#### 应用无法启动
-```bash
-# 查看应用日志
 docker-compose logs app
-
-# 检查数据库连接
 docker-compose exec app ping mysql
+docker-compose exec app sh
 ```
 
-#### 数据库连接失败
-```bash
-# 检查数据库状态
-docker-compose logs mysql
+数据库问题
 
-# 连接数据库测试
+```bash
+docker-compose logs mysql
 docker-compose exec mysql mysql -uroot -p123456
 ```
 
-#### 端口被占用
-```bash
-# 检查端口占用
-netstat -tulpn | grep :8087
+端口问题
 
-# 停止占用端口的服务
-docker-compose down
+```bash
+netstat -tulpn | grep :8087
+systemctl status firewalld
+firewall-cmd --add-port=8087/tcp --permanent
+firewall-cmd --reload
 ```
 
-### 2. 性能优化
+### 6.12 安全配置
 
-- 调整JVM内存参数
-- 优化数据库配置
-- 配置Redis持久化
-- 启用Nginx缓存
+修改数据库密码
 
-### 3. 扩容配置
+```bash
+docker-compose exec mysql mysql -uroot -p123456
+```
 
-如需扩容，可以：
-- 增加服务器资源配置
-- 配置数据库主从复制
-- 使用负载均衡器
-- 配置Redis集群
+```sql
+ALTER USER 'root'@'%' IDENTIFIED BY '新密码';
+FLUSH PRIVILEGES;
+```
 
-## 联系支持
+配置防火墙
 
-如遇部署问题，请联系：
-- 技术支持：[联系方式]
-- 文档参考：[文档链接]
-- 问题反馈：[反馈渠道]
+```bash
+apt-get update
+apt-get install ufw
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 8087/tcp
+ufw enable
+```
 
----
+### 6.13 性能优化
 
-**部署成功后，请及时修改默认密码并配置安全策略！**
+调整 JVM 参数（编辑 `docker-compose.yml`）
+
+```yaml
+environment:
+  - JAVA_OPTS=-Xms1g -Xmx2g -XX:+UseG1GC
+```
+
+优化 MySQL 配置（编辑 `mysql/conf.d/my.cnf`）
+
+```ini
+innodb_buffer_pool_size = 512M
+max_connections = 500
+query_cache_size = 128M
+```
+
+### 6.14 监控
+
+基础监控
+
+```bash
+top
+htop
+df -h
+docker stats
+du -sh /opt/evaluation/*
+```
+
+日志监控
+
+```bash
+tail -f /opt/evaluation/logs/application.log
+docker-compose logs -f --tail=100
+```
