@@ -205,7 +205,7 @@
             style="width: 100%; min-width: 1600px;"
           >
         <el-table-column
-          v-for="(column, index) in filteredColumns"
+          v-for="column in filteredColumns"
           :key="column.prop"
           :prop="column.prop"
           :label="column.label"
@@ -300,6 +300,7 @@ interface StepResult {
   description: string
   executionResult: any
   tableData: any[]
+  columns?: any[]
   success: boolean
   executionTime: string
 }
@@ -766,7 +767,7 @@ const initializeColumns = () => {
   if (props.resultData?.isMultiStep) {
     const stepColumnsFromProps = currentStepData.value?.columns || []
     if (stepColumnsFromProps.length > 0) {
-      allColumns.value = stepColumnsFromProps.map(col => ({
+      allColumns.value = stepColumnsFromProps.map((col: any) => ({
         prop: col.prop,
         label: col.label || getColumnLabel(col.prop),
         width: col.width || getColumnWidth(col.prop),

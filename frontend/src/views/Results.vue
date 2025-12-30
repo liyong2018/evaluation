@@ -249,6 +249,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'AppResults' })
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'

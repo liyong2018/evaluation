@@ -29,7 +29,7 @@
           default-expand-all
           @node-click="handleOrgNodeClick"
         >
-          <template #default="{ node, data }">
+          <template #default="{ data }">
             <div class="org-tree-node">
               <span class="org-name">{{ data.name }}</span>
               <span class="org-code">{{ data.code }}</span>
@@ -938,7 +938,17 @@ const handleDelete = async (row: any) => {
       type: 'warning'
     })
 
-    const response = await surveyDataApi.delete(row.id)
+    let response
+    // 根据数据类型调用不同的删除接口
+    if (dataType.value === 'community') {
+      response = await communityCapacityApi.delete(row.id)
+    } else if (dataType.value === 'medical') {
+      response = await medicalInstitutionApi.delete(row.id)
+    } else {
+      // 默认为乡镇数据
+      response = await surveyDataApi.delete(row.id)
+    }
+
     if (response.success) {
       ElMessage.success('删除成功')
       getDataList()

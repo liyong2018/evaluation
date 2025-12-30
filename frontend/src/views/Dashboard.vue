@@ -2,11 +2,11 @@
   <div class="dashboard">
     <!-- 页面标题 -->
     <div class="page-header">
-      <h1>系统首页</h1>
-      <p>减灾能力评估系统 - 数据概览与快捷操作</p>
+      <h1>工具首页</h1>
+      <p>减灾能力评估工具 - 数据概览与快捷操作</p>
     </div>
 
-    <!-- 系统状态卡片 -->
+    <!-- 工具状态卡片 -->
     <el-row :gutter="20" class="status-cards">
       <el-col :span="6">
         <el-card class="status-card">
@@ -54,7 +54,7 @@
       </el-col>
     </el-row>
 
-    <!-- 系统信息和快捷操作 -->
+    <!-- 工具信息和快捷操作 -->
     <el-row :gutter="20" class="main-content">
       <!-- 快捷操作 -->
       <el-col :span="24">
@@ -104,6 +104,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'AppDashboard' })
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -135,7 +136,7 @@ const loading = reactive({
   apis: false
 })
 
-// 获取系统信息
+// 获取工具信息
 const getSystemInfo = async () => {
   loading.systemInfo = true
   try {
@@ -149,8 +150,8 @@ const getSystemInfo = async () => {
     }
     apiList.value = response.apis || {}
   } catch (error) {
-    console.error('获取系统信息失败:', error)
-    ElMessage.error('获取系统信息失败')
+    console.error('获取工具信息失败:', error)
+    ElMessage.error('获取工具信息失败')
   } finally {
     loading.systemInfo = false
   }
@@ -175,7 +176,7 @@ const getStatistics = async () => {
   }
 }
 
-// 刷新系统信息
+// 刷新工具信息
 const refreshSystemInfo = () => {
   getSystemInfo()
   getStatistics()
@@ -184,11 +185,11 @@ const refreshSystemInfo = () => {
 // 获取信息标签
 const getInfoLabel = (key: string) => {
   const labels: Record<string, string> = {
-    system: '系统名称',
-    version: '系统版本',
+    system: '工具名称',
+    version: '工具版本',
     status: '运行状态',
     time: '当前时间',
-    description: '系统描述'
+    description: '工具描述'
   }
   return labels[key] || key
 }

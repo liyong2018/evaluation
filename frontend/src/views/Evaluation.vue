@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="evaluation">
     <!-- 页面标题 -->
     <div class="page-header">
@@ -28,8 +28,17 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="评估名称" prop="name">
-              <el-input v-model="evaluationForm.name" placeholder="请输入评估名称" />
+              <el-input
+                v-model="evaluationForm.name"
+                placeholder="请输入评估名称"
+                @blur="generateEvaluationName"
+              />
+              <el-button type="text" @click="generateEvaluationName" size="small">
+                自动生成
+              </el-button>
             </el-form-item>
+
+           
           </el-col>
           <el-col :span="12">
             <el-form-item label="评估年份" prop="year">
@@ -541,6 +550,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'AppEvaluation' })
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
@@ -554,7 +564,7 @@ import {
   Document,
   Filter
 } from '@element-plus/icons-vue'
-import { evaluationApi, surveyDataApi, regionApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi, communityCapacityApi, regionDataApi } from '@/api'
+import { evaluationApi, surveyDataApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi, communityCapacityApi, regionDataApi } from '@/api'
 import ResultDialog from '@/components/ResultDialog.vue'
 
 // 处理ResizeObserver警告
@@ -573,6 +583,35 @@ const selectedAlgorithm = computed(() => {
   return algorithmConfigs.value.find(config => config.id === evaluationForm.algorithmId)
 })
 
+const selectedModel = computed(() => {
+  return evaluationModels.value.find(model => model.id === evaluationForm.modelId)
+})
+
+const selectedCounty = computed(() => {
+  return counties.value.find(county => county.code === evaluationForm.selectedCounty)
+})
+
+// 生成评估名称函数
+const generateEvaluationName = () => {
+  const year = evaluationForm.year || new Date().getFullYear()
+  const model = selectedModel.value
+  const county = selectedCounty.value
+
+  let name = `${year}`
+
+  if (county?.name) {
+    name += `${county.name}`
+  }
+
+  if (model?.modelName) {
+    name += `${model.modelName}评估`
+  } else {
+    name += '减灾能力评估'
+  }
+
+  evaluationForm.name = name
+}
+
 // 响应式数据
 const evaluationFormRef = ref<FormInstance>()
 const algorithmConfigs = ref<any[]>([])
@@ -584,7 +623,10 @@ const previewData = ref<any[]>([])
 
 // 筛选表单（仅状态需要独立选择，其他使用评估配置表单的值）
 const filterForm = reactive({
-  status: ''
+  status: '',
+  year: '',
+  county: '',
+  modelId: null as number | null
 })
 
 // 分页相关
@@ -613,29 +655,35 @@ const evaluationResults = ref<any[]>([])
 
 // 计算结果弹窗相关数据
 const resultDialogVisible = ref(false)
-const currentStepInfo = ref(null)
-const currentCalculationResult = ref(null)
+const currentStepInfo = ref<any>(null)
+const currentCalculationResult = ref<any>(null)
 
 // 公式悬停提示框数据
+type TooltipStepInfo = {
+  stepName?: string
+  formula?: string
+  formulaDescription?: string
+}
+
 const formulaTooltip = reactive({
   visible: false,
   x: 0,
   y: 0,
-  step: null
+  step: null as TooltipStepInfo | null
 })
 
 const currentYear = new Date().getFullYear()
 const years = ref<number[]>(Array.from({ length: 6 }, (_, i) => currentYear - i))
 
-const evaluationForm = reactive({
+const evaluationForm = reactive<any>({
   name: '',
   modelId: null,
-  weightConfigId: null,
+  weightConfigId: undefined as number | undefined,
   year: currentYear,
   algorithmId: null,
   dataType: 'township', // 默认选择乡镇数据
   dataSource: 'REGION',
-  regions: [],
+  regions: [] as string[],
   orgCode: '', // 机构代码
   // 三级联动数据
   selectedProvince: '',
@@ -701,7 +749,7 @@ const getRegionTreeData = async () => {
       const regionMap = new Map()
       const idToRegionCodeMap = new Map()
 
-      rawData.forEach(item => {
+      rawData.forEach((item: any) => {
         // 省级
         const provinceName = evaluationForm.dataType === 'community' ? item.provinceName : item.province
         if (provinceName && !regionMap.has(provinceName)) {
@@ -843,7 +891,7 @@ const getRegionTreeData = async () => {
       window.__regionCodeMap = idToRegionCodeMap
 
       // 提取省级节点作为根节点
-      const treeData = []
+      const treeData: any[] = []
       regionMap.forEach((value, key) => {
         if (value.level === 1) {
           treeData.push(value)
@@ -899,6 +947,28 @@ const getEvaluationModels = async () => {
 // 处理模型变化
 const handleModelChange = (modelId: number) => {
   console.log('模型变化:', modelId)
+
+  // 根据模型ID自动切换数据类型
+  if (modelId === 3 || modelId === 11) {
+    // 乡镇模型：乡镇减灾能力TOPSIS评估模型(3) 或 社区-乡镇减灾能力评估模型(8)
+    evaluationForm.dataType = 'township'
+    console.log('自动切换到乡镇数据类型')
+  } else if (modelId === 4 || modelId === 8) {
+    // 社区模型：社区减灾能力TOPSIS评估模型(4) 或 区县减灾能力综合评估模型(11)
+    evaluationForm.dataType = 'community'
+    console.log('自动切换到社区数据类型')
+  }
+
+  // 清空地区选择，让用户重新选择
+  evaluationForm.selectedProvince = ''
+  evaluationForm.selectedCity = ''
+  evaluationForm.selectedCounty = ''
+  evaluationForm.regions = []
+  evaluationForm.countyData = []
+
+  // 重新加载地区数据
+  handleDataTypeChange()
+
   // 如果需要，可以清空算法选择
   // evaluationForm.algorithmId = null
 }
@@ -1053,7 +1123,7 @@ const handleCountyChange = async (countyCode: string) => {
 
         // 从县数据中提取区县代码（取 regionCode 的前6位，如 511425001 -> 511425）
         if (evaluationForm.countyData.length > 0) {
-          const firstItem = evaluationForm.countyData[0]
+          const firstItem: any = (evaluationForm.countyData as any[])[0]
           if (firstItem.regionCode) {
             // 提取前6位作为区县代码
             evaluationForm.orgCode = firstItem.regionCode.substring(0, 6)
@@ -1101,10 +1171,10 @@ const getAlgorithmSteps = async (algorithmId: number) => {
   try {
     const response = await algorithmManagementApi.getAlgorithmStepsAndFormulas(algorithmId)
     if (response.success) {
-      const steps = response.data || []
+      const steps: any[] = response.data || []
       
       // 处理每个步骤的公式数据
-      steps.forEach((step, index) => {
+      steps.forEach((step: any, index: number) => {
         // 如果步骤有关联的公式配置
         if (step.formulas && step.formulas.length > 0) {
           // 取第一个公式作为主要公式
@@ -1382,12 +1452,12 @@ const resetEvaluationForm = () => {
   Object.assign(evaluationForm, {
     name: '',
     modelId: null,
-    weightConfigId: null,
+    weightConfigId: undefined,
     year: currentYear,
     algorithmId: null,
     dataType: 'township', // 重置为默认乡镇数据
     dataSource: 'REGION',
-    regions: [],
+    regions: [] as string[],
     parameters: {
       crThreshold: 0.1,
       maxIterations: 100,
@@ -1411,7 +1481,7 @@ const validateParameters = async () => {
     if (!valid) return
     
     try {
-      const response = await evaluationApi.validateParams(evaluationForm)
+      const response = await evaluationApi.validateParams(evaluationForm as any)
       if (response.success) {
         ElMessage.success('参数验证通过')
       } else {
@@ -1667,7 +1737,7 @@ const displayModelResults = (resultData: any) => {
   console.log('✓ 传递给 ResultDialog 的数据:', {
     tableDataLength: currentCalculationResult.value.tableData.length,
     columnsLength: currentCalculationResult.value.columns.length,
-    columnsWithStepOrder: currentCalculationResult.value.columns.filter(c => c.stepOrder !== undefined).length
+    columnsWithStepOrder: (currentCalculationResult.value as any).columns.filter((c: any) => c.stepOrder !== undefined).length
   })
   
   resultDialogVisible.value = true
@@ -1810,7 +1880,7 @@ const viewAllStepsResults = async () => {
   
   try {
     // 提取地区代码
-    const regionCodes = evaluationForm.regions.map(regionId => extractRegionCode(regionId))
+    const regionCodes = evaluationForm.regions.map((regionId: string) => extractRegionCode(regionId))
     
     console.log('=== 开始获取所有步骤结果 ===', {
       algorithmId: evaluationForm.algorithmId,
@@ -2019,17 +2089,21 @@ const calculateStepResult = async (step: any, index: number) => {
 }
 
 // 处理地区选择
-const handleRegionCheck = (data: any, checked: boolean, indeterminate: boolean) => {
+const handleRegionCheck = (
+  data: { id: string; children?: Array<{ id: string }> },
+  checked: boolean,
+  indeterminate: boolean
+) => {
   console.log('地区选择事件:', { data: data.id, checked, indeterminate })
 
   // 获取当前选中的地区列表
-  let currentRegions = [...(evaluationForm.regions || [])]
+  let currentRegions = [...(evaluationForm.regions || [])] as string[]
 
   if (checked) {
     // 选中节点时：只选择其直系子节点（不包括点击的节点本身）
     // 如果当前节点有子节点，选择所有直接子节点
     if (data.children && data.children.length > 0) {
-      data.children.forEach(child => {
+      data.children.forEach((child) => {
         if (!currentRegions.includes(child.id)) {
           currentRegions.push(child.id)
         }
@@ -2039,7 +2113,7 @@ const handleRegionCheck = (data: any, checked: boolean, indeterminate: boolean) 
     // 取消选中节点时：只移除其直系子节点（不包括点击的节点本身）
     // 如果当前节点有子节点，移除所有直接子节点
     if (data.children && data.children.length > 0) {
-      const childIdsToRemove = data.children.map(child => child.id)
+      const childIdsToRemove = data.children.map((child) => child.id)
       currentRegions = currentRegions.filter(id => !childIdsToRemove.includes(id))
     }
   }
@@ -2068,7 +2142,7 @@ const findNodeById = (nodes: any[], id: string): any => {
 const showFormulaTooltip = (step: any, event: MouseEvent) => {
   if (!step.formula) return
   
-  formulaTooltip.step = step
+  formulaTooltip.step = step as TooltipStepInfo
   formulaTooltip.x = event.clientX + 10
   formulaTooltip.y = event.clientY + 10
   formulaTooltip.visible = true
@@ -2529,9 +2603,14 @@ watch(
   ([year, countyName, orgCode, modelId], [oldYear, oldCountyName, oldOrgCode, oldModelId]) => {
     console.log('评估表单变化:', { year, countyName, orgCode, modelId })
 
+    // 自动生成评估名称（当年份、模型或区县发生变化时）
+    if ((year && year !== oldYear) || (modelId !== undefined && modelId !== oldModelId) || (evaluationForm.selectedCounty && evaluationForm.selectedCounty !== oldCountyName)) {
+      generateEvaluationName()
+    }
+
     // 更新筛选条件中的年份
     if (year && year !== oldYear) {
-      filterForm.year = year
+      filterForm.year = String(year)
       currentPage.value = 1
       getEvaluationHistory(1, pageSize.value)
     }
@@ -2547,7 +2626,7 @@ watch(
 
     // 更新筛选条件中的模型ID
     if (modelId !== undefined && modelId !== oldModelId) {
-      filterForm.modelId = modelId
+      filterForm.modelId = modelId ? Number(modelId) : null
       currentPage.value = 1
       getEvaluationHistory(1, pageSize.value)
     }

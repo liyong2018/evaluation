@@ -32,7 +32,7 @@
               default-expand-all
               @node-click="handleOrgNodeClick"
             >
-              <template #default="{ node, data }">
+              <template #default="{ data }">
                 <div class="org-tree-node">
                   <span class="org-name">{{ data.name }}</span>
                   <span class="org-code">{{ data.code }}</span>
@@ -92,7 +92,7 @@
                 <el-table-column prop="id" label="ID" width="80" />
                 <el-table-column prop="configName" label="配置名称" width="200" />
                 <el-table-column label="状态" width="70">
-                  <template #default="{ row }">
+                  <template #default>
                     <el-tag type="success">
                       激活
                     </el-tag>
@@ -302,7 +302,7 @@
               :expand-on-click-node="false"
               class="score-weight-tree"
             >
-              <template #default="{ node, data }">
+              <template #default="{ data }">
                 <div class="tree-node">
                   <div class="node-content">
                     <div class="node-info">
@@ -448,7 +448,7 @@
                   :expand-on-click-node="false"
                   class="expert-score-tree"
                 >
-                  <template #default="{ node, data }">
+                  <template #default="{ data }">
                     <div class="tree-node">
                       <div class="node-content">
                         <div class="node-info">
@@ -554,7 +554,7 @@ const configForm = reactive({
 
 const weightForm = reactive({
   id: null,
-  configId: null,
+  configId: null as number | null,
   indicatorCode: '',
   indicatorName: '',
   weight: 0,
@@ -746,7 +746,7 @@ const totalWeight = computed(() => {
   // 检查每组的权重和是否为1
   let allNormal = true
   for (const [key, items] of groups) {
-    const sum = items.reduce((s, item) => s + (item.weight || 0), 0)
+    const sum = (items as any[]).reduce((s: number, item: any) => s + (item.weight || 0), 0)
     if (Math.abs(sum - 1) > 0.001) { // 允许小的浮点误差
       allNormal = false
       break
@@ -1065,7 +1065,7 @@ const submitWeight = async () => {
 // 更新权重
 const updateWeight = async (row: any) => {
   try {
-    const response = await indicatorWeightApi.update(row.id, { weight: row.weight })
+    const response = await indicatorWeightApi.update({ ...row, weight: row.weight })
     if (response.success) {
       ElMessage.success('权重更新成功')
     } else {
@@ -1111,7 +1111,7 @@ const validateWeights = async () => {
   if (!selectedConfigId.value) return
 
   try {
-    const response = await indicatorWeightApi.validate(selectedConfigId.value)
+    const response = await indicatorWeightApi.validate(weightList.value as any[])
     if (response.success) {
       ElMessage.success('权重验证通过')
     } else {

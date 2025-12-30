@@ -1,0 +1,132 @@
+<template>
+  <div id="onlyoffice-editor-container" ref="editorContainer"></div>
+</template>
+
+<script setup lang="ts">
+import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
+
+const props = defineProps<{
+  documentUrl: string
+  documentTitle: string
+  documentKey?: string
+  config?: any
+}>()
+
+const editorContainer = ref<HTMLElement | null>(null)
+let docEditor: any = null
+
+const loadScript = (src: string): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    if ((window as any).DocsAPI) {
+      resolve()
+      return
+    }
+    const script = document.createElement('script')
+    script.src = src
+    script.type = 'text/javascript'
+    script.onload = () => resolve()
+    script.onerror = (e) => reject(e)
+    document.head.appendChild(script)
+  })
+}
+
+const initEditor = async () => {
+  if (!props.documentUrl) return
+
+  try {
+    const apiUrl = import.meta.env.VITE_ONLYOFFICE_API_URL || 'http://localhost:8080/web-apps/apps/api/documents/api.js'
+    await loadScript(apiUrl)
+
+    if (docEditor) {
+      docEditor.destroyEditor()
+      docEditor = null
+    }
+
+    const defaultConfig = {
+        document: {
+          fileType: "docx",
+          key: props.documentKey || new Date().getTime().toString(),
+          title: props.documentTitle,
+          url: props.documentUrl,
+          permissions: {
+            edit: true, // 允许编辑
+            download: true,
+            print: true,
+            review: true, // 允许修订
+            chat: true // 允许聊天（移到这里）
+          }
+        },
+        documentType: "word",
+        editorConfig: {
+          mode: "edit", // 编辑模式
+          lang: "zh-CN",
+          customization: {
+            zoom: 100,
+            autosave: true, // 开启自动保存
+            forcesave: true, // 开启强制保存
+            comments: true, // 允许批注
+            help: false
+          },
+          callbackUrl: (() => {
+            try {
+              const u = new URL(props.documentUrl)
+              u.pathname = u.pathname.replace(/\/generate-report$/, '/callback')
+              u.search = ''
+              u.hash = ''
+              return u.toString()
+            } catch {
+              return undefined
+            }
+          })()
+        },
+      height: "100%",
+      width: "100%",
+      type: "desktop" // 桌面模式，非移动端
+    }
+
+    // 合并传入的配置
+    const config = props.config ? { ...defaultConfig, ...props.config } : defaultConfig
+    // 确保URL和Key正确
+    config.document.url = props.documentUrl
+    config.document.title = props.documentTitle
+    if (props.documentKey) {
+        config.document.key = props.documentKey
+    }
+
+    // @ts-expect-error DocsAPI is injected by runtime script
+    if (typeof DocsAPI !== 'undefined') {
+        // @ts-expect-error DocsAPI is injected by runtime script
+        docEditor = new DocsAPI.DocEditor("onlyoffice-editor-container", config)
+    } else {
+        console.error('DocsAPI is not defined after script load')
+    }
+
+  } catch (error) {
+    console.error('Failed to load OnlyOffice API:', error)
+  }
+}
+
+onMounted(() => {
+  initEditor()
+})
+
+onBeforeUnmount(() => {
+  if (docEditor) {
+    docEditor.destroyEditor()
+    docEditor = null
+  }
+})
+
+watch(() => props.documentUrl, () => {
+  initEditor()
+})
+</script>
+
+<style scoped>
+#onlyoffice-editor-container {
+  width: 100%;
+  height: 100%;
+  min-height: 600px; /* 确保有最小高度 */
+  background: #f4f4f4;
+}
+</style>

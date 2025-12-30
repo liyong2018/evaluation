@@ -9,13 +9,13 @@
     <!-- 制图要素覆盖层 -->
     <div class="map-elements-overlay">
       <!-- 标题 -->
-      <div class="map-title" v-show="mapConfig.showTitle">
-        <h2>{{ mapConfig.title }}</h2>
-        <p class="subtitle">{{ mapConfig.subtitle }}</p>
+      <div class="map-title" v-show="mapConfigState.showTitle">
+        <h2>{{ mapConfigState.title }}</h2>
+        <p class="subtitle">{{ mapConfigState.subtitle }}</p>
       </div>
       
       <!-- 图例 - 移动到左下角 -->
-      <div class="map-legend" v-show="mapConfig.showLegend">
+      <div class="map-legend" v-show="mapConfigState.showLegend">
         <div class="legend-title">减灾能力</div>
         <div class="legend-items">
           <div v-for="item in legendItems" :key="item.value" class="legend-item">
@@ -26,7 +26,7 @@
       </div>
       
       <!-- 数据表格 - 放在右下角 -->
-      <div class="map-data-table" v-show="mapConfig.showDataTable">
+      <div class="map-data-table" v-show="mapConfigState.showDataTable">
         <div class="table-title">乡镇（街道）减灾能力统计表</div>
         <table class="data-table">
           <thead>
@@ -61,7 +61,7 @@
       </div>
       
       <!-- 比例尺 -->
-      <div class="map-scale" v-show="mapConfig.showScale">
+      <div class="map-scale" v-show="mapConfigState.showScale">
         <div class="scale-bar" ref="scaleBar">
           <div class="scale-line"></div>
           <div class="scale-text">{{ scaleText }}</div>
@@ -69,13 +69,13 @@
       </div>
       
       <!-- 指北针 -->
-      <div class="map-compass" v-show="mapConfig.showCompass">
+      <div class="map-compass" v-show="mapConfigState.showCompass">
         <div class="compass-icon">⬆</div>
         <div class="compass-text">N</div>
       </div>
       
       <!-- 边框 -->
-      <div class="map-border" v-show="mapConfig.showBorder"></div>
+      <div class="map-border" v-show="mapConfigState.showBorder"></div>
     </div>
     
     <!-- 配置面板 -->
@@ -85,12 +85,12 @@
           <span>制图要素配置</span>
         </template>
         <div class="config-items">
-          <el-checkbox v-model="mapConfig.showTitle" @change="updateMapElements">显示标题</el-checkbox>
-          <el-checkbox v-model="mapConfig.showLegend" @change="updateMapElements">显示图例</el-checkbox>
-          <el-checkbox v-model="mapConfig.showDataTable" @change="updateMapElements">显示数据表</el-checkbox>
-          <el-checkbox v-model="mapConfig.showScale" @change="updateMapElements">显示比例尺</el-checkbox>
-          <el-checkbox v-model="mapConfig.showCompass" @change="updateMapElements">显示指北针</el-checkbox>
-          <el-checkbox v-model="mapConfig.showBorder" @change="updateMapElements">显示边框</el-checkbox>
+          <el-checkbox v-model="mapConfigState.showTitle" @change="updateMapElements">显示标题</el-checkbox>
+          <el-checkbox v-model="mapConfigState.showLegend" @change="updateMapElements">显示图例</el-checkbox>
+          <el-checkbox v-model="mapConfigState.showDataTable" @change="updateMapElements">显示数据表</el-checkbox>
+          <el-checkbox v-model="mapConfigState.showScale" @change="updateMapElements">显示比例尺</el-checkbox>
+          <el-checkbox v-model="mapConfigState.showCompass" @change="updateMapElements">显示指北针</el-checkbox>
+          <el-checkbox v-model="mapConfigState.showBorder" @change="updateMapElements">显示边框</el-checkbox>
         </div>
       </el-card>
     </div>
@@ -99,33 +99,60 @@
     <div class="export-panel">
       <el-button @click="exportAsPNG" type="primary">导出PNG</el-button>
       <el-button @click="exportAsPDF" type="success">导出PDF</el-button>
+      <el-button @click="showWordPreview" type="info">预览Word</el-button>
+      <el-button @click="showRealWordPreview" type="success">真实内容预览</el-button>
       <el-button @click="exportAsWord" type="warning">导出Word</el-button>
     </div>
+
+    <!-- Word预览弹窗 -->
+    <WordPreview v-if="showPreview" :year="props.year" :orgCode="props.orgCode" @close="showPreview = false" />
+    <RealWordPreview v-if="showRealPreview" :year="props.year" :orgCode="props.orgCode" @close="showRealPreview = false" />
   </div>
 </template>
 
 <script setup lang="ts">
 console.log('ThematicMapGenerator组件开始加载')
-import { ref, onMounted, nextTick, withDefaults, defineProps, computed } from 'vue'
+import { ref, onMounted, nextTick, withDefaults, defineProps, computed, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.chinatmsproviders'
 import html2canvas from 'html2canvas'
 console.log('ThematicMapGenerator组件导入完成')
 import jsPDF from 'jspdf'
-import { Document, Packer, Paragraph, ImageRun, Table, TableRow, TableCell, WidthType, AlignmentType } from 'docx'
+import { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle } from 'docx'
+import { saveAs } from 'file-saver'
+import mammoth from 'mammoth'
 import { ElMessage, ElCard, ElCheckbox } from 'element-plus'
-import { thematicMapApi, regionApi, evaluationApi } from '@/api'
+import { thematicMapApi, wordTemplateApi } from '@/api'
+import WordPreview from './WordPreview.vue'
+import RealWordPreview from './RealWordPreview.vue'
 
 // 组件属性
 interface Props {
   reportId?: number
   regionData?: any[]
+  mapConfig?: Partial<{
+    title: string
+    subtitle: string
+    showTitle: boolean
+    showLegend: boolean
+    showDataTable: boolean
+    showScale: boolean
+    showCompass: boolean
+    showBorder: boolean
+  }>
+  year?: number
+  orgCode?: string
+  orgName?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   reportId: 0,
-  regionData: () => []
+  regionData: () => [],
+  mapConfig: undefined,
+  year: 2024,
+  orgCode: '511425',
+  orgName: ''
 })
 
 // 响应式数据
@@ -135,11 +162,13 @@ const scaleBar = ref<HTMLElement>()
 const map = ref<L.Map | null>(null)
 const isFullscreen = ref(false)
 const thematicLayer = ref<L.LayerGroup | null>(null)
+const showPreview = ref(false)
+const showRealPreview = ref(false)
 
-const mapConfig = ref({
+const mapConfigState = ref({
   title: '四川省雅安市青神县乡镇减灾能力评估专题图',
   mainTitle: '减灾能力分级计算减灾能力评估报告',
-  subtitle: `数据来源：减灾能力评估系统 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`,
+  subtitle: `数据来源：减灾能力评估工具 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`,
   showTitle: true,
   showLegend: true,
   showDataTable: true,
@@ -147,6 +176,64 @@ const mapConfig = ref({
   showCompass: true,
   showBorder: true
 })
+
+if (props.mapConfig) {
+  mapConfigState.value = { ...mapConfigState.value, ...props.mapConfig }
+}
+
+watch(
+  () => props.mapConfig,
+  (nextCfg) => {
+    if (nextCfg) mapConfigState.value = { ...mapConfigState.value, ...nextCfg }
+  },
+  { deep: true }
+)
+
+const normalizeRegionName = (name: string) => {
+  return String(name || '')
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/街道办事处|街道|镇|乡|社区|行政村|村|省|市|县|区/g, '')
+}
+
+const shouldFilterByOrgName = (orgName: string) => {
+  const n = String(orgName || '').trim()
+  if (!n) return false
+  if (n.includes('省') || n.includes('市') || n.includes('县') || n.includes('区')) return false
+  return true
+}
+
+const applyOrgFilter = (boundaries: any, thematicData: any[]) => {
+  const orgName = props.orgName || ''
+  if (!shouldFilterByOrgName(orgName)) {
+    return { boundaries, data: thematicData }
+  }
+
+  const orgKey = normalizeRegionName(orgName)
+  const originalFeatures = Array.isArray(boundaries?.features) ? boundaries.features : []
+
+  const filteredFeatures = originalFeatures.filter((feature: any) => {
+    const featureName = feature?.properties?.xiang || feature?.properties?.name || feature?.properties?.NAME || feature?.properties?.XIANG
+    const featureKey = normalizeRegionName(featureName)
+    if (!featureKey) return false
+    return featureKey.includes(orgKey) || orgKey.includes(featureKey)
+  })
+
+  const filteredData = (thematicData || []).filter((item: any) => {
+    const itemKey = normalizeRegionName(item?.regionName || '')
+    if (!itemKey) return false
+    return itemKey.includes(orgKey) || orgKey.includes(itemKey)
+  })
+
+  if (!filteredFeatures.length) {
+    return { boundaries, data: [] }
+  }
+
+  return {
+    boundaries: { ...boundaries, features: filteredFeatures },
+    data: filteredData
+  }
+}
 
 const legendItems = ref([
   { value: 'strong', label: '强', color: '#137909' },        // 深绿色
@@ -161,36 +248,72 @@ const currentThematicData = ref<any[]>([])
 
 const scaleText = ref('0    5    10 km')
 
-// 注释掉不再使用的分数计算函数
-// const calculateCapabilityLevel = (score: number): string => {
-//   if (score >= 90) return '强'
-//   else if (score >= 80) return '较强'
-//   else if (score >= 70) return '中等'
-//   else if (score >= 60) return '较弱'
-//   else return '弱'
-// }
+const calculateCapabilityLevel = (score: unknown): string => {
+  const n = Number(score)
+  if (!Number.isFinite(n)) return '中等'
+
+  if (n >= 0 && n <= 1) {
+    if (n >= 0.8) return '强'
+    if (n >= 0.6) return '较强'
+    if (n >= 0.4) return '中等'
+    if (n >= 0.2) return '较弱'
+    return '弱'
+  }
+
+  if (n >= 90) return '强'
+  if (n >= 80) return '较强'
+  if (n >= 70) return '中等'
+  if (n >= 60) return '较弱'
+  return '弱'
+}
 
 // 根据能力等级获取颜色
 const getCapabilityColor = (level: string): string => {
+  // 处理可能的null/undefined
+  if (!level) return '#9e9e9e' // 默认灰色
+
+  // 统一处理中文和英文等级
   switch (level) {
     case '强':
+    case 'strong':
       return '#006400' // 深绿色
     case '较强':
+    case 'mediumStrong':
       return '#32CD32' // 浅绿色
     case '中等':
+    case 'medium':
       return '#9ACD32' // 黄绿色
     case '较弱':
+    case 'weak':
       return '#FFFF99' // 浅黄色
     case '弱':
+    case 'veryWeak':
       return '#F5F5DC' // 米色
     default:
+      console.warn(`未知的能力等级: ${level}，使用默认颜色`)
       return '#9e9e9e' // 灰色
   }
 }
 
 // 获取能力等级的文本描述
 const getCapabilityText = (level: string): string => {
-  return level || '未知'
+  if (!level) return '未知'
+
+  // 如果已经是中文，直接返回
+  const chineseLevels = ['强', '较强', '中等', '较弱', '弱']
+  if (chineseLevels.includes(level)) {
+    return level
+  }
+
+  // 处理英文等级
+  switch (level) {
+    case 'strong': return '强'
+    case 'mediumStrong': return '较强'
+    case 'medium': return '中等'
+    case 'weak': return '较弱'
+    case 'veryWeak': return '弱'
+    default: return level || '未知'
+  }
 }
 
 // 注释掉不再使用的分数计算函数
@@ -234,14 +357,14 @@ const initMap = () => {
   console.log('地图实例创建成功:', map.value)
   
   // 添加天地图底图
-  const baseLayer = L.tileLayer.chinaProvider('TianDiTu.Terrain.Map', {
+  const baseLayer = (L.tileLayer as any).chinaProvider('TianDiTu.Terrain.Map', {
     key: '0252639b1589bd33a54817f48d982093',
     attribution: '© 天地图'
   })
   baseLayer.addTo(map.value)
   
   // 添加天地图标注
-  const labelLayer = L.tileLayer.chinaProvider('TianDiTu.Terrain.Annotion', {
+  const labelLayer = (L.tileLayer as any).chinaProvider('TianDiTu.Terrain.Annotion', {
     key: '0252639b1589bd33a54817f48d982093'
   })
   labelLayer.addTo(map.value)
@@ -288,16 +411,12 @@ const loadDataFromSession = () => {
       console.log('处理后的专题图数据:', processedData)
       console.log('生成的专题数据:', processedData.regions)
       
-  // 存储当前专题数据用于统计和导出
-  currentThematicData.value = processedData
-  console.log('存储专题数据用于统计:', currentThematicData.value.length, '条记录')
-  
-  // 更新地图标题
-  if (evaluationData.stepInfo?.stepName) {
-    mapConfig.value.title = `${evaluationData.stepInfo.stepName}减灾能力评估专题图`
-  }
+      // 更新地图标题
+      if (evaluationData.stepInfo?.stepName) {
+        mapConfigState.value.title = `${evaluationData.stepInfo.stepName}减灾能力评估专题图`
+      }
       
-      const thematicData = processedData.regions.map(region => ({
+      const thematicData = processedData.regions.map((region: any) => ({
           regionName: region.name,
           capabilityLevel: region.capabilityLevel,
           totalScore: region.score,
@@ -337,134 +456,153 @@ const loadThematicData = async () => {
     const evaluationData = (window as any).evaluationData
     console.log('从window.evaluationData读取数据:', evaluationData)
     
-    let thematicData = []
-    if (evaluationData && evaluationData.tableData) {
-      console.log('找到评估数据，基于真实边界生成专题数据...')
-      
-      // 基于真实边界和评估数据生成专题图数据
-      console.log('评估数据条数:', evaluationData.tableData.length, '边界特征数量:', boundaries.features.length)
-      
-      // 如果评估数据多于边界数据，需要为每条评估数据找到对应的边界或生成边界
-      if (evaluationData.tableData.length > boundaries.features.length) {
-        console.log('评估数据多于边界数据，为每条评估数据生成专题数据')
-        thematicData = evaluationData.tableData.map((evaluationRow: any, index: number) => {
-          const regionName = evaluationRow.region || evaluationRow.地区名称 || evaluationRow.name || `区域${index + 1}`
-          const totalScore = parseFloat(evaluationRow.totalScore || evaluationRow.总分 || evaluationRow.综合得分 || evaluationRow.score || 0)
-          
-          // 直接使用二维表中的综合能力分级字段（优先使用第5步的分级结果）
-          const capabilityLevel = evaluationRow.comprehensiveCapabilityGrade || 
-                                 evaluationRow.综合能力分级 || 
-                                 evaluationRow.totalGrade ||
-                                 evaluationRow.comprehensiveCapability || 
-                                 evaluationRow.management_grade || '中等'
-          
-          // 尝试找到匹配的边界特征，使用更精确的匹配逻辑
-          const matchingFeature = boundaries.features.find((feature: any) => {
-            const featureName = feature.properties?.xiang || feature.properties?.name || feature.properties?.NAME || feature.properties?.XIANG
-            if (!featureName || !regionName) return false
-            
-            // 精确匹配或包含匹配
-            return featureName === regionName || 
-                   featureName.includes(regionName) || 
-                   regionName.includes(featureName) ||
-                   // 去除"镇"、"街道"等后缀再匹配
-                   featureName.replace(/[镇街道]/g, '') === regionName.replace(/[镇街道]/g, '') ||
-                   regionName.replace(/[镇街道]/g, '') === featureName.replace(/[镇街道]/g, '')
-          }) || boundaries.features[index % boundaries.features.length] // 如果找不到匹配的，循环使用边界
-          
-          console.log(`评估数据 "${regionName}" 匹配到边界特征:`, matchingFeature?.properties?.xiang || matchingFeature?.properties?.name)
-          
-          return {
-            regionId: index + 1,
-            regionName: regionName,
-            county: matchingFeature.properties?.COUNTY || '青神县',
-            score: totalScore,
-            totalScore: totalScore, // 添加totalScore字段
-            capabilityLevel: capabilityLevel,
-            geometry: matchingFeature.geometry,
-            properties: matchingFeature.properties,
-            details: {
-              disasterPreventionCapability: parseFloat(evaluationRow.disasterPreventionCapability || evaluationRow.灾害预防能力 || evaluationRow.防灾能力 || 0),
-              emergencyResponseCapability: parseFloat(evaluationRow.emergencyResponseCapability || evaluationRow.应急响应能力 || evaluationRow.应急能力 || 0),
-              recoveryReconstructionCapability: parseFloat(evaluationRow.recoveryReconstructionCapability || evaluationRow.恢复重建能力 || evaluationRow.重建能力 || 0)
-            }
-          }
-        })
+    let thematicData: any[] = []
+
+    try {
+      const apiResponse = await thematicMapApi.getThematicData({
+        reportId: props.reportId,
+        surveyId: 1,
+        algorithmId: 1,
+        year: props.year,
+        orgCode: props.orgCode
+      })
+      const apiData = (apiResponse as any)?.data
+      if (Array.isArray(apiData) && apiData.length > 0) {
+        thematicData = apiData
+        console.log('从API加载专题数据成功:', apiResponse)
       } else {
-        // 原有逻辑：基于边界数据生成专题数据
-        if (boundaries && boundaries.features && Array.isArray(boundaries.features)) {
-          thematicData = boundaries.features
-            .filter((feature: any) => feature && feature.properties) // 过滤掉undefined或无properties的特征
-            .map((feature: any, index: number) => {
-              const featureRegionName = feature.properties?.xiang || feature.properties?.name || feature.properties?.NAME || feature.properties?.XIANG || `区域${index + 1}`
-              
-              // 尝试找到匹配的评估数据
-              const evaluationRow = evaluationData.tableData.find((row: any) => {
-                const rowRegionName = row.regionName || row.地区名称 || row.name
-                if (!rowRegionName || !featureRegionName) return false
-                
-                // 精确匹配或包含匹配
-                return rowRegionName === featureRegionName || 
-                       rowRegionName.includes(featureRegionName) || 
-                       featureRegionName.includes(rowRegionName) ||
-                       // 去除"镇"、"街道"等后缀再匹配
-                       rowRegionName.replace(/[镇街道]/g, '') === featureRegionName.replace(/[镇街道]/g, '') ||
-                       featureRegionName.replace(/[镇街道]/g, '') === rowRegionName.replace(/[镇街道]/g, '')
-              }) || evaluationData.tableData[index % evaluationData.tableData.length] // 如果找不到匹配的，循环使用评估数据
-              
-              console.log(`边界特征 "${featureRegionName}" 匹配到评估数据:`, evaluationRow?.regionName || evaluationRow?.地区名称)
-              
-              const totalScore = parseFloat(evaluationRow?.totalScore || evaluationRow?.总分 || evaluationRow?.综合得分 || evaluationRow?.score || 0)
-              
-              // 优先使用第5步的分级结果
-              const capabilityLevel = evaluationRow?.comprehensiveCapabilityGrade || 
-                                     evaluationRow?.综合能力分级 || 
-                                     evaluationRow?.totalGrade ||
-                                     evaluationRow?.disasterManagement || 
-                                     evaluationRow?.灾害管理能力 || 
-                                     evaluationRow?.management_grade || '中等'
-              
-              return {
-                regionId: index + 1,
-                regionName: featureRegionName,
-                county: feature.properties?.COUNTY || '青神县',
-                score: totalScore,
-                totalScore: totalScore, // 添加totalScore字段
-                capabilityLevel: capabilityLevel,
-                geometry: feature.geometry,
-                properties: feature.properties,
-                details: {
-                  disasterPreventionCapability: parseFloat(evaluationRow?.disasterManagement || evaluationRow?.灾害管理能力值 || evaluationRow?.disasterPreventionCapability || evaluationRow?.灾害预防能力 || evaluationRow?.防灾能力 || 0),
-                  emergencyResponseCapability: parseFloat(evaluationRow?.disasterPreparedness || evaluationRow?.灾害备灾能力值 || evaluationRow?.emergencyResponseCapability || evaluationRow?.应急响应能力 || evaluationRow?.应急能力 || 0),
-                  recoveryReconstructionCapability: parseFloat(evaluationRow?.selfRescueTransfer || evaluationRow?.自救转移能力值 || evaluationRow?.recoveryReconstructionCapability || evaluationRow?.恢复重建能力 || evaluationRow?.重建能力 || 0)
-                }
+        throw new Error('API响应数据为空')
+      }
+    } catch (apiError) {
+      console.log('从API加载专题数据失败，尝试使用评估数据或模拟数据:', apiError)
+
+      if (evaluationData && Array.isArray(evaluationData.tableData)) {
+        console.log('找到评估数据，基于真实边界生成专题数据...')
+
+        console.log('评估数据条数:', evaluationData.tableData.length, '边界特征数量:', boundaries.features.length)
+
+        if (evaluationData.tableData.length > boundaries.features.length) {
+          console.log('评估数据多于边界数据，为每条评估数据生成专题数据')
+          thematicData = evaluationData.tableData.map((evaluationRow: any, index: number) => {
+            const regionName = evaluationRow.region || evaluationRow.地区名称 || evaluationRow.name || `区域${index + 1}`
+            const totalScore = parseFloat(evaluationRow.totalScore || evaluationRow.总分 || evaluationRow.综合得分 || evaluationRow.score || 0)
+
+            const capabilityLevel =
+              evaluationRow.comprehensiveCapabilityGrade ||
+              evaluationRow.综合能力分级 ||
+              evaluationRow.totalGrade ||
+              evaluationRow.comprehensiveCapability ||
+              evaluationRow.management_grade ||
+              '中等'
+
+            const matchingFeature =
+              boundaries.features.find((feature: any) => {
+                const featureName = feature.properties?.xiang || feature.properties?.name || feature.properties?.NAME || feature.properties?.XIANG
+                if (!featureName || !regionName) return false
+
+                return (
+                  featureName === regionName ||
+                  featureName.includes(regionName) ||
+                  regionName.includes(featureName) ||
+                  featureName.replace(/[镇街道]/g, '') === regionName.replace(/[镇街道]/g, '') ||
+                  regionName.replace(/[镇街道]/g, '') === featureName.replace(/[镇街道]/g, '')
+                )
+              }) || boundaries.features[index % boundaries.features.length]
+
+            console.log(`评估数据 "${regionName}" 匹配到边界特征:`, matchingFeature?.properties?.xiang || matchingFeature?.properties?.name)
+
+            return {
+              regionId: index + 1,
+              regionName: regionName,
+              county: matchingFeature.properties?.COUNTY || '青神县',
+              score: totalScore,
+              totalScore: totalScore,
+              capabilityLevel: capabilityLevel,
+              geometry: matchingFeature.geometry,
+              properties: matchingFeature.properties,
+              details: {
+                disasterPreventionCapability: parseFloat(evaluationRow.disasterPreventionCapability || evaluationRow.灾害预防能力 || evaluationRow.防灾能力 || 0),
+                emergencyResponseCapability: parseFloat(evaluationRow.emergencyResponseCapability || evaluationRow.应急响应能力 || evaluationRow.应急能力 || 0),
+                recoveryReconstructionCapability: parseFloat(evaluationRow.recoveryReconstructionCapability || evaluationRow.恢复重建能力 || evaluationRow.重建能力 || 0)
               }
-            })
+            }
+          })
         } else {
-          console.warn('边界数据无效，使用空数组')
-          thematicData = []
+          if (boundaries && boundaries.features && Array.isArray(boundaries.features)) {
+            thematicData = boundaries.features
+              .filter((feature: any) => feature && feature.properties)
+              .map((feature: any, index: number) => {
+                const featureRegionName = feature.properties?.xiang || feature.properties?.name || feature.properties?.NAME || feature.properties?.XIANG || `区域${index + 1}`
+
+                const evaluationRow =
+                  evaluationData.tableData.find((row: any) => {
+                    const rowRegionName = row.regionName || row.地区名称 || row.name
+                    if (!rowRegionName || !featureRegionName) return false
+
+                    return (
+                      rowRegionName === featureRegionName ||
+                      rowRegionName.includes(featureRegionName) ||
+                      featureRegionName.includes(rowRegionName) ||
+                      rowRegionName.replace(/[镇街道]/g, '') === featureRegionName.replace(/[镇街道]/g, '') ||
+                      featureRegionName.replace(/[镇街道]/g, '') === rowRegionName.replace(/[镇街道]/g, '')
+                    )
+                  }) || evaluationData.tableData[index % evaluationData.tableData.length]
+
+                console.log(`边界特征 "${featureRegionName}" 匹配到评估数据:`, evaluationRow?.regionName || evaluationRow?.地区名称)
+
+                const totalScore = parseFloat(evaluationRow?.totalScore || evaluationRow?.总分 || evaluationRow?.综合得分 || evaluationRow?.score || 0)
+
+                const capabilityLevel =
+                  evaluationRow?.comprehensiveCapabilityGrade ||
+                  evaluationRow?.综合能力分级 ||
+                  evaluationRow?.totalGrade ||
+                  evaluationRow?.disasterManagement ||
+                  evaluationRow?.灾害管理能力 ||
+                  evaluationRow?.management_grade ||
+                  '中等'
+
+                return {
+                  regionId: index + 1,
+                  regionName: featureRegionName,
+                  county: feature.properties?.COUNTY || '青神县',
+                  score: totalScore,
+                  totalScore: totalScore,
+                  capabilityLevel: capabilityLevel,
+                  geometry: feature.geometry,
+                  properties: feature.properties,
+                  details: {
+                    disasterPreventionCapability: parseFloat(
+                      evaluationRow?.disasterManagement || evaluationRow?.灾害管理能力值 || evaluationRow?.disasterPreventionCapability || evaluationRow?.灾害预防能力 || evaluationRow?.防灾能力 || 0
+                    ),
+                    emergencyResponseCapability: parseFloat(
+                      evaluationRow?.disasterPreparedness || evaluationRow?.灾害备灾能力值 || evaluationRow?.emergencyResponseCapability || evaluationRow?.应急响应能力 || evaluationRow?.应急能力 || 0
+                    ),
+                    recoveryReconstructionCapability: parseFloat(
+                      evaluationRow?.selfRescueTransfer || evaluationRow?.自救转移能力值 || evaluationRow?.recoveryReconstructionCapability || evaluationRow?.恢复重建能力 || evaluationRow?.重建能力 || 0
+                    )
+                  }
+                }
+              })
+          } else {
+            console.warn('边界数据无效，使用空数组')
+            thematicData = []
+          }
         }
+
+        if (evaluationData.stepInfo?.stepName) {
+          mapConfigState.value.title = `${evaluationData.stepInfo.stepName}减灾能力评估专题图`
+        }
+      } else {
+        console.log('未找到评估数据，基于真实边界生成模拟数据')
+        thematicData = generateThematicDataFromBoundaries(boundaries)
       }
-      
-      // 更新地图标题
-      if (evaluationData.stepInfo?.stepName) {
-        mapConfig.value.title = `${evaluationData.stepInfo.stepName}减灾能力评估专题图`
-      }
-    } else {
-      console.log('未找到评估数据，基于真实边界生成模拟数据')
-      thematicData = generateThematicDataFromBoundaries(boundaries)
     }
     
-    // 使用真实边界数据和专题数据进行渲染
-    const processedData = {
-      boundaries: boundaries,
-      data: thematicData
-    }
+    const processedData = applyOrgFilter(boundaries, thematicData)
     
     console.log('准备渲染真实边界数据:', processedData)
     
-    // 存储当前专题数据用于统计和导出
-    currentThematicData.value = thematicData
+    currentThematicData.value = processedData.data
     console.log('存储专题数据用于统计:', currentThematicData.value.length, '条记录')
     
     renderThematicLayer(processedData)
@@ -499,7 +637,9 @@ const loadThematicData = async () => {
       const response = await thematicMapApi.getThematicData({
         reportId: props.reportId,
         surveyId: 1, // 默认调查ID
-        algorithmId: 1 // 默认算法ID
+        algorithmId: 1, // 默认算法ID
+        year: props.year,
+        orgCode: props.orgCode
       })
       
       if (response.data && response.data.length > 0) {
@@ -515,11 +655,7 @@ const loadThematicData = async () => {
       console.log('生成的模拟专题数据:', thematicData.slice(0, 3))
     }
     
-    // 直接使用真实边界数据和专题数据进行渲染
-    const processedData = {
-      boundaries: boundaries,
-      data: thematicData
-    }
+    const processedData = applyOrgFilter(boundaries, thematicData)
     
     console.log('步骤3: 准备渲染数据')
     console.log('边界特征数量:', processedData.boundaries.features?.length)
@@ -528,8 +664,7 @@ const loadThematicData = async () => {
     // 渲染专题图层
     renderThematicLayer(processedData)
     
-    // 存储当前专题数据用于统计和导出
-    currentThematicData.value = thematicData
+    currentThematicData.value = processedData.data
     console.log('存储专题数据用于统计:', currentThematicData.value.length, '条记录')
     
     console.log('=== 专题数据加载完成 ===')
@@ -619,7 +754,7 @@ const generateThematicDataFromBoundaries = (boundaries: any) => {
 const updateMapElements = () => {
   // 强制重新渲染
   nextTick(() => {
-    console.log('更新地图要素:', mapConfig.value)
+    console.log('更新地图要素:', mapConfigState.value)
   })
 }
 
@@ -631,11 +766,11 @@ const renderThematicLayer = (data: any) => {
   
   // 清除现有图层
   if (thematicLayer.value) {
-    map.value.removeLayer(thematicLayer.value)
+    map.value.removeLayer(thematicLayer.value as any)
   }
   
   // 创建新的图层组
-  thematicLayer.value = L.layerGroup().addTo(map.value)
+  thematicLayer.value = L.layerGroup().addTo(map.value as any)
   
   // 渲染边界数据
   if (data.boundaries && data.boundaries.features && Array.isArray(data.boundaries.features)) {
@@ -683,7 +818,7 @@ const renderThematicLayer = (data: any) => {
             regionName: featureRegionName,
             value: Math.floor(Math.random() * 40) + 60,
             score: Math.floor(Math.random() * 40) + 60,
-            capabilityLevel: 'medium'
+            capabilityLevel: '中等'
           }
           console.log(`使用默认数据:`, thematicInfo)
         }
@@ -773,7 +908,7 @@ const renderThematicLayer = (data: any) => {
         fillOpacity: 0.7,
         color: '#333',
         weight: 2,
-        dashArray: null
+        dashArray: '0'
       })
       
       // 添加弹窗信息
@@ -799,7 +934,7 @@ const renderThematicLayer = (data: any) => {
       if (thematicLayer.value) {
         thematicLayer.value.addLayer(polygon)
       } else {
-        polygon.addTo(map.value!)
+        polygon.addTo(map.value as any)
       }
     })
   }
@@ -913,8 +1048,8 @@ const getStatistics = () => {
     
     // 如果没有分级结果，尝试从其他字段获取
     if (!level) {
-      level = item.comprehensiveCapability || item.level || '未知'
-      
+      level = item.comprehensiveCapability || item.level || '中等' // 默认为中等而不是未知
+
       // 如果comprehensiveCapability是数值，需要根据数值范围判断等级
       if (typeof level === 'number' || (typeof level === 'string' && !isNaN(parseFloat(level)))) {
         const numValue = typeof level === 'number' ? level : parseFloat(level)
@@ -925,6 +1060,13 @@ const getStatistics = () => {
         else if (numValue >= 0.2) level = '较弱'
         else level = '弱'
       }
+    }
+
+    // 确保level是有效的等级值，如果不是则默认为中等
+    const validLevels = ['强', '较强', '中等', '较弱', '弱']
+    if (!validLevels.includes(level)) {
+      console.warn(`无效的能力等级: ${level}，将归类为中等`)
+      level = '中等'
     }
     
     console.log(`区域: ${item.regionName}, 能力等级: ${level}`)
@@ -963,8 +1105,57 @@ const getStatistics = () => {
   }
 }
 
-// 导出为Word文档
+// 显示Word预览
+const showWordPreview = () => {
+  showPreview.value = true
+}
+
+// 显示真实Word内容预览
+const showRealWordPreview = () => {
+  showRealPreview.value = true
+}
+
+// 基于模板导出Word文档（标准政府报告格式）
 const exportAsWord = async () => {
+  const loadingMessage = ElMessage({
+    message: '正在生成Word报告，请稍候...',
+    type: 'info',
+    duration: 0
+  })
+
+  try {
+    const response = await wordTemplateApi.generateReport(props.year, props.orgCode)
+
+    const blob = new Blob([response], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+
+    const currentDate = new Date()
+    const reportYear = props.year || currentDate.getFullYear()
+    const fileName = `青神县减灾能力评估技术报告_${reportYear}${String(currentDate.getMonth() + 1).padStart(2, '0')}${String(currentDate.getDate()).padStart(2, '0')}.docx`
+
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    window.URL.revokeObjectURL(url)
+
+    ElMessage.success('Word报告生成成功！')
+  } catch (error) {
+    console.error('导出Word失败:', error)
+    ElMessage.error('生成Word报告失败，请检查模板文件是否存在')
+  } finally {
+    loadingMessage.close()
+  }
+}
+
+// 原始Word导出函数（保留作为备用）
+const exportAsWordOriginal = async () => {
   try {
     // 获取整个地图容器，包括覆盖层元素
     const mapElement = mapContainer.value
@@ -995,10 +1186,10 @@ const exportAsWord = async () => {
 
     // 读取图片数据
     const imageArrayBuffer = await imageBlob.arrayBuffer()
-    
+
     // 获取统计数据
     const stats = getStatistics()
-    
+
     // 创建Word文档
     const doc = new Document({
       sections: [{
@@ -1006,31 +1197,24 @@ const exportAsWord = async () => {
         children: [
           // 主标题
           new Paragraph({
-            children: [{
-              text: mapConfig.value.mainTitle,
-              bold: true,
-              size: 36
-            }],
+            children: [new TextRun({ text: mapConfigState.value.mainTitle, bold: true, size: 36 })],
             alignment: AlignmentType.CENTER,
             spacing: { after: 600 }
           }),
-          
+
           // 副标题
           new Paragraph({
-            children: [{
-              text: mapConfig.value.title,
-              bold: true,
-              size: 28
-            }],
+            children: [new TextRun({ text: mapConfigState.value.title, bold: true, size: 28 })],
             alignment: AlignmentType.CENTER,
             spacing: { after: 400 }
           }),
-          
+
           // 地图图片
           new Paragraph({
             children: [
               new ImageRun({
                 data: imageArrayBuffer,
+                type: 'png',
                 transformation: {
                   width: 600,
                   height: 400
@@ -1040,18 +1224,14 @@ const exportAsWord = async () => {
             alignment: AlignmentType.CENTER,
             spacing: { after: 400 }
           }),
-          
+
           // 统计表格标题
           new Paragraph({
-            children: [{
-              text: '乡镇（街道）减灾能力统计表',
-              bold: true,
-              size: 24
-            }],
+            children: [new TextRun({ text: '乡镇（街道）减灾能力统计表', bold: true, size: 24 })],
             alignment: AlignmentType.CENTER,
             spacing: { after: 200 }
           }),
-          
+
           // 统计表格
           new Table({
             width: {
@@ -1094,14 +1274,10 @@ const exportAsWord = async () => {
               })
             ]
           }),
-          
+
           // 详细数据表格标题
           new Paragraph({
-            children: [{
-              text: '乡镇（街道）减灾能力详细数据表',
-              bold: true,
-              size: 24
-            }],
+            children: [new TextRun({ text: '乡镇（街道）减灾能力详细数据表', bold: true, size: 24 })],
             alignment: AlignmentType.CENTER,
             spacing: { after: 200, before: 400 }
           }),
@@ -1410,7 +1586,13 @@ const generateMockBoundaries = (regionId: number) => {
   return points
 }
 
-
+watch(
+  () => [props.year, props.orgCode, props.orgName, props.reportId],
+  () => {
+    if (!map.value) return
+    loadThematicData()
+  }
+)
 
 // 保存到服务器
 const saveToServer = async (imageData: string, format: string) => {
@@ -1419,7 +1601,7 @@ const saveToServer = async (imageData: string, format: string) => {
       imageData,
       format,
       reportId: props.reportId,
-      title: mapConfig.value.title,
+      title: mapConfigState.value.title,
       description: `专题图导出 - ${format.toUpperCase()}格式`
     })
     console.log('保存到服务器成功:', { format, reportId: props.reportId })

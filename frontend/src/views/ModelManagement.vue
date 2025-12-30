@@ -346,7 +346,7 @@
               <div class="hint-text">
                 <strong>提示：</strong>
                 <ul>
-                  <li>基础运算：+, -, *, /, ==, >, <, >=, <=, &&, ||</li>
+                  <li>基础运算：+, -, *, /, ==, &gt;, &lt;, &gt;=, &lt;=, &amp;&amp;, ||</li>
                   <li>高级函数：@NORMALIZE:参数, @TOPSIS_POSITIVE:参数1,参数2, @GRADE:参数</li>
                   <li>输入列：来自本模型上一步骤的输出参数</li>
                 </ul>
@@ -413,7 +413,7 @@
             default-expand-all
             @node-click="handleWeightOrgNodeClick"
           >
-            <template #default="{ node, data }">
+            <template #default="{ data }">
               <div class="org-tree-node">
                 <span class="org-name">{{ data.name }}</span>
                 <span class="org-code">{{ data.code }}</span>
@@ -464,7 +464,7 @@
                 :expand-on-click-node="false"
                 class="weight-values-tree"
               >
-                <template #default="{ node, data }">
+                <template #default="{ data }">
                   <div class="weight-tree-node" @click="selectWeightValue(data)">
                     <div class="weight-node-info">
                       <el-tag :type="data.indicatorLevel === 1 ? 'primary' : 'success'" size="small">

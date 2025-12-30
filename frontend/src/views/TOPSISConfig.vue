@@ -195,7 +195,7 @@
                   :loading="loading.testing"
                   :disabled="!validationStatus.isValid"
                 >
-                  <el-icon><Play /></el-icon>
+                  <el-icon><CaretRight /></el-icon>
                   快速测试
                 </el-button>
               </div>
@@ -316,7 +316,7 @@
                   @click="removeAllIndicators"
                   :disabled="selectedIndicators.length === 0"
                 >
-                  << 全部移除
+                  &lt;&lt; 全部移除
                 </el-button>
               </div>
             </el-col>
@@ -507,12 +507,12 @@ import {
   Setting,
   View,
   Clock,
+  CaretRight,
   ArrowUp,
   ArrowDown,
   Delete,
   RefreshLeft,
   Check,
-  Play,
   SuccessFilled,
   CircleCloseFilled,
   InfoFilled
@@ -600,7 +600,7 @@ watch(selectedIndicators, () => {
 
 // 方法
 const getAlgorithmTypeTag = (algorithmCode: string) => {
-  const typeMap = {
+  const typeMap: Record<string, string> = {
     'TOPSIS_POSITIVE': 'success',
     'TOPSIS_NEGATIVE': 'warning',
     'TOPSIS': 'primary'
@@ -608,8 +608,8 @@ const getAlgorithmTypeTag = (algorithmCode: string) => {
   return typeMap[algorithmCode] || 'info'
 }
 
-const getAlgorithmTypeName = (algorithmCode: string) => {
-  const nameMap = {
+const getAlgorithmTypeName = (algorithmCode: string): string => {
+  const nameMap: Record<string, string> = {
     'TOPSIS_POSITIVE': '正理想解',
     'TOPSIS_NEGATIVE': '负理想解',
     'TOPSIS': 'TOPSIS算法'
