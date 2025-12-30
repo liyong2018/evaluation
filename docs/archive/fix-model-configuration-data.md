@@ -224,7 +224,7 @@ public void testManagementCapability() {
 
 ### 4. 文档化
 
-在系统文档中说明：
+在工具文档中说明：
 
 - QLExpress 表达式编写规范
 - 常见陷阱和最佳实践

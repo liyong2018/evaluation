@@ -374,18 +374,43 @@ import {
 import type { FormInstance, FormRules } from 'element-plus'
 import request from '@/utils/request'
 
+interface AlgorithmConfigItem {
+  id: number
+  configName: string
+  version: string
+  description: string
+  status: number
+  isDefault: number
+  createTime?: string
+  updateTime?: string
+}
+
+interface ConfigStats {
+  totalExecutions?: number
+  successExecutions?: number
+  failedExecutions?: number
+  avgExecutionTime?: number
+}
+
+interface PerformanceStats {
+  totalRules?: number
+  activeRules?: number
+  totalExecutions?: number
+  avgResponseTime?: number
+}
+
 // 响应式数据
 const searchKeyword = ref('')
-const statusFilter = ref('')
-const configList = ref([])
-const currentConfig = ref(null)
-const ruleMappings = ref([])
-const configStats = ref(null)
-const performanceStats = ref(null)
-const executionLogs = ref([])
-const executeConfig = ref(null)
+const statusFilter = ref<number | ''>('')
+const configList = ref<AlgorithmConfigItem[]>([])
+const currentConfig = ref<AlgorithmConfigItem | null>(null)
+const ruleMappings = ref<any[]>([])
+const configStats = ref<ConfigStats | null>(null)
+const performanceStats = ref<PerformanceStats | null>(null)
+const executionLogs = ref<any[]>([])
+const executeConfig = ref<AlgorithmConfigItem | null>(null)
 const executeInputData = ref('{\n  "example": "data"\n}')
-const executeResult = ref(null)
+const executeResult = ref<any>(null)
 
 // 加载状态
 const loading = reactive({
@@ -723,7 +748,9 @@ const handleDeleteRuleMapping = async (row: any) => {
     
     if (result.success) {
       ElMessage.success('删除成功')
-      loadRuleMappings(currentConfig.value.id)
+      if (currentConfig.value) {
+        loadRuleMappings(currentConfig.value.id)
+      }
     } else {
       ElMessage.error(result.message || '删除失败')
     }
@@ -737,13 +764,17 @@ const handleDeleteRuleMapping = async (row: any) => {
 
 const handleSubmitRuleMappingForm = async () => {
   if (!ruleMappingFormRef.value) return
+  if (!currentConfig.value && ruleMappingMode.value === 'create') {
+    ElMessage.error('请先选择算法配置')
+    return
+  }
   
   try {
     await ruleMappingFormRef.value.validate()
     loading.ruleMapping = true
     
     const url = ruleMappingMode.value === 'create' 
-      ? `/api/algorithm-config/${currentConfig.value.id}/rule-mapping`
+      ? `/api/algorithm-config/${currentConfig.value!.id}/rule-mapping`
       : `/api/algorithm-config/rule-mapping/${ruleMappingForm.id}`
     
     const result = ruleMappingMode.value === 'create' 
@@ -753,7 +784,9 @@ const handleSubmitRuleMappingForm = async () => {
     if (result.success) {
       ElMessage.success(ruleMappingMode.value === 'create' ? '添加成功' : '更新成功')
       dialogVisible.ruleMapping = false
-      loadRuleMappings(currentConfig.value.id)
+      if (currentConfig.value) {
+        loadRuleMappings(currentConfig.value.id)
+      }
     } else {
       ElMessage.error(result.message || '操作失败')
     }
@@ -766,6 +799,11 @@ const handleSubmitRuleMappingForm = async () => {
 }
 
 const handleExecuteSubmit = async () => {
+  if (!executeConfig.value) {
+    ElMessage.error('请选择要执行的配置')
+    return
+  }
+
   loading.execute = true
   try {
     let inputData = {}
@@ -787,9 +825,10 @@ const handleExecuteSubmit = async () => {
   } catch (error) {
     console.error('执行配置失败:', error)
     ElMessage.error('执行配置失败')
+    const message = error instanceof Error ? error.message : String(error)
     executeResult.value = {
       success: false,
-      data: { error: error.message }
+      data: { error: message }
     }
   } finally {
     loading.execute = false

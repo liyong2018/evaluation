@@ -337,7 +337,7 @@ public class IndicatorAnalysisServiceImpl implements IndicatorAnalysisService {
      * 判断是否为数值型指标字段
      */
     private boolean isNumericIndicatorField(String fieldName) {
-        // 排除系统字段
+        // 排除工具字段
         if (fieldName.equals("id") || fieldName.equals("surveyId") || fieldName.equals("surveyDataId") ||
             fieldName.equals("algorithmId") || fieldName.equals("weightConfigId") || fieldName.equals("configId") ||
             fieldName.equals("evaluationId") || fieldName.equals("createTime") || fieldName.equals("calculateTime") ||

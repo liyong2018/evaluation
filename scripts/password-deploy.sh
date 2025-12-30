@@ -1,6 +1,6 @@
 #!/usr/bin/expect -f
 
-# 减灾能力评估系统Docker部署脚本（密码认证版本）
+# 减灾能力评估工具Docker部署脚本（密码认证版本）
 # 使用expect自动处理SSH密码输入
 
 set timeout 30
@@ -12,7 +12,7 @@ set REMOTE_DIR "/opt/evaluation"
 set PROJECT_NAME "evaluation-system"
 
 # 颜色定义
-spawn sh -c {echo -e "\033[0;32m=== 减灾能力评估系统Docker部署脚本 ===\033[0m"}
+spawn sh -c {echo -e "\033[0;32m=== 减灾能力评估工具Docker部署脚本 ===\033[0m"}
 expect eof
 
 spawn sh -c {echo -e "\033[1;33m目标服务器: $SERVER\033[0m"}

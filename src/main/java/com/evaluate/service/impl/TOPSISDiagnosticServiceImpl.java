@@ -53,7 +53,7 @@ public class TOPSISDiagnosticServiceImpl implements TOPSISDiagnosticService {
             return TOPSISDiagnosticReport.builder()
                     .hasIssues(true)
                     .issues(Arrays.asList("诊断过程中发生异常: " + e.getMessage()))
-                    .recommendations(Arrays.asList("请检查输入参数和系统配置"))
+                    .recommendations(Arrays.asList("请检查输入参数和工具配置"))
                     .timestamp(System.currentTimeMillis())
                     .modelId(modelId)
                     .stepCode("step4")
@@ -180,7 +180,7 @@ public class TOPSISDiagnosticServiceImpl implements TOPSISDiagnosticService {
             comparison.put("error", e.getMessage());
             comparison.put("differences", new ArrayList<>());
             comparison.put("similarities", new ArrayList<>());
-            comparison.put("recommendations", Arrays.asList("配置对比失败，请检查系统配置"));
+            comparison.put("recommendations", Arrays.asList("配置对比失败，请检查工具配置"));
             
             return comparison;
         }

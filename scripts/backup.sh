@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 减灾能力评估系统备份脚本
+# 减灾能力评估工具备份脚本
 
 set -e
 
@@ -16,7 +16,7 @@ REMOTE_DIR="/opt/evaluation"
 BACKUP_DIR="${REMOTE_DIR}/backups/$(date +%Y%m%d_%H%M%S)"
 LOCAL_BACKUP_DIR="./backups/$(date +%Y%m%d_%H%M%S)"
 
-echo -e "${GREEN}=== 减灾能力评估系统备份脚本 ===${NC}"
+echo -e "${GREEN}=== 减灾能力评估工具备份脚本 ===${NC}"
 echo -e "${YELLOW}目标服务器: ${SERVER}${NC}"
 echo -e "${YELLOW}备份目录: ${BACKUP_DIR}${NC}"
 echo ""

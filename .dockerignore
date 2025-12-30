@@ -12,7 +12,7 @@
 *.swo
 *~
 
-# 操作系统
+# 操作工具
 .DS_Store
 Thumbs.db
 

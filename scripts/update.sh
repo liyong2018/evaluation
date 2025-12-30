@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 减灾能力评估系统更新脚本
+# 减灾能力评估工具更新脚本
 
 set -e
 
@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 SERVER="root@101.126.46.254"
 REMOTE_DIR="/opt/evaluation"
 
-echo -e "${GREEN}=== 减灾能力评估系统更新脚本 ===${NC}"
+echo -e "${GREEN}=== 减灾能力评估工具更新脚本 ===${NC}"
 echo -e "${YELLOW}目标服务器: ${SERVER}${NC}"
 echo -e "${YELLOW}部署目录: ${REMOTE_DIR}${NC}"
 echo ""

@@ -344,7 +344,7 @@ watch([() => props.modelId, () => props.stepId], () => {
 
 // 方法
 const getOperationTypeTag = (type: string) => {
-  const typeMap = {
+  const typeMap: Record<string, string> = {
     'CREATE': 'success',
     'UPDATE': 'primary',
     'DELETE': 'danger',
@@ -354,7 +354,7 @@ const getOperationTypeTag = (type: string) => {
 }
 
 const getOperationTypeName = (type: string) => {
-  const nameMap = {
+  const nameMap: Record<string, string> = {
     'CREATE': '创建配置',
     'UPDATE': '更新配置',
     'DELETE': '删除配置',

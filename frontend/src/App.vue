@@ -6,7 +6,7 @@
         <div class="header-content">
           <div class="logo">
             <el-icon class="logo-icon"><DataAnalysis /></el-icon>
-            <span class="logo-text">减灾能力评估系统</span>
+            <span class="logo-text">减灾能力评估工具</span>
           </div>
           <el-menu
             :default-active="activeIndex"

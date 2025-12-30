@@ -141,7 +141,7 @@ echo -e "${GREEN}部署成功！${NC}"
 echo -e "${YELLOW}日志文件位置:${NC}"
 echo -e "- Docker日志: docker-compose logs [service]"
 echo -e "- 应用日志: ./logs/"
-echo -e "- 系统日志: /var/log/"
+echo -e "- 工具日志: /var/log/"
 echo ""
 
 echo -e "${GREEN}如需帮助，请查看 DEPLOY.md 文档${NC}"

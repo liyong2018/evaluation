@@ -1,8 +1,8 @@
-﻿import request from '@/utils/request'
+import request from '@/utils/request'
 
-// 系统相关API
+// 工具相关API
 export const systemApi = {
-  // 获取系统信息
+  // 获取工具信息
   getSystemInfo: () => request.get('/'),
   
   // 健康检查
@@ -311,7 +311,7 @@ export const algorithmExecutionApi = {
     algorithmId: number;
     stepId: number;
     stepIndex: number;
-    regions?: number[];
+    regions?: Array<string | number>;
     parameters?: Record<string, any>;
     formula?: string;
   }) => request.post('/api/algorithm/execution/step/calculate', data),
@@ -431,6 +431,8 @@ export const thematicMapApi = {
     regionIds?: number[];
     surveyId?: number;
     algorithmId?: number;
+    year?: number;
+    orgCode?: string;
   }) => request.get('/api/thematic-map/data', { params }),
   
   // 获取地区边界数据
@@ -466,6 +468,33 @@ export const thematicMapApi = {
   
   // 获取天地图配置
   getTiandituConfig: () => request.get('/api/thematic-map/tianditu-config')
+}
+
+// TOPSIS配置相关API
+export const topsisConfigApi = {
+  getAll: () => request.get('/api/topsis-config'),
+
+  getByModelAndStep: (modelId: number, stepId: number) =>
+    request.get('/api/topsis-config/by-model-step', { params: { modelId, stepId } }),
+
+  getAvailableIndicators: (modelId: number) =>
+    request.get('/api/topsis-config/available-indicators', { params: { modelId } }),
+
+  updateStepConfig: (data: {
+    stepId: number
+    indicators: string[]
+    modelId?: number
+    algorithmCode?: string
+  }) => request.post('/api/topsis-config/update', data),
+
+  validateConfig: (data: { modelId: number; stepId: number; indicators: string[] }) =>
+    request.post('/api/topsis-config/validate', data),
+
+  testConfig: (data: {
+    config: { modelId: number; stepId: number; indicators: string[] }
+    regionCodes: string[]
+    weightConfigId: number
+  }) => request.post('/api/topsis-config/test', data)
 }
 
 // 算法步骤执行相关API
@@ -741,4 +770,44 @@ export const organizationApi = {
   // 获取社区级组织机构列表
   getCommunities: (townshipCode?: string) =>
     request.get('/api/organization/communities', { params: { townshipCode } })
+}
+
+// Word模板处理相关API
+export const wordTemplateApi = {
+  // 生成Word报告
+  generateReport: (year?: number, orgCode?: string) => {
+    return request({
+      url: '/api/word-template/generate-report',
+      method: 'POST',
+      responseType: 'blob', // 重要：设置响应类型为blob以处理文件下载
+      params: { year, orgCode }
+    })
+  },
+
+  // 获取JSON数据预览 (供前端或OnlyOffice使用)
+  previewJson: (year?: number, orgCode?: string) => 
+    request.get('/api/word-template/preview-json', { params: { year, orgCode } }),
+
+  // 获取模板预览数据
+  previewVariables: (year?: number, orgCode?: string) => 
+    request.get('/api/word-template/preview-variables', { params: { year, orgCode } }),
+
+  // 获取完整报告预览数据
+  previewReport: (year?: number, orgCode?: string) => request.get('/api/word-template/preview-report', { params: { year, orgCode } }),
+
+  // 获取Word模板的实际内容
+  getRealTemplateContent: () => request.get('/api/word-template/real-template-content'),
+
+  // 获取Word模板内容（用于编辑器）
+  getTemplateContent: () => request.get('/api/word-template/real-template-content'),
+
+  // 将HTML转换为Word
+  convertHtmlToWord: (htmlContent: string) => {
+    return request({
+      url: '/api/word-template/convert-html-to-word',
+      method: 'POST',
+      data: { htmlContent },
+      responseType: 'blob'
+    })
+  }
 }

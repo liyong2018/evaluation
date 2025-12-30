@@ -2,32 +2,37 @@ version: '3.8'
 
 services:
   # 应用服务
-  app:
-    build: .
+  evaluation-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
     container_name: evaluation-app
     ports:
       - "8087:8087"
     environment:
+      - SERVER_PORT=8087
       - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/evaluate_db?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2B8
+      - SPRING_DATASOURCE_URL=jdbc:mysql://evaluation-mysql:3306/evaluate_db?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2B8
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=123456
-      - SPRING_REDIS_HOST=redis
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+      - SPRING_REDIS_HOST=evaluation-redis
       - SPRING_REDIS_PORT=6379
     depends_on:
-      mysql:
+      evaluation-mysql:
         condition: service_healthy
-      redis:
+      evaluation-redis:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
+      - ./frontend/dist:/usr/share/nginx/html:ro  # 挂载前端静态文件
     restart: unless-stopped
     networks:
       - evaluation-network
 
   # MySQL数据库
-  mysql:
+  evaluation-mysql:
     image: mysql:8.0
     container_name: evaluation-mysql
     ports:
@@ -52,7 +57,7 @@ services:
       - evaluation-network
 
   # Redis缓存
-  redis:
+  evaluation-redis:
     image: redis:7-alpine
     container_name: evaluation-redis
     ports:
@@ -70,18 +75,16 @@ services:
       - evaluation-network
 
   # Nginx反向代理（可选）
-  nginx:
+  evaluation-nginx:
     image: nginx:alpine
     container_name: evaluation-nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - "8088:80"   # 对外提供前端与路由回退（HTTP）
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro  # 部署前端静态资源
     depends_on:
-      - app
+      - evaluation-app
     restart: unless-stopped
     networks:
       - evaluation-network

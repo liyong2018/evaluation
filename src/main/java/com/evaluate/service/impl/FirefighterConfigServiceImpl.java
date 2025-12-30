@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -66,35 +67,35 @@ public class FirefighterConfigServiceImpl
             return baseMapper.getByLocation(provinceName, cityName, countyName, townshipName);
         } catch (Exception e) {
             log.error("根据地理位置查询消防员配置失败", e);
-            return List.of();
+            return new ArrayList<>();
         }
     }
 
     @Override
     public List<FirefighterConfig> getByRegionCodes(List<String> regionCodes) {
         if (regionCodes == null || regionCodes.isEmpty()) {
-            return List.of();
+            return new ArrayList<>();
         }
 
         try {
             return baseMapper.getByRegionCodes(regionCodes);
         } catch (Exception e) {
             log.error("批量查询消防员配置失败", e);
-            return List.of();
+            return new ArrayList<>();
         }
     }
 
     @Override
     public List<FirefighterConfig> getByCountyName(String countyName) {
         if (countyName == null || countyName.trim().isEmpty()) {
-            return List.of();
+            return new ArrayList<>();
         }
 
         try {
             return baseMapper.getByCountyName(countyName.trim());
         } catch (Exception e) {
             log.error("根据县名称查询消防员配置失败，县名: {}", countyName, e);
-            return List.of();
+            return new ArrayList<>();
         }
     }
 

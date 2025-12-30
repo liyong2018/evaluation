@@ -20,13 +20,13 @@ public class IndexController {
     private static final Logger log = LoggerFactory.getLogger(IndexController.class);
 
     /**
-     * 系统首页
-     * @return 系统信息
+     * 工具首页
+     * @return 工具信息
      */
     @GetMapping("/")
     public Map<String, Object> index() {
         Map<String, Object> result = new HashMap<>();
-        result.put("system", "减灾能力评估系统");
+        result.put("system", "减灾能力评估工具");
         result.put("version", "1.0.0");
         result.put("status", "运行中");
         result.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
@@ -46,7 +46,7 @@ public class IndexController {
     }
     
     /**
-     * 系统健康检查
+     * 工具健康检查
      * @return 健康状态
      */
     @GetMapping("/health")

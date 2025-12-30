@@ -22,7 +22,7 @@ import java.util.Map;
 @CrossOrigin
 public class IndicatorWeightScoreController {
 
-    @Autowired
+    @Autowired(required = false)
     private IIndicatorWeightScoreService indicatorWeightScoreService;
 
     /**
@@ -35,6 +35,10 @@ public class IndicatorWeightScoreController {
     public Result<Boolean> saveScores(@RequestBody List<IndicatorWeightScore> scores) {
         log.info("保存专家打分记录，数量: {}", scores.size());
         try {
+            if (indicatorWeightScoreService == null) {
+                log.warn("专家权重打分服务未注入，无法保存打分记录");
+                return Result.error("服务暂时不可用，请稍后重试");
+            }
             boolean success = indicatorWeightScoreService.saveScores(scores);
             return success ? Result.success(true) : Result.error("保存失败");
         } catch (Exception e) {
@@ -53,6 +57,10 @@ public class IndicatorWeightScoreController {
     public Result<List<IndicatorWeightScore>> getScoresByConfigId(@PathVariable Long configId) {
         log.info("获取配置 {} 的专家打分记录", configId);
         try {
+            if (indicatorWeightScoreService == null) {
+                log.warn("专家权重打分服务未注入，无法获取打分记录");
+                return Result.error("服务暂时不可用，请稍后重试");
+            }
             List<IndicatorWeightScore> scores = indicatorWeightScoreService.getScoresByConfigId(configId);
             return Result.success(scores);
         } catch (Exception e) {
@@ -93,6 +101,10 @@ public class IndicatorWeightScoreController {
     public Result<Map<String, Double>> calculateAverageWeights(@PathVariable Long configId) {
         log.info("计算配置 {} 的平均权重", configId);
         try {
+            if (indicatorWeightScoreService == null) {
+                log.warn("专家权重打分服务未注入，无法计算平均权重");
+                return Result.error("服务暂时不可用，请稍后重试");
+            }
             Map<String, Double> averageWeights = indicatorWeightScoreService.calculateAverageWeights(configId);
             return Result.success(averageWeights);
         } catch (Exception e) {
@@ -111,6 +123,10 @@ public class IndicatorWeightScoreController {
     public Result<List<Map<String, Object>>> getExpertsByConfigId(@PathVariable Long configId) {
         log.info("获取配置 {} 的专家列表", configId);
         try {
+            if (indicatorWeightScoreService == null) {
+                log.warn("专家权重打分服务未注入，无法获取专家列表");
+                return Result.error("服务暂时不可用，请稍后重试");
+            }
             List<Map<String, Object>> experts = indicatorWeightScoreService.getExpertsByConfigId(configId);
             return Result.success(experts);
         } catch (Exception e) {
@@ -129,6 +145,10 @@ public class IndicatorWeightScoreController {
     public Result<Map<String, Object>> getScoreStatistics(@PathVariable Long configId) {
         log.info("获取配置 {} 的打分统计信息", configId);
         try {
+            if (indicatorWeightScoreService == null) {
+                log.warn("专家权重打分服务未注入，无法获取统计信息");
+                return Result.error("服务暂时不可用，请稍后重试");
+            }
             Map<String, Object> statistics = indicatorWeightScoreService.getScoreStatistics(configId);
             return Result.success(statistics);
         } catch (Exception e) {
@@ -147,6 +167,10 @@ public class IndicatorWeightScoreController {
     public Result<Boolean> applyAverageWeights(@PathVariable Long configId) {
         log.info("应用配置 {} 的平均权重", configId);
         try {
+            if (indicatorWeightScoreService == null) {
+                log.warn("专家权重打分服务未注入，无法应用平均权重");
+                return Result.error("服务暂时不可用，请稍后重试");
+            }
             boolean success = indicatorWeightScoreService.applyAverageWeights(configId);
             return success ? Result.success(true) : Result.error("应用失败");
         } catch (Exception e) {

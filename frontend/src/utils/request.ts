@@ -1,11 +1,11 @@
-import axios from 'axios'
+import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 
 // 创建axios实例
-const baseURL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'http://localhost:8088'
+const baseURL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'http://localhost:8081'
 const DEFAULT_TIMEOUT = Number((import.meta as any)?.env?.VITE_API_TIMEOUT) || 60000
 
-const request = axios.create({
+const request: any = axios.create({
   baseURL, // 后端服务地址（可通过环境变量覆盖）
   timeout: DEFAULT_TIMEOUT, // 请求超时时间（默认60秒，可配置）
   headers: {
@@ -15,11 +15,11 @@ const request = axios.create({
 
 // 请求拦截器
 request.interceptors.request.use(
-  (config) => {
+  (config: InternalAxiosRequestConfig) => {
     // 在发送请求之前做些什么
     return config
   },
-  (error) => {
+  (error: AxiosError) => {
     // 对请求错误做些什么
     return Promise.reject(error)
   }
@@ -27,13 +27,13 @@ request.interceptors.request.use(
 
 // 响应拦截器
 request.interceptors.response.use(
-  (response) => {
+  (response: AxiosResponse) => {
     // 对响应数据做点什么
     const { data } = response
     
     // 如果是文件下载等特殊响应，直接返回
     if (response.config.responseType === 'blob') {
-      return response
+      return data
     }
     
     // 统一处理后端返回的Result格式
@@ -47,7 +47,7 @@ request.interceptors.response.use(
     
     return data
   },
-  (error) => {
+  (error: AxiosError) => {
     // 对响应错误做点什么
     console.error('请求错误:', error)
     // 专门处理超时错误
@@ -57,7 +57,8 @@ request.interceptors.response.use(
     }
     
     if (error.response) {
-      const { status, data } = error.response
+      const { status } = error.response
+      const data: any = (error.response as any).data
       
       switch (status) {
         case 400:

@@ -689,9 +689,19 @@ const handleSave = async () => {
     
     loading.save = true
     try {
-      const response = formMode.value === 'create' 
-        ? await algorithmManagementApi.create(algorithmForm)
-        : await algorithmManagementApi.update(algorithmForm)
+      let response
+      if (formMode.value === 'create') {
+        response = await algorithmManagementApi.create(algorithmForm)
+      } else {
+        if (!algorithmForm.id) {
+          ElMessage.error('缺少算法ID，无法更新')
+          return
+        }
+        response = await algorithmManagementApi.update({
+          ...algorithmForm,
+          id: algorithmForm.id
+        })
+      }
       
       if (response.success) {
         ElMessage.success(`${formMode.value === 'create' ? '创建' : '更新'}算法成功`)

@@ -145,12 +145,36 @@ public class EvaluationResultServiceImpl extends ServiceImpl<EvaluationResultMap
 
     @Override
     public List<EvaluationResult> getResultsByModelIdAndYear(Long modelId, Integer year) {
-        return evaluationResultMapper.selectByModelIdAndYear(modelId, year);
+        List<EvaluationResult> allResults = evaluationResultMapper.selectByModelIdAndYear(modelId, year);
+        return deduplicateResults(allResults);
     }
 
     @Override
     public List<EvaluationResult> getResultsByModelIdAndYearAndOrgCode(Long modelId, Integer year, String orgCode) {
-        return evaluationResultMapper.selectByModelIdAndYearAndOrgCode(modelId, year, orgCode);
+        List<EvaluationResult> allResults = evaluationResultMapper.selectByModelIdAndYearAndOrgCode(modelId, year, orgCode);
+        return deduplicateResults(allResults);
+    }
+
+    /**
+     * Deduplicate results by keeping only the first occurrence of each region code.
+     * Since results are ordered by create_time DESC, the first one is the latest.
+     */
+    private List<EvaluationResult> deduplicateResults(List<EvaluationResult> results) {
+        if (results == null || results.isEmpty()) {
+            return results;
+        }
+        
+        java.util.Set<String> seenRegions = new java.util.HashSet<>();
+        List<EvaluationResult> uniqueResults = new ArrayList<>();
+        
+        for (EvaluationResult result : results) {
+            String regionCode = result.getRegionCode();
+            if (regionCode != null && !seenRegions.contains(regionCode)) {
+                seenRegions.add(regionCode);
+                uniqueResults.add(result);
+            }
+        }
+        return uniqueResults;
     }
 
     /**

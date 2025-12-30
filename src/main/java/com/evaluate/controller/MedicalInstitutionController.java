@@ -24,8 +24,15 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class MedicalInstitutionController {
 
-    @Autowired
+    @Autowired(required = false)
     private IMedicalInstitutionService medicalInstitutionService;
+
+    /**
+     * 检查服务是否可用
+     */
+    private boolean isServiceAvailable() {
+        return medicalInstitutionService != null;
+    }
 
     /**
      * 导入医疗卫生机构数据
@@ -40,6 +47,13 @@ public class MedicalInstitutionController {
             if (file.isEmpty()) {
                 result.put("success", false);
                 result.put("message", "请选择要导入的文件");
+                return result;
+            }
+
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法导入数据");
                 return result;
             }
 
@@ -70,6 +84,13 @@ public class MedicalInstitutionController {
         Map<String, Object> result = new HashMap<>();
 
         try {
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("data", null);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法获取数据列表");
+                return result;
+            }
             List<MedicalInstitution> list = medicalInstitutionService.getMedicalInstitutionByYear(year);
             result.put("success", true);
             result.put("data", list);
@@ -91,6 +112,13 @@ public class MedicalInstitutionController {
         Map<String, Object> result = new HashMap<>();
 
         try {
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("data", null);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法搜索数据");
+                return result;
+            }
             List<MedicalInstitution> list = medicalInstitutionService.searchByInstitutionName(institutionName);
             result.put("success", true);
             result.put("data", list);
@@ -115,6 +143,13 @@ public class MedicalInstitutionController {
             if (ids == null || ids.isEmpty()) {
                 result.put("success", false);
                 result.put("message", "请选择要删除的数据");
+                return result;
+            }
+
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法批量删除数据");
                 return result;
             }
 
@@ -145,6 +180,10 @@ public class MedicalInstitutionController {
             @RequestParam Integer year,
             HttpServletResponse response) {
         try {
+            if (!isServiceAvailable()) {
+                log.warn("医疗卫生机构服务未注入，无法导出数据");
+                throw new RuntimeException("服务暂时不可用，请稍后重试");
+            }
             medicalInstitutionService.exportMedicalInstitutionData(year, response);
         } catch (Exception e) {
             log.error("导出医疗卫生机构数据失败", e);
@@ -158,6 +197,10 @@ public class MedicalInstitutionController {
     @GetMapping("/template")
     public void downloadImportTemplate(HttpServletResponse response) {
         try {
+            if (!isServiceAvailable()) {
+                log.warn("医疗卫生机构服务未注入，无法下载模板");
+                throw new RuntimeException("服务暂时不可用，请稍后重试");
+            }
             medicalInstitutionService.downloadImportTemplate(response);
         } catch (Exception e) {
             log.error("下载导入模板失败", e);
@@ -173,6 +216,13 @@ public class MedicalInstitutionController {
         Map<String, Object> result = new HashMap<>();
 
         try {
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("data", null);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法获取数据");
+                return result;
+            }
             MedicalInstitution medicalInstitution = medicalInstitutionService.getById(id);
             if (medicalInstitution != null) {
                 result.put("success", true);
@@ -199,6 +249,12 @@ public class MedicalInstitutionController {
         Map<String, Object> result = new HashMap<>();
 
         try {
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法创建数据");
+                return result;
+            }
             boolean saveResult = medicalInstitutionService.save(medicalInstitution);
 
             if (saveResult) {
@@ -227,6 +283,12 @@ public class MedicalInstitutionController {
         Map<String, Object> result = new HashMap<>();
 
         try {
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法更新数据");
+                return result;
+            }
             boolean updateResult = medicalInstitutionService.updateById(medicalInstitution);
 
             if (updateResult) {
@@ -255,6 +317,12 @@ public class MedicalInstitutionController {
         Map<String, Object> result = new HashMap<>();
 
         try {
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法删除数据");
+                return result;
+            }
             boolean deleteResult = medicalInstitutionService.removeById(id);
 
             if (deleteResult) {

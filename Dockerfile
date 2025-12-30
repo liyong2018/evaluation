@@ -25,7 +25,7 @@ COPY frontend/ .
 RUN npm run build || npm run build:only
 
 # 运行时镜像
-FROM openjdk:11-jre-slim
+FROM eclipse-temurin:11-jre
 
 # 安装必要工具
 RUN apt-get update && apt-get install -y \

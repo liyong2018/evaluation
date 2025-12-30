@@ -150,7 +150,7 @@ ADD COLUMN max_value DECIMAL(10,4) DEFAULT NULL COMMENT '指标最大值';
 
 ## 修复人员
 
-系统管理员
+工具管理员
 
 ## 相关文件
 

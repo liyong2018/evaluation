@@ -13,8 +13,37 @@
             <div class="card-header">
               <span>专题图预览</span>
               <div class="header-actions">
+                <el-select
+                  v-model="selectedYear"
+                  placeholder="选择年份"
+                  clearable
+                  style="width: 120px"
+                  @change="handleFilterChange"
+                >
+                  <el-option v-for="year in yearOptions" :key="year" :label="year + '年'" :value="year" />
+                </el-select>
+                <el-tree-select
+                  v-model="selectedOrgCode"
+                  :data="organizationList"
+                  placeholder="选择区域"
+                  clearable
+                  filterable
+                  check-strictly
+                  :render-after-expand="false"
+                  :disabled="loadingOrganizations"
+                  style="width: 260px"
+                  node-key="code"
+                  :props="{ value: 'code', label: 'name', children: 'children' }"
+                  @change="handleFilterChange"
+                >
+                  <template #default="{ data }">
+                    <span>{{ data.name }} <span style="color: #909399; font-size: 12px;">({{ data.code }})</span></span>
+                  </template>
+                </el-tree-select>
                 <el-button size="small" @click="refreshMap">刷新</el-button>
                 <el-button size="small" type="success" @click="fullscreen">全屏</el-button>
+                <el-button size="small" type="primary" @click="openOnlyOfficeEditor">打开Word编辑器</el-button>
+                <el-button size="small" type="warning" @click="downloadWord">下载Word</el-button>
               </div>
             </div>
           </template>
@@ -24,6 +53,9 @@
               v-if="showMap"
               :reportId="mapSettings.reportId"
               :mapConfig="computedMapConfig"
+              :year="selectedYear || undefined"
+              :orgCode="selectedOrgCode || undefined"
+              :orgName="selectedOrgName || undefined"
               ref="mapGeneratorRef"
             />
             <div v-else class="empty-map">
@@ -65,6 +97,23 @@
         </div>
       </el-card>
     </div>
+
+    <!-- OnlyOffice编辑器组件 -->
+    <el-dialog
+      v-model="showOnlyOfficeEditor"
+      title="Word文档预览"
+      fullscreen
+      destroy-on-close
+      class="word-editor-dialog"
+      :close-on-click-modal="false"
+    >
+      <OnlyOfficeEditor
+        v-if="showOnlyOfficeEditor"
+        :document-url="wordDocumentUrl"
+        :document-title="wordDocumentTitle"
+        :document-key="wordDocumentKey"
+      />
+    </el-dialog>
   </div>
 </template>
 
@@ -73,18 +122,30 @@ console.log('ThematicMap页面开始加载')
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ThematicMapGenerator from '@/components/ThematicMapGenerator.vue'
-import { thematicMapApi } from '@/api'
+import OnlyOfficeEditor from '@/components/OnlyOfficeEditor.vue'
+import { thematicMapApi, wordTemplateApi, organizationApi } from '@/api'
 console.log('ThematicMap页面导入完成')
 
 // 响应式数据
 const loading = ref(false)
 const showMap = ref(true) // 默认显示地图
 const mapGeneratorRef = ref()
+const showOnlyOfficeEditor = ref(false) // 控制OnlyOffice编辑器显示
+const wordDocumentUrl = ref('')
+const wordDocumentTitle = ref('青神县减灾能力评估技术报告')
+const wordDocumentKey = ref('')
+const wordTemplatePath = ref('templates/四川省眉山市青神县减灾能力评估技术报告-系统模板.docx') // Word模板路径
+
+const selectedYear = ref<number | null>(2024)
+const yearOptions = ref<number[]>([])
+const selectedOrgCode = ref<string | null>('511425')
+const organizationList = ref<any[]>([])
+const loadingOrganizations = ref(false)
 
 const mapSettings = reactive({
   reportId: 1,
   title: '四川省雅安市青神县乡镇减灾能力评估专题图',
-  subtitle: `数据来源：减灾能力评估系统 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`,
+  subtitle: `数据来源：减灾能力评估工具 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`,
   displayElements: ['title', 'legend', 'scale', 'compass', 'border']
 })
 
@@ -100,6 +161,52 @@ const computedMapConfig = computed(() => ({
   showCompass: mapSettings.displayElements.includes('compass'),
   showBorder: mapSettings.displayElements.includes('border')
 }))
+
+const findOrgNodeByCode = (tree: any[], code: string): any | null => {
+  for (const node of tree || []) {
+    if (node?.code === code) return node
+    if (node?.children?.length) {
+      const found = findOrgNodeByCode(node.children, code)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+const selectedOrgName = computed(() => {
+  if (!selectedOrgCode.value) return ''
+  const node = findOrgNodeByCode(organizationList.value, selectedOrgCode.value)
+  return node?.name || ''
+})
+
+const generateYearOptions = () => {
+  const currentYear = new Date().getFullYear()
+  const options: number[] = []
+  for (let year = 2020; year <= currentYear; year++) options.push(year)
+  yearOptions.value = options
+}
+
+const getOrganizationList = async () => {
+  loadingOrganizations.value = true
+  try {
+    const response = await organizationApi.getTree()
+    if (response.success && response.data) {
+      organizationList.value = response.data || []
+    }
+  } catch (error) {
+    console.error('获取组织机构列表失败:', error)
+    ElMessage.error('获取组织机构列表失败')
+  } finally {
+    loadingOrganizations.value = false
+  }
+}
+
+const handleFilterChange = () => {
+  const y = selectedYear.value ? `${selectedYear.value}年` : '全部年份'
+  const org = selectedOrgName.value ? ` | 区域：${selectedOrgName.value}` : ''
+  mapSettings.subtitle = `数据年份：${y}${org} | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
+  refreshMap()
+}
 
 // 生成专题图
 const generateMap = async () => {
@@ -130,7 +237,7 @@ const generateMap = async () => {
 const resetSettings = () => {
   mapSettings.reportId = 1
   mapSettings.title = '四川省雅安市青神县乡镇减灾能力评估专题图'
-  mapSettings.subtitle = `数据来源：减灾能力评估系统 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
+  mapSettings.subtitle = `数据来源：减灾能力评估工具 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
   mapSettings.displayElements = ['title', 'legend', 'scale', 'compass', 'border']
   showMap.value = false
 }
@@ -238,8 +345,104 @@ const formatTime = (timeStr: string) => {
   return date.toLocaleString('zh-CN')
 }
 
+
+// 打开Word预览编辑器
+const openOnlyOfficeEditor = async () => {
+  const loadingInstance = ElMessage({
+    message: '正在生成Word文档，请稍候...',
+    type: 'info',
+    duration: 0
+  })
+
+  try {
+    const year = selectedYear.value || new Date().getFullYear()
+    const orgCode = selectedOrgCode.value || '511425'
+
+    // 1. 先生成Word文档
+    console.log(`正在生成${year}年${orgCode}区域的Word文档...`)
+    try {
+      await wordTemplateApi.generateReport(year, orgCode)
+      console.log('Word文档生成成功')
+      ElMessage.success('Word文档生成成功，正在打开编辑器...')
+    } catch (e) {
+      console.error('生成Word文档失败:', e)
+      ElMessage.error('生成Word文档失败，请重试')
+      loadingInstance.close()
+      return
+    }
+
+    // 2. 等待文件写入完成
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // 3. 设置OnlyOffice文档URL
+    let baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
+    try {
+      const u = new URL(baseUrl)
+      if (u.port === '8088' || u.port === '5173' || u.port === '8087' || u.port === '') {
+        u.port = '8081'
+      }
+      if (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname.startsWith('192.168.')) {
+        u.hostname = 'host.docker.internal'
+      }
+      baseUrl = u.toString().replace(/\/$/, '')
+    } catch {
+      baseUrl = 'http://host.docker.internal:8081'
+    }
+
+    wordDocumentUrl.value = `${baseUrl}/api/word-template/latest-report`
+    wordDocumentTitle.value = `青神县减灾能力评估技术报告_${year}.docx`
+    wordDocumentKey.value = new Date().getTime().toString()
+    showOnlyOfficeEditor.value = true
+  } catch (error) {
+    console.error('打开Word编辑器失败:', error)
+    ElMessage.error('打开Word编辑器失败')
+  } finally {
+    loadingInstance.close()
+  }
+}
+
+// 下载Word文档
+const downloadWord = async () => {
+  const loadingInstance = ElMessage({
+    message: '正在生成Word文档，请稍候...',
+    type: 'info',
+    duration: 0 // 手动关闭
+  })
+
+  try {
+    const response = await wordTemplateApi.generateReport(selectedYear.value || undefined, selectedOrgCode.value || undefined)
+
+    const blob = new Blob([response], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+
+    const currentDate = new Date()
+    const reportYear = selectedYear.value || currentDate.getFullYear()
+    const fileName = `青神县减灾能力评估技术报告_${reportYear}${String(currentDate.getMonth() + 1).padStart(2, '0')}${String(currentDate.getDate()).padStart(2, '0')}.docx`
+
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    ElMessage.success('Word文档下载成功！')
+  } catch (error) {
+    console.error('下载Word文档失败:', error)
+    ElMessage.error('生成Word文档失败，请重试')
+  } finally {
+    loadingInstance.close()
+  }
+}
+
 // 组件挂载
 onMounted(async () => {
+  generateYearOptions()
+  await getOrganizationList()
   await loadHistory()
   
   // 检查是否有从评估计算传递的数据
@@ -277,7 +480,7 @@ const loadDataFromSession = () => {
       mapSettings.reportId = data.id || 1
       
       // 存储评估数据供专题图组件使用
-      window.evaluationData = {
+      ;(window as any).evaluationData = {
         tableData: data.tableData || data.resultData.tableData,
         columns: data.columns || data.resultData.columns,
         summary: data.summary || data.resultData.summary,
@@ -285,7 +488,7 @@ const loadDataFromSession = () => {
         formula: data.formula
       }
       
-      console.log('设置的评估数据:', window.evaluationData)
+      console.log('设置的评估数据:', (window as any).evaluationData)
       
       // 自动生成专题图
       generateMap()
@@ -299,10 +502,25 @@ const loadDataFromSession = () => {
     }
   } catch (error) {
     console.error('加载传递数据失败:', error)
-    ElMessage.error('加载传递数据失败：' + error.message)
+    ElMessage.error('加载传递数据失败：' + ((error as any)?.message || '未知错误'))
   }
 }
 </script>
+
+<style lang="scss">
+.word-editor-dialog.is-fullscreen {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .el-dialog__body {
+    flex: 1;
+    padding: 0 !important;
+    height: 100%;
+    overflow: hidden;
+  }
+}
+</style>
 
 <style scoped lang="scss">
 .thematic-map-page {

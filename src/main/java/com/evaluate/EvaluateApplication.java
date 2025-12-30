@@ -5,7 +5,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * 减灾能力评估系统启动类
+ * 减灾能力评估工具启动类
  * 
  * @author System
  * @since 2024-01-01
@@ -23,6 +23,6 @@ public class EvaluateApplication {
                 " | |_| | \\__ \\ (_| \\__ \\ ||  __/ |    |  _ <  __/ (_| | |_| | (__| |_| | (_) | | | |\n" +
                 " |____/|_|___/\\__,_|___/\\__\\___|_|    |_| \\_\\___|\\__,_|\\__,_|\\___|\\__|_|\\___/|_| |_|\n" +
                 "                                                                                    \n" +
-                " :: 减灾能力评估系统启动成功 ::                                                        \n");
+                " :: 减灾能力评估工具启动成功 ::                                                        \n");
     }
 }

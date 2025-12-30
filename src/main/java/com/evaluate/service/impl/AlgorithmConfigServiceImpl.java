@@ -23,8 +23,6 @@ import java.util.List;
 @Service
 public class AlgorithmConfigServiceImpl extends ServiceImpl<AlgorithmConfigMapper, AlgorithmConfig> implements IAlgorithmConfigService {
 
-    private static final Logger log = LoggerFactory.getLogger(AlgorithmConfigServiceImpl.class);
-
     @Override
     public AlgorithmConfig getDefaultConfig() {
         // 返回第一个启用的配置作为默认配置

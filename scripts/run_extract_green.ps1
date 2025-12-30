@@ -1,0 +1,15 @@
+$cp = "target/test-classes;target/classes"
+$cp += ";C:/Users/admin/.m2/repository/org/apache/poi/poi-ooxml/5.2.3/poi-ooxml-5.2.3.jar"
+$cp += ";C:/Users/admin/.m2/repository/org/apache/poi/poi-ooxml-lite/5.2.3/poi-ooxml-lite-5.2.3.jar"
+$cp += ";C:/Users/admin/.m2/repository/org/apache/poi/poi/5.2.3/poi-5.2.3.jar"
+$cp += ";C:/Users/admin/.m2/repository/commons-codec/commons-codec/1.15/commons-codec-1.15.jar"
+$cp += ";C:/Users/admin/.m2/repository/org/apache/commons/commons-compress/1.21/commons-compress-1.21.jar"
+$cp += ";C:/Users/admin/.m2/repository/com/github/virtuald/curvesapi/1.07/curvesapi-1.07.jar"
+$cp += ";C:/Users/admin/.m2/repository/org/apache/xmlbeans/xmlbeans/5.1.1/xmlbeans-5.1.1.jar"
+$cp += ";C:/Users/admin/.m2/repository/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar"
+$cp += ";C:/Users/admin/.m2/repository/org/slf4j/slf4j-api/1.7.36/slf4j-api-1.7.36.jar"
+$cp += ";C:/Users/admin/.m2/repository/org/apache/logging/log4j/log4j-api/2.17.1/log4j-api-2.17.1.jar"
+$cp += ";C:/Users/admin/.m2/repository/org/apache/logging/log4j/log4j-to-slf4j/2.17.1/log4j-to-slf4j-2.17.1.jar"
+$cp += ";C:/Users/admin/.m2/repository/org/apache/commons/commons-collections4/4.4/commons-collections4-4.4.jar"
+
+& "C:\Program Files\Java\jdk-17\bin\java.exe" -cp $cp com.evaluate.util.ExtractGreenVariables

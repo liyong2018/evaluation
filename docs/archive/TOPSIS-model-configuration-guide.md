@@ -298,4 +298,4 @@ docker exec -i mysql-ccrc mysql -uroot -pHtht1234 evaluate_db -e "source /tmp/up
 
 - TOPSIS方法介绍：https://en.wikipedia.org/wiki/TOPSIS
 - QLExpress官方文档
-- 当前系统的模型执行框架文档：`docs/model-execution-integration.md`
+- 当前工具的模型执行框架文档：`docs/model-execution-integration.md`

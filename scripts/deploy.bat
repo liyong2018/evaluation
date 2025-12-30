@@ -2,10 +2,10 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-:: 减灾能力评估系统Docker部署脚本 (Windows版本)
+:: 减灾能力评估工具Docker部署脚本 (Windows版本)
 :: 目标服务器: root@101.126.46.254
 
-echo === 减灾能力评估系统Docker部署脚本 ===
+echo === 减灾能力评估工具Docker部署脚本 ===
 echo 目标服务器: 101.126.46.254
 echo 部署目录: /opt/evaluation
 echo.

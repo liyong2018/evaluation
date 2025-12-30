@@ -55,7 +55,7 @@
             :loading="loading.test"
             :disabled="!canRunTest"
           >
-            <el-icon><Play /></el-icon>
+            <el-icon><VideoPlay /></el-icon>
             运行测试
           </el-button>
           <el-button @click="resetTest">
@@ -230,7 +230,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Play, Refresh, SuccessFilled, CircleCloseFilled, InfoFilled } from '@element-plus/icons-vue'
+import { VideoPlay, Refresh, SuccessFilled, CircleCloseFilled, InfoFilled } from '@element-plus/icons-vue'
 
 // Props
 const props = defineProps<{
@@ -367,10 +367,11 @@ const runTest = async () => {
     ElMessage.success('测试完成')
   } catch (error) {
     console.error('测试运行失败:', error)
+    const message = error instanceof Error ? error.message : String(error)
     testResults.value = {
       success: false,
       error: '测试运行失败',
-      details: error.message || '未知错误',
+      details: message || '未知错误',
       suggestions: [
         {
           message: '检查指标配置是否正确',

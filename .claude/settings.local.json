@@ -27,7 +27,16 @@
       "Bash(git push:*)",
       "Bash(npm run build)",
       "Bash(ssh:*)",
-      "Bash(cmd:*)"
+      "Bash(cmd:*)",
+      "Bash(tasklist:*)",
+      "Bash(ping:*)",
+      "Bash(timeout:*)",
+      "Bash(java:*)",
+      "Bash(scp:*)",
+      "Bash(cp:*)",
+      "Bash(set JAVA_HOME:*)",
+      "Bash(set PATH=\"C:\\\\Program Files\\\\Java\\\\jdk-17\\\\bin;%PATH%\")",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

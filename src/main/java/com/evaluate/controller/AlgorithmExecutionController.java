@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +61,7 @@ public class AlgorithmExecutionController {
                 if (surveyData == null) {
                     return Result.error("调查数据不存在");
                 }
-                surveyDataList = List.of(surveyData);
+                surveyDataList = Collections.singletonList(surveyData);
             } else {
                 surveyDataList = surveyDataService.list();
             }
@@ -190,7 +191,7 @@ public class AlgorithmExecutionController {
                 try {
                     SurveyData surveyData = surveyDataService.getById(surveyId);
                     if (surveyData != null) {
-                        List<SurveyData> surveyDataList = List.of(surveyData);
+                        List<SurveyData> surveyDataList = Collections.singletonList(surveyData);
                         Map<String, Object> result = algorithmExecutionService.executeAlgorithm(
                             algorithmConfig, surveyDataList, weightConfig, regionIds
                         );
