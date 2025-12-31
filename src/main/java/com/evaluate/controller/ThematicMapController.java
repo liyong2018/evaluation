@@ -176,11 +176,11 @@ public class ThematicMapController {
             // 返回图片访问URL
             String imageUrl = "/api/thematic-map/map-image/" + fileName;
 
-            return Result.success(Map.of(
-                "fileName", fileName,
-                "filePath", filePath.toString(),
-                "imageUrl", imageUrl
-            ));
+            Map<String, String> result = new HashMap<>();
+            result.put("fileName", fileName);
+            result.put("filePath", filePath.toString());
+            result.put("imageUrl", imageUrl);
+            return Result.success(result);
 
         } catch (Exception e) {
             log.error("上传专题图图片失败", e);

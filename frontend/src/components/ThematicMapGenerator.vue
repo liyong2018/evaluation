@@ -1101,18 +1101,21 @@ const getStatistics = () => {
     veryWeak: 0,
     total: 0
   }
-  
+
   console.log('统计数据计算，当前专题数据:', currentThematicData.value)
-  
+
   currentThematicData.value.forEach(item => {
     stats.total++
-    
-    // 优先使用第5步的分级结果（综合能力分级）
-    let level = item.comprehensiveCapabilityGrade || item.综合能力分级 || item.capabilityLevel
-    
+
+    // 优先使用后端API返回的综合能力等级字段
+    let level = item.capabilityLevel ||              // 后端API返回的字段 (ThematicMapController.java:105)
+                  item.comprehensiveCapabilityLevel ||  // 后端 EvaluationResult 原始字段
+                  item.comprehensiveCapabilityGrade ||  // 兼容旧字段名
+                  item.综合能力分级
+
     // 如果没有分级结果，尝试从其他字段获取
     if (!level) {
-      level = item.comprehensiveCapability || item.level || '中等' // 默认为中等而不是未知
+      level = item.comprehensiveCapability || item.level || '中等'
 
       // 如果comprehensiveCapability是数值，需要根据数值范围判断等级
       if (typeof level === 'number' || (typeof level === 'string' && !isNaN(parseFloat(level)))) {
@@ -1132,9 +1135,9 @@ const getStatistics = () => {
       console.warn(`无效的能力等级: ${level}，将归类为中等`)
       level = '中等'
     }
-    
+
     console.log(`区域: ${item.regionName}, 能力等级: ${level}`)
-    
+
     switch (level) {
       case '强':
         stats.strong++
@@ -1156,16 +1159,16 @@ const getStatistics = () => {
         stats.medium++
     }
   })
-  
+
   console.log('统计结果:', stats)
-  
+
   return {
     ...stats,
-    strongPercent: stats.total > 0 ? ((stats.strong / stats.total) * 100).toFixed(1) : '0.0',
-    mediumStrongPercent: stats.total > 0 ? ((stats.mediumStrong / stats.total) * 100).toFixed(1) : '0.0',
-    mediumPercent: stats.total > 0 ? ((stats.medium / stats.total) * 100).toFixed(1) : '0.0',
-    weakPercent: stats.total > 0 ? ((stats.weak / stats.total) * 100).toFixed(1) : '0.0',
-    veryWeakPercent: stats.total > 0 ? ((stats.veryWeak / stats.total) * 100).toFixed(1) : '0.0'
+    strongPercent: stats.total > 0 ? ((stats.strong / stats.total) * 100).toFixed(2) : '0.00',
+    mediumStrongPercent: stats.total > 0 ? ((stats.mediumStrong / stats.total) * 100).toFixed(2) : '0.00',
+    mediumPercent: stats.total > 0 ? ((stats.medium / stats.total) * 100).toFixed(2) : '0.00',
+    weakPercent: stats.total > 0 ? ((stats.weak / stats.total) * 100).toFixed(2) : '0.00',
+    veryWeakPercent: stats.total > 0 ? ((stats.veryWeak / stats.total) * 100).toFixed(2) : '0.00'
   }
 }
 
