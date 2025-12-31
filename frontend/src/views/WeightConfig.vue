@@ -29,7 +29,7 @@
               node-key="code"
               highlight-current
               :expand-on-click-node="false"
-              default-expand-all
+              :default-expanded-keys="defaultExpandedKeys"
               @node-click="handleOrgNodeClick"
             >
               <template #default="{ data }">
@@ -99,7 +99,7 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="createTime" label="创建时间" width="180" />
-                <el-table-column label="操作" width="500" fixed="right">
+                <el-table-column label="操作" width="400" fixed="right">
                   <template #default="{ row }">
                     <el-button type="primary" size="small" @click="editConfig(row)">
                       <el-icon><Edit /></el-icon>
@@ -354,7 +354,7 @@
     <el-dialog
       v-model="dialogVisible.statistics"
       :title="`打分统计详情 - ${currentScoreConfig?.configName || ''}`"
-      width="1200px"
+      width="1920px"
       :close-on-click-modal="false"
     >
       <div v-if="statisticsData" class="statistics-content-new">
@@ -780,12 +780,31 @@ const getConfigList = async () => {
 }
 
 // 获取组织机构列表（树形结构）
+const defaultExpandedKeys = ref<string[]>([])
+
+// 收集需要展开的节点（展开到3级）
+const collectExpandedKeys = (nodes: any[], level: number = 1, keys: string[] = []) => {
+  if (!nodes || nodes.length === 0) return keys
+  for (const node of nodes) {
+    // 展开到3级（县级），不展开4级（乡镇/街道）和5级（村/社区）
+    if (level < 3) {
+      keys.push(node.code)
+    }
+    if (node.children && node.children.length > 0) {
+      collectExpandedKeys(node.children, level + 1, keys)
+    }
+  }
+  return keys
+}
+
 const getOrganizationList = async () => {
   loading.organizations = true
   try {
     const response = await organizationApi.getTree()
     if (response.success && response.data) {
       organizationList.value = response.data || []
+      // 收集需要展开的节点key
+      defaultExpandedKeys.value = collectExpandedKeys(organizationList.value)
       console.log('组织机构树形数据:', organizationList.value)
     }
   } catch (error) {
@@ -1325,7 +1344,7 @@ onMounted(() => {
 
 <style scoped>
 .weight-config {
-  max-width: 1400px;
+  max-width: 1920px;
   margin: 0 auto;
 }
 

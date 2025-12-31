@@ -1,7 +1,7 @@
 <template>
   <div class="thematic-map-page">
     <div class="page-header">
-      <h1>专题图生成</h1>
+      <h1>评估报告生成</h1>
       <p class="page-description">基于减灾能力评估数据生成专业的专题图，支持多种格式导出</p>
     </div>
     
@@ -42,8 +42,7 @@
                 </el-tree-select>
                 <el-button size="small" @click="refreshMap">刷新</el-button>
                 <el-button size="small" type="success" @click="fullscreen">全屏</el-button>
-                <el-button size="small" type="primary" @click="openOnlyOfficeEditor">打开Word编辑器</el-button>
-                <el-button size="small" type="warning" @click="downloadWord">下载Word</el-button>
+                <el-button size="small" type="primary" @click="openOnlyOfficeEditor">生成报告</el-button>
               </div>
             </div>
           </template>
@@ -136,7 +135,7 @@ const wordDocumentTitle = ref('青神县减灾能力评估技术报告')
 const wordDocumentKey = ref('')
 const wordTemplatePath = ref('templates/四川省眉山市青神县减灾能力评估技术报告-系统模板.docx') // Word模板路径
 
-const selectedYear = ref<number | null>(2024)
+const selectedYear = ref<number | null>(2025)
 const yearOptions = ref<number[]>([])
 const selectedOrgCode = ref<string | null>('511425')
 const organizationList = ref<any[]>([])
@@ -358,12 +357,25 @@ const openOnlyOfficeEditor = async () => {
     const year = selectedYear.value || new Date().getFullYear()
     const orgCode = selectedOrgCode.value || '511425'
 
-    // 1. 先生成Word文档
+    // 1. 先上传专题图图片
+    console.log(`正在生成并上传${year}年${orgCode}区域的专题图...`)
+    let mapImageUrl: string | null = null
+    try {
+      if (mapGeneratorRef.value && mapGeneratorRef.value.exportAndUploadForOnlyOffice) {
+        mapImageUrl = await mapGeneratorRef.value.exportAndUploadForOnlyOffice()
+        console.log('专题图上传成功:', mapImageUrl)
+        ElMessage.success('专题图上传成功')
+      }
+    } catch (e) {
+      console.error('上传专题图失败:', e)
+      ElMessage.warning('专题图上传失败，将继续生成报告（不含专题图）')
+    }
+
+    // 2. 生成Word文档
     console.log(`正在生成${year}年${orgCode}区域的Word文档...`)
     try {
       await wordTemplateApi.generateReport(year, orgCode)
       console.log('Word文档生成成功')
-      ElMessage.success('Word文档生成成功，正在打开编辑器...')
     } catch (e) {
       console.error('生成Word文档失败:', e)
       ElMessage.error('生成Word文档失败，请重试')
@@ -371,10 +383,10 @@ const openOnlyOfficeEditor = async () => {
       return
     }
 
-    // 2. 等待文件写入完成
+    // 3. 等待文件写入完成
     await new Promise(resolve => setTimeout(resolve, 1000))
 
-    // 3. 设置OnlyOffice文档URL
+    // 4. 设置OnlyOffice文档URL
     let baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
     try {
       const u = new URL(baseUrl)
@@ -392,48 +404,17 @@ const openOnlyOfficeEditor = async () => {
     wordDocumentUrl.value = `${baseUrl}/api/word-template/latest-report`
     wordDocumentTitle.value = `青神县减灾能力评估技术报告_${year}.docx`
     wordDocumentKey.value = new Date().getTime().toString()
+
+    // 5. 将上传的专题图URL存储到window对象，供OnlyOffice使用
+    if (mapImageUrl) {
+      ;(window as any).uploadedThematicMapUrl = mapImageUrl
+      console.log('专题图URL已存储，可供OnlyOffice使用:', mapImageUrl)
+    }
+
     showOnlyOfficeEditor.value = true
   } catch (error) {
     console.error('打开Word编辑器失败:', error)
     ElMessage.error('打开Word编辑器失败')
-  } finally {
-    loadingInstance.close()
-  }
-}
-
-// 下载Word文档
-const downloadWord = async () => {
-  const loadingInstance = ElMessage({
-    message: '正在生成Word文档，请稍候...',
-    type: 'info',
-    duration: 0 // 手动关闭
-  })
-
-  try {
-    const response = await wordTemplateApi.generateReport(selectedYear.value || undefined, selectedOrgCode.value || undefined)
-
-    const blob = new Blob([response], {
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    })
-
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-
-    const currentDate = new Date()
-    const reportYear = selectedYear.value || currentDate.getFullYear()
-    const fileName = `青神县减灾能力评估技术报告_${reportYear}${String(currentDate.getMonth() + 1).padStart(2, '0')}${String(currentDate.getDate()).padStart(2, '0')}.docx`
-
-    link.download = fileName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-
-    ElMessage.success('Word文档下载成功！')
-  } catch (error) {
-    console.error('下载Word文档失败:', error)
-    ElMessage.error('生成Word文档失败，请重试')
   } finally {
     loadingInstance.close()
   }
@@ -525,6 +506,8 @@ const loadDataFromSession = () => {
 <style scoped lang="scss">
 .thematic-map-page {
   padding: 20px;
+  max-width: 1920px;
+  margin: 0 auto;
   background: #f5f5f5;
   min-height: 100vh;
   

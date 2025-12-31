@@ -44,7 +44,7 @@ export const surveyDataApi = {
 
   // 批量删除调查数据
   batchDelete: (ids: number[]) => request.delete('/api/survey-data/batch', { data: ids }),
-  
+
   // 导入Excel文件
   importData: (file: File, year: number) => {
     const formData = new FormData()
@@ -54,7 +54,14 @@ export const surveyDataApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
-  
+
+  // 检查导入前置条件
+  checkImportPrerequisites: (year: number) => request({
+    method: 'post',
+    url: '/api/survey-data/check-import-prerequisites',
+    params: { year }
+  }),
+
   // 导出Excel文件
   exportData: () => request.get('/api/survey-data/export/all')
 }
@@ -247,13 +254,14 @@ export const evaluationApi = {
   finalize: (evaluationId: number) => request.post(`/api/evaluation/finalize/${evaluationId}`),
 
   // 执行评估模型（基于模型配置）
-  executeModel: (modelId: number, regionCodes: string[], weightConfigId: number, year?: number, orgCode?: string) => {
+  executeModel: (modelId: number, regionCodes: string[], weightConfigId: number, year?: number, orgCode?: string, createBy?: string) => {
     const requestBody = {
       modelId,
       regionCodes,
       weightConfigId,
       year,
-      orgCode
+      orgCode,
+      createBy
     };
     return request.post('/api/evaluation/execute-model', requestBody);
   },
@@ -270,7 +278,10 @@ export const evaluationApi = {
     executionStatus?: string;
     year?: number;
     orgCode?: string;
-  }) => request.get('/api/evaluation/history', { params })
+  }) => request.get('/api/evaluation/history', { params }),
+
+  // 删除评估历史记录
+  deleteEvaluationHistory: (id: number) => request.delete(`/api/evaluation/history/${id}`)
 }
 
 // 算法执行相关API
@@ -467,7 +478,28 @@ export const thematicMapApi = {
   updateMapConfig: (config: any) => request.put('/api/thematic-map/config', config),
   
   // 获取天地图配置
-  getTiandituConfig: () => request.get('/api/thematic-map/tianditu-config')
+  getTiandituConfig: () => request.get('/api/thematic-map/tianditu-config'),
+
+  // 上传专题图图片
+  uploadMapImage: (imageFile: File, year: number, orgCode: string) => {
+    const formData = new FormData()
+    formData.append('image', imageFile)
+    formData.append('year', year.toString())
+    formData.append('orgCode', orgCode)
+    return request.post('/api/thematic-map/upload-map-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  // 生成包含专题图的报告（OnlyOffice图片替换）
+  generateReportWithMap: (imagePath: string, year: number, orgCode: string) => {
+    return request({
+      url: '/api/thematic-map/generate-report-with-map',
+      method: 'POST',
+      params: { imagePath, year, orgCode },
+      responseType: 'blob'
+    })
+  }
 }
 
 // TOPSIS配置相关API

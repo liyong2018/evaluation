@@ -1,5 +1,11 @@
 <template>
   <div class="model-management">
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h1>评估模型管理</h1>
+      <p>评估模型的创建、配置、启用和版本管理</p>
+    </div>
+
     <el-card class="header-card">
       <template #header>
         <div class="card-header">
@@ -393,7 +399,7 @@
     <el-dialog
       v-model="weightSelectorDialogVisible"
       title="选择权重"
-      width="1200px"
+      width="1920px"
       :close-on-click-modal="false"
     >
       <div class="weight-selector-container">
@@ -1301,9 +1307,25 @@ onMounted(() => {
 
 <style scoped>
 .model-management {
-    margin: auto;
-    max-width: 1200px;
+    margin: 0 auto;
+    max-width: 1920px;
     height:100%
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  color: #303133;
+}
+
+.page-header p {
+  margin: 0;
+  color: #909399;
+  font-size: 14px;
 }
 
 .header-card {

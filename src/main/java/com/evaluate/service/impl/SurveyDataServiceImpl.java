@@ -1162,4 +1162,86 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
         log.debug("未找到避难场所容量列，使用默认列: {}", defaultCol);
         return defaultCol;
     }
+
+    @Override
+    public com.evaluate.dto.ImportCheckResult checkImportPrerequisites(Integer year) {
+        log.info("开始检查{}年导入前置条件", year);
+
+        com.evaluate.dto.ImportCheckResult result =
+            new com.evaluate.dto.ImportCheckResult();
+
+        java.util.List<String> missingMedicalRegions = new java.util.ArrayList<>();
+        java.util.List<String> missingFirefighterRegions = new java.util.ArrayList<>();
+        boolean hasMedicalData = false;
+        boolean hasFirefighterData = false;
+
+        try {
+            // 检查医疗设施数据
+            if (medicalInstitutionService != null) {
+                try {
+                    // 检查是否有任何医疗设施数据
+                    boolean anyMedicalData = medicalInstitutionService.hasAnyDataForYear(year);
+                    if (anyMedicalData) {
+                        hasMedicalData = true;
+                        log.info("找到{}年医疗设施数据", year);
+                    } else {
+                        log.warn("未找到{}年医疗设施数据", year);
+                    }
+                } catch (Exception e) {
+                    log.error("检查医疗设施数据时出错", e);
+                }
+            } else {
+                log.warn("医疗设施服务未注入");
+            }
+
+            // 检查消防员配置数据
+            try {
+                boolean anyFirefighterData = firefighterConfigService.hasAnyData();
+                if (anyFirefighterData) {
+                    hasFirefighterData = true;
+                    log.info("找到消防员配置数据");
+                } else {
+                    log.warn("未找到消防员配置数据");
+                }
+            } catch (Exception e) {
+                log.error("检查消防员配置数据时出错", e);
+            }
+
+            // 构建结果消息
+            StringBuilder message = new StringBuilder();
+
+            if (!hasMedicalData) {
+                message.append("❌ 缺少医疗设施数据：请先导入");
+                message.append(year);
+                message.append("年的医疗卫生机构数据（实有床位数）\\n");
+                result.setCanImport(false);
+            }
+
+            if (!hasFirefighterData) {
+                message.append("❌ 缺少消防员配置数据：请先在消防员配置表（firefighter_config）中配置各区域的消防员数量\\n");
+                result.setCanImport(false);
+            }
+
+            if (hasMedicalData && hasFirefighterData) {
+                message.append("✅ 导入前置条件检查通过，可以导入数据");
+                result.setCanImport(true);
+            }
+
+            result.setMessage(message.toString());
+            result.setHasMedicalData(hasMedicalData);
+            result.setHasFirefighterData(hasFirefighterData);
+            result.setMissingMedicalRegions(missingMedicalRegions);
+            result.setMissingFirefighterRegions(missingFirefighterRegions);
+
+            log.info("导入前置条件检查完成 - 可以导入: {}, 有医疗数据: {}, 有消防员数据: {}",
+                result.isCanImport(), hasMedicalData, hasFirefighterData);
+
+        } catch (Exception e) {
+            log.error("检查导入前置条件失败", e);
+            result.setCanImport(false);
+            result.setMessage("检查导入前置条件时发生错误: " + e.getMessage());
+        }
+
+        return result;
+    }
 }

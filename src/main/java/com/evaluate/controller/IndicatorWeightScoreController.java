@@ -178,4 +178,29 @@ public class IndicatorWeightScoreController {
             return Result.error("应用失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 删除指定专家的打分记录
+     *
+     * @param configId    配置ID
+     * @param expertName  专家姓名
+     * @return 操作结果
+     */
+    @DeleteMapping("/config/{configId}/expert/{expertName}")
+    public Result<Boolean> deleteExpertScores(
+            @PathVariable Long configId,
+            @PathVariable String expertName) {
+        log.info("删除配置 {} 中专家 {} 的打分记录", configId, expertName);
+        try {
+            if (indicatorWeightScoreService == null) {
+                log.warn("专家权重打分服务未注入，无法删除打分记录");
+                return Result.error("服务暂时不可用，请稍后重试");
+            }
+            boolean success = indicatorWeightScoreService.deleteExpertScores(configId, expertName);
+            return success ? Result.success(true) : Result.error("删除失败");
+        } catch (Exception e) {
+            log.error("删除专家打分记录失败", e);
+            return Result.error("删除失败: " + e.getMessage());
+        }
+    }
 }

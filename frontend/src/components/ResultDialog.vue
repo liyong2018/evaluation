@@ -89,7 +89,7 @@
               size="small"
               max-height="400"
               class="result-table"
-              style="width: 100%; min-width: 1200px;"
+              style="width: 100%; min-width: 1920px;"
             >
               <el-table-column
                 v-for="column in resultData.table1Columns"
@@ -116,7 +116,7 @@
               size="small"
               max-height="400"
               class="result-table"
-              style="width: 100%; min-width: 1200px;"
+              style="width: 100%; min-width: 1920px;"
             >
               <el-table-column
                 v-for="column in resultData.table2Columns"
@@ -202,8 +202,8 @@
             size="small"
             max-height="400"
             class="result-table"
-            style="width: 100%; min-width: 1600px;"
-          >
+            style="width: 100%; min-width: 1920px;"
+            >
         <el-table-column
           v-for="column in filteredColumns"
           :key="column.prop"
@@ -237,7 +237,7 @@
               size="small"
               max-height="400"
               class="result-table"
-              style="width: 100%; min-width: 1200px;"
+              style="width: 100%; min-width: 1920px;"
             >
               <el-table-column
                 v-for="column in filteredColumns"
@@ -1306,7 +1306,7 @@ const buildCSVContent = (): string => {
       
       .result-table {
         width: 100%;
-        min-width: 1200px;
+        min-width: 1920px;
       }
     }
   }
@@ -1330,7 +1330,7 @@ const buildCSVContent = (): string => {
     
     .result-table {
       width: 100%;
-      min-width: 1600px;
+      min-width: 1920px;
     }
   }
 

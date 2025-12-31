@@ -29,11 +29,11 @@ public class EvaluationController {
      */
     @PostMapping("/execute-model")
     public Result<Map<String, Object>> executeModel(@RequestBody ModelExecutionRequest request) {
-        log.info("开始执行评估模型, modelId={}, regionCodes={}, weightConfigId={}, year={}",
-                request.getModelId(), request.getRegionCodes(), request.getWeightConfigId(), request.getYear(), request.getOrgCode());
+        log.info("开始执行评估模型, modelId={}, regionCodes={}, weightConfigId={}, year={}, createBy={}",
+                request.getModelId(), request.getRegionCodes(), request.getWeightConfigId(), request.getYear(), request.getCreateBy());
         try {
             Map<String, Object> result = modelExecutionService.executeModel(
-                    request.getModelId(), request.getRegionCodes(), request.getWeightConfigId(), request.getYear(), request.getOrgCode());
+                    request.getModelId(), request.getRegionCodes(), request.getWeightConfigId(), request.getYear(), request.getOrgCode(), request.getCreateBy());
             return Result.success(result);
         } catch (Exception e) {
             log.error("执行评估模型失败", e);
@@ -196,6 +196,22 @@ public class EvaluationController {
         } catch (Exception e) {
             log.error("获取评估历史记录详情失败", e);
             return Result.error("获取评估历史记录详情失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 删除评估历史记录
+     * /api/evaluation/history/1 表示删除ID为1的记录
+     */
+    @DeleteMapping("/history/{id}")
+    public Result<Boolean> deleteEvaluationHistory(@PathVariable("id") Long id) {
+        log.info("删除评估历史记录, id={}", id);
+        try {
+            boolean success = modelExecutionService.deleteEvaluationHistory(id);
+            return success ? Result.success(true) : Result.error("删除失败，记录不存在");
+        } catch (Exception e) {
+            log.error("删除评估历史记录失败", e);
+            return Result.error("删除评估历史记录失败: " + e.getMessage());
         }
     }
 }

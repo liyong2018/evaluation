@@ -240,8 +240,8 @@ public class WordTemplateController {
     }
 
     private EvaluationReportData fetchReportData(Integer year, String orgCode) {
-        // Fix: Default to 2024 if not provided, as most data is for the previous year
-        if (year == null) year = 2024;
+        // Fix: Default to current year (2025) if not provided
+        if (year == null) year = 2025;
         if (orgCode == null) orgCode = "511425";
 
         // Fetch Results
@@ -255,17 +255,23 @@ public class WordTemplateController {
         List<EvaluationResult> communityResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(4L, year, orgCode);
         
         // Model 11: Comprehensive Disaster Reduction Capability Assessment Model (Comprehensive Data)
+        // Use model 11 for township data as it has the latest comprehensive evaluation results
         List<EvaluationResult> comprehensiveResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(11L, year, orgCode);
-        
-        log.info("Fetched Results - Township(M3): {}, CommunityByTown(M8): {}, Community(M4): {}, Comprehensive(M11): {}", 
+
+        log.info("Fetched Results - Township(M3): {}, CommunityByTown(M8): {}, Community(M4): {}, Comprehensive(M11): {}",
                 townshipResults != null ? townshipResults.size() : 0,
                 communityByTownResults != null ? communityByTownResults.size() : 0,
                 communityResults != null ? communityResults.size() : 0,
                 comprehensiveResults != null ? comprehensiveResults.size() : 0);
-                
-        if (townshipResults != null && !townshipResults.isEmpty()) {
-            String sampleNames = townshipResults.stream().limit(5).map(EvaluationResult::getRegionName).collect(Collectors.joining(", "));
-            log.info("Sample Township(M3) Names: {}", sampleNames);
+
+        // Use comprehensive model (M11) data for township report tables if available, otherwise fallback to M3
+        List<EvaluationResult> townshipReportData = (comprehensiveResults != null && !comprehensiveResults.isEmpty())
+                ? comprehensiveResults : townshipResults;
+
+        if (townshipReportData != null && !townshipReportData.isEmpty()) {
+            String sampleNames = townshipReportData.stream().limit(5).map(EvaluationResult::getRegionName).collect(Collectors.joining(", "));
+            log.info("Sample Township Report Data Names (using {}): {}",
+                    (comprehensiveResults != null && !comprehensiveResults.isEmpty()) ? "M11" : "M3", sampleNames);
         }
 
         // Fetch Weights (Heuristic -> Strict)
@@ -356,6 +362,25 @@ public class WordTemplateController {
         // 3. Merge Statistics from Preprocessor
         if (data.getResults() != null && data.getResults().getStatistics() != null) {
             flatMap.putAll(data.getResults().getStatistics());
+
+            // Map comprehensive statistics to template variables (without prefix)
+            // 模板使用 strong_count, mediumStrong_count 等，而不是 comprehensive_strong_count
+            // 注意：排除 *_townships_* 变量以避免覆盖 Model 3 的乡镇数据
+            Map<String, Object> stats = data.getResults().getStatistics();
+            for (String key : stats.keySet()) {
+                if (key.startsWith("comprehensive_")) {
+                    String newKey = key.substring("comprehensive_".length());
+                    // 排除 _townships_ 后缀的变量，这些应该保留前缀以区分综合能力和乡镇能力
+                    if (!newKey.contains("_townships_") && !newKey.endsWith("_townships_list")) {
+                        flatMap.put(newKey, stats.get(key));
+                        // Also map with template format (with {{ }} wrapper)
+                        flatMap.put("{{" + newKey + "}}", stats.get(key));
+                    }
+                    // 保留带前缀的版本供需要区分的地方使用
+                    flatMap.put(key, stats.get(key));
+                    flatMap.put("{{" + key + "}}", stats.get(key));
+                }
+            }
         }
 
         // 4. Map Table Data
@@ -394,7 +419,7 @@ public class WordTemplateController {
         }
         
         // 5. Compatibility / Fallback
-        flatMap.putIfAbsent("year", "2024");
+        flatMap.putIfAbsent("year", "2025");
         
         // Map hardcoded template placeholders to dynamic values
         // "中等" in template -> The mode level itself (e.g. "强", "较弱")
@@ -477,7 +502,7 @@ public class WordTemplateController {
      * 获取结构化评估数据
      */
     private Map<String, Object> getStructuredData(Integer year, String orgCode) {
-        if (year == null) year = 2024;
+        if (year == null) year = 2025;
         if (orgCode == null) orgCode = "511425";
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -488,6 +513,10 @@ public class WordTemplateController {
         List<EvaluationResult> townshipResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(3L, year, orgCode);
         // 获取社区级数据 (Model ID 4)
         List<EvaluationResult> communityResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(4L, year, orgCode);
+        // 获取社区-乡镇级数据 (Model ID 8)
+        List<EvaluationResult> communityByTownResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(8L, year, orgCode);
+        // 获取综合减灾能力数据 (Model ID 11) - 用于综合减灾能力评估结果
+        List<EvaluationResult> comprehensiveResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(11L, year, orgCode);
         
         // 构建社区到乡镇的映射
         List<CommunityDisasterReductionCapacity> communityBaseList = communityService.lambdaQuery()
@@ -497,8 +526,11 @@ public class WordTemplateController {
                 .collect(Collectors.toMap(CommunityDisasterReductionCapacity::getCommunityName, 
                                         CommunityDisasterReductionCapacity::getTownshipName, (k1, k2) -> k1));
 
-        // 1. 综合减灾能力 (乡镇级)
-        Map<String, Object> comprehensiveResult = buildDetailedAssessmentResults(townshipResults, "comprehensive", false, null);
+        // 1. 综合减灾能力 (使用 Model 11 综合减灾能力模型数据)
+        // 如果 Model 11 数据为空，则回退到使用乡镇数据
+        List<EvaluationResult> comprehensiveDataSource = (comprehensiveResults != null && !comprehensiveResults.isEmpty())
+                ? comprehensiveResults : townshipResults;
+        Map<String, Object> comprehensiveResult = buildDetailedAssessmentResults(comprehensiveDataSource, "comprehensive", false, null);
         result.put("综合减灾能力评估结果", comprehensiveResult.get("等级分布"));
         result.put("综合减灾能力评估结果_统计", comprehensiveResult.get("统计特征"));
 
@@ -537,22 +569,60 @@ public class WordTemplateController {
         result.put("table6_data", buildTableData(townshipResults, "t6"));
         result.put("table7_data", buildTableData(communityResults, "t7"));
 
-        // 7. 构建表格数据 (Table 9: 乡镇评估结果列表)
+        // 7. 构建表格数据 (Table 9: 乡镇评估结果列表 - 组合三个模型的数据)
+        // 创建快速查找映射
+        Map<String, EvaluationResult> townshipMap = townshipResults.stream()
+                .collect(Collectors.toMap(EvaluationResult::getRegionCode, r -> r, (a, b) -> a));
+        Map<String, EvaluationResult> communityByTownMap = new HashMap<>();
+        if (communityByTownResults != null) {
+            communityByTownMap = communityByTownResults.stream()
+                    .collect(Collectors.toMap(EvaluationResult::getRegionCode, r -> r, (a, b) -> a));
+        }
+        Map<String, EvaluationResult> comprehensiveMap = new HashMap<>();
+        if (comprehensiveResults != null) {
+            comprehensiveMap = comprehensiveResults.stream()
+                    .collect(Collectors.toMap(EvaluationResult::getRegionCode, r -> r, (a, b) -> a));
+        }
+
         List<Map<String, Object>> table9Data = new ArrayList<>();
         int idx = 1;
+        // 使用 townshipResults 作为基础行数据，但组合三个模型的等级数据
         for (EvaluationResult r : townshipResults) {
+            String regionCode = r.getRegionCode();
             Map<String, Object> row = new HashMap<>();
             row.put("t9_idx", idx++);
             row.put("t9_name", r.getRegionName());
-            row.put("t9_comp", r.getComprehensiveCapabilityLevel());
-            row.put("t9_mgt", r.getManagementCapabilityLevel());
-            row.put("t9_sup", r.getSupportCapabilityLevel());
-            row.put("t9_self", r.getSelfRescueCapabilityLevel()); // Assuming 6th column exists
+
+            // M11: 综合减灾能力等级
+            EvaluationResult m11Data = comprehensiveMap.get(regionCode);
+            String compLevel = (m11Data != null && m11Data.getComprehensiveCapabilityLevel() != null)
+                    ? m11Data.getComprehensiveCapabilityLevel() : "/";
+            row.put("t9_comp", compLevel);
+
+            // M3: 乡镇减灾能力等级
+            EvaluationResult m3Data = townshipMap.get(regionCode);
+            String mgtLevel = (m3Data != null && m3Data.getManagementCapabilityLevel() != null)
+                    ? m3Data.getManagementCapabilityLevel() : "/";
+            String supLevel = (m3Data != null && m3Data.getSupportCapabilityLevel() != null)
+                    ? m3Data.getSupportCapabilityLevel() : "/";
+            String selfLevel = (m3Data != null && m3Data.getSelfRescueCapabilityLevel() != null)
+                    ? m3Data.getSelfRescueCapabilityLevel() : "/";
+            String townLevel = (m3Data != null && m3Data.getComprehensiveCapabilityLevel() != null)
+                    ? m3Data.getComprehensiveCapabilityLevel() : "/";
+            row.put("t9_mgt", townLevel);
+
+            // M8: 社区-乡镇减灾能力等级
+            EvaluationResult m8Data = communityByTownMap.get(regionCode);
+            String commTownLevel = (m8Data != null && m8Data.getComprehensiveCapabilityLevel() != null)
+                    ? m8Data.getComprehensiveCapabilityLevel() : "/";
+            row.put("t9_sup", commTownLevel);
+            row.put("t9_self", selfLevel);
+
             table9Data.add(row);
         }
         result.put("table9_data", table9Data);
 
-        // 7. 构建表格数据 (Table 8: 社区统计列表 - 按乡镇)
+        // 8. 构建表格数据 (Table 8: 社区统计列表 - 按乡镇)
         // 结构: 序号, 乡镇, 强, 较强, 中等, 较弱, 弱
         List<Map<String, Object>> table8Data = new ArrayList<>();
         Map<String, Object> table8Footer = new HashMap<>();
@@ -1077,18 +1147,21 @@ public class WordTemplateController {
         Map<String, Object> stats = new HashMap<>();
 
         try {
-            // 1. 获取乡镇（模型ID=3）评估结果
+            // 1. 获取乡镇（模型ID=3）评估结果 - 用于乡镇减灾能力统计
             List<EvaluationResult> townshipResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(3L, year, orgCode);
-            
+
             // 2. 获取社区（模型ID=4）评估结果
             List<EvaluationResult> communityResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(4L, year, orgCode);
-            
+
+            // 2.5. 获取综合减灾能力（模型ID=11）评估结果 - 用于综合减灾能力统计
+            List<EvaluationResult> comprehensiveResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(11L, year, orgCode);
+
             // 3. 获取社区基础数据用于映射乡镇关系
             List<CommunityDisasterReductionCapacity> communityBaseList =
                 communityService.lambdaQuery()
                     .eq(CommunityDisasterReductionCapacity::getYear, year)
                     .list();
-            
+
             // 建立 社区名 -> 乡镇名 的映射
             Map<String, String> communityToTownshipMap = new HashMap<>();
             for (CommunityDisasterReductionCapacity item : communityBaseList) {
@@ -1100,7 +1173,7 @@ public class WordTemplateController {
             // 4. 统计各等级数量及列表
             Map<String, Long> townshipStats = new HashMap<>();
             Map<String, Long> communityStats = new HashMap<>();
-            
+
             // 存储各等级的乡镇/社区列表
             Map<String, List<String>> townshipLevelLists = new HashMap<>();
             Map<String, List<String>> communityLevelLists = new HashMap<>();
@@ -1114,8 +1187,12 @@ public class WordTemplateController {
                 communityLevelLists.put(level, new ArrayList<>());
             });
 
-            // 处理乡镇结果
-            for (EvaluationResult result : townshipResults) {
+            // 处理乡镇结果 - 使用综合减灾能力模型（Model 11）数据
+            // 如果 Model 11 数据为空，则回退到使用乡镇模型（Model 3）数据
+            List<EvaluationResult> townshipDataSource = (comprehensiveResults != null && !comprehensiveResults.isEmpty())
+                    ? comprehensiveResults : townshipResults;
+
+            for (EvaluationResult result : townshipDataSource) {
                 String level = result.getComprehensiveCapabilityLevel();
                 String name = result.getRegionName();
                 if (level == null) level = "中等"; // 默认
@@ -1156,7 +1233,7 @@ public class WordTemplateController {
             }
 
             // 5. 计算总数和百分比
-            long totalTownships = townshipResults.size();
+            long totalTownships = townshipDataSource.size();
             long totalCommunities = communityResults.size();
 
             // 生成列表字符串辅助方法

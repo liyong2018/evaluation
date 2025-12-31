@@ -340,8 +340,10 @@ onMounted(() => {
 .word-preview-container {
   position: fixed;
   top: 0;
-  left: 0;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 1920px;
   bottom: 0;
   background: white;
   z-index: 9999;

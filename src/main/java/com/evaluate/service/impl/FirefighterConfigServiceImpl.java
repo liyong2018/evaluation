@@ -189,4 +189,17 @@ public class FirefighterConfigServiceImpl
             return false;
         }
     }
+
+    @Override
+    public boolean hasAnyData() {
+        try {
+            QueryWrapper<FirefighterConfig> wrapper = new QueryWrapper<>();
+            wrapper.eq("status", 1); // 只检查启用的配置
+            long count = count(wrapper);
+            return count > 0;
+        } catch (Exception e) {
+            log.error("检查消防员配置数据时出错", e);
+            return false;
+        }
+    }
 }

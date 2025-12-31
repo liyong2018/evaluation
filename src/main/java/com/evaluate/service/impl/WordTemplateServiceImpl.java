@@ -642,6 +642,26 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
         List<XWPFRun> runs = paragraph.getRuns();
         if (runs == null || runs.isEmpty()) return 0;
 
+        String originalParagraphText = paragraph.getText();
+        if (originalParagraphText != null && !originalParagraphText.isEmpty()) {
+            boolean mediumTownContext =
+                    originalParagraphText.contains("分布于{{community_medium_count}}个乡镇") ||
+                    originalParagraphText.contains("分布于 {{community_medium_count}} 个乡镇");
+            if (mediumTownContext) {
+                String adjusted = originalParagraphText;
+                if (mediumTownContext) {
+                    adjusted = adjusted.replace("{{community_medium_count}}", "{{community_by_town_medium_count}}");
+                }
+                // Removed weakDownContext replacement as it incorrectly overwrites specific variables
+                
+                String replaced = replaceVariablesInText(adjusted, variables);
+                if (!Objects.equals(originalParagraphText, replaced)) {
+                    replaceParagraphWithText(paragraph, replaced);
+                    return 1;
+                }
+            }
+        }
+
         replacements += replaceVariablesAcrossRuns(paragraph, variables);
         runs = paragraph.getRuns();
 
@@ -923,8 +943,32 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
                 if (variableName != null) {
                     variableName = variableName.trim(); // FIX: 去除变量名周围的空格
                 }
-                
+
+                String normalizedName = null;
+                if (variableName != null && !variableName.isEmpty()) {
+                    normalizedName = variableName
+                            .replace('\uFF5B', '{')
+                            .replace('\uFF5D', '}')
+                            .trim()
+                            .replaceAll("^[\\{\\}\\s]+", "")
+                            .replaceAll("[\\{\\}\\s]+$", "");
+                    if (normalizedName.isEmpty()) normalizedName = null;
+                }
+
                 Object value = variables.get(variableName);
+                if (value == null && normalizedName != null && (variableName == null || !normalizedName.equals(variableName))) {
+                    value = variables.get(normalizedName);
+                }
+                if (value == null && normalizedName != null) {
+                    value = variables.get("{{" + normalizedName + "}}");
+                }
+                if (value == null && normalizedName != null) {
+                    value = variables.get("{" + normalizedName + "}");
+                }
+                if (value == null && normalizedName != null) {
+                    value = variables.get("${" + normalizedName + "}");
+                }
+
                 if (value == null) {
                     // Only log if it looks like a variable we should have known about (e.g. starts with t6_)
                     if (variableName != null && (variableName.startsWith("t6_") || variableName.startsWith("t7_") || variableName.startsWith("t8_") || variableName.startsWith("t9_"))) {

@@ -497,4 +497,17 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
             throw new RuntimeException("修改数据库约束失败: " + e.getMessage());
         }
     }
+
+    @Override
+    public boolean hasAnyDataForYear(Integer year) {
+        try {
+            QueryWrapper<MedicalInstitution> wrapper = new QueryWrapper<>();
+            wrapper.eq("year", year);
+            long count = count(wrapper);
+            return count > 0;
+        } catch (Exception e) {
+            log.error("检查{}年医疗设施数据时出错", year, e);
+            return false;
+        }
+    }
 }

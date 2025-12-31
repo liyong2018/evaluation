@@ -71,4 +71,12 @@ public interface IMedicalInstitutionService extends IService<MedicalInstitution>
      * @return 实有住院床位数总和
      */
     Integer sumActualHospitalBedsByTownship(String townshipAddress, Integer year);
+
+    /**
+     * 检查指定年份是否有任何医疗设施数据
+     *
+     * @param year 数据年份
+     * @return 如果有数据返回true，否则返回false
+     */
+    boolean hasAnyDataForYear(Integer year);
 }

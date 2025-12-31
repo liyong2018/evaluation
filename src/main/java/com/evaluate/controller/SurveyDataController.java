@@ -1,6 +1,7 @@
 package com.evaluate.controller;
 
 import com.evaluate.common.Result;
+import com.evaluate.dto.ImportCheckResult;
 import com.evaluate.entity.SurveyData;
 import com.evaluate.service.ISurveyDataService;
 import lombok.extern.slf4j.Slf4j;
@@ -212,6 +213,22 @@ public class SurveyDataController {
         } catch (Exception e) {
             log.error("重新计算{}年医疗床位统计失败", year, e);
             return Result.error("重新计算医疗床位统计失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 检查导入前置条件
+     * 检查医疗床位和消防员配置数据是否完整
+     */
+    @PostMapping("/check-import-prerequisites")
+    public Result<ImportCheckResult> checkImportPrerequisites(@RequestParam Integer year) {
+        try {
+            log.info("检查{}年导入前置条件", year);
+            ImportCheckResult result = surveyDataService.checkImportPrerequisites(year);
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("检查导入前置条件失败", e);
+            return Result.error("检查导入前置条件失败: " + e.getMessage());
         }
     }
 }

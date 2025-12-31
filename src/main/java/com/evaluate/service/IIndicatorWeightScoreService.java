@@ -71,4 +71,13 @@ public interface IIndicatorWeightScoreService extends IService<IndicatorWeightSc
      * @return 是否应用成功
      */
     boolean applyAverageWeights(Long configId);
+
+    /**
+     * 删除指定专家的打分记录
+     *
+     * @param configId   配置ID
+     * @param expertName 专家姓名
+     * @return 是否删除成功
+     */
+    boolean deleteExpertScores(Long configId, String expertName);
 }

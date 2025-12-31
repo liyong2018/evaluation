@@ -26,7 +26,7 @@
           node-key="code"
           highlight-current
           :expand-on-click-node="false"
-          default-expand-all
+          :default-expanded-keys="defaultExpandedKeys"
           @node-click="handleOrgNodeClick"
         >
           <template #default="{ data }">
@@ -51,9 +51,9 @@
         <!-- 数据类型切换 -->
         <el-card class="type-switch-card">
           <el-radio-group v-model="dataType" size="large" @change="handleDataTypeChange">
-            <el-radio-button label="township">乡镇数据 (survey_data)</el-radio-button>
-            <el-radio-button label="community">社区数据 (community_disaster_reduction_capacity)</el-radio-button>
-            <el-radio-button label="medical">医疗卫生机构 (medical_institution)</el-radio-button>
+            <el-radio-button label="medical">医疗卫生机构</el-radio-button>
+            <el-radio-button label="community">社区数据</el-radio-button>
+            <el-radio-button label="township">乡镇数据</el-radio-button>
           </el-radio-group>
           <el-tag
             :type="dataType === 'township' ? 'success' : dataType === 'community' ? 'warning' : 'primary'"
@@ -72,7 +72,7 @@
                 :placeholder="getSearchPlaceholder()"
                 clearable
                 @keyup.enter="handleSearch"
-                style="width: 300px; margin-right: 12px;"
+                style="width: 200px; margin-right: 12px;"
               >
                 <template #prefix>
                   <el-icon><Search /></el-icon>
@@ -619,12 +619,31 @@ const loadRegionNameMap = async () => {
 }
 
 // 获取组织机构列表（树形结构）
+const defaultExpandedKeys = ref<string[]>([])
+
+// 收集需要展开的节点（展开到3级）
+const collectExpandedKeys = (nodes: any[], level: number = 1, keys: string[] = []) => {
+  if (!nodes || nodes.length === 0) return keys
+  for (const node of nodes) {
+    // 展开到3级（县级），不展开4级（乡镇/街道）和5级（村/社区）
+    if (level < 3) {
+      keys.push(node.code)
+    }
+    if (node.children && node.children.length > 0) {
+      collectExpandedKeys(node.children, level + 1, keys)
+    }
+  }
+  return keys
+}
+
 const getOrganizationList = async () => {
   loading.organizations = true
   try {
     const response = await organizationApi.getTree()
     if (response.success && response.data) {
       organizationList.value = response.data || []
+      // 收集需要展开的节点key
+      defaultExpandedKeys.value = collectExpandedKeys(organizationList.value)
       console.log('组织机构树形数据:', organizationList.value)
     }
   } catch (error) {
@@ -1071,6 +1090,41 @@ const handleImport = async () => {
     return
   }
 
+  // 对于乡镇数据和社区数据，先检查导入前置条件
+  if (dataType.value === 'township' || dataType.value === 'community') {
+    try {
+      ElMessage.info({
+        message: '正在检查导入前置条件...',
+        duration: 0
+      })
+      const checkResponse = await surveyDataApi.checkImportPrerequisites(importYear.value)
+
+      // 关闭检查消息
+      ElMessage.closeAll()
+
+      if (checkResponse.success && checkResponse.data) {
+        const result = checkResponse.data
+        if (!result.canImport) {
+          // 显示详细的错误信息
+          ElMessageBox.alert(
+            result.message || '导入前置条件检查失败，请检查数据完整性',
+            '无法导入数据',
+            {
+              confirmButtonText: '确定',
+              type: 'error',
+              dangerouslyUseHTMLString: true
+            }
+          )
+          return
+        }
+      }
+    } catch (error) {
+      ElMessage.closeAll()
+      console.error('检查导入前置条件失败:', error)
+      // 检查失败不阻止导入，只记录日志
+    }
+  }
+
   loading.import = true
   try {
     let response
@@ -1244,7 +1298,7 @@ onMounted(async () => {
 
 <style scoped>
 .data-management {
-  max-width: 1400px;
+  max-width: 1920px;
   margin: 0 auto;
 }
 

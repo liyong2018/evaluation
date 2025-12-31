@@ -113,4 +113,44 @@ public interface IOrganizationService extends IService<Organization> {
      * @return 社区级组织机构列表
      */
     List<Organization> getCommunitiesByTownshipCode(String townshipCode);
+
+    /**
+     * 创建组织机构
+     *
+     * @param organization 组织机构
+     * @return 是否创建成功
+     */
+    boolean createOrganization(Organization organization);
+
+    /**
+     * 更新组织机构
+     *
+     * @param organization 组织机构
+     * @return 是否更新成功
+     */
+    boolean updateOrganization(Organization organization);
+
+    /**
+     * 删除组织机构
+     *
+     * @param id 组织机构ID
+     * @return 是否删除成功
+     */
+    boolean deleteOrganization(Long id);
+
+    /**
+     * 批量删除组织机构
+     *
+     * @param ids 组织机构ID列表
+     * @return 是否删除成功
+     */
+    boolean batchDeleteOrganizations(List<Long> ids);
+
+    /**
+     * 从Excel导入组织机构
+     *
+     * @param importList 导入数据列表
+     * @return 导入的记录数
+     */
+    int importFromExcel(List<com.evaluate.dto.OrganizationImportDTO> importList);
 }

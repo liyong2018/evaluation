@@ -480,4 +480,368 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             return node;
         }).collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean createOrganization(Organization organization) {
+        try {
+            // 检查编码是否已存在
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("code", organization.getCode());
+            Organization existing = baseMapper.selectOne(queryWrapper);
+            if (existing != null) {
+                throw new RuntimeException("组织机构编码已存在: " + organization.getCode());
+            }
+
+            // 设置默认值
+            if (organization.getLevel() == null) {
+                organization.setLevel(1);
+            }
+
+            return save(organization);
+        } catch (Exception e) {
+            log.error("创建组织机构失败: {}", organization.getCode(), e);
+            throw e;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updateOrganization(Organization organization) {
+        try {
+            // 检查是否存在
+            Organization existing = getById(organization.getId());
+            if (existing == null) {
+                throw new RuntimeException("组织机构不存在: " + organization.getId());
+            }
+
+            // 如果修改了编码，检查新编码是否已被其他记录使用
+            if (!existing.getCode().equals(organization.getCode())) {
+                QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+                queryWrapper.eq("code", organization.getCode());
+                queryWrapper.ne("id", organization.getId());
+                Organization codeExisting = baseMapper.selectOne(queryWrapper);
+                if (codeExisting != null) {
+                    throw new RuntimeException("组织机构编码已存在: " + organization.getCode());
+                }
+            }
+
+            return updateById(organization);
+        } catch (Exception e) {
+            log.error("更新组织机构失败: {}", organization.getId(), e);
+            throw e;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deleteOrganization(Long id) {
+        try {
+            // 检查是否有子节点
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("parent_id", id);
+            Long childCount = baseMapper.selectCount(queryWrapper);
+            if (childCount > 0) {
+                throw new RuntimeException("该组织机构下有子节点，无法删除");
+            }
+
+            return removeById(id);
+        } catch (Exception e) {
+            log.error("删除组织机构失败: {}", id, e);
+            throw e;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean batchDeleteOrganizations(List<Long> ids) {
+        try {
+            // 检查是否有子节点
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.in("parent_id", ids);
+            Long childCount = baseMapper.selectCount(queryWrapper);
+            if (childCount > 0) {
+                throw new RuntimeException("所选组织机构中存在有子节点的记录，无法删除");
+            }
+
+            return removeByIds(ids);
+        } catch (Exception e) {
+            log.error("批量删除组织机构失败: {}", ids, e);
+            throw e;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int importFromExcel(List<com.evaluate.dto.OrganizationImportDTO> importList) {
+        if (importList == null || importList.isEmpty()) {
+            return 0;
+        }
+
+        int count = 0;
+        for (com.evaluate.dto.OrganizationImportDTO dto : importList) {
+            try {
+                String address = dto.getAddress();
+                String regionCode = dto.getRegionCode();
+
+                if (!StringUtils.hasText(regionCode)) {
+                    log.warn("行政区划代码为空，跳过: {}", address);
+                    continue;
+                }
+
+                // 从地址中解析省、市、县、乡镇、社区
+                String provinceName = null;
+                String cityName = null;
+                String countyName = null;
+                String townshipName = null;
+                String communityName = null;
+
+                if (StringUtils.hasText(address)) {
+                    // 地址格式：四川省眉山市仁寿县慈航镇观音社区振兴大道西路129号
+                    String[] parts = address.split("[省市区县镇村社区]");
+                    for (String part : parts) {
+                        if (part.contains("自治")) {
+                            // 处理自治区等特殊情况
+                            continue;
+                        }
+                    }
+
+                    // 简单解析：按省、市、县、镇、社区关键词分割
+                    if (address.contains("省")) {
+                        provinceName = address.substring(0, address.indexOf("省") + 1);
+                        address = address.substring(address.indexOf("省") + 1);
+                    }
+                    if (address.contains("市")) {
+                        cityName = address.substring(0, address.indexOf("市") + 1);
+                        address = address.substring(address.indexOf("市") + 1);
+                    }
+                    if (address.contains("县")) {
+                        countyName = address.substring(0, address.indexOf("县") + 1);
+                        address = address.substring(address.indexOf("县") + 1);
+                    }
+                    if (address.contains("镇")) {
+                        townshipName = address.substring(0, address.indexOf("镇") + 1);
+                        address = address.substring(address.indexOf("镇") + 1);
+                    }
+                    // 社区名称可能在地址中，也可能从完整地址中截取
+                    if (dto.getCommunityName() != null) {
+                        communityName = dto.getCommunityName();
+                    } else if (address.contains("社区") || address.contains("村")) {
+                        int communityEnd = address.indexOf("社区") > 0 ? address.indexOf("社区") : address.indexOf("村");
+                        if (communityEnd > 0) {
+                            // 找到社区/村前面的起始位置
+                            String temp = address.substring(0, communityEnd + 2);
+                            // 社区/村名称通常是最后一个词
+                            int lastSpace = temp.lastIndexOf(" ");
+                            if (lastSpace < 0) {
+                                lastSpace = temp.lastIndexOf("、");
+                            }
+                            if (lastSpace >= 0) {
+                                communityName = temp.substring(lastSpace + 1);
+                            } else {
+                                communityName = temp;
+                            }
+                        }
+                    }
+                }
+
+                // 确保行政区划代码规范化
+                regionCode = regionCode.trim();
+
+                // 根据行政区划代码长度构建各级组织
+                // 12位代码：51（省）+5114（市）+511421（县）+511421109（乡镇）+511421109003（社区）
+
+                // 省级（2位）
+                String provinceCode = regionCode.length() >= 2 ? regionCode.substring(0, 2) : null;
+                // 市级（4位）
+                String cityCode = regionCode.length() >= 4 ? regionCode.substring(0, 4) : null;
+                // 县级（6位）
+                String countyCode = regionCode.length() >= 6 ? regionCode.substring(0, 6) : null;
+                // 乡镇级（9位）
+                String townshipCode = regionCode.length() >= 9 ? regionCode.substring(0, 9) : null;
+                // 社区级（12位）
+                String communityCode = regionCode;
+
+                // 创建或获取省级组织
+                Organization province = null;
+                if (provinceCode != null && StringUtils.hasText(provinceName)) {
+                    province = ensureOrganization(
+                            provinceCode,
+                            provinceName,
+                            LEVEL_PROVINCE,
+                            "IMPORT",
+                            null,
+                            provinceName,
+                            null,
+                            null,
+                            null,
+                            null
+                    );
+                }
+
+                // 创建或获取市级组织
+                Organization city = null;
+                if (cityCode != null) {
+                    if (StringUtils.hasText(cityName) && province != null) {
+                        city = ensureOrganization(
+                                cityCode,
+                                cityName,
+                                LEVEL_CITY,
+                                "IMPORT",
+                                province,
+                                provinceName,
+                                cityName,
+                                null,
+                                null,
+                                null
+                        );
+                    } else {
+                        // 如果没有市名称或province为null，尝试通过编码获取或创建
+                        QueryWrapper<Organization> query = new QueryWrapper<>();
+                        query.eq("code", cityCode);
+                        city = getOne(query, false);
+                        if (city == null && province != null) {
+                            // 创建一个默认的市级组织
+                            city = ensureOrganization(
+                                    cityCode,
+                                    cityCode, // 使用编码作为名称
+                                    LEVEL_CITY,
+                                    "IMPORT",
+                                    province,
+                                    provinceName,
+                                    null,
+                                    null,
+                                    null,
+                                    null
+                            );
+                        }
+                    }
+                }
+
+                // 创建或获取县级组织
+                Organization county = null;
+                if (countyCode != null) {
+                    if (StringUtils.hasText(countyName) && city != null) {
+                        county = ensureOrganization(
+                                countyCode,
+                                countyName,
+                                LEVEL_COUNTY,
+                                "IMPORT",
+                                city,
+                                provinceName,
+                                cityName,
+                                countyName,
+                                null,
+                                null
+                        );
+                    } else {
+                        // 如果没有县名称或city为null，尝试通过编码获取或创建
+                        QueryWrapper<Organization> query = new QueryWrapper<>();
+                        query.eq("code", countyCode);
+                        county = getOne(query, false);
+                        if (county == null && city != null) {
+                            // 创建一个默认的县级组织
+                            county = ensureOrganization(
+                                    countyCode,
+                                    countyCode, // 使用编码作为名称
+                                    LEVEL_COUNTY,
+                                    "IMPORT",
+                                    city,
+                                    provinceName,
+                                    cityName,
+                                    null,
+                                    null,
+                                    null
+                            );
+                        }
+                    }
+                }
+
+                // 创建或获取乡镇级组织
+                Organization township = null;
+                if (townshipCode != null) {
+                    if (StringUtils.hasText(townshipName) && county != null) {
+                        township = ensureOrganization(
+                                townshipCode,
+                                townshipName,
+                                LEVEL_TOWNSHIP,
+                                "IMPORT",
+                                county,
+                                provinceName,
+                                cityName,
+                                countyName,
+                                townshipName,
+                                null
+                        );
+                    } else {
+                        // 如果没有乡镇名称或county为null，尝试通过编码获取或创建
+                        QueryWrapper<Organization> query = new QueryWrapper<>();
+                        query.eq("code", townshipCode);
+                        township = getOne(query, false);
+                        if (township == null && county != null) {
+                            // 创建一个默认的乡镇级组织
+                            township = ensureOrganization(
+                                    townshipCode,
+                                    townshipCode, // 使用编码作为名称
+                                    LEVEL_TOWNSHIP,
+                                    "IMPORT",
+                                    county,
+                                    provinceName,
+                                    cityName,
+                                    countyName,
+                                    null,
+                                    null
+                            );
+                        }
+                    }
+                }
+
+                // 创建或获取社区级组织
+                if (regionCode != null) {
+                    if (StringUtils.hasText(communityName) && township != null) {
+                        ensureOrganization(
+                                regionCode,
+                                communityName,
+                                LEVEL_COMMUNITY,
+                                "IMPORT",
+                                township,
+                                provinceName,
+                                cityName,
+                                countyName,
+                                townshipName,
+                                communityName
+                        );
+                        count++;
+                    } else {
+                        // 如果没有社区名称或township为null，尝试通过编码获取或创建
+                        QueryWrapper<Organization> query = new QueryWrapper<>();
+                        query.eq("code", regionCode);
+                        Organization existing = getOne(query, false);
+                        if (existing == null && township != null) {
+                            ensureOrganization(
+                                    regionCode,
+                                    regionCode, // 使用编码作为名称
+                                    LEVEL_COMMUNITY,
+                                    "IMPORT",
+                                    township,
+                                    provinceName,
+                                    cityName,
+                                    countyName,
+                                    townshipName,
+                                    null
+                            );
+                            count++;
+                        } else if (existing != null) {
+                            // 已存在，跳过
+                        }
+                    }
+                }
+
+            } catch (Exception e) {
+                log.error("导入组织机构失败: address={}, regionCode={}", dto.getAddress(), dto.getRegionCode(), e);
+            }
+        }
+
+        return count;
+    }
 }

@@ -88,4 +88,11 @@ public interface IFirefighterConfigService extends IService<FirefighterConfig> {
      * @return 操作结果
      */
     boolean updateStatus(Long id, Integer status);
+
+    /**
+     * 检查是否有任何消防员配置数据
+     *
+     * @return 如果有数据返回true，否则返回false
+     */
+    boolean hasAnyData();
 }

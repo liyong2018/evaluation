@@ -71,15 +71,18 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
     /**
      * 执行评估模型
-     * 
+     *
      * @param modelId 模型ID
      * @param regionCodes 地区代码列表
      * @param weightConfigId 权重配置ID
+     * @param year 评估年份
+     * @param orgCode 机构代码
+     * @param createBy 操作人
      * @return 执行结果（包含每个步骤的输出）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode) {
+    public Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode, String createBy) {
         // 1. 验证模型是否存在且启用
         EvaluationModel model = evaluationModelMapper.selectById(modelId);
         if (model == null || model.getStatus() == 0) {
@@ -237,7 +240,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 weightConfigId,
                 stepResults,
                 tableData,
-                year,orgCode);
+                year, orgCode, createBy);
 
         // 7. 构建最终结果
         Map<String, Object> result = new HashMap<>();
@@ -432,20 +435,27 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         String marker = parts[0];
                         String params = parts.length > 1 ? parts[1] : "";
 
+                        log.info("[执行GRADE算法] regionCode={}, marker={}, params={}", regionCode, marker, params);
+
                         // 调用特殊算法服务
                         Object result = specialAlgorithmService.executeSpecialAlgorithm(
                                 marker, params, regionCode, regionContext, allRegionContexts);
-                        
+
+                        log.info("[执行GRADE算法] regionCode={}, result={}, resultType={}",
+                                regionCode, result, result != null ? result.getClass().getName() : "null");
+
                         // 格式化GRADE算法结果为8位小数
                         if (result != null && result instanceof Number) {
                             double doubleValue = ((Number) result).doubleValue();
                             result = Double.parseDouble(String.format("%.8f", doubleValue));
+                            log.warn("[执行GRADE算法] result是Number类型，已格式化: {}", result);
                         }
 
                         // 保存算法输出到上下文（供后续算法使用）
                         String outputParam = algorithm.getOutputParam();
                         if (outputParam != null && !outputParam.isEmpty()) {
                             String cleanedOutputParam = outputParam.trim();
+                            log.info("[执行GRADE算法] 存储结果: key={}, value={}", cleanedOutputParam, result);
                             regionContext.put(cleanedOutputParam, result);
                             allRegionContexts.put(regionCode, regionContext);  // 更新全局上下文
                             algorithmOutputs.put(cleanedOutputParam, result);
@@ -2484,6 +2494,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      * @param weightConfigId 权重配置ID
      * @param stepResults 步骤执行结果
      * @param tableData 二维表数据
+     * @param createBy 操作人
      * @return 执行记录ID
      */
     private Long saveExecutionRecordAndResults(
@@ -2494,7 +2505,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             Map<String, Object> stepResults,
             List<Map<String, Object>> tableData,
             Integer year,
-            String orgCode
+            String orgCode,
+            String createBy
             ) {
 
         try {
@@ -2517,6 +2529,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
             if (year != null) {
                 executionRecord.setYear(year);
+            }
+            // 设置操作人
+            if (createBy != null && !createBy.trim().isEmpty()) {
+                executionRecord.setCreateBy(createBy.trim());
             }
 
             // 生成结果摘要
@@ -2988,6 +3004,57 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         return value.toString();
     }
 
+    /**
+     * 解析特殊标记表达式，支持两种格式：
+     * 1. @MARKER:params (冒号格式)
+     * 2. @MARKER(params) (括号格式)
+     *
+     * @param expression 表达式（如 "GRADE:comprehensive_capability_score" 或 "GRADE(comprehensive_capability_score)"）
+     * @return 包含marker和params的Map
+     */
+    private Map<String, String> parseSpecialMarker(String expression) {
+        Map<String, String> result = new LinkedHashMap<>();
+
+        if (expression == null || !expression.startsWith("@")) {
+            log.warn("[parseSpecialMarker] 表达式不是特殊标记: {}", expression);
+            return result;
+        }
+
+        // 去掉@符号
+        String content = expression.substring(1);
+
+        // 检查是否是括号格式 @MARKER(params)
+        if (content.contains("(")) {
+            int parenIndex = content.indexOf("(");
+            String marker = content.substring(0, parenIndex);
+            String params = "";
+
+            // 提取括号内的内容
+            if (content.endsWith(")")) {
+                params = content.substring(parenIndex + 1, content.length() - 1);
+            } else {
+                // 括号没有闭合，提取到末尾
+                params = content.substring(parenIndex + 1);
+            }
+
+            result.put("marker", marker.trim());
+            result.put("params", params.trim());
+        } else {
+            // 冒号格式 @MARKER:params
+            String[] parts = content.split(":", 2);
+            String marker = parts[0];
+            String params = parts.length > 1 ? parts[1] : "";
+
+            result.put("marker", marker.trim());
+            result.put("params", params.trim());
+        }
+
+        log.info("[parseSpecialMarker] 解析特殊标记: expression={}, marker={}, params={}",
+                expression, result.get("marker"), result.get("params"));
+
+        return result;
+    }
+
     private String deriveTownshipCodeForStorage(String communityRegionCode) {
         if (communityRegionCode == null) {
             return null;
@@ -3148,4 +3215,39 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deleteEvaluationHistory(Long executionRecordId) {
+        try {
+            log.info("开始删除评估历史记录，executionRecordId={}", executionRecordId);
+
+            // 1. 先检查记录是否存在
+            ModelExecutionRecord record = modelExecutionRecordMapper.selectById(executionRecordId);
+            if (record == null) {
+                log.warn("评估历史记录不存在，executionRecordId={}", executionRecordId);
+                return false;
+            }
+
+            // 2. 删除关联的 evaluation_result 记录
+            if (evaluationResultService != null) {
+                evaluationResultService.deleteByExecutionRecordId(executionRecordId);
+                log.info("已删除关联的 evaluation_result 记录");
+            } else {
+                // 直接使用 mapper 删除
+                QueryWrapper<EvaluationResult> resultQueryWrapper = new QueryWrapper<>();
+                resultQueryWrapper.eq("execution_record_id", executionRecordId);
+                int deletedResults = evaluationResultMapper.delete(resultQueryWrapper);
+                log.info("直接删除了 {} 条 evaluation_result 记录", deletedResults);
+            }
+
+            // 3. 删除 model_execution_record 记录
+            int deletedRecords = modelExecutionRecordMapper.deleteById(executionRecordId);
+
+            log.info("成功删除评估历史记录，executionRecordId={}, 删除记录数={}", executionRecordId, deletedRecords);
+            return true;
+        } catch (Exception e) {
+            log.error("删除评估历史记录失败，executionRecordId={}", executionRecordId, e);
+            throw new RuntimeException("删除评估历史记录失败: " + e.getMessage(), e);
+        }
+    }
 }

@@ -14,13 +14,16 @@ public interface ModelExecutionService {
 
     /**
      * 执行评估模型
-     * 
+     *
      * @param modelId 模型ID
      * @param regionCodes 地区代码列表
      * @param weightConfigId 权重配置ID
+     * @param year 评估年份
+     * @param orgCode 机构代码
+     * @param createBy 操作人
      * @return 执行结果（包含每个步骤的输出）
      */
-    Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode);
+    Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode, String createBy);
 
     /**
      * 执行单个步骤
@@ -101,4 +104,12 @@ public interface ModelExecutionService {
      * @return 分页的评估历史列表
      */
     Map<String, Object> getEvaluationHistoryList(Integer page, Integer size, Long modelId, String executionStatus, Integer year, String county);
+
+    /**
+     * 删除评估历史记录（同时删除关联的 evaluation_result 记录）
+     *
+     * @param executionRecordId 执行记录ID
+     * @return 是否删除成功
+     */
+    boolean deleteEvaluationHistory(Long executionRecordId);
 }

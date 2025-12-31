@@ -430,20 +430,26 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
 
-        
+        log.info("[@GRADE] 开始分级计算: scoreField={}, currentRegionCode={}, totalRegions={}",
+                scoreField, currentRegionCode, allRegionData.size());
+
         // 1. 收集所有区域的分数
         List<Double> allScores = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> entry : allRegionData.entrySet()) {
             Object value = entry.getValue().get(scoreField);
+            log.info("[@GRADE] 地区 {} 的 {} = {}", entry.getKey(), scoreField, value);
             if (value != null) {
                 double scoreValue = toDouble(value);
                 allScores.add(scoreValue);
                 log.debug("[分级调试] 地区 {} 的 {} = {}", entry.getKey(), scoreField, scoreValue);
+            } else {
+                log.warn("[@GRADE] 地区 {} 的 {} 为 NULL，可用的键: {}", entry.getKey(), scoreField,
+                        String.join(", ", entry.getValue().keySet().stream().limit(10).collect(java.util.stream.Collectors.toList())));
             }
         }
-        
+
         if (allScores.isEmpty()) {
-            log.warn("未找到任何分数值: {}", scoreField);
+            log.error("[@GRADE] 未找到任何分数值: scoreField={}, currentRegionCode={}", scoreField, currentRegionCode);
             return "中等";
         }
         
@@ -479,10 +485,14 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         }
         
         double score = toDouble(currentValue);
-        
+
         // 5. 根据分级规则计算等级
         String grade = determineGrade(score, mean, stdev);
-        
+
+        log.info("[@GRADE] 分级完成: region={}, scoreField={}, score={}, mean={}, stdev={}, grade={}",
+                currentRegionCode, scoreField, String.format("%.4f", score),
+                String.format("%.4f", mean), String.format("%.4f", stdev), grade);
+
         return grade;
     }
 

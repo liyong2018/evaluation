@@ -173,4 +173,29 @@ public class IndicatorWeightScoreServiceImpl extends ServiceImpl<IndicatorWeight
             throw e;
         }
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deleteExpertScores(Long configId, String expertName) {
+        try {
+            // 构建删除条件
+            LambdaQueryWrapper<IndicatorWeightScore> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(IndicatorWeightScore::getConfigId, configId)
+                    .eq(IndicatorWeightScore::getExpertName, expertName);
+
+            // 执行删除
+            boolean success = remove(queryWrapper);
+
+            if (success) {
+                log.info("成功删除配置 {} 中专家 {} 的打分记录", configId, expertName);
+            } else {
+                log.warn("未找到配置 {} 中专家 {} 的打分记录", configId, expertName);
+            }
+
+            return success;
+        } catch (Exception e) {
+            log.error("删除专家打分记录失败: configId={}, expertName={}", configId, expertName, e);
+            throw e;
+        }
+    }
 }

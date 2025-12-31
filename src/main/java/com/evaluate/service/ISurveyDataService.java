@@ -1,6 +1,7 @@
 package com.evaluate.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.evaluate.dto.ImportCheckResult;
 import com.evaluate.entity.SurveyData;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -126,4 +127,13 @@ public interface ISurveyDataService extends IService<SurveyData> {
      * @return 更新的记录数量
      */
     int recalculateMedicalBedsForYear(Integer year);
+
+    /**
+     * 检查导入前置条件
+     * 检查医疗床位和消防员配置数据是否完整
+     *
+     * @param year 年份
+     * @return 检查结果
+     */
+    ImportCheckResult checkImportPrerequisites(Integer year);
 }

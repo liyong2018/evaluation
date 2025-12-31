@@ -11,4 +11,6 @@ public class ModelExecutionRequest {
     private Integer year;
     // 所属机构代码（区县或单位代码）
     private String orgCode;
+    // 操作人
+    private String createBy;
 }

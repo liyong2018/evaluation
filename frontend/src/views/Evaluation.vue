@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="evaluation">
     <!-- 页面标题 -->
     <div class="page-header">
@@ -405,6 +405,11 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="createBy" label="操作人" width="120">
+          <template #default="{ row }">
+            {{ row.createBy || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="startTime" label="开始时间" width="280">
           <template #default="{ row }">
             {{ formatDate(row.startTime) }}
@@ -422,12 +427,12 @@
               详情
             </el-button>
             <el-button
-              type="success"
+              type="danger"
               size="small"
-              @click="viewExecutionDetail(row)"
+              @click="deleteEvaluationHistory(row)"
             >
-              <el-icon><Document /></el-icon>
-              执行记录
+              <el-icon><Delete /></el-icon>
+              删除
             </el-button>
           </template>
         </el-table-column>
@@ -463,7 +468,7 @@
     </el-dialog>
 
     <!-- 评估结果详情对话框 -->
-    <el-dialog v-model="dialogVisible.evaluationDetail" :title="`评估结果详情 - ${currentExecutionRecord?.executionCode || ''}`" width="90%" top="5vh">
+    <el-dialog v-model="dialogVisible.evaluationDetail" :title="`评估结果详情 - ${currentExecutionRecord?.executionCode || ''}`" width="1920px" top="5vh">
       <div v-loading="loading.evaluationDetail" style="min-height: 400px;">
         <!-- 执行记录信息 -->
         <el-card v-if="currentExecutionRecord" class="record-info-card" style="margin-bottom: 20px;">
@@ -484,29 +489,29 @@
 
         <!-- 评估结果列表 -->
         <el-table
+          v-if="evaluationResults.length > 0"
           :data="evaluationResults"
           stripe
           border
-          v-if="evaluationResults.length > 0"
-          style="width: 100%"
+          style="width: 100%;"
         >
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="regionCode" label="地区代码" width="120" />
-          <el-table-column prop="regionName" label="地区名称" width="150" />
-          <el-table-column label="灾害管理能力" align="center">
-            <el-table-column prop="managementCapabilityScore" label="得分" width="100" />
-            <el-table-column prop="managementCapabilityLevel" label="等级" width="100" />
+          <el-table-column prop="regionName" label="地区名称" min-width="150" />
+          <el-table-column label="灾害管理能力" align="center" min-width="200">
+            <el-table-column prop="managementCapabilityScore" label="得分" />
+            <el-table-column prop="managementCapabilityLevel" label="等级" />
           </el-table-column>
-          <el-table-column label="灾害备灾能力" align="center">
-            <el-table-column prop="supportCapabilityScore" label="得分" width="100" />
-            <el-table-column prop="supportCapabilityLevel" label="等级" width="100" />
+          <el-table-column label="灾害备灾能力" align="center" min-width="200">
+            <el-table-column prop="supportCapabilityScore" label="得分" />
+            <el-table-column prop="supportCapabilityLevel" label="等级" />
           </el-table-column>
-          <el-table-column label="自救转移能力" align="center">
-            <el-table-column prop="selfRescueCapabilityScore" label="得分" width="100" />
-            <el-table-column prop="selfRescueCapabilityLevel" label="等级" width="100" />
+          <el-table-column label="自救转移能力" align="center" min-width="200">
+            <el-table-column prop="selfRescueCapabilityScore" label="得分" />
+            <el-table-column prop="selfRescueCapabilityLevel" label="等级" />
           </el-table-column>
-          <el-table-column prop="comprehensiveCapabilityScore" label="综合能力得分" width="130" />
-          <el-table-column prop="comprehensiveCapabilityLevel" label="综合能力等级" width="130" />
+          <el-table-column prop="comprehensiveCapabilityScore" label="综合能力得分" min-width="130" />
+          <el-table-column prop="comprehensiveCapabilityLevel" label="综合能力等级" min-width="130" />
           <el-table-column prop="createTime" label="创建时间" width="180">
             <template #default="{ row }">
               {{ formatDate(row.createTime) }}
@@ -566,6 +571,7 @@ import {
 } from '@element-plus/icons-vue'
 import { evaluationApi, surveyDataApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi, communityCapacityApi, regionDataApi } from '@/api'
 import ResultDialog from '@/components/ResultDialog.vue'
+import { useUserStore } from '@/stores/user'
 
 // 处理ResizeObserver警告
 const originalError = console.error
@@ -577,6 +583,7 @@ console.error = (...args) => {
 }
 
 const router = useRouter()
+const userStore = useUserStore()
 
 // 计算属性
 const selectedAlgorithm = computed(() => {
@@ -1572,7 +1579,8 @@ const executeModelEvaluation = async () => {
       regionCodes,
       evaluationForm.weightConfigId,
       evaluationForm.year,
-      evaluationForm.orgCode || ''
+      evaluationForm.orgCode || '',
+      userStore.username || ''  // 传递当前登录用户名作为操作人
     )
 
     evaluationProgress.percentage = 80
@@ -1807,6 +1815,30 @@ const deleteEvaluation = async (row: any) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除评估失败:', error)
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+// 删除评估历史记录
+const deleteEvaluationHistory = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这条评估历史记录吗？删除后将同时删除关联的评估结果数据。', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const response = await evaluationApi.deleteEvaluationHistory(row.id)
+    if (response.success) {
+      ElMessage.success('删除成功')
+      getEvaluationHistory()
+    } else {
+      ElMessage.error(response.message || '删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除评估历史失败:', error)
       ElMessage.error('删除失败')
     }
   }
@@ -2638,7 +2670,7 @@ watch(
 <style scoped>
 .evaluation {
   padding: 20px;
-  max-width: 1200px;
+  max-width: 1920px;
   margin: 0 auto;
 }
 

@@ -102,6 +102,7 @@
       <el-button @click="showWordPreview" type="info">预览Word</el-button>
       <el-button @click="showRealWordPreview" type="success">真实内容预览</el-button>
       <el-button @click="exportAsWord" type="warning">导出Word</el-button>
+      <el-button @click="exportAndUploadForOnlyOffice" type="success">上传并生成报告</el-button>
     </div>
 
     <!-- Word预览弹窗 -->
@@ -112,7 +113,7 @@
 
 <script setup lang="ts">
 console.log('ThematicMapGenerator组件开始加载')
-import { ref, onMounted, nextTick, withDefaults, defineProps, computed, watch } from 'vue'
+import { ref, onMounted, nextTick, withDefaults, defineProps, computed, watch, defineExpose } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.chinatmsproviders'
@@ -971,26 +972,89 @@ const calculateScale = (zoom: number): string => {
 const exportAsPNG = async () => {
   try {
     if (!mapContainer.value) return
-    
+
     const canvas = await html2canvas(mapContainer.value, {
       useCORS: true,
       scale: 2, // 提高分辨率
       backgroundColor: '#ffffff'
     })
-    
+
     // 下载图片
     const link = document.createElement('a')
     link.download = `专题图_${new Date().getTime()}.png`
     link.href = canvas.toDataURL('image/png')
     link.click()
-    
+
     // 保存到后端
     await saveToServer(canvas.toDataURL('image/png'), 'png')
-    
+
     ElMessage.success('PNG导出成功')
   } catch (error) {
     console.error('PNG导出失败:', error)
     ElMessage.error('PNG导出失败')
+  }
+}
+
+// 导出并上传专题图图片供OnlyOffice使用
+const exportAndUploadForOnlyOffice = async (): Promise<string | null> => {
+  const loadingMessage = ElMessage({
+    message: '正在生成并上传专题图，请稍候...',
+    type: 'info',
+    duration: 0
+  })
+
+  try {
+    if (!mapContainer.value) {
+      ElMessage.error('地图容器未找到')
+      return null
+    }
+
+    // 使用html2canvas生成地图截图
+    const canvas = await html2canvas(mapContainer.value, {
+      useCORS: true,
+      scale: 2, // 提高分辨率
+      backgroundColor: '#ffffff',
+      logging: false
+    })
+
+    // 将canvas转换为Blob
+    const imageBlob = await new Promise<Blob>((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob)
+        } else {
+          resolve(new Blob([], { type: 'image/png' }))
+        }
+      }, 'image/png')
+    })
+
+    // 创建File对象
+    const imageFile = new File([imageBlob], `thematic_map_${Date.now()}.png`, { type: 'image/png' })
+
+    // 上传到后端
+    const response = await thematicMapApi.uploadMapImage(
+      imageFile,
+      props.year || new Date().getFullYear(),
+      props.orgCode || '511425'
+    )
+
+    if (response.success && response.data) {
+      const imageUrl = response.data.imageUrl
+      console.log('专题图上传成功:', imageUrl)
+
+      loadingMessage.close()
+      ElMessage.success('专题图上传成功')
+
+      // 返回图片URL供OnlyOffice使用
+      return imageUrl
+    } else {
+      throw new Error('上传失败：' + (response.message || '未知错误'))
+    }
+  } catch (error) {
+    console.error('导出并上传专题图失败:', error)
+    loadingMessage.close()
+    ElMessage.error('上传专题图失败：' + ((error as any)?.message || '未知错误'))
+    return null
   }
 }
 
@@ -1616,12 +1680,21 @@ onMounted(async () => {
   await nextTick()
   console.log('ThematicMapGenerator组件开始初始化')
   initMap()
-  
+
   // 等待地图初始化完成
   setTimeout(() => {
     console.log('开始加载专题数据')
     loadThematicData()
   }, 1000)
+})
+
+// 暴露方法给父组件
+defineExpose({
+  exportAndUploadForOnlyOffice,
+  exportAsPNG,
+  exportAsPDF,
+  getStatistics,
+  mapConfigState
 })
 </script>
 
