@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -47,6 +48,7 @@ public class ThematicMapController {
 
     /**
      * 获取专题图数据
+     * @param level 数据级别: township(乡镇), community_village(社区-行政村), community_township(社区-乡镇), comprehensive(综合)
      */
     @GetMapping("/data")
     public Result<List<Map<String, Object>>> getThematicData(
@@ -54,26 +56,53 @@ public class ThematicMapController {
             @RequestParam(required = false) Long surveyId,
             @RequestParam(required = false) Long algorithmId,
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) String orgCode) {
-        
-        log.info("获取专题图数据: reportId={}, surveyId={}, algorithmId={}, year={}, orgCode={}", 
-                reportId, surveyId, algorithmId, year, orgCode);
-        
+            @RequestParam(required = false) String orgCode,
+            @RequestParam(required = false, defaultValue = "township") String level) {
+
+        log.info("获取专题图数据: reportId={}, surveyId={}, algorithmId={}, year={}, orgCode={}, level={}",
+                reportId, surveyId, algorithmId, year, orgCode, level);
+
         try {
             // 获取所有评估结果
             List<EvaluationResult> allResults = evaluationResultService.getAllEvaluationResults();
-            
-            // 过滤数据
+
+            // 根据级别过滤数据
             List<EvaluationResult> filteredResults = allResults.stream()
                 .filter(result -> {
+                    String regionName = result.getRegionName();
+                    if (regionName == null) return false;
+
+                    // 根据级别参数过滤
+                    switch (level) {
+                        case "township":
+                            // 乡镇级：只保留以"街道"、"镇"、"乡"结尾的数据
+                            return regionName.endsWith("街道") ||
+                                   regionName.endsWith("镇") ||
+                                   regionName.endsWith("乡");
+                        case "community_village":
+                            // 社区-行政村级：只保留以"社区"、"村"结尾的数据
+                            return regionName.endsWith("社区") ||
+                                   regionName.endsWith("村");
+                        case "community_township":
+                            // 社区-乡镇级：保留以"社区"、"街道"、"镇"、"乡"结尾的数据
+                            return regionName.endsWith("社区") ||
+                                   regionName.endsWith("街道") ||
+                                   regionName.endsWith("镇") ||
+                                   regionName.endsWith("乡");
+                        case "comprehensive":
+                        default:
+                            // 综合：包含所有数据
+                            return true;
+                    }
+                })
+                .filter(result -> {
                     // 按年份过滤 (如果结果中有年份字段)
-                    // 目前EvaluationResult没有显式的年份字段，暂不按年份过滤，或者假设createTime年份
                     if (year != null && result.getCreateTime() != null) {
                          if (result.getCreateTime().getYear() != year) {
                              return false;
                          }
                     }
-                    
+
                     // 按组织机构代码过滤
                     if (orgCode != null && !orgCode.isEmpty()) {
                         if (result.getOrgCode() != null && !result.getOrgCode().startsWith(orgCode)) {
@@ -81,41 +110,56 @@ public class ThematicMapController {
                             // return false;
                         }
                     }
-                    
+
                     return true;
                 })
                 .collect(Collectors.toList());
-                
+
+            // 按地区名称去重，保留每个地区最新的评估结果
+            Map<String, EvaluationResult> latestResults = new LinkedHashMap<>();
+            for (EvaluationResult result : filteredResults) {
+                String regionName = result.getRegionName();
+                if (regionName == null) continue;
+
+                EvaluationResult existing = latestResults.get(regionName);
+                if (existing == null ||
+                    (result.getCreateTime() != null &&
+                     (existing.getCreateTime() == null ||
+                      result.getCreateTime().isAfter(existing.getCreateTime())))) {
+                    latestResults.put(regionName, result);
+                }
+            }
+
             // 转换为前端需要的格式
             List<Map<String, Object>> resultList = new ArrayList<>();
-            for (int i = 0; i < filteredResults.size(); i++) {
-                EvaluationResult item = filteredResults.get(i);
+            for (EvaluationResult item : latestResults.values()) {
                 Map<String, Object> map = new HashMap<>();
-                
+
                 map.put("regionId", item.getId());
                 map.put("regionName", item.getRegionName());
                 map.put("county", "青神县"); // 默认为青神县，实际应从地区信息获取
-                
+
                 // 分数处理
                 BigDecimal totalScore = item.getComprehensiveCapabilityScore();
                 map.put("score", totalScore);
                 map.put("totalScore", totalScore);
-                
+
                 // 能力等级
                 map.put("capabilityLevel", item.getComprehensiveCapabilityLevel());
-                
+
                 // 详细能力分
                 Map<String, Object> details = new HashMap<>();
                 details.put("disasterPreventionCapability", item.getManagementCapabilityScore());
                 details.put("emergencyResponseCapability", item.getSupportCapabilityScore());
                 details.put("recoveryReconstructionCapability", item.getSelfRescueCapabilityScore());
                 map.put("details", details);
-                
+
                 resultList.add(map);
             }
-            
+
+            log.info("返回专题图数据: 级别={}, {} 条数据", level, resultList.size());
             return Result.success(resultList);
-            
+
         } catch (Exception e) {
             log.error("获取专题图数据失败", e);
             return Result.error("获取专题图数据失败: " + e.getMessage());
