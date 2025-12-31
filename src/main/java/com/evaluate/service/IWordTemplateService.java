@@ -68,4 +68,13 @@ public interface IWordTemplateService {
      * @return Word文档字节数组
      */
     byte[] convertHtmlToWord(String htmlContent);
+
+    /**
+     * 基于模板生成Word报告并替换专题图图片
+     *
+     * @param variables 要替换的变量映射
+     * @param thematicMapImagePath 专题图图片路径（可为null）
+     * @return 生成的Word文件字节数组
+     */
+    byte[] generateReportFromTemplate(Map<String, Object> variables, String thematicMapImagePath);
 }

@@ -2,6 +2,8 @@ package com.evaluate.service.impl;
 
 import com.evaluate.service.IWordTemplateService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.util.Units;
 import org.apache.poi.xwpf.usermodel.*;
 import org.apache.xmlbeans.XmlCursor;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
@@ -45,25 +47,36 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
 
     @Override
     public byte[] generateReportFromTemplate(Map<String, Object> variables) {
+        return generateReportFromTemplate(variables, null);
+    }
+
+    @Override
+    public byte[] generateReportFromTemplate(Map<String, Object> variables, String thematicMapImagePath) {
         try {
-            log.info("开始生成Word报告，模板文件: {}, 变量数量: {}", TEMPLATE_FILE_NAME, variables.size());
+            log.info("开始生成Word报告，模板文件: {}, 变量数量: {}, 专题图: {}",
+                TEMPLATE_FILE_NAME, variables.size(), thematicMapImagePath);
 
             // 1. 读取模板文件
             XWPFDocument document = loadTemplateDocument();
 
-            // 2. 替换文本中的变量
+            // 2. 如果提供了专题图路径，替换模板中的专题图图片
+            if (thematicMapImagePath != null && !thematicMapImagePath.isEmpty()) {
+                replaceThematicMapImage(document, thematicMapImagePath);
+            }
+
+            // 3. 替换文本中的变量
             replaceTextVariables(document, variables);
 
-            // 2.1 处理动态表格 (List类型的变量)
+            // 3.1 处理动态表格 (List类型的变量)
             processDynamicTables(document, variables);
 
-            // 3. 替换表格中的变量
+            // 4. 替换表格中的变量
             replaceTableVariables(document, variables);
 
-            // 4. 替换页眉页脚中的变量
+            // 5. 替换页眉页脚中的变量
             replaceHeaderFooterVariables(document, variables);
 
-            // 5. 转换为字节数组
+            // 6. 转换为字节数组
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             document.write(outputStream);
             document.close();
@@ -1815,5 +1828,131 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
         java.io.PrintWriter pw = new java.io.PrintWriter(sw);
         e.printStackTrace(pw);
         return sw.toString();
+    }
+
+    /**
+     * 替换Word文档中的专题图图片
+     * 查找模板中的占位图片，替换为实际生成的专题图
+     */
+    private void replaceThematicMapImage(XWPFDocument document, String imagePath) {
+        try {
+            log.info("开始替换专题图图片: {}", imagePath);
+
+            // 读取新图片文件
+            File imageFile = new File(imagePath);
+            if (!imageFile.exists()) {
+                log.warn("图片文件不存在: {}", imagePath);
+                return;
+            }
+
+            byte[] imageBytes = Files.readAllBytes(imageFile.toPath());
+            String imageFileName = imageFile.getName();
+            String fileExtension = imageFileName.substring(imageFileName.lastIndexOf('.') + 1).toLowerCase();
+
+            // 确定图片类型
+            int pictureType = determinePictureType(fileExtension);
+            if (pictureType == -1) {
+                log.error("不支持的图片格式: {}", fileExtension);
+                return;
+            }
+
+            // 查找所有段落中的图片
+            boolean replaced = false;
+            for (XWPFParagraph paragraph : document.getParagraphs()) {
+                for (XWPFRun run : paragraph.getRuns()) {
+                    if (run.getEmbeddedPictures() != null && !run.getEmbeddedPictures().isEmpty()) {
+                        // 找到图片，检查是否为占位图片
+                        for (XWPFPicture picture : run.getEmbeddedPictures()) {
+                            String existingFileName = picture.getPictureData() != null ? picture.getPictureData().getFileName() : "";
+                            log.info("找到模板中的图片: {}", existingFileName);
+
+                            // 替换图片：移除旧图片，添加新图片
+                            // 注意：POI不支持直接替换，需要重新创建run
+                        }
+                    }
+                }
+            }
+
+            // 更简单的方案：在文档中查找包含专题图占位符的段落，然后在其后添加图片
+            // 或者查找具有特定名称的图片进行替换
+            for (XWPFParagraph paragraph : document.getParagraphs()) {
+                String text = paragraph.getText();
+                // 查找包含专题图占位符的段落（如果有）
+                if (text.contains("专题图") || text.contains("thematic_map") || text.contains("{{thematic_map_image}}")) {
+                    log.info("找到专题图占位段落: {}", text);
+                    // 在占位符后添加图片
+                    if (!paragraph.getRuns().isEmpty()) {
+                        XWPFRun run = paragraph.getRuns().get(0);
+                        // 清空占位符文本
+                        run.setText("", 0);
+                        // 添加图片
+                        run.addPicture(new ByteArrayInputStream(imageBytes), pictureType, imageFileName, Units.toEMU(600), Units.toEMU(400));
+                        log.info("成功替换专题图图片");
+                        replaced = true;
+                        break;
+                    }
+                }
+            }
+
+            // 如果没找到占位符，尝试替换第一张图片
+            if (!replaced) {
+                log.info("未找到专题图占位符，尝试替换文档中的第一张图片");
+                boolean firstImageReplaced = replaceFirstImage(document, imageBytes, pictureType, imageFileName);
+                if (firstImageReplaced) {
+                    log.info("成功替换文档中的第一张图片为专题图");
+                } else {
+                    log.warn("文档中没有找到可替换的图片");
+                }
+            }
+
+        } catch (Exception e) {
+            log.error("替换专题图图片失败", e);
+        }
+    }
+
+    /**
+     * 替换文档中的第一张图片
+     */
+    private boolean replaceFirstImage(XWPFDocument document, byte[] newImageBytes, int pictureType, String fileName) {
+        try {
+            // 遍历所有段落查找图片
+            for (XWPFParagraph paragraph : document.getParagraphs()) {
+                for (XWPFRun run : paragraph.getRuns()) {
+                    if (run.getEmbeddedPictures() != null && !run.getEmbeddedPictures().isEmpty()) {
+                        // 找到第一张图片，清空run并添加新图片
+                        run.setText("", 0);
+                        run.addPicture(new ByteArrayInputStream(newImageBytes), pictureType, fileName, Units.toEMU(600), Units.toEMU(400));
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            log.error("替换第一张图片失败", e);
+            return false;
+        }
+    }
+
+    /**
+     * 根据文件扩展名确定图片类型
+     */
+    private int determinePictureType(String extension) {
+        switch (extension) {
+            case "png":
+                return XWPFDocument.PICTURE_TYPE_PNG;
+            case "jpg":
+            case "jpeg":
+                return XWPFDocument.PICTURE_TYPE_JPEG;
+            case "gif":
+                return XWPFDocument.PICTURE_TYPE_GIF;
+            case "bmp":
+                return XWPFDocument.PICTURE_TYPE_BMP;
+            case "emf":
+                return XWPFDocument.PICTURE_TYPE_EMF;
+            case "wmf":
+                return XWPFDocument.PICTURE_TYPE_WMF;
+            default:
+                return -1;
+        }
     }
 }

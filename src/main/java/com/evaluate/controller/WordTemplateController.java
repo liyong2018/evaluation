@@ -86,6 +86,12 @@ public class WordTemplateController {
             // 2. 转换为模板所需的扁平化变量
             Map<String, Object> variables = mapReportDataToTemplate(reportData);
 
+            // 2.1 查找最新上传的专题图图片
+            String thematicMapImagePath = findLatestThematicMapImage(year, orgCode);
+            if (thematicMapImagePath != null) {
+                log.info("找到专题图图片: {}", thematicMapImagePath);
+            }
+
             log.info("生成报告准备数据完成，变量数: {}", variables.size());
             if (variables.containsKey("table6_data")) {
                 List<?> list = (List<?>) variables.get("table6_data");
@@ -100,8 +106,8 @@ public class WordTemplateController {
             if (variables.containsKey("table8_data")) log.info("table8_data present, size: {}", ((List<?>)variables.get("table8_data")).size());
             if (variables.containsKey("table9_data")) log.info("table9_data present, size: {}", ((List<?>)variables.get("table9_data")).size());
 
-            // 3. 生成Word文件
-            byte[] wordData = wordTemplateService.generateReportFromTemplate(variables);
+            // 3. 生成Word文件（包含专题图图片替换）
+            byte[] wordData = wordTemplateService.generateReportFromTemplate(variables, thematicMapImagePath);
 
             // 4. 保存到临时文件供OnlyOffice使用
             String tempDir = "uploads/generated/";
@@ -1773,5 +1779,45 @@ public class WordTemplateController {
         java.io.PrintWriter pw = new java.io.PrintWriter(sw);
         e.printStackTrace(pw);
         return sw.toString();
+    }
+
+    /**
+     * 查找最新上传的专题图图片
+     *
+     * @param year 年份
+     * @param orgCode 组织机构代码
+     * @return 图片文件路径，如果未找到则返回null
+     */
+    private String findLatestThematicMapImage(Integer year, String orgCode) {
+        try {
+            String thematicMapDir = "uploads/thematic-maps/";
+            java.io.File directory = new java.io.File(thematicMapDir);
+
+            if (!directory.exists() || !directory.isDirectory()) {
+                log.info("专题图目录不存在: {}", thematicMapDir);
+                return null;
+            }
+
+            // 获取目录中所有的.png文件
+            java.io.File[] files = directory.listFiles((dir, name) ->
+                name.endsWith(".png") && name.contains("thematic_map_"));
+
+            if (files == null || files.length == 0) {
+                log.info("未找到专题图图片文件");
+                return null;
+            }
+
+            // 按修改时间排序，获取最新的文件
+            java.io.File latestFile = Arrays.stream(files)
+                .max(Comparator.comparingLong(java.io.File::lastModified))
+                .orElse(files[0]);
+
+            log.info("找到最新专题图图片: {}", latestFile.getAbsolutePath());
+            return latestFile.getAbsolutePath();
+
+        } catch (Exception e) {
+            log.error("查找专题图图片失败", e);
+            return null;
+        }
     }
 }
