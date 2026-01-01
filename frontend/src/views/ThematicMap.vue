@@ -8,7 +8,7 @@
     <div class="page-content">    
       <!-- 专题图显示区域 -->
       <div class="map-display-area">
-        <el-card class="map-card">
+        <el-card class="map-card" :body-style="{ padding: '0px' }">
           <template #header>
             <div class="card-header">
               <span>专题图预览</span>
@@ -40,6 +40,18 @@
                     <span>{{ data.name }} <span style="color: #909399; font-size: 12px;">({{ data.code }})</span></span>
                   </template>
                 </el-tree-select>
+                <el-select
+                  v-model="selectedLevel"
+                  placeholder="级别"
+                  style="width: 160px"
+                  @change="handleFilterChange"
+                >
+                  <el-option label="乡镇级" value="township" />
+                  <el-option label="社区-行政村级" value="community_village" />
+                  <el-option label="社区-乡镇级" value="community_township" />
+                  <el-option label="综合" value="comprehensive" />
+                  <el-option label="综合（组合图）" value="comprehensive_composite" />
+                </el-select>
                 <el-button size="small" @click="refreshMap">刷新</el-button>
                 <el-button size="small" type="success" @click="fullscreen">全屏</el-button>
                 <el-button size="small" type="primary" @click="openOnlyOfficeEditor">生成报告</el-button>
@@ -48,13 +60,20 @@
           </template>
           
           <div class="map-container" v-loading="loading">
-            <ThematicMapGenerator 
-              v-if="showMap"
+            <CompositeThematicMap
+              v-if="selectedLevel === 'comprehensive_composite'"
+              :year="selectedYear || undefined"
+              :orgCode="selectedOrgCode || undefined"
+              ref="compositeMapRef"
+            />
+            <ThematicMapGenerator
+              v-else-if="showMap"
               :reportId="mapSettings.reportId"
               :mapConfig="computedMapConfig"
               :year="selectedYear || undefined"
               :orgCode="selectedOrgCode || undefined"
               :orgName="selectedOrgName || undefined"
+              :level="selectedLevel"
               ref="mapGeneratorRef"
             />
             <div v-else class="empty-map">
@@ -62,6 +81,24 @@
             </div>
           </div>
         </el-card>
+      </div>
+
+      <!-- 用于生成报告的隐藏地图实例 -->
+      <div class="hidden-map-container" style="position: absolute; left: -10000px; top: 0; width: 1920px; height: 1080px; z-index: -1000; pointer-events: none;">
+        <ThematicMapGenerator
+          ref="generationMapRef"
+          :reportId="mapSettings.reportId"
+          :mapConfig="{ ...computedMapConfig, showTitle: true, showLegend: true, showScale: true, showCompass: true, showBorder: true }"
+          :year="selectedYear || undefined"
+          :orgCode="selectedOrgCode || undefined"
+          :orgName="selectedOrgName || undefined"
+          level="township"
+        />
+        <CompositeThematicMap
+          ref="generationCompositeMapRef"
+          :year="selectedYear || undefined"
+          :orgCode="selectedOrgCode || undefined"
+        />
       </div>
     </div>
     
@@ -120,6 +157,7 @@
 console.log('ThematicMap页面开始加载')
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import CompositeThematicMap from '@/components/CompositeThematicMap.vue'
 import ThematicMapGenerator from '@/components/ThematicMapGenerator.vue'
 import OnlyOfficeEditor from '@/components/OnlyOfficeEditor.vue'
 import { thematicMapApi, wordTemplateApi, organizationApi } from '@/api'
@@ -129,6 +167,9 @@ console.log('ThematicMap页面导入完成')
 const loading = ref(false)
 const showMap = ref(true) // 默认显示地图
 const mapGeneratorRef = ref()
+const compositeMapRef = ref()
+const generationMapRef = ref()
+const generationCompositeMapRef = ref()
 const showOnlyOfficeEditor = ref(false) // 控制OnlyOffice编辑器显示
 const wordDocumentUrl = ref('')
 const wordDocumentTitle = ref('青神县减灾能力评估技术报告')
@@ -140,6 +181,7 @@ const yearOptions = ref<number[]>([])
 const selectedOrgCode = ref<string | null>('511425')
 const organizationList = ref<any[]>([])
 const loadingOrganizations = ref(false)
+const selectedLevel = ref<string>('township') // 默认乡镇级
 
 const mapSettings = reactive({
   reportId: 1,
@@ -163,7 +205,8 @@ const computedMapConfig = computed(() => ({
 
 const findOrgNodeByCode = (tree: any[], code: string): any | null => {
   for (const node of tree || []) {
-    if (node?.code === code) return node
+    // 使用String转换确保比较正确，兼容数字和字符串类型的code
+    if (String(node?.code) === String(code)) return node
     if (node?.children?.length) {
       const found = findOrgNodeByCode(node.children, code)
       if (found) return found
@@ -203,7 +246,17 @@ const getOrganizationList = async () => {
 const handleFilterChange = () => {
   const y = selectedYear.value ? `${selectedYear.value}年` : '全部年份'
   const org = selectedOrgName.value ? ` | 区域：${selectedOrgName.value}` : ''
-  mapSettings.subtitle = `数据年份：${y}${org} | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
+  const levelNames: Record<string, string> = {
+    'township': '乡镇级',
+    'community_village': '社区-行政村级',
+    'community_township': '社区-乡镇级',
+    'comprehensive': '综合'
+  }
+  const levelName = levelNames[selectedLevel.value] || '乡镇级'
+  const regionName = selectedOrgName.value || '青神县'
+
+  mapSettings.title = `四川省眉山市${regionName}${levelName}减灾能力评估专题图`
+  mapSettings.subtitle = `数据年份：${y}${org} | 级别：${levelName} | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
   refreshMap()
 }
 
@@ -347,31 +400,78 @@ const formatTime = (timeStr: string) => {
 
 // 打开Word预览编辑器
 const openOnlyOfficeEditor = async () => {
-  const loadingInstance = ElMessage({
-    message: '正在生成Word文档，请稍候...',
-    type: 'info',
-    duration: 0
-  })
+  let loadingInstance: any = null
+  const showLoading = (msg: string) => {
+    if (loadingInstance) loadingInstance.close()
+    loadingInstance = ElMessage({
+      message: msg,
+      type: 'info',
+      duration: 0
+    })
+  }
+
+  showLoading('正在生成4张专题图，请稍候...')
 
   try {
     const year = selectedYear.value || new Date().getFullYear()
     const orgCode = selectedOrgCode.value || '511425'
 
-    // 1. 先上传专题图图片
-    console.log(`正在生成并上传${year}年${orgCode}区域的专题图...`)
-    let mapImageUrl: string | null = null
-    try {
-      if (mapGeneratorRef.value && mapGeneratorRef.value.exportAndUploadForOnlyOffice) {
-        mapImageUrl = await mapGeneratorRef.value.exportAndUploadForOnlyOffice()
-        console.log('专题图上传成功:', mapImageUrl)
-        ElMessage.success('专题图上传成功')
+    // 定义4个级别的专题图
+    const levels = [
+      { value: 'township', name: '乡镇级' },
+      { value: 'community_village', name: '社区-行政村级' },
+      { value: 'community_township', name: '社区-乡镇级' },
+      { value: 'comprehensive', name: '综合' }
+    ]
+
+    const uploadedImages: string[] = []
+
+    // 1. 循环生成并上传4张不同级别的专题图
+    for (const level of levels) {
+      showLoading(`正在生成${level.name}专题图...`)
+      try {
+        console.log(`正在生成${level.name}专题图，级别: ${level.value}...`)
+
+        // 如果是综合图，使用组合图生成器
+        if (level.value === 'comprehensive') {
+          if (generationCompositeMapRef.value) {
+            const imageUrl = await generationCompositeMapRef.value.exportAndUploadForOnlyOffice()
+            if (imageUrl) {
+              uploadedImages.push(imageUrl)
+              console.log(`${level.name}专题图（组合图）上传成功:`, imageUrl)
+            } else {
+              console.warn(`${level.name}专题图（组合图）上传失败，返回null`)
+            }
+          } else {
+             console.error('generationCompositeMapRef 不存在')
+          }
+        } else {
+          // 其他级别使用通用生成器
+          if (generationMapRef.value && generationMapRef.value.exportAndUploadForOnlyOfficeWithLevel) {
+            const imageUrl = await generationMapRef.value.exportAndUploadForOnlyOfficeWithLevel(level.value)
+            if (imageUrl) {
+              uploadedImages.push(imageUrl)
+              console.log(`${level.name}专题图上传成功:`, imageUrl)
+            } else {
+              console.warn(`${level.name}专题图上传失败，返回null`)
+            }
+          } else {
+            console.error('generationMapRef 或 exportAndUploadForOnlyOfficeWithLevel 方法不存在')
+          }
+        }
+      } catch (e) {
+        console.error(`上传${level.name}专题图失败:`, e)
       }
-    } catch (e) {
-      console.error('上传专题图失败:', e)
+    }
+
+    if (uploadedImages.length > 0) {
+      ElMessage.success(`成功上传${uploadedImages.length}张专题图`)
+    } else {
       ElMessage.warning('专题图上传失败，将继续生成报告（不含专题图）')
     }
 
     // 2. 生成Word文档
+    showLoading('正在生成Word文档，请稍候...')
     console.log(`正在生成${year}年${orgCode}区域的Word文档...`)
     try {
       await wordTemplateApi.generateReport(year, orgCode)
@@ -379,7 +479,7 @@ const openOnlyOfficeEditor = async () => {
     } catch (e) {
       console.error('生成Word文档失败:', e)
       ElMessage.error('生成Word文档失败，请重试')
-      loadingInstance.close()
+      if (loadingInstance) loadingInstance.close()
       return
     }
 
@@ -405,10 +505,10 @@ const openOnlyOfficeEditor = async () => {
     wordDocumentTitle.value = `青神县减灾能力评估技术报告_${year}.docx`
     wordDocumentKey.value = new Date().getTime().toString()
 
-    // 5. 将上传的专题图URL存储到window对象，供OnlyOffice使用
-    if (mapImageUrl) {
-      ;(window as any).uploadedThematicMapUrl = mapImageUrl
-      console.log('专题图URL已存储，可供OnlyOffice使用:', mapImageUrl)
+    // 5. 将上传的专题图URLs存储到window对象，供OnlyOffice使用
+    if (uploadedImages.length > 0) {
+      ;(window as any).uploadedThematicMapUrls = uploadedImages
+      console.log('专题图URLs已存储，可供OnlyOffice使用:', uploadedImages)
     }
 
     showOnlyOfficeEditor.value = true
@@ -416,7 +516,7 @@ const openOnlyOfficeEditor = async () => {
     console.error('打开Word编辑器失败:', error)
     ElMessage.error('打开Word编辑器失败')
   } finally {
-    loadingInstance.close()
+    if (loadingInstance) loadingInstance.close()
   }
 }
 
@@ -425,7 +525,10 @@ onMounted(async () => {
   generateYearOptions()
   await getOrganizationList()
   await loadHistory()
-  
+
+  // 初始化标题
+  handleFilterChange()
+
   // 检查是否有从评估计算传递的数据
   const evaluationData = (window as any).evaluationData
   if (evaluationData) {
@@ -433,7 +536,7 @@ onMounted(async () => {
     // 自动生成专题图
     showMap.value = true
   }
-  
+
   // 检查是否有从Results页面传递的数据
   loadDataFromSession()
 })
@@ -505,14 +608,18 @@ const loadDataFromSession = () => {
 
 <style scoped lang="scss">
 .thematic-map-page {
-  padding: 20px;
+  padding: 20px 0;
+  width: 100%;
   max-width: 1920px;
   margin: 0 auto;
   background: #f5f5f5;
   min-height: 100vh;
+  box-sizing: border-box;
+  overflow-x: auto;
   
   .page-header {
     margin-bottom: 20px;
+    padding: 0 20px;
     
     h1 {
       margin: 0 0 8px 0;
@@ -528,24 +635,18 @@ const loadDataFromSession = () => {
   }
   
   .page-content {
-    // display: grid;
-    grid-template-columns: 350px 1fr;
-    gap: 20px;
     margin-bottom: 20px;
-    
-    .config-panel {
-      .config-card {
-        height: fit-content;
-      }
-    }
     
     .map-display-area {
       .map-card {
         // height: 600px;
         
         .map-container {
-          // height: 400px;
+          width: 1920px;
+          height: 1240px;
           position: relative;
+          overflow: hidden;
+          margin: 0 auto;
           
           .empty-map {
             height: 100%;

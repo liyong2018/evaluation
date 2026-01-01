@@ -3,6 +3,7 @@ package com.evaluate.service.impl;
 import com.evaluate.service.IWordTemplateService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.util.Units;
 import org.apache.poi.xwpf.usermodel.*;
 import org.apache.xmlbeans.XmlCursor;
@@ -19,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,7 +49,7 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
 
     @Override
     public byte[] generateReportFromTemplate(Map<String, Object> variables) {
-        return generateReportFromTemplate(variables, null);
+        return generateReportFromTemplate(variables, (String) null);
     }
 
     @Override
@@ -62,6 +64,48 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
             // 2. 如果提供了专题图路径，替换模板中的专题图图片
             if (thematicMapImagePath != null && !thematicMapImagePath.isEmpty()) {
                 replaceThematicMapImage(document, thematicMapImagePath);
+            }
+
+            // 3. 替换文本中的变量
+            replaceTextVariables(document, variables);
+
+            // 3.1 处理动态表格 (List类型的变量)
+            processDynamicTables(document, variables);
+
+            // 4. 替换表格中的变量
+            replaceTableVariables(document, variables);
+
+            // 5. 替换页眉页脚中的变量
+            replaceHeaderFooterVariables(document, variables);
+
+            // 6. 转换为字节数组
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            document.write(outputStream);
+            document.close();
+
+            byte[] result = outputStream.toByteArray();
+            log.info("Word报告生成成功，文件大小: {} bytes", result.length);
+
+            return result;
+
+        } catch (Exception e) {
+            log.error("生成Word报告失败", e);
+            throw new RuntimeException("生成Word报告失败: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public byte[] generateReportFromTemplate(Map<String, Object> variables, Map<String, String> thematicMapImages) {
+        try {
+            log.info("开始生成Word报告，模板文件: {}, 变量数量: {}, 专题图数量: {}",
+                TEMPLATE_FILE_NAME, variables.size(), thematicMapImages != null ? thematicMapImages.size() : 0);
+
+            // 1. 读取模板文件
+            XWPFDocument document = loadTemplateDocument();
+
+            // 2. 如果提供了专题图路径，替换模板中的专题图图片
+            if (thematicMapImages != null && !thematicMapImages.isEmpty()) {
+                replaceThematicMapImages(document, thematicMapImages);
             }
 
             // 3. 替换文本中的变量
@@ -1911,18 +1955,230 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
     }
 
     /**
+     * 替换Word文档中的多张专题图图片
+     * 根据级别替换对应的专题图
+     *
+     * @param document Word文档
+     * @param thematicMapImages 专题图图片Map (级别 -> 路径)
+     */
+    private void replaceThematicMapImages(XWPFDocument document, Map<String, String> thematicMapImages) {
+        try {
+            log.info("开始替换{}张专题图图片", thematicMapImages.size());
+
+            List<String> orderedLevels = Arrays.asList(
+                    "township",
+                    "community_township",
+                    "community_village",
+                    "comprehensive"
+            );
+
+            // 统计已替换的图片数量
+            AtomicInteger replacedCount = new AtomicInteger(0);
+            Set<String> replacedLevels = new HashSet<>();
+
+            // 遍历所有段落，查找并替换对应的专题图
+            for (XWPFParagraph paragraph : getAllParagraphs(document)) {
+                String text = paragraph.getText();
+
+                // 检查段落是否包含专题图占位符
+                for (String level : orderedLevels) {
+                    String token = "{{thematic_map_" + level + "}}";
+                    boolean isMatch = text.contains(token);
+                    if (!isMatch) {
+                        Pattern p = Pattern.compile("\\{\\{\\s*thematic_map_" + Pattern.quote(level) + "\\s*\\}\\}");
+                        isMatch = p.matcher(text).find();
+                    }
+
+                    if (isMatch) {
+                        String imagePath = thematicMapImages.get(level);
+                        if (imagePath != null) {
+                            File imageFile = new File(imagePath);
+                            if (imageFile.exists()) {
+                                try {
+                                    byte[] imageBytes = Files.readAllBytes(imageFile.toPath());
+                                    String imageFileName = imageFile.getName();
+                                    String fileExtension = imageFileName.substring(imageFileName.lastIndexOf('.') + 1).toLowerCase();
+                                    int pictureType = determinePictureType(fileExtension);
+
+                                    if (pictureType != -1) {
+                                        boolean replacedInParagraph = replaceThematicImageInParagraph(paragraph, level, null, imageBytes, pictureType, imageFileName);
+                                        if (replacedInParagraph) {
+                                            log.info("在段落中成功替换{}级别专题图", level);
+                                        } else {
+                                            log.warn("未能在段落Run中定位{}级别占位符，跳过该段落替换", level);
+                                            continue;
+                                        }
+                                        
+                                        replacedCount.incrementAndGet();
+                                        replacedLevels.add(level);
+                                        break; // 跳出内层循环，处理下一个段落
+                                    }
+                                } catch (Exception e) {
+                                    log.error("替换{}级别专题图失败", level, e);
+                                }
+                            } else {
+                                log.warn("{}级别图片文件不存在: {}", level, imagePath);
+                            }
+                        }
+                    }
+                }
+            }
+
+            log.info("专题图替换完成，共替换{}张图片", replacedCount.get());
+
+            // 如果有未替换的图片，尝试按顺序替换剩余的占位图片
+            if (replacedCount.get() < thematicMapImages.size()) {
+                log.info("尝试按顺序替换剩余的专题图图片");
+                replaceRemainingImagesSequentially(document, thematicMapImages, replacedLevels, replacedCount);
+            }
+
+        } catch (Exception e) {
+            log.error("替换专题图图片失败", e);
+        }
+    }
+
+    private boolean replaceThematicImageInParagraph(
+            XWPFParagraph paragraph,
+            String level,
+            String placeholder,
+            byte[] imageBytes,
+            int pictureType,
+            String imageFileName
+    ) throws IOException, InvalidFormatException {
+        if (paragraph == null) {
+            return false;
+        }
+
+        String paragraphText = paragraph.getText();
+        if (paragraphText == null) {
+            paragraphText = "";
+        }
+
+        List<int[]> ranges = new ArrayList<>();
+        if (placeholder != null && !placeholder.isEmpty()) {
+            int idx = paragraphText.indexOf(placeholder);
+            while (idx != -1) {
+                ranges.add(new int[]{idx, idx + placeholder.length()});
+                idx = paragraphText.indexOf(placeholder, idx + 1);
+            }
+        }
+
+        String token = "{{thematic_map_" + level + "}}";
+        int tokenIdx = paragraphText.indexOf(token);
+        while (tokenIdx != -1) {
+            ranges.add(new int[]{tokenIdx, tokenIdx + token.length()});
+            tokenIdx = paragraphText.indexOf(token, tokenIdx + 1);
+        }
+
+        Pattern tokenPattern = Pattern.compile("\\{\\{\\s*thematic_map_" + Pattern.quote(level) + "\\s*\\}\\}");
+        Matcher matcher = tokenPattern.matcher(paragraphText);
+        while (matcher.find()) {
+            ranges.add(new int[]{matcher.start(), matcher.end()});
+        }
+
+        List<XWPFRun> runs = paragraph.getRuns();
+        if (runs == null || runs.isEmpty()) {
+            return false;
+        }
+
+        if (!ranges.isEmpty()) {
+            removeTextRangesFromRuns(paragraph, ranges);
+        }
+
+        XWPFPicture existingPicture = findFirstEmbeddedPicture(paragraph);
+        if (existingPicture != null) {
+            return overwritePicture(existingPicture, imageBytes);
+        }
+
+        int insertPos = 0;
+        if (!ranges.isEmpty()) {
+            insertPos = findInsertRunIndexByRanges(paragraph, ranges);
+        }
+        XWPFRun newRun = paragraph.insertNewRun(Math.min(insertPos, paragraph.getRuns().size()));
+        newRun.addPicture(new ByteArrayInputStream(imageBytes), pictureType, imageFileName, Units.toEMU(600), Units.toEMU(400));
+        return true;
+    }
+
+    /**
+     * 按顺序替换剩余的专题图图片
+     */
+    private void replaceRemainingImagesSequentially(XWPFDocument document, Map<String, String> thematicMapImages, Set<String> replacedLevels, AtomicInteger replacedCount) {
+        try {
+            // 收集未使用的图片
+            Map<String, String> remainingImages = new LinkedHashMap<>(thematicMapImages);
+            if (replacedLevels != null && !replacedLevels.isEmpty()) {
+                for (String level : replacedLevels) {
+                    remainingImages.remove(level);
+                }
+            }
+
+            if (remainingImages.isEmpty()) {
+                return;
+            }
+
+            List<XWPFParagraph> paragraphs = getAllParagraphs(document);
+            List<XWPFPicture> candidates = new ArrayList<>();
+            for (int pIdx = 0; pIdx < paragraphs.size(); pIdx++) {
+                XWPFParagraph p = paragraphs.get(pIdx);
+                if (!isLikelyThematicMapArea(paragraphs, pIdx)) {
+                    continue;
+                }
+                List<XWPFRun> runs = p.getRuns();
+                if (runs == null) {
+                    continue;
+                }
+                for (XWPFRun run : runs) {
+                    if (run.getEmbeddedPictures() == null || run.getEmbeddedPictures().isEmpty()) {
+                        continue;
+                    }
+                    candidates.addAll(run.getEmbeddedPictures());
+                }
+            }
+
+            for (XWPFPicture picture : candidates) {
+                if (remainingImages.isEmpty()) {
+                    break;
+                }
+                Map.Entry<String, String> entry = remainingImages.entrySet().iterator().next();
+                String level = entry.getKey();
+                String imagePath = entry.getValue();
+                File imageFile = new File(imagePath);
+                if (!imageFile.exists()) {
+                    remainingImages.remove(level);
+                    continue;
+                }
+                try {
+                    byte[] imageBytes = Files.readAllBytes(imageFile.toPath());
+                    boolean ok = overwritePicture(picture, imageBytes);
+                    if (ok) {
+                        log.info("按顺序替换{}级别专题图", level);
+                        replacedCount.incrementAndGet();
+                        remainingImages.remove(level);
+                    } else {
+                        log.warn("按顺序替换{}级别专题图失败：未找到可写入的图片数据", level);
+                        remainingImages.remove(level);
+                    }
+                } catch (Exception e) {
+                    log.error("按顺序替换图片失败", e);
+                    remainingImages.remove(level);
+                }
+            }
+        } catch (Exception e) {
+            log.error("按顺序替换专题图图片失败", e);
+        }
+    }
+
+    /**
      * 替换文档中的第一张图片
      */
     private boolean replaceFirstImage(XWPFDocument document, byte[] newImageBytes, int pictureType, String fileName) {
         try {
             // 遍历所有段落查找图片
-            for (XWPFParagraph paragraph : document.getParagraphs()) {
+            for (XWPFParagraph paragraph : getAllParagraphs(document)) {
                 for (XWPFRun run : paragraph.getRuns()) {
                     if (run.getEmbeddedPictures() != null && !run.getEmbeddedPictures().isEmpty()) {
-                        // 找到第一张图片，清空run并添加新图片
-                        run.setText("", 0);
-                        run.addPicture(new ByteArrayInputStream(newImageBytes), pictureType, fileName, Units.toEMU(600), Units.toEMU(400));
-                        return true;
+                        XWPFPicture picture = run.getEmbeddedPictures().get(0);
+                        return overwritePicture(picture, newImageBytes);
                     }
                 }
             }
@@ -1931,6 +2187,198 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
             log.error("替换第一张图片失败", e);
             return false;
         }
+    }
+
+    private List<XWPFParagraph> getAllParagraphs(XWPFDocument document) {
+        List<XWPFParagraph> paragraphs = new ArrayList<>();
+        if (document == null) {
+            return paragraphs;
+        }
+        List<IBodyElement> elements = document.getBodyElements();
+        for (IBodyElement element : elements) {
+            collectParagraphsFromBodyElement(element, paragraphs);
+        }
+        return paragraphs;
+    }
+
+    private void collectParagraphsFromBodyElement(IBodyElement element, List<XWPFParagraph> out) {
+        if (element == null) {
+            return;
+        }
+        if (element instanceof XWPFParagraph) {
+            out.add((XWPFParagraph) element);
+            return;
+        }
+        if (element instanceof XWPFTable) {
+            XWPFTable table = (XWPFTable) element;
+            for (XWPFTableRow row : table.getRows()) {
+                for (XWPFTableCell cell : row.getTableCells()) {
+                    for (IBodyElement cellElement : cell.getBodyElements()) {
+                        collectParagraphsFromBodyElement(cellElement, out);
+                    }
+                }
+            }
+        }
+    }
+
+    private XWPFPicture findFirstEmbeddedPicture(XWPFParagraph paragraph) {
+        if (paragraph == null) {
+            return null;
+        }
+        List<XWPFRun> runs = paragraph.getRuns();
+        if (runs == null) {
+            return null;
+        }
+        for (XWPFRun run : runs) {
+            if (run.getEmbeddedPictures() != null && !run.getEmbeddedPictures().isEmpty()) {
+                return run.getEmbeddedPictures().get(0);
+            }
+        }
+        return null;
+    }
+
+    private boolean overwritePicture(XWPFPicture picture, byte[] imageBytes) throws IOException {
+        if (picture == null || imageBytes == null) {
+            return false;
+        }
+        XWPFPictureData pictureData = picture.getPictureData();
+        if (pictureData == null) {
+            return false;
+        }
+        PackagePart part = pictureData.getPackagePart();
+        if (part == null) {
+            return false;
+        }
+        try (OutputStream os = part.getOutputStream()) {
+            os.write(imageBytes);
+        }
+        return true;
+    }
+
+    private int findInsertRunIndexByRanges(XWPFParagraph paragraph, List<int[]> ranges) {
+        List<XWPFRun> runs = paragraph.getRuns();
+        if (runs == null || runs.isEmpty() || ranges == null || ranges.isEmpty()) {
+            return 0;
+        }
+        int[] range = ranges.get(0);
+        int rs = range[0];
+        int re = range[1];
+        int cursor = 0;
+        for (int i = 0; i < runs.size(); i++) {
+            String t = runs.get(i).getText(0);
+            if (t == null) {
+                t = "";
+            }
+            int start = cursor;
+            int end = cursor + t.length();
+            cursor = end;
+            if (start < re && end > rs) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private void removeTextRangesFromRuns(XWPFParagraph paragraph, List<int[]> ranges) {
+        List<XWPFRun> runs = paragraph.getRuns();
+        if (runs == null || runs.isEmpty() || ranges == null || ranges.isEmpty()) {
+            return;
+        }
+
+        List<int[]> merged = new ArrayList<>(ranges);
+        merged.sort(Comparator.comparingInt(a -> a[0]));
+        List<int[]> normalized = new ArrayList<>();
+        for (int[] r : merged) {
+            if (normalized.isEmpty()) {
+                normalized.add(new int[]{r[0], r[1]});
+                continue;
+            }
+            int[] last = normalized.get(normalized.size() - 1);
+            if (r[0] <= last[1]) {
+                last[1] = Math.max(last[1], r[1]);
+            } else {
+                normalized.add(new int[]{r[0], r[1]});
+            }
+        }
+
+        List<int[]> runOffsets = new ArrayList<>(runs.size());
+        int cursor = 0;
+        for (XWPFRun run : runs) {
+            String t = run.getText(0);
+            if (t == null) {
+                t = "";
+            }
+            int start = cursor;
+            cursor += t.length();
+            int end = cursor;
+            runOffsets.add(new int[]{start, end});
+        }
+
+        Map<Integer, List<int[]>> perRunRanges = new HashMap<>();
+        for (int[] range : normalized) {
+            int rs = range[0];
+            int re = range[1];
+            for (int i = 0; i < runOffsets.size(); i++) {
+                int[] off = runOffsets.get(i);
+                int s = off[0];
+                int e = off[1];
+                if (s < re && e > rs) {
+                    int localStart = Math.max(rs, s) - s;
+                    int localEnd = Math.min(re, e) - s;
+                    if (localStart < localEnd) {
+                        perRunRanges.computeIfAbsent(i, k -> new ArrayList<>()).add(new int[]{localStart, localEnd});
+                    }
+                }
+            }
+        }
+
+        for (Map.Entry<Integer, List<int[]>> entry : perRunRanges.entrySet()) {
+            int runIdx = entry.getKey();
+            if (runIdx < 0 || runIdx >= runs.size()) {
+                continue;
+            }
+            XWPFRun run = runs.get(runIdx);
+            String text = run.getText(0);
+            if (text == null || text.isEmpty()) {
+                continue;
+            }
+            List<int[]> localRanges = entry.getValue();
+            localRanges.sort((a, b) -> Integer.compare(b[0], a[0]));
+            String updated = text;
+            for (int[] lr : localRanges) {
+                int ls = lr[0];
+                int le = lr[1];
+                if (ls >= 0 && le <= updated.length() && ls < le) {
+                    updated = updated.substring(0, ls) + updated.substring(le);
+                }
+            }
+            run.setText(updated, 0);
+        }
+    }
+
+    private boolean isLikelyThematicMapArea(List<XWPFParagraph> paragraphs, int idx) {
+        if (paragraphs == null || idx < 0 || idx >= paragraphs.size()) {
+            return false;
+        }
+        XWPFParagraph p = paragraphs.get(idx);
+        String text = p.getText();
+        if (text != null && (text.contains("thematic_map") || text.contains("专题图"))) {
+            return true;
+        }
+        for (int i = idx - 1, steps = 0; i >= 0 && steps < 12; i--, steps++) {
+            String t = paragraphs.get(i).getText();
+            if (t == null) {
+                continue;
+            }
+            String trimmed = t.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            if (trimmed.contains("thematic_map") || trimmed.contains("专题图")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

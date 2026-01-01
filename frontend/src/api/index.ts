@@ -444,6 +444,7 @@ export const thematicMapApi = {
     algorithmId?: number;
     year?: number;
     orgCode?: string;
+    level?: string;
   }) => request.get('/api/thematic-map/data', { params }),
   
   // 获取地区边界数据
@@ -486,6 +487,18 @@ export const thematicMapApi = {
     formData.append('image', imageFile)
     formData.append('year', year.toString())
     formData.append('orgCode', orgCode)
+    return request.post('/api/thematic-map/upload-map-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  // 上传专题图图片（支持指定级别）
+  uploadMapImageWithLevel: (imageFile: File, year: number, orgCode: string, level: string) => {
+    const formData = new FormData()
+    formData.append('image', imageFile)
+    formData.append('year', year.toString())
+    formData.append('orgCode', orgCode)
+    formData.append('level', level)
     return request.post('/api/thematic-map/upload-map-image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
@@ -802,6 +815,21 @@ export const organizationApi = {
   // 获取社区级组织机构列表
   getCommunities: (townshipCode?: string) =>
     request.get('/api/organization/communities', { params: { townshipCode } })
+}
+
+// 用户认证相关API
+export const userApi = {
+  // 用户登录验证
+  login: (data: { username: string; password: string }) =>
+    request.post('/api/user/login', data),
+
+  // 检查用户名是否存在
+  checkExists: (username: string) =>
+    request.get(`/api/user/exists/${username}`),
+
+  // 用户注册
+  register: (data: { username: string; password: string }) =>
+    request.post('/api/user/register', data)
 }
 
 // Word模板处理相关API

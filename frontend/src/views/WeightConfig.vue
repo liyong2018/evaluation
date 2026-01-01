@@ -1913,7 +1913,7 @@ onMounted(() => {
 
 .score-weight-tree .tree-node {
   width: 100%;
-  padding: 8px 0;
+  padding: 0;
 }
 
 .score-weight-tree .node-content {
@@ -1921,12 +1921,12 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
+  min-height: 32px;
+  padding: 4px 12px;
   border: 1px solid #e6edf5;
-  border-radius: 8px;
+  border-radius: 6px;
   background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  margin: 8px 0;
+  margin: 2px 0;
   transition: all 0.3s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   position: relative;
@@ -2045,7 +2045,7 @@ onMounted(() => {
 /* 树形节点层级样式 */
 .score-weight-tree :deep(.el-tree-node__content) {
   height: auto !important;
-  padding: 6px 0 !important;
+  padding: 0 !important;
 }
 
 .score-weight-tree :deep(.el-tree-node__expand-icon) {
@@ -2062,8 +2062,8 @@ onMounted(() => {
 /* 子节点样式增强 - 不同层级不同颜色 */
 .score-weight-tree :deep(.el-tree-node__children > .el-tree-node .node-content) {
   margin-left: 24px;
-  margin-top: 12px;
-  margin-bottom: 12px;
+  margin-top: 2px;
+  margin-bottom: 2px;
   border-left: 3px solid #409eff;
   background: linear-gradient(135deg, #f7fbff 0%, #ffffff 100%);
 }
@@ -2256,7 +2256,7 @@ onMounted(() => {
 
 .expert-score-tree .tree-node {
   width: 100%;
-  padding: 8px 0;
+  padding: 0;
 }
 
 .expert-score-tree .node-content {
@@ -2264,12 +2264,12 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
+  min-height: 32px;
+  padding: 4px 12px;
   border: 1px solid #e6edf5;
-  border-radius: 8px;
+  border-radius: 6px;
   background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  margin: 8px 0;
+  margin: 2px 0;
   position: relative;
   transition: all 0.3s ease;
   overflow: hidden;
@@ -2359,7 +2359,7 @@ onMounted(() => {
 /* 树形节点层级样式 */
 .expert-score-tree :deep(.el-tree-node__content) {
   height: auto !important;
-  padding: 6px 0 !important;
+  padding: 0 !important;
 }
 
 .expert-score-tree :deep(.el-tree-node__expand-icon) {
@@ -2376,8 +2376,8 @@ onMounted(() => {
 /* 子节点样式增强 - 不同层级不同颜色 */
 .expert-score-tree :deep(.el-tree-node__children > .el-tree-node .node-content) {
   margin-left: 24px;
-  margin-top: 12px;
-  margin-bottom: 12px;
+  margin-top: 2px;
+  margin-bottom: 2px;
   border-left: 3px solid #409eff;
   background: linear-gradient(135deg, #f7fbff 0%, #ffffff 100%);
 }

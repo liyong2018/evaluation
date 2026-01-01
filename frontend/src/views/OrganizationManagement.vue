@@ -42,7 +42,7 @@
           :expand-on-click-node="false"
           @node-click="handleNodeClick"
         >
-          <template #default="{ node, data }">
+          <template #default="{ data }">
             <div class="tree-node">
               <div class="node-info">
                 <el-icon v-if="data.level === 1" color="#409eff"><OfficeBuilding /></el-icon>
@@ -110,7 +110,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue'
-import { ElMessage, ElMessageBox, UploadProps } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { UploadProps } from 'element-plus'
 import { Plus, Edit, Delete, Upload, OfficeBuilding, MapLocation, Location, Position, House } from '@element-plus/icons-vue'
 import type { ElTree } from 'element-plus'
 import request from '@/utils/request'

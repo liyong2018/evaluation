@@ -1,0 +1,21 @@
+[ {
+  "username" : "admin",
+  "password" : "admin@123",
+  "isAdmin" : true
+}, {
+  "username" : "何春梅",
+  "password" : "123456",
+  "isAdmin" : false
+}, {
+  "username" : "容老师",
+  "password" : "123456",
+  "isAdmin" : false
+}, {
+  "username" : "林老师",
+  "password" : "123456",
+  "isAdmin" : false
+}, {
+  "username" : "18030617315",
+  "password" : "123123",
+  "isAdmin" : false
+} ]

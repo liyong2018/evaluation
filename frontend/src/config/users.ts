@@ -37,9 +37,19 @@ export const userConfigList: UserConfig[] = [
   }
 ]
 
+const LOCAL_STORAGE_KEY = 'registered_users'
+
+// 获取所有用户（包括预配置和注册的用户）
+function getAllUsers(): UserConfig[] {
+  const stored = localStorage.getItem(LOCAL_STORAGE_KEY)
+  const registeredUsers: UserConfig[] = stored ? JSON.parse(stored) : []
+  return [...userConfigList, ...registeredUsers]
+}
+
 // 验证用户密码
 export function validateUser(username: string, password: string): UserConfig | null {
-  const user = userConfigList.find(u => u.value === username)
+  const allUsers = getAllUsers()
+  const user = allUsers.find(u => u.value === username)
   if (user && user.password === password) {
     return user
   }
@@ -48,5 +58,32 @@ export function validateUser(username: string, password: string): UserConfig | n
 
 // 获取用户选项（用于下拉框）
 export function getUserOptions() {
-  return userConfigList.map(u => ({ label: u.label, value: u.value }))
+  const allUsers = getAllUsers()
+  return allUsers.map(u => ({ label: u.label, value: u.value }))
+}
+
+// 检查用户名是否已存在
+export function isUserExists(username: string): boolean {
+  const allUsers = getAllUsers()
+  return allUsers.some(u => u.value === username)
+}
+
+// 注册新用户
+export function registerUser(username: string, password: string): boolean {
+  if (isUserExists(username)) {
+    return false
+  }
+
+  const stored = localStorage.getItem(LOCAL_STORAGE_KEY)
+  const registeredUsers: UserConfig[] = stored ? JSON.parse(stored) : []
+
+  registeredUsers.push({
+    label: username,
+    value: username,
+    password: password,
+    isAdmin: false
+  })
+
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(registeredUsers))
+  return true
 }

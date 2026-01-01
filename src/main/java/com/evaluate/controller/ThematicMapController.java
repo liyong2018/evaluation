@@ -22,10 +22,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -48,7 +51,7 @@ public class ThematicMapController {
 
     /**
      * 获取专题图数据
-     * @param level 数据级别: township(乡镇), community_village(社区-行政村), community_township(社区-乡镇), comprehensive(综合)
+     * @param level 数据级别: township(乡镇-Model3), community_village(社区-行政村-Model4), community_township(社区-乡镇-Model8), comprehensive(综合-Model11)
      */
     @GetMapping("/data")
     public Result<List<Map<String, Object>>> getThematicData(
@@ -63,8 +66,21 @@ public class ThematicMapController {
                 reportId, surveyId, algorithmId, year, orgCode, level);
 
         try {
-            // 获取所有评估结果
-            List<EvaluationResult> allResults = evaluationResultService.getAllEvaluationResults();
+            // 根据level映射到对应的模型ID
+            Long modelId = getModelIdByLevel(level);
+            log.info("使用模型ID: {} (level={})", modelId, level);
+
+            // 使用指定模型获取评估结果
+            List<EvaluationResult> allResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(
+                modelId, year != null ? year : 2025, orgCode != null ? orgCode : "511425"
+            );
+
+            log.info("从模型{}获取到{}条评估结果", modelId, allResults != null ? allResults.size() : 0);
+
+            if (allResults == null || allResults.isEmpty()) {
+                log.warn("未获取到评估结果，返回空列表");
+                return Result.success(new ArrayList<>());
+            }
 
             // 根据级别过滤数据
             List<EvaluationResult> filteredResults = allResults.stream()
@@ -103,11 +119,10 @@ public class ThematicMapController {
                          }
                     }
 
-                    // 按组织机构代码过滤
+                    // 按组织机构代码过滤（前缀匹配）
                     if (orgCode != null && !orgCode.isEmpty()) {
-                        if (result.getOrgCode() != null && !result.getOrgCode().startsWith(orgCode)) {
-                            // 简单的通过前缀匹配，或者精确匹配
-                            // return false;
+                        if (result.getOrgCode() == null || !result.getOrgCode().startsWith(orgCode)) {
+                            return false;
                         }
                     }
 
@@ -183,10 +198,11 @@ public class ThematicMapController {
     public Result<Map<String, String>> uploadMapImage(
             @RequestParam("image") MultipartFile imageFile,
             @RequestParam("year") Integer year,
-            @RequestParam("orgCode") String orgCode) {
+            @RequestParam("orgCode") String orgCode,
+            @RequestParam(value = "level", required = false, defaultValue = "township") String level) {
 
-        log.info("上传专题图图片 - year: {}, orgCode: {}, size: {}, contentType: {}",
-                year, orgCode, imageFile.getSize(), imageFile.getContentType());
+        log.info("上传专题图图片 - year: {}, orgCode: {}, level: {}, size: {}, contentType: {}",
+                year, orgCode, level, imageFile.getSize(), imageFile.getContentType());
 
         try {
             // 验证图片文件
@@ -207,9 +223,9 @@ public class ThematicMapController {
                 Files.createDirectories(directoryPath);
             }
 
-            // 生成文件名
+            // 生成文件名，包含级别信息
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmssSSS"));
-            String fileName = String.format("thematic_map_%s_%s_%s.png", year, orgCode, timestamp);
+            String fileName = String.format("thematic_map_%s_%s_%s_%s.png", level, year, orgCode, timestamp);
             Path filePath = directoryPath.resolve(fileName);
 
             // 保存文件
@@ -224,6 +240,7 @@ public class ThematicMapController {
             result.put("fileName", fileName);
             result.put("filePath", filePath.toString());
             result.put("imageUrl", imageUrl);
+            result.put("level", level);
             return Result.success(result);
 
         } catch (Exception e) {
@@ -257,6 +274,31 @@ public class ThematicMapController {
             } catch (IOException ex) {
                 log.error("发送错误响应失败", ex);
             }
+        }
+    }
+
+    /**
+     * 根据级别映射到对应的模型ID
+     * @param level 数据级别
+     * @return 模型ID
+     */
+    private Long getModelIdByLevel(String level) {
+        switch (level) {
+            case "township":
+                // 乡镇级 - Model 3: 乡镇减灾能力评估模型
+                return 3L;
+            case "community_village":
+                // 社区-行政村（社区单元） - Model 4: 社区-行政村减灾能力评估模型（表7数据）
+                return 4L;
+            case "community_township":
+                // 社区-行政村（乡镇单元） - Model 8: 社区-乡镇减灾能力评估模型
+                return 8L;
+            case "comprehensive":
+                // 综合 - Model 11: 综合减灾能力评估模型
+                return 11L;
+            default:
+                // 默认使用Model 3
+                return 3L;
         }
     }
 }

@@ -577,7 +577,7 @@ public class WordDataPreprocessor {
             List<EvaluationResult> communityByTownSource =
                     (communityByTownResults != null && !communityByTownResults.isEmpty())
                             ? communityByTownResults
-                            : null;
+                            : townshipResults;
             
             if (communityByTownSource != null && !communityByTownSource.isEmpty()) {
                  calculateStatistics(communityByTownSource, "community_by_town", townUnitStats, null);
@@ -739,13 +739,13 @@ public class WordDataPreprocessor {
             
             String suffix = levelKeyMap.get(level);
 
-            flatMap.put("community_by_town_" + suffix + "_count", townCount);
-            flatMap.put("community_" + suffix + "_town_count", townCount);
+            // flatMap.put("community_by_town_" + suffix + "_count", townCount);
+            // flatMap.put("community_" + suffix + "_town_count", townCount);
             flatMap.put("community_" + suffix + "_count", commCount);
             flatMap.put("community_" + suffix + "_comm_count", commCount); // 保留社区总数
 
-            flatMap.put("community_by_town_" + suffix + "_percent", percent);
-            flatMap.put("community_" + suffix + "_percent", percent);
+            // flatMap.put("community_by_town_" + suffix + "_percent", percent);
+            // flatMap.put("community_" + suffix + "_percent", percent);
 
             // 注意：{{community_medium_count}} 应该是社区数量，不是乡镇数量
             // 模板中所有 {{community_*_count}} 变量都表示社区数量
@@ -765,7 +765,7 @@ public class WordDataPreprocessor {
 
             String listStr = formattedList.isEmpty() ? "无" : String.join("、", formattedList);
             String key = "community_by_town_" + levelKeyMap.get(level) + "_list";
-            flatMap.put(key, listStr);
+            // flatMap.put(key, listStr);
         }
         
         // --- Aggregated Stats ---
@@ -786,7 +786,7 @@ public class WordDataPreprocessor {
         
         flatMap.put("community_medium_down_count", mediumDownCommCount);
         flatMap.put("community_medium_down_percent", mediumDownPercent);
-        flatMap.put("community_medium_down_town_count", mediumDownTowns.size());
+        // flatMap.put("community_medium_down_town_count", mediumDownTowns.size());
 
         // 2. Strong Up (Strong + MediumStrong)
         long strongUpCommCount = 0;
@@ -804,9 +804,9 @@ public class WordDataPreprocessor {
         
         flatMap.put("community_strong_up_count", strongUpCommCount);
         flatMap.put("community_strong_up_percent", strongUpPercent);
-        flatMap.put("community_strong_up_town_count", strongUpTowns.size());
+        // flatMap.put("community_strong_up_town_count", strongUpTowns.size());
         // 添加模板使用的变量名
-        flatMap.put("community_by_town_strong_up_count", strongUpTowns.size());
+        // flatMap.put("community_by_town_strong_up_count", strongUpTowns.size());
 
         // 3. Medium Down (Weak + VeryWeak) - 用于"较薄弱"统计
         long weakDownCommCount = 0;
@@ -817,9 +817,9 @@ public class WordDataPreprocessor {
             for(List<String> c : levelTownGroup.get(l).values()) weakDownCommCount += c.size();
         }
 
-        flatMap.put("community_by_town_weak_down_count", weakDownTowns.size());
+        // flatMap.put("community_by_town_weak_down_count", weakDownTowns.size());
         flatMap.put("community_weak_down_count", weakDownCommCount);
-        flatMap.put("{{community_by_town_weak_down_count}}", weakDownTowns.size());
+        // flatMap.put("{{community_by_town_weak_down_count}}", weakDownTowns.size());
         flatMap.put("{{community_weak_down_count}}", weakDownCommCount);
 
         Object veryWeakPercent = flatMap.get("community_by_town_veryWeak_percent");

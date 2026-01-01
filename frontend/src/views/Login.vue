@@ -14,20 +14,16 @@
         @submit.prevent="handleLogin"
       >
         <el-form-item prop="username">
-          <el-select
+          <el-input
             v-model="loginForm.username"
-            placeholder="请选择用户"
+            placeholder="请输入用户名"
             size="large"
-            style="width: 100%"
-            filterable
+            @keyup.enter="handleLogin"
           >
-            <el-option
-              v-for="user in userOptions"
-              :key="user.value"
-              :label="user.label"
-              :value="user.value"
-            />
-          </el-select>
+            <template #prefix>
+              <el-icon><User /></el-icon>
+            </template>
+          </el-input>
         </el-form-item>
 
         <el-form-item prop="password">
@@ -56,42 +52,152 @@
             登 录
           </el-button>
         </el-form-item>
+
+        <el-form-item>
+          <el-button
+            type="success"
+            size="large"
+            style="width: 100%"
+            @click="showRegisterDialog = true"
+          >
+            注 册
+          </el-button>
+        </el-form-item>
       </el-form>
 
       <div class="login-footer">
         <p>默认密码: 123456 (admin除外)</p>
       </div>
     </div>
+
+    <!-- 注册对话框 -->
+    <el-dialog
+      v-model="showRegisterDialog"
+      title="用户注册"
+      width="400px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="registerFormRef"
+        :model="registerForm"
+        :rules="registerRules"
+        label-width="80px"
+      >
+        <el-form-item label="用户名" prop="username">
+          <el-input
+            v-model="registerForm.username"
+            placeholder="请输入用户名"
+            @keyup.enter="handleRegister"
+          />
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+          <el-input
+            v-model="registerForm.password"
+            type="password"
+            placeholder="请输入密码"
+            show-password
+            @keyup.enter="handleRegister"
+          />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input
+            v-model="registerForm.confirmPassword"
+            type="password"
+            placeholder="请再次输入密码"
+            show-password
+            @keyup.enter="handleRegister"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showRegisterDialog = false">取 消</el-button>
+        <el-button type="primary" :loading="registerLoading" @click="handleRegister">
+          注 册
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-defineOptions({ name: 'Login' })
+defineOptions({ name: 'LoginView' })
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { Lock } from '@element-plus/icons-vue'
+import { Lock, User } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { getUserOptions, validateUser } from '@/config/users'
+import { userApi } from '@/api'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
 const loginFormRef = ref<FormInstance>()
+const registerFormRef = ref<FormInstance>()
 const loading = ref(false)
-
-// 从配置文件获取用户选项
-const userOptions = getUserOptions()
+const registerLoading = ref(false)
+const showRegisterDialog = ref(false)
 
 const loginForm = reactive({
   username: '',
   password: ''
 })
 
+const registerForm = reactive({
+  username: '',
+  password: '',
+  confirmPassword: ''
+})
+
+// 自定义验证确认密码
+const validateConfirmPassword = (rule: any, value: any, callback: any) => {
+  if (value === '') {
+    callback(new Error('请再次输入密码'))
+  } else if (value !== registerForm.password) {
+    callback(new Error('两次输入密码不一致'))
+  } else {
+    callback()
+  }
+}
+
+// 自定义验证用户名是否存在（异步调用后端）
+const validateUsernameExists = (rule: any, value: any, callback: any) => {
+  if (!value) {
+    callback()
+    return
+  }
+  userApi.checkExists(value)
+    .then((res: any) => {
+      if (res?.data === true) {
+        callback(new Error('用户名已存在'))
+        return
+      }
+      callback()
+    })
+    .catch(() => {
+      callback()
+    })
+}
+
 const loginRules: FormRules = {
-  username: [{ required: true, message: '请选择用户', trigger: 'change' }],
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+}
+
+const registerRules: FormRules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 2, max: 20, message: '用户名长度在 2 到 20 个字符', trigger: 'blur' },
+    { validator: validateUsernameExists, trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度不能少于 6 个字符', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    { validator: validateConfirmPassword, trigger: 'blur' }
+  ]
 }
 
 const handleLogin = async () => {
@@ -101,33 +207,73 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
-        // 从配置文件验证用户
-        const userConfig = validateUser(loginForm.username, loginForm.password)
-        if (!userConfig) {
-          ElMessage.error('用户名或密码错误')
-          loading.value = false
-          return
-        }
-
-        // 登录成功，保存用户信息
-        await userStore.login({
-          username: userConfig.value,
-          isAdmin: userConfig.isAdmin || false
+        const res = await userApi.login({
+          username: loginForm.username,
+          password: loginForm.password
         })
 
-        ElMessage.success('登录成功')
+        if (res.code === 200 && res.data) {
+          await userStore.login({
+            username: res.data.username,
+            isAdmin: res.data.isAdmin || false
+          })
 
-        // 跳转到数据管理页面
-        const redirect = (route.query.redirect as string) || '/data-management'
-        router.push(redirect)
-      } catch (error) {
+          ElMessage.success('登录成功')
+
+          const redirect = (route.query.redirect as string) || '/data-management'
+          router.push(redirect)
+        } else {
+          ElMessage.error(res.msg || '用户名或密码错误')
+        }
+      } catch (error: any) {
         console.error('登录失败:', error)
-        ElMessage.error('登录失败')
+        ElMessage.error(error?.response?.data?.msg || '登录失败')
       } finally {
         loading.value = false
       }
     }
   })
+}
+
+const handleRegister = async () => {
+  if (!registerFormRef.value) return
+
+  await registerFormRef.value.validate(async (valid) => {
+    if (valid) {
+      registerLoading.value = true
+      try {
+        const res = await userApi.register({
+          username: registerForm.username,
+          password: registerForm.password
+        })
+
+        if (res.code === 200) {
+          const newUsername = registerForm.username
+          ElMessage.success('注册成功，请登录')
+          showRegisterDialog.value = false
+          // 清空注册表单
+          registerForm.username = ''
+          registerForm.password = ''
+          registerForm.confirmPassword = ''
+          // 预填登录表单
+          loginForm.username = newUsername
+          loginForm.password = ''
+        } else {
+          ElMessage.error(res.msg || '注册失败')
+        }
+      } catch (error: any) {
+        console.error('注册失败:', error)
+        ElMessage.error(error?.response?.data?.msg || '注册失败')
+      } finally {
+        registerLoading.value = false
+      }
+    }
+  })
+}
+
+// 监听注册对话框关闭，重置表单
+const handleDialogClose = () => {
+  registerFormRef.value?.resetFields()
 }
 </script>
 

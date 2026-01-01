@@ -36,7 +36,8 @@
       "Bash(cp:*)",
       "Bash(set JAVA_HOME:*)",
       "Bash(set PATH=\"C:\\\\Program Files\\\\Java\\\\jdk-17\\\\bin;%PATH%\")",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(set:*)"
     ],
     "deny": [],
     "ask": []

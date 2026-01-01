@@ -86,10 +86,15 @@ public class WordTemplateController {
             // 2. 转换为模板所需的扁平化变量
             Map<String, Object> variables = mapReportDataToTemplate(reportData);
 
-            // 2.1 查找最新上传的专题图图片
-            String thematicMapImagePath = findLatestThematicMapImage(year, orgCode);
-            if (thematicMapImagePath != null) {
-                log.info("找到专题图图片: {}", thematicMapImagePath);
+            // 2.1 查找所有级别的最新专题图图片
+            Map<String, String> thematicMapImages = findAllThematicMapImages(year, orgCode);
+            if (!thematicMapImages.isEmpty()) {
+                log.info("找到{}张专题图图片: {}", thematicMapImages.size(), thematicMapImages.keySet());
+                // 将图片路径也添加到变量中，以便在文本替换中也能使用（作为后备或调试）
+                for (Map.Entry<String, String> entry : thematicMapImages.entrySet()) {
+                    variables.put("thematic_map_" + entry.getKey(), entry.getValue());
+                    variables.put("{{thematic_map_" + entry.getKey() + "}}", entry.getValue());
+                }
             }
 
             log.info("生成报告准备数据完成，变量数: {}", variables.size());
@@ -107,7 +112,7 @@ public class WordTemplateController {
             if (variables.containsKey("table9_data")) log.info("table9_data present, size: {}", ((List<?>)variables.get("table9_data")).size());
 
             // 3. 生成Word文件（包含专题图图片替换）
-            byte[] wordData = wordTemplateService.generateReportFromTemplate(variables, thematicMapImagePath);
+            byte[] wordData = wordTemplateService.generateReportFromTemplate(variables, thematicMapImages);
 
             // 4. 保存到临时文件供OnlyOffice使用
             String tempDir = "uploads/generated/";
@@ -139,7 +144,7 @@ public class WordTemplateController {
         } catch (Exception e) {
             log.error("生成Word报告失败", e);
             try {
-                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "生成Word报告失败");
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "生成Word报告失败: " + e.getMessage());
             } catch (IOException ex) {
                 log.error("发送错误响应失败", ex);
             }
@@ -243,6 +248,26 @@ public class WordTemplateController {
             log.error("获取模板内容失败", e);
             return Result.error("获取模板内容失败: " + e.getMessage());
         }
+    }
+
+    @GetMapping("/debug-m8")
+    @ResponseBody
+    public String debugM8(@RequestParam(required = false) Integer year, @RequestParam(required = false) String orgCode) {
+        if (year == null) year = 2025;
+        if (orgCode == null) orgCode = "511425";
+        List<EvaluationResult> results = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(8L, year, orgCode);
+        StringBuilder sb = new StringBuilder();
+        sb.append("Year: ").append(year).append(", OrgCode: ").append(orgCode).append("\n");
+        sb.append("Size: ").append(results == null ? "null" : results.size()).append("\n");
+        if (results != null) {
+             for (EvaluationResult r : results) {
+                 sb.append("ID: ").append(r.getId())
+                   .append(", Region: ").append(r.getRegionCode())
+                   .append(", Level: ").append(r.getComprehensiveCapabilityLevel())
+                   .append("\n");
+             }
+         }
+        return sb.toString();
     }
 
     private EvaluationReportData fetchReportData(Integer year, String orgCode) {
@@ -1789,14 +1814,31 @@ public class WordTemplateController {
      * @return 图片文件路径，如果未找到则返回null
      */
     private String findLatestThematicMapImage(Integer year, String orgCode) {
+        Map<String, String> allMaps = findAllThematicMapImages(year, orgCode);
+        return allMaps.isEmpty() ? null : allMaps.values().iterator().next();
+    }
+
+    /**
+     * 查找所有级别的最新专题图图片
+     *
+     * @param year 年份
+     * @param orgCode 组织机构代码
+     * @return 图片文件路径Map (级别 -> 路径)
+     */
+    private Map<String, String> findAllThematicMapImages(Integer year, String orgCode) {
+        Map<String, String> resultMap = new LinkedHashMap<>();
         try {
             String thematicMapDir = "uploads/thematic-maps/";
             java.io.File directory = new java.io.File(thematicMapDir);
 
             if (!directory.exists() || !directory.isDirectory()) {
                 log.info("专题图目录不存在: {}", thematicMapDir);
-                return null;
+                return resultMap;
             }
+
+            // 定义4个级别（按Word模板中图片的顺序）
+            // 图片顺序: 1.乡镇 2.社区-乡镇 3.社区-行政村 4.综合
+            String[] levels = {"township", "community_township", "community_village", "comprehensive"};
 
             // 获取目录中所有的.png文件
             java.io.File[] files = directory.listFiles((dir, name) ->
@@ -1804,20 +1846,32 @@ public class WordTemplateController {
 
             if (files == null || files.length == 0) {
                 log.info("未找到专题图图片文件");
-                return null;
+                return resultMap;
             }
 
-            // 按修改时间排序，获取最新的文件
-            java.io.File latestFile = Arrays.stream(files)
-                .max(Comparator.comparingLong(java.io.File::lastModified))
-                .orElse(files[0]);
+            // 为每个级别查找最新的图片
+            for (String level : levels) {
+                final String targetLevel = level;
+                java.io.File[] levelFiles = Arrays.stream(files)
+                    .filter(f -> f.getName().contains("thematic_map_" + targetLevel + "_"))
+                    .toArray(java.io.File[]::new);
 
-            log.info("找到最新专题图图片: {}", latestFile.getAbsolutePath());
-            return latestFile.getAbsolutePath();
+                if (levelFiles.length > 0) {
+                    // 按修改时间排序，获取最新的文件
+                    java.io.File latestFile = Arrays.stream(levelFiles)
+                        .max(Comparator.comparingLong(java.io.File::lastModified))
+                        .orElse(levelFiles[0]);
+
+                    log.info("找到{}级别专题图图片: {}", targetLevel, latestFile.getAbsolutePath());
+                    resultMap.put(targetLevel, latestFile.getAbsolutePath());
+                }
+            }
+
+            log.info("共找到{}张专题图图片", resultMap.size());
 
         } catch (Exception e) {
             log.error("查找专题图图片失败", e);
-            return null;
         }
+        return resultMap;
     }
 }

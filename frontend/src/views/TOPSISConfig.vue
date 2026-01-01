@@ -579,7 +579,7 @@ const checkUnsavedChanges = () => {
 }
 
 // 自动保存定时器
-let autoSaveTimer: NodeJS.Timeout | null = null
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 // 监听指标变化以检测未保存的更改和触发验证
 watch(selectedIndicators, () => {
