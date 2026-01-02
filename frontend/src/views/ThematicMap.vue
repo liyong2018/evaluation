@@ -11,7 +11,7 @@
         <el-card class="map-card" :body-style="{ padding: '0px' }">
           <template #header>
             <div class="card-header">
-              <span>专题图预览</span>
+              <span>结果图预览</span>
               <div class="header-actions">
                 <el-select
                   v-model="selectedYear"
@@ -107,7 +107,7 @@
       <el-card>
         <template #header>
           <div class="card-header">
-            <span>专题图历史</span>
+            <span>结果图历史</span>
             <el-button size="small" @click="loadHistory">刷新</el-button>
           </div>
         </template>
@@ -185,7 +185,7 @@ const selectedLevel = ref<string>('township') // 默认乡镇级
 
 const mapSettings = reactive({
   reportId: 1,
-  title: '四川省雅安市青神县乡镇减灾能力评估专题图',
+  title: '四川省雅安市青神县乡镇减灾能力评估结果图',
   subtitle: `数据来源：减灾能力评估工具 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`,
   displayElements: ['title', 'legend', 'scale', 'compass', 'border']
 })
@@ -255,7 +255,7 @@ const handleFilterChange = () => {
   const levelName = levelNames[selectedLevel.value] || '乡镇级'
   const regionName = selectedOrgName.value || '青神县'
 
-  mapSettings.title = `四川省眉山市${regionName}${levelName}减灾能力评估专题图`
+  mapSettings.title = `四川省眉山市${regionName}${levelName}减灾能力评估结果图`
   mapSettings.subtitle = `数据年份：${y}${org} | 级别：${levelName} | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
   refreshMap()
 }
@@ -288,7 +288,7 @@ const generateMap = async () => {
 // 重置配置
 const resetSettings = () => {
   mapSettings.reportId = 1
-  mapSettings.title = '四川省雅安市青神县乡镇减灾能力评估专题图'
+  mapSettings.title = '四川省雅安市青神县乡镇减灾能力评估结果图'
   mapSettings.subtitle = `数据来源：减灾能力评估工具 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
   mapSettings.displayElements = ['title', 'legend', 'scale', 'compass', 'border']
   showMap.value = false
@@ -326,7 +326,7 @@ const loadHistory = async () => {
     historyList.value = [
       {
         id: 1,
-        title: '青神县减灾能力评估专题图',
+        title: '青神县减灾能力评估结果图',
         createTime: new Date().toISOString(),
         format: 'png',
         reportId: 1
@@ -340,7 +340,7 @@ const loadHistory = async () => {
       },
       {
         id: 3,
-        title: '眉山市综合评估专题图',
+        title: '眉山市综合评估结果图',
         createTime: new Date(Date.now() - 172800000).toISOString(),
         format: 'png',
         reportId: 3
@@ -559,7 +559,7 @@ const loadDataFromSession = () => {
       }
       
       // 根据传递的数据更新配置
-      mapSettings.title = `${data.regionName || '评估区域'}减灾能力评估专题图`
+      mapSettings.title = `${data.regionName || '评估区域'}减灾能力评估结果图`
       mapSettings.subtitle = `评估时间：${data.evaluationTime} | 算法：${data.algorithm} | 综合得分：${data.totalScore}`
       mapSettings.reportId = data.id || 1
       

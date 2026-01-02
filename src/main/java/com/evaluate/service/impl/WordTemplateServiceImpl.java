@@ -15,6 +15,10 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTText;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ResourceUtils;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -699,8 +703,10 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
         List<XWPFRun> runs = paragraph.getRuns();
         if (runs == null || runs.isEmpty()) return 0;
 
+        boolean containsPictures = containsEmbeddedPictures(paragraph);
+
         String originalParagraphText = paragraph.getText();
-        if (originalParagraphText != null && !originalParagraphText.isEmpty()) {
+        if (!containsPictures && originalParagraphText != null && !originalParagraphText.isEmpty()) {
             boolean mediumTownContext =
                     originalParagraphText.contains("分布于{{community_medium_count}}个乡镇") ||
                     originalParagraphText.contains("分布于 {{community_medium_count}} 个乡镇");
@@ -802,7 +808,7 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
         boolean hasBraces = paragraphText.contains("{") || paragraphText.contains("DOCPROPERTY");
         boolean hasKeywords = paragraphText.contains("中等");
         
-        if (hasBraces || hasKeywords) {
+        if (!containsPictures && (hasBraces || hasKeywords)) {
             String newParagraphText = replaceVariablesInText(paragraphText, variables);
             
             // Explicitly handle "中等" for whole paragraph text as well
@@ -899,7 +905,7 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
         // 3. Fallback: Aggressive Exact Key Match (ignoring non-alphanumeric chars)
         // Useful for table cells where Word splits runs or adds spaces
         // Only attempt if we haven't made replacements yet and the paragraph is short (likely a cell value)
-        if (replacements == 0 && paragraphText.length() < 100) {
+        if (!containsPictures && replacements == 0 && paragraphText.length() < 100) {
              // Replace all non-alphanumeric characters (except underscore) with empty string
              String cleanText = paragraphText.replaceAll("[^a-zA-Z0-9_]", "");
              
@@ -922,7 +928,7 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
         
         // 4. Super Aggressive Fallback for Table Variables (t6_, t7_, etc.)
         // If we still haven't replaced anything, and the text contains a known table key
-        if (replacements == 0) {
+        if (!containsPictures && replacements == 0) {
             for (String key : variables.keySet()) {
                 if ((key.startsWith("t6_") || key.startsWith("t7_") || key.startsWith("t8_") || key.startsWith("t9_")) 
                         && paragraphText.contains(key)) {
@@ -938,6 +944,23 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
         }
         
         return replacements;
+    }
+
+    private boolean containsEmbeddedPictures(XWPFParagraph paragraph) {
+        if (paragraph == null) {
+            return false;
+        }
+        List<XWPFRun> runs = paragraph.getRuns();
+        if (runs == null || runs.isEmpty()) {
+            return false;
+        }
+        for (XWPFRun run : runs) {
+            List<XWPFPicture> pictures = run.getEmbeddedPictures();
+            if (pictures != null && !pictures.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**
@@ -2104,15 +2127,25 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
      */
     private void replaceRemainingImagesSequentially(XWPFDocument document, Map<String, String> thematicMapImages, Set<String> replacedLevels, AtomicInteger replacedCount) {
         try {
-            // 收集未使用的图片
-            Map<String, String> remainingImages = new LinkedHashMap<>(thematicMapImages);
-            if (replacedLevels != null && !replacedLevels.isEmpty()) {
-                for (String level : replacedLevels) {
-                    remainingImages.remove(level);
+            List<String> orderedLevels = Arrays.asList(
+                    "township",
+                    "community_township",
+                    "community_village",
+                    "comprehensive"
+            );
+
+            List<Map.Entry<String, String>> remainingOrdered = new ArrayList<>();
+            for (String level : orderedLevels) {
+                if (replacedLevels != null && replacedLevels.contains(level)) {
+                    continue;
+                }
+                String path = thematicMapImages.get(level);
+                if (path != null && !path.isEmpty()) {
+                    remainingOrdered.add(new AbstractMap.SimpleEntry<>(level, path));
                 }
             }
 
-            if (remainingImages.isEmpty()) {
+            if (remainingOrdered.isEmpty()) {
                 return;
             }
 
@@ -2135,16 +2168,29 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
                 }
             }
 
-            for (XWPFPicture picture : candidates) {
-                if (remainingImages.isEmpty()) {
-                    break;
+            if (candidates.isEmpty()) {
+                for (XWPFParagraph p : paragraphs) {
+                    List<XWPFRun> runs = p.getRuns();
+                    if (runs == null) {
+                        continue;
+                    }
+                    for (XWPFRun run : runs) {
+                        if (run.getEmbeddedPictures() == null || run.getEmbeddedPictures().isEmpty()) {
+                            continue;
+                        }
+                        candidates.addAll(run.getEmbeddedPictures());
+                    }
                 }
-                Map.Entry<String, String> entry = remainingImages.entrySet().iterator().next();
+            }
+
+            int limit = Math.min(remainingOrdered.size(), candidates.size());
+            for (int i = 0; i < limit; i++) {
+                XWPFPicture picture = candidates.get(i);
+                Map.Entry<String, String> entry = remainingOrdered.get(i);
                 String level = entry.getKey();
                 String imagePath = entry.getValue();
                 File imageFile = new File(imagePath);
                 if (!imageFile.exists()) {
-                    remainingImages.remove(level);
                     continue;
                 }
                 try {
@@ -2153,14 +2199,11 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
                     if (ok) {
                         log.info("按顺序替换{}级别专题图", level);
                         replacedCount.incrementAndGet();
-                        remainingImages.remove(level);
                     } else {
                         log.warn("按顺序替换{}级别专题图失败：未找到可写入的图片数据", level);
-                        remainingImages.remove(level);
                     }
                 } catch (Exception e) {
                     log.error("按顺序替换图片失败", e);
-                    remainingImages.remove(level);
                 }
             }
         } catch (Exception e) {
@@ -2249,10 +2292,66 @@ public class WordTemplateServiceImpl implements IWordTemplateService {
         if (part == null) {
             return false;
         }
+
+        String existingExt = null;
+        try {
+            existingExt = pictureData.suggestFileExtension();
+        } catch (Exception ignored) {
+        }
+
+        byte[] finalBytes = imageBytes;
+        if (existingExt != null) {
+            String ext = existingExt.toLowerCase(Locale.ROOT);
+            boolean existingIsJpeg = "jpg".equals(ext) || "jpeg".equals(ext);
+            if (existingIsJpeg && isPng(imageBytes)) {
+                byte[] converted = convertPngToJpeg(imageBytes);
+                if (converted != null && converted.length > 0) {
+                    finalBytes = converted;
+                }
+            }
+        }
+
         try (OutputStream os = part.getOutputStream()) {
-            os.write(imageBytes);
+            os.write(finalBytes);
         }
         return true;
+    }
+
+    private boolean isPng(byte[] bytes) {
+        return bytes != null
+                && bytes.length >= 8
+                && (bytes[0] & 0xFF) == 0x89
+                && bytes[1] == 0x50
+                && bytes[2] == 0x4E
+                && bytes[3] == 0x47
+                && bytes[4] == 0x0D
+                && bytes[5] == 0x0A
+                && bytes[6] == 0x1A
+                && bytes[7] == 0x0A;
+    }
+
+    private byte[] convertPngToJpeg(byte[] pngBytes) {
+        try {
+            BufferedImage src = ImageIO.read(new ByteArrayInputStream(pngBytes));
+            if (src == null) {
+                return null;
+            }
+            BufferedImage rgb = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = rgb.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, rgb.getWidth(), rgb.getHeight());
+            g.drawImage(src, 0, 0, null);
+            g.dispose();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            boolean ok = ImageIO.write(rgb, "jpg", out);
+            if (!ok) {
+                return null;
+            }
+            return out.toByteArray();
+        } catch (Exception e) {
+            log.warn("PNG转JPEG失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     private int findInsertRunIndexByRanges(XWPFParagraph paragraph, List<int[]> ranges) {

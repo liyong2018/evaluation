@@ -128,7 +128,7 @@ const mapTitle = computed(() => {
 
 const currentYearMonth = computed(() => {
   const date = new Date()
-  const year = props.year || date.getFullYear()
+  const year = date.getFullYear()
   const month = date.getMonth() + 1
   return `${year}年${month}月`
 })

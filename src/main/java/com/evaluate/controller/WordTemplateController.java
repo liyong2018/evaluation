@@ -10,6 +10,7 @@ import com.evaluate.entity.EvaluationResult;
 import com.evaluate.service.WordDataPreprocessor;
 import com.evaluate.service.WordDataPreprocessor.EvaluationReportData;
 import com.evaluate.service.IIndicatorWeightService;
+import com.evaluate.service.IIndicatorWeightScoreService;
 import com.evaluate.service.IWeightConfigService;
 import com.evaluate.entity.IndicatorWeight;
 import com.evaluate.entity.WeightConfig;
@@ -68,6 +69,9 @@ public class WordTemplateController {
 
     @Autowired
     private IIndicatorWeightService indicatorWeightService;
+
+    @Autowired(required = false)
+    private IIndicatorWeightScoreService indicatorWeightScoreService;
 
     @Autowired
     private IWeightConfigService weightConfigService;
@@ -341,8 +345,8 @@ public class WordTemplateController {
 
         log.info("Selected Weight Configs - Township: {}, Community: {}", townshipConfigId, communityConfigId);
 
-        List<IndicatorWeight> townshipWeights = townshipConfigId != null ? indicatorWeightService.getByConfigId(townshipConfigId) : new ArrayList<>();
-        List<IndicatorWeight> communityWeights = communityConfigId != null ? indicatorWeightService.getByConfigId(communityConfigId) : new ArrayList<>();
+        List<IndicatorWeight> townshipWeights = townshipConfigId != null ? getWeightsWithAverageScore(townshipConfigId) : new ArrayList<>();
+        List<IndicatorWeight> communityWeights = communityConfigId != null ? getWeightsWithAverageScore(communityConfigId) : new ArrayList<>();
 
         String regionName = "511425".equals(orgCode) ? "青神县" : "青神县";
 
@@ -373,6 +377,26 @@ public class WordTemplateController {
 
         return wordDataPreprocessor.processEvaluationData(
                 townshipResults, communityResults, communityByTownResults, comprehensiveResults, townshipWeights, communityWeights, communityToTownshipMap, String.valueOf(year), regionName);
+    }
+
+    private List<IndicatorWeight> getWeightsWithAverageScore(Long configId) {
+        List<IndicatorWeight> weights = indicatorWeightService.getByConfigId(configId);
+        if (indicatorWeightScoreService == null) {
+            return weights;
+        }
+
+        Map<String, Double> averageWeights = indicatorWeightScoreService.calculateAverageWeights(configId);
+        if (averageWeights == null || averageWeights.isEmpty()) {
+            return weights;
+        }
+
+        for (IndicatorWeight w : weights) {
+            Double avg = averageWeights.get(w.getIndicatorCode());
+            if (avg != null) {
+                w.setWeight(avg);
+            }
+        }
+        return weights;
     }
 
     private Map<String, Object> mapReportDataToTemplate(EvaluationReportData data) {

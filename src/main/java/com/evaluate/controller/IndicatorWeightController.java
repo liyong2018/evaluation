@@ -2,6 +2,7 @@ package com.evaluate.controller;
 
 import com.evaluate.common.Result;
 import com.evaluate.entity.IndicatorWeight;
+import com.evaluate.service.IIndicatorWeightScoreService;
 import com.evaluate.service.IIndicatorWeightService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,9 @@ public class IndicatorWeightController {
 
     @Autowired
     private IIndicatorWeightService indicatorWeightService;
+
+    @Autowired(required = false)
+    private IIndicatorWeightScoreService indicatorWeightScoreService;
 
     @GetMapping
     public Result<List<IndicatorWeight>> getAllIndicatorWeights() {
@@ -57,6 +61,34 @@ public class IndicatorWeightController {
         } catch (Exception e) {
             log.error("根据配置ID获取指标权重失败", e);
             return Result.error("根据配置ID获取指标权重失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/config/{configId}/average-score")
+    public Result<List<IndicatorWeight>> getIndicatorWeightsByConfigIdAverageScore(@PathVariable Long configId) {
+        try {
+            List<IndicatorWeight> list = indicatorWeightService.getByConfigId(configId);
+
+            if (indicatorWeightScoreService == null) {
+                return Result.success(list);
+            }
+
+            Map<String, Double> averageWeights = indicatorWeightScoreService.calculateAverageWeights(configId);
+            if (averageWeights == null || averageWeights.isEmpty()) {
+                return Result.success(list);
+            }
+
+            for (IndicatorWeight weight : list) {
+                Double avg = averageWeights.get(weight.getIndicatorCode());
+                if (avg != null) {
+                    weight.setWeight(avg);
+                }
+            }
+
+            return Result.success(list);
+        } catch (Exception e) {
+            log.error("根据配置ID获取指标平均权重失败", e);
+            return Result.error("根据配置ID获取指标平均权重失败: " + e.getMessage());
         }
     }
 

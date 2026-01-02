@@ -59,6 +59,9 @@ public class EvaluationServiceImpl implements IEvaluationService {
     @Autowired
     private IWeightConfigService weightConfigService;
 
+    @Autowired(required = false)
+    private IIndicatorWeightScoreService indicatorWeightScoreService;
+
     @Autowired
     private AlgorithmConfigServiceImpl algorithmConfigService;
 
@@ -734,6 +737,17 @@ public class EvaluationServiceImpl implements IEvaluationService {
         
         for (IndicatorWeight weight : weights) {
             weightConfig.put(weight.getIndicatorCode(), weight.getWeight());
+        }
+
+        if (indicatorWeightScoreService != null) {
+            Map<String, Double> averageWeights = indicatorWeightScoreService.calculateAverageWeights(weightConfigId);
+            if (averageWeights != null && !averageWeights.isEmpty()) {
+                for (Map.Entry<String, Double> entry : averageWeights.entrySet()) {
+                    if (entry.getValue() != null) {
+                        weightConfig.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
         }
         
         return weightConfig;

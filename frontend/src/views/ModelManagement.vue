@@ -1230,7 +1230,7 @@ const loadWeightValues = async () => {
 
   loadingWeightData.value = true
   try {
-    const response = await request.get(`/api/indicator-weight/config/${selectedWeightConfigId.value}`)
+    const response = await request.get(`/api/indicator-weight/config/${selectedWeightConfigId.value}/average-score`)
     const weights = response.data || []
 
     // 构建树形结构

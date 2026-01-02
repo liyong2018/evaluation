@@ -39,6 +39,9 @@ public class UnifiedEvaluationEngine {
     @Autowired
     private IIndicatorWeightService indicatorWeightService;
 
+    @Autowired(required = false)
+    private IIndicatorWeightScoreService indicatorWeightScoreService;
+
     /**
      * 支持的数据源类型
      */
@@ -83,9 +86,7 @@ public class UnifiedEvaluationEngine {
             Map<String, String> regionNames = adapter.getRegionNames(request.getRegionCodes());
 
             // 6. 获取权重配置
-            List<IndicatorWeight> indicatorWeights = indicatorWeightService.getByConfigId(request.getWeightConfigId());
-            Map<String, Double> weightMap = indicatorWeights.stream()
-                .collect(Collectors.toMap(IndicatorWeight::getIndicatorCode, IndicatorWeight::getWeight));
+            Map<String, Double> weightMap = getWeightMapWithAverageScore(request.getWeightConfigId());
 
             // 7. 执行评估计算
             Map<String, Object> result = performEvaluation(adapter, algorithmDetail, request, regionNames, weightMap);
@@ -133,9 +134,7 @@ public class UnifiedEvaluationEngine {
             Map<String, String> regionNames = adapter.getRegionNames(request.getRegionCodes());
 
             // 6. 获取权重配置
-            List<IndicatorWeight> indicatorWeights = indicatorWeightService.getByConfigId(request.getWeightConfigId());
-            Map<String, Double> weightMap = indicatorWeights.stream()
-                .collect(Collectors.toMap(IndicatorWeight::getIndicatorCode, IndicatorWeight::getWeight));
+            Map<String, Double> weightMap = getWeightMapWithAverageScore(request.getWeightConfigId());
 
             // 7. 执行步骤计算
             Map<String, Object> result = performStepEvaluation(adapter, algorithmDetail, request, regionNames, weightMap);
@@ -196,6 +195,29 @@ public class UnifiedEvaluationEngine {
         if (request.getStepOrder() == null || request.getStepOrder() <= 0) {
             throw new IllegalArgumentException("步骤顺序必须是正整数");
         }
+    }
+
+    private Map<String, Double> getWeightMapWithAverageScore(Long configId) {
+        List<IndicatorWeight> indicatorWeights = indicatorWeightService.getByConfigId(configId);
+        Map<String, Double> weightMap = indicatorWeights.stream()
+                .collect(Collectors.toMap(IndicatorWeight::getIndicatorCode, IndicatorWeight::getWeight));
+
+        if (indicatorWeightScoreService == null) {
+            return weightMap;
+        }
+
+        Map<String, Double> averageWeights = indicatorWeightScoreService.calculateAverageWeights(configId);
+        if (averageWeights == null || averageWeights.isEmpty()) {
+            return weightMap;
+        }
+
+        for (Map.Entry<String, Double> entry : averageWeights.entrySet()) {
+            if (entry.getValue() != null) {
+                weightMap.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        return weightMap;
     }
 
     /**

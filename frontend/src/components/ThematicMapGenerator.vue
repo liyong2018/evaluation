@@ -159,7 +159,7 @@ const isFullscreen = ref(false)
 const thematicLayer = ref<L.LayerGroup | null>(null)
 
 const mapConfigState = ref({
-  title: '四川省雅安市青神县乡镇减灾能力评估专题图',
+  title: '四川省雅安市青神县乡镇减灾能力评估结果图',
   mainTitle: '减灾能力分级计算减灾能力评估报告',
   subtitle: `数据来源：减灾能力评估工具 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`,
   showTitle: true,
@@ -416,14 +416,14 @@ const initMap = () => {
   console.log('地图实例创建成功:', map.value)
   
   // 添加天地图底图
-  const baseLayer = (L.tileLayer as any).chinaProvider('TianDiTu.Terrain.Map', {
+  const baseLayer = (L.tileLayer as any).chinaProvider('TianDiTu.Normal.Map', {
     key: '0252639b1589bd33a54817f48d982093',
     attribution: '© 天地图'
   })
   baseLayer.addTo(map.value)
   
   // 添加天地图标注
-  const labelLayer = (L.tileLayer as any).chinaProvider('TianDiTu.Terrain.Annotion', {
+  const labelLayer = (L.tileLayer as any).chinaProvider('TianDiTu.Normal.Annotion', {
     key: '0252639b1589bd33a54817f48d982093'
   })
   labelLayer.addTo(map.value)
@@ -472,7 +472,7 @@ const loadDataFromSession = async () => {
       
       // 更新地图标题
       if (evaluationData.stepInfo?.stepName) {
-        mapConfigState.value.title = `${evaluationData.stepInfo.stepName}减灾能力评估专题图`
+        mapConfigState.value.title = `${evaluationData.stepInfo.stepName}减灾能力评估结果图`
       }
       
       const thematicData = processedData.regions.map((region: any) => ({
@@ -698,7 +698,7 @@ const loadThematicData = async () => {
         }
 
         if (evaluationData.stepInfo?.stepName) {
-          mapConfigState.value.title = `${evaluationData.stepInfo.stepName}减灾能力评估专题图`
+          mapConfigState.value.title = `${evaluationData.stepInfo.stepName}减灾能力评估结果图`
         }
       } else {
         console.log('未找到评估数据，基于真实边界生成模拟数据')
