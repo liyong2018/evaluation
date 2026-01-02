@@ -248,7 +248,7 @@ defineExpose({
        display: none !important;
     }
     .map-legend {
-        bottom: 20px;
+        bottom: 65px;
         left: 20px;
     }
   }

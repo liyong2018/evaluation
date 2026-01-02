@@ -2145,7 +2145,7 @@ defineExpose({
   // 图例样式 - 移动到左下角
   .map-legend {
     position: absolute;
-    bottom: 50px;
+    bottom: 65px;
     left: 20px;
     background: rgba(255, 255, 255, 0.95);
     padding: 15px;
