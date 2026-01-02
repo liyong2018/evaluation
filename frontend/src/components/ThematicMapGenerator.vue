@@ -903,7 +903,7 @@ const generateThematicDataFromBoundaries = async (boundaries: any) => {
       regionName: featureRegionName,
       county: feature.properties?.COUNTY || '青神县',
       score: regionData.score,
-      capabilityLevel: matchedData.capabilityLevel || (regionData.score >= 90 ? '强' : regionData.score >= 80 ? '较强' : regionData.score >= 70 ? '中等' : '较弱'),
+      capabilityLevel: sourceData.capabilityLevel || (regionData.score >= 90 ? '强' : regionData.score >= 80 ? '较强' : regionData.score >= 70 ? '中等' : '较弱'),
       geometry: feature.geometry,
       properties: feature.properties,
       details: {
