@@ -761,13 +761,14 @@ const loadThematicData = async () => {
         thematicData = await generateThematicDataFromBoundaries(boundaries)
         console.log('基于边界合并后的完整专题数据:', thematicData.length, '条')
       } else {
-        throw new Error('API响应数据为空')
+        console.warn('API响应数据为空')
+        ElMessage.warning('未找到评估数据')
+        thematicData = []
       }
     } catch (apiError) {
-      console.log('步骤2失败: API不可用，生成基于真实边界的模拟数据')
-      // 基于真实边界数据生成模拟的专题数据
-      thematicData = await generateThematicDataFromBoundaries(boundaries)
-      console.log('生成的模拟专题数据:', thematicData.slice(0, 3))
+      console.error('步骤2失败: API请求异常', apiError)
+      ElMessage.warning('未找到评估数据')
+      thematicData = []
     }
     
     const processedData = applyOrgFilter(boundaries, thematicData)
