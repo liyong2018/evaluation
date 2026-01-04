@@ -192,33 +192,47 @@ const normalizeRegionName = (name: string) => {
 
 // 递归查找区域层级信息的辅助函数
 const findRegionInHierarchy = (nodes: any, targetName: string): any | null => {
-  if (!nodes) return null;
-  const target = targetName.trim()
+  if (!nodes) return null
+
+  const target = String(targetName || '').trim()
   const targetKey = normalizeRegionName(target)
-  
-  // 转换为节点数组
-  let nodeList: any[] = [];
-  if (Array.isArray(nodes)) {
-      nodeList = nodes;
-  } else {
-      nodeList = Object.values(nodes);
-  }
-  
-  for (const node of nodeList) {
-      if (node.name === target) return node
-      const nodeKey = normalizeRegionName(node?.name || '')
-      if (targetKey && nodeKey) {
-        if (nodeKey === targetKey || nodeKey.includes(targetKey) || targetKey.includes(nodeKey)) {
-          return node
-        }
-      }
-      
+
+  const getList = (n: any): any[] => (Array.isArray(n) ? n : Object.values(n || {}))
+
+  const search = (n: any, predicate: (node: any) => boolean): any | null => {
+    const list = getList(n)
+    for (const node of list) {
+      if (!node) continue
+      if (predicate(node)) return node
       if (node.children && node.children.length > 0) {
-          const found = findRegionInHierarchy(node.children, target);
-          if (found) return found;
+        const found = search(node.children, predicate)
+        if (found) return found
       }
+    }
+    return null
   }
-  return null;
+
+  const exact = search(nodes, (node) => String(node?.name || '').trim() === target)
+  if (exact) return exact
+
+  if (targetKey) {
+    const normalizedEqual = search(nodes, (node) => normalizeRegionName(node?.name || '') === targetKey)
+    if (normalizedEqual) return normalizedEqual
+
+    if (targetKey.length >= 3) {
+      const prefix = search(
+        nodes,
+        (node) => {
+          const nodeKey = normalizeRegionName(node?.name || '')
+          if (!nodeKey) return false
+          return nodeKey.startsWith(targetKey) || targetKey.startsWith(nodeKey)
+        }
+      )
+      if (prefix) return prefix
+    }
+  }
+
+  return null
 }
 
 const currentYearMonth = computed(() => {
@@ -407,8 +421,8 @@ const initMap = () => {
   
   console.log('创建Leaflet地图实例')
   map.value = L.map(mapRef.value, {
-    center: [30.0572, 103.9478], // 青神县坐标
-    zoom: 11,
+    center: [30.65, 104.06], // 默认四川省中心
+    zoom: 7,
     zoomControl: false, // 隐藏默认缩放控件
     preferCanvas: true // 使用Canvas渲染，提高性能并改善html2canvas截图效果
   })
@@ -1169,30 +1183,118 @@ const renderThematicLayer = async (data: any) => {
       }
 
       if (!staticBoundaryLoaded) {
+        const currentOrg = (props.orgName || '青神县').trim()
+        let outlineRendered = false
+
+        try {
+          const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now())
+          if (hierarchyResponse.ok) {
+            const hierarchy = await hierarchyResponse.json()
+            const regionInfo = findRegionInHierarchy(hierarchy, currentOrg)
+
+            if (
+              regionInfo &&
+              (regionInfo.level === 'city' || regionInfo.level === 'province') &&
+              regionInfo.geometry &&
+              thematicLayer.value
+            ) {
+              outlineRendered = true
+
+              const geo = {
+                type: 'Feature',
+                properties: {},
+                geometry: regionInfo.geometry
+              }
+
+              const redBorder = L.geoJSON(geo as any, {
+                style: {
+                  color: 'red',
+                  weight: 8,
+                  opacity: 1,
+                  fill: false,
+                  lineCap: 'round',
+                  lineJoin: 'round'
+                },
+                interactive: false
+              })
+              thematicLayer.value.addLayer(redBorder)
+
+              const blackBorder = L.geoJSON(geo as any, {
+                style: {
+                  color: 'black',
+                  weight: 3,
+                  opacity: 1,
+                  fill: false,
+                  lineCap: 'round',
+                  lineJoin: 'round'
+                },
+                interactive: false
+              })
+              thematicLayer.value.addLayer(blackBorder)
+
+              const name = currentOrg
+              let labelLatLng: [number, number] | null = null
+
+              if (regionInfo.center && Array.isArray(regionInfo.center) && regionInfo.center.length === 2) {
+                labelLatLng = [regionInfo.center[1], regionInfo.center[0]]
+              } else {
+                try {
+                  const center = turf.centerOfMass(geo as any)
+                  if (center?.geometry?.coordinates?.length === 2) {
+                    labelLatLng = [center.geometry.coordinates[1], center.geometry.coordinates[0]]
+                  }
+                } catch {}
+              }
+
+              if (labelLatLng) {
+                const labelMarker = L.marker(labelLatLng as L.LatLngExpression, {
+                  icon: L.divIcon({
+                    html: `<div style="
+                        color: red; 
+                        font-weight: bold; 
+                        font-size: 24px; 
+                        text-shadow: 2px 2px 0 #fff, -1px -1px 0 #fff, 2px -1px 0 #fff, -1px 2px 0 #fff; 
+                        white-space: nowrap; 
+                        text-align: center;
+                        transform: translate(-50%, -50%);
+                    ">${name}</div>`,
+                    className: 'county-label-icon',
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0]
+                  }),
+                  interactive: false,
+                  zIndexOffset: 2000
+                })
+                thematicLayer.value.addLayer(labelMarker)
+              }
+            }
+          }
+        } catch {}
+
+        if (!outlineRendered) {
           const features = data.boundaries.features.filter((f: any) => f && f.geometry)
           if (features.length > 0) {
-            // Turf v7: union accepts a FeatureCollection
             let unionPoly = null
             try {
-               unionPoly = (turf as any).union(turf.featureCollection(features as any))
+              unionPoly = (turf as any).union(turf.featureCollection(features as any))
             } catch (e) {
-               console.warn('Turf union v7 error, trying iterative fallback:', e)
-               // Fallback for older turf versions or specific errors
-               if (features.length > 0) {
-                  unionPoly = features[0]
-                  for (let i = 1; i < features.length; i++) {
-                      try {
-                         const res: any = (turf as any).union(turf.featureCollection([unionPoly, features[i]] as any))
-                         if (res) unionPoly = res
-                      } catch (err) { console.warn('Iterative union failed:', err) }
-                   }
-               }
+              console.warn('Turf union v7 error, trying iterative fallback:', e)
+              if (features.length > 0) {
+                unionPoly = features[0]
+                for (let i = 1; i < features.length; i++) {
+                  try {
+                    const res: any = (turf as any).union(turf.featureCollection([unionPoly, features[i]] as any))
+                    if (res) unionPoly = res
+                  } catch (err) {
+                    console.warn('Iterative union failed:', err)
+                  }
+                }
+              }
             }
-            
+
             if (unionPoly && thematicLayer.value) {
               const finalPoly = unionPoly.type === 'FeatureCollection' ? unionPoly.features[0] : unionPoly
 
-              // 绘制外部红色描边（底层）
               const redBorder = L.geoJSON(finalPoly, {
                 style: {
                   color: 'red',
@@ -1206,7 +1308,6 @@ const renderThematicLayer = async (data: any) => {
               })
               thematicLayer.value.addLayer(redBorder)
 
-              // 绘制内部黑色实线（顶层）
               const blackBorder = L.geoJSON(finalPoly, {
                 style: {
                   color: 'black',
@@ -1220,13 +1321,12 @@ const renderThematicLayer = async (data: any) => {
               })
               thematicLayer.value.addLayer(blackBorder)
 
-              // 添加中心文字标注
               try {
                 const center = turf.centerOfMass(finalPoly)
                 if (center && center.geometry && center.geometry.coordinates) {
                   const latlng = [center.geometry.coordinates[1], center.geometry.coordinates[0]]
                   const countyName = props.orgName || '青神县'
-                  
+
                   const labelMarker = L.marker(latlng as L.LatLngExpression, {
                     icon: L.divIcon({
                       html: `<div style="
@@ -1252,6 +1352,7 @@ const renderThematicLayer = async (data: any) => {
               }
             }
           }
+        }
       }
     } catch (e) {
       console.error('绘制县界失败:', e)
@@ -1266,7 +1367,7 @@ const renderThematicLayer = async (data: any) => {
     try {
       // 优先尝试使用 region_hierarchy.json 中的 bbox
       const currentOrg = (props.orgName || '青神县').trim()
-      const hierarchyResponse = await fetch('/region_hierarchy.json')
+      const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now())
       if (hierarchyResponse.ok) {
         const hierarchy = await hierarchyResponse.json()
         const regionInfo = findRegionInHierarchy(hierarchy, currentOrg)
@@ -1281,77 +1382,6 @@ const renderThematicLayer = async (data: any) => {
           ]
           map.value.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [20, 20] })
           console.log(`使用 region_hierarchy.json 调整视图到 ${currentOrg}`, bounds)
-          
-          // 如果 region_hierarchy.json 中有 geometry，使用它来渲染边界
-          // 这样可以利用简化后的 geometry 快速渲染
-          if (regionInfo.geometry && thematicLayer.value) {
-               console.log(`使用 region_hierarchy.json 中的简化边界渲染 ${currentOrg}`);
-               // 清除之前的边界（如果有）
-               // 注意：前面的代码可能已经渲染了详细边界，这里如果覆盖渲染可能会有性能问题或视觉冲突
-               // 但由于前面的代码在没有 orgName 匹配时可能加载了全部 boundaries，或者我们希望用简化的
-               // 这里我们作为一个补充：如果前面没渲染出东西（比如 loadRealBoundaryData 没找到），这里补救
-               // 或者，我们可以完全依赖 region_hierarchy.json 来渲染边界？
-               // 目前策略：如果 loadRealBoundaryData 已经渲染了，这里就不重复渲染了。
-               // 但是用户要求 "能够快速渲染出来"，暗示我们应该使用简化后的 geometry。
-               
-               // 始终渲染高亮边界（作为外框）
-               if (true) {
-                    const finalPoly = regionInfo.geometry;
-                    
-                    // 绘制外部红色描边
-                    const redBorder = L.geoJSON(finalPoly, {
-                        style: {
-                          color: 'red',
-                          weight: 8,
-                          opacity: 1,
-                          fill: false,
-                          lineCap: 'round',
-                          lineJoin: 'round'
-                        },
-                        interactive: false
-                      })
-                      thematicLayer.value.addLayer(redBorder)
-                      
-                      // 绘制内部黑色实线
-                      const blackBorder = L.geoJSON(finalPoly, {
-                        style: {
-                          color: 'black',
-                          weight: 3,
-                          opacity: 1,
-                          fill: false,
-                          lineCap: 'round',
-                          lineJoin: 'round'
-                        },
-                        interactive: false
-                      })
-                      thematicLayer.value.addLayer(blackBorder)
-                      
-                       // 添加中心文字
-                      if (regionInfo.center) {
-                          const latlng = [regionInfo.center[1], regionInfo.center[0]]
-                          const labelMarker = L.marker(latlng as L.LatLngExpression, {
-                            icon: L.divIcon({
-                              html: `<div style="
-                                  color: red; 
-                                  font-weight: bold; 
-                                  font-size: 24px; 
-                                  text-shadow: 2px 2px 0 #fff, -1px -1px 0 #fff, 2px -1px 0 #fff, -1px 2px 0 #fff; 
-                                  white-space: nowrap; 
-                                  text-align: center;
-                                  transform: translate(-50%, -50%);
-                              ">${currentOrg}</div>`,
-                              className: 'county-label-icon',
-                              iconSize: [0, 0],
-                              iconAnchor: [0, 0]
-                            }),
-                            interactive: false,
-                            zIndexOffset: 2000
-                          })
-                          thematicLayer.value.addLayer(labelMarker)
-                      }
-               }
-          }
-          
           return // 如果成功使用了 hierarchy，直接返回
         }
       }
@@ -1663,7 +1693,7 @@ const processThematicData = (thematicData: any[], regionData: any[]) => {
 const loadRealBoundaryData = async () => {
   try {
     console.log('开始加载真实边界数据')
-    const response = await fetch('/shp.geojson')
+    const response = await fetch('/shp.geojson?t=' + Date.now())
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -1694,7 +1724,7 @@ const loadRealBoundaryData = async () => {
     let targetRegionNode = null;
 
     try {
-        const hierarchyResponse = await fetch('/region_hierarchy.json');
+        const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now());
         if (hierarchyResponse.ok) {
             hierarchyData = await hierarchyResponse.json();
             targetRegionNode = findRegionInHierarchy(hierarchyData, targetName);
