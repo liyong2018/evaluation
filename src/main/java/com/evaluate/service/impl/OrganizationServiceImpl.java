@@ -7,9 +7,16 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
 import com.evaluate.entity.Organization;
 import com.evaluate.entity.SurveyData;
+import com.evaluate.mapper.RoleMapper;
+import com.evaluate.mapper.RoleOrganizationMapper;
+import com.evaluate.mapper.UserMapper;
+import com.evaluate.entity.Role;
+import com.evaluate.entity.User;
 import com.evaluate.mapper.OrganizationMapper;
 import com.evaluate.service.IOrganizationService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -25,6 +32,15 @@ import java.util.stream.Collectors;
 public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Organization>
         implements IOrganizationService {
 
+    @Autowired
+    private RoleMapper roleMapper;
+
+    @Autowired
+    private RoleOrganizationMapper roleOrganizationMapper;
+
+    @Autowired
+    private UserMapper userMapper;
+
     private static final String SOURCE_COMMUNITY = "COMMUNITY";
     private static final String SOURCE_TOWNSHIP = "TOWNSHIP";
 
@@ -33,6 +49,50 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     private static final int LEVEL_COUNTY = 3;
     private static final int LEVEL_TOWNSHIP = 4;
     private static final int LEVEL_COMMUNITY = 5;
+
+    /**
+     * 获取当前用户有权限的组织机构编码列表
+     * @return 编码列表，如果为null表示拥有所有权限，如果为空列表表示无权限
+     */
+    private List<String> getCurrentUserAllowedOrgCodes() {
+        try {
+            if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                return null; // 无认证信息，可能是内部调用或未登录，暂时不做限制
+            }
+            Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String username = null;
+            if (principal instanceof org.springframework.security.core.userdetails.UserDetails) {
+                username = ((org.springframework.security.core.userdetails.UserDetails) principal).getUsername();
+            } else if (principal instanceof String) {
+                username = (String) principal;
+            }
+            
+            if (!StringUtils.hasText(username) || "anonymousUser".equals(username)) {
+                return null; // 匿名用户或无法识别，不做限制? 或者限制所有? 
+                // 考虑到登录接口等不需要权限，这里暂时返回null(不限制)或者根据业务需求。
+                // 通常只有受保护的接口才会走到这里。
+                // 如果是匿名用户，理论上不应该能调到这个Service方法(如果Controller有鉴权)。
+                // 暂时假设Admin才有权限查看全部。
+                // 这里的逻辑：如果无法识别用户，默认不限制（保持原有逻辑）。
+            }
+            
+            User user = userMapper.selectUserByUsername(username);
+            if (user == null) return new ArrayList<>(); // User not found, no access
+
+            List<Role> roles = roleMapper.selectRolesByUserId(user.getId());
+            boolean isAdmin = roles.stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getRoleCode()));
+            if (isAdmin) return null; // Admin has all access
+
+            List<Long> roleIds = roles.stream().map(Role::getId).collect(Collectors.toList());
+            if (roleIds.isEmpty()) return new ArrayList<>(); // No roles, no access
+
+            List<String> codes = roleOrganizationMapper.selectOrgCodesByRoleIds(roleIds);
+            return codes != null ? codes : new ArrayList<>();
+        } catch (Exception e) {
+            log.error("获取用户权限失败", e);
+            return new ArrayList<>(); // Fail safe: no access
+        }
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -234,6 +294,25 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             Page<Organization> pageParam = new Page<>(page, size);
             QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
 
+            // 权限过滤
+            List<String> allowedCodes = getCurrentUserAllowedOrgCodes();
+            if (allowedCodes != null) {
+                if (allowedCodes.isEmpty()) {
+                    result.put("success", true);
+                    result.put("data", new ArrayList<>());
+                    result.put("total", 0L);
+                    result.put("page", page);
+                    result.put("size", size);
+                    result.put("pages", 0L);
+                    return result;
+                }
+                queryWrapper.and(wrapper -> {
+                    for (String allowedCode : allowedCodes) {
+                        wrapper.or().likeRight("code", allowedCode);
+                    }
+                });
+            }
+
             if (StringUtils.hasText(code)) {
                 queryWrapper.like("code", code.trim());
             }
@@ -282,6 +361,19 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         try {
             QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
 
+            // 权限过滤
+            List<String> allowedCodes = getCurrentUserAllowedOrgCodes();
+            if (allowedCodes != null) {
+                if (allowedCodes.isEmpty()) {
+                    return new ArrayList<>();
+                }
+                queryWrapper.and(wrapper -> {
+                    for (String allowedCode : allowedCodes) {
+                        wrapper.or().likeRight("code", allowedCode);
+                    }
+                });
+            }
+
             // When parentId is null, fetch ALL organizations to build the complete tree
             // When parentId is provided, only fetch that subtree
             if (parentId != null) {
@@ -302,7 +394,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
             // When parentId is null, start building from root (parent_id = 0 or null)
             // When parentId is provided, start building from that parent
-            return buildTree(allOrganizations, parentId != null ? parentId : 0L);
+            return buildTree(allOrganizations, parentId);
         } catch (Exception e) {
             log.error("获取组织机构树形结构失败", e);
             return new ArrayList<>();
@@ -330,6 +422,19 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     public List<Organization> searchOrganization(String keyword, Integer level) {
         try {
             QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+
+            // 权限过滤
+            List<String> allowedCodes = getCurrentUserAllowedOrgCodes();
+            if (allowedCodes != null) {
+                if (allowedCodes.isEmpty()) {
+                    return new ArrayList<>();
+                }
+                queryWrapper.and(wrapper -> {
+                    for (String allowedCode : allowedCodes) {
+                        wrapper.or().likeRight("code", allowedCode);
+                    }
+                });
+            }
 
             if (StringUtils.hasText(keyword)) {
                 String searchKeyword = keyword.trim();
@@ -446,7 +551,59 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                         org -> org.getParentId() != null ? org.getParentId() : 0L
                 ));
 
-        return buildTreeRecursive(parentId != null ? parentId : 0L, parentMap);
+        if (parentId != null) {
+            return buildTreeRecursive(parentId, parentMap);
+        } else {
+            // 如果 parentId 为 null，说明需要构建完整的树（或者当前可见范围的树）
+            // 我们需要找到所有的"根"节点
+            // 根节点是那些：1. parentId 为 0 或 null 的节点
+            //              2. 或者 parentId 指向的节点不在 organizations 列表中的节点（孤儿节点）
+            
+            Set<Long> allIds = organizations.stream().map(Organization::getId).collect(Collectors.toSet());
+            List<Map<String, Object>> result = new ArrayList<>();
+            
+            // 1. 标准根节点
+            if (parentMap.containsKey(0L)) {
+                result.addAll(buildTreeRecursive(0L, parentMap));
+            }
+            
+            // 2. 查找孤儿节点作为根节点
+            for (Map.Entry<Long, List<Organization>> entry : parentMap.entrySet()) {
+                Long pid = entry.getKey();
+                if (pid != 0L && !allIds.contains(pid)) {
+                    // 这些节点的父节点不在列表中，所以它们是当前视图的根节点
+                    // 我们不能直接调用 buildTreeRecursive(pid, parentMap)，因为它是找 pid 的子节点
+                    // 这里 entry.getValue() 就是我们要找的根节点列表
+                    List<Organization> roots = entry.getValue();
+                    for (Organization root : roots) {
+                        Map<String, Object> node = new HashMap<>();
+                        node.put("id", root.getId());
+                        node.put("parentId", root.getParentId());
+                        node.put("code", root.getCode());
+                        node.put("name", root.getName());
+                        node.put("level", root.getLevel());
+                        node.put("dataSource", root.getDataSource());
+                        node.put("provinceName", root.getProvinceName());
+                        node.put("cityName", root.getCityName());
+                        node.put("countyName", root.getCountyName());
+                        node.put("townshipName", root.getTownshipName());
+                        node.put("communityName", root.getCommunityName());
+                        
+                        List<Map<String, Object>> childNodes = buildTreeRecursive(root.getId(), parentMap);
+                        if (!childNodes.isEmpty()) {
+                            node.put("children", childNodes);
+                        }
+                        result.add(node);
+                    }
+                }
+            }
+            
+            // 排序
+            result.sort(Comparator.comparing((Map<String, Object> m) -> (Integer) m.get("level"))
+                    .thenComparing(m -> (String) m.get("code")));
+            
+            return result;
+        }
     }
 
     /**

@@ -15,7 +15,22 @@
             <router-link v-if="userStore.isAdmin" to="/model-management" class="nav-item" :class="{ active: activeIndex === '/model-management' }">模型管理</router-link>
             <router-link to="/evaluation" class="nav-item" :class="{ active: activeIndex === '/evaluation' }">评估计算</router-link>
             <router-link to="/thematic-map" class="nav-item" :class="{ active: activeIndex === '/thematic-map' }">评估报告</router-link>
-            <router-link v-if="userStore.isAdmin" to="/organization-management" class="nav-item" :class="{ active: activeIndex === '/organization-management' }">组织机构管理</router-link>
+            
+            <!-- 系统管理下拉菜单 -->
+            <el-dropdown v-if="userStore.isAdmin" class="nav-dropdown" :class="{ active: activeIndex.startsWith('/system') }">
+              <span class="nav-item dropdown-trigger">
+                系统管理
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="router.push('/system/user')">用户管理</el-dropdown-item>
+                  <el-dropdown-item @click="router.push('/system/role')">角色管理</el-dropdown-item>
+                  <el-dropdown-item @click="router.push('/system/menu')">权限管理</el-dropdown-item>
+                  <el-dropdown-item @click="router.push('/system/organization')">组织机构管理</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </nav>
           <div class="user-section">
             <el-dropdown @command="handleUserCommand">
@@ -47,7 +62,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { DataAnalysis, User, ArrowDown } from '@element-plus/icons-vue'
+import { DataAnalysis, User, ArrowDown, Setting } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
@@ -138,6 +153,23 @@ const handleUserCommand = (command: string) => {
 .nav-item.active {
   color: #409eff;
   border-bottom-color: #409eff;
+}
+
+.nav-dropdown {
+  height: 60px;
+  display: flex;
+  align-items: center;
+}
+
+.nav-dropdown.active .dropdown-trigger {
+  color: #409eff;
+  border-bottom-color: #409eff;
+}
+
+.dropdown-trigger {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 
 .user-section {

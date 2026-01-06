@@ -56,11 +56,38 @@ const router = createRouter({
       component: () => import('@/views/ModelManagement.vue'),
       meta: { requiresAuth: true, requiresAdmin: true }
     },
+    // 系统管理
     {
-      path: '/organization-management',
-      name: 'OrganizationManagement',
-      component: () => import('@/views/OrganizationManagement.vue'),
-      meta: { requiresAuth: true, requiresAdmin: true }
+      path: '/system',
+      name: 'System',
+      redirect: '/system/user',
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        {
+          path: 'user',
+          name: 'UserManagement',
+          component: () => import('@/views/system/UserManagement.vue'),
+          meta: { requiresAuth: true, requiresAdmin: true }
+        },
+        {
+          path: 'role',
+          name: 'RoleManagement',
+          component: () => import('@/views/system/RoleManagement.vue'),
+          meta: { requiresAuth: true, requiresAdmin: true }
+        },
+        {
+          path: 'menu',
+          name: 'MenuManagement',
+          component: () => import('@/views/system/MenuManagement.vue'),
+          meta: { requiresAuth: true, requiresAdmin: true }
+        },
+        {
+          path: 'organization',
+          name: 'OrganizationManagement',
+          component: () => import('@/views/OrganizationManagement.vue'),
+          meta: { requiresAuth: true, requiresAdmin: true }
+        }
+      ]
     }
   ]
 })

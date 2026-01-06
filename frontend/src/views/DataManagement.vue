@@ -519,7 +519,7 @@ console.error = (...args: any[]) => {
 }
 
 // 响应式数据
-const dataType = ref<'township' | 'community' | 'medical'>('township')  // 数据类型：township(乡镇)、community(社区) 或 medical(医疗机构)
+const dataType = ref<'township' | 'community' | 'medical'>('medical')  // 数据类型：township(乡镇)、community(社区) 或 medical(医疗机构)
 const tableData = ref<any[]>([])
 const selectedRows = ref<any[]>([])
 // 代码->名称映射表（一次性从后端加载）

@@ -17,6 +17,17 @@ const request: any = axios.create({
 request.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // 在发送请求之前做些什么
+    const userInfoStr = localStorage.getItem('userInfo')
+    if (userInfoStr) {
+      try {
+        const userInfo = JSON.parse(userInfoStr)
+        if (userInfo && userInfo.username) {
+          config.headers['X-Current-User'] = userInfo.username
+        }
+      } catch (e) {
+        console.error('解析用户信息失败', e)
+      }
+    }
     return config
   },
   (error: AxiosError) => {

@@ -6,8 +6,13 @@ import com.evaluate.mapper.CommunityDisasterReductionCapacityMapper;
 import com.evaluate.service.IRegionDataService;
 import com.evaluate.entity.SurveyData;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
+import com.evaluate.entity.User;
+import com.evaluate.entity.Role;
+import com.evaluate.entity.Organization;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -21,8 +26,62 @@ public class RegionDataServiceImpl implements IRegionDataService {
     @Autowired
     private CommunityDisasterReductionCapacityMapper communityCapacityMapper;
 
+    @Autowired
+    private com.evaluate.mapper.UserMapper userMapper;
+
+    @Autowired
+    private com.evaluate.mapper.RoleMapper roleMapper;
+
+    @Autowired
+    private com.evaluate.mapper.RoleOrganizationMapper roleOrganizationMapper;
+
+    @Autowired
+    private com.evaluate.mapper.OrganizationMapper organizationMapper;
+
+    /**
+     * 获取当前用户有权限的组织机构列表
+     * @return 组织机构列表，如果是管理员返回null
+     */
+    private List<Organization> getCurrentUserAllowedOrgs() {
+        try {
+            if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                return null;
+            }
+            Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String username = null;
+            if (principal instanceof UserDetails) {
+                username = ((UserDetails) principal).getUsername();
+            } else if (principal instanceof String) {
+                username = (String) principal;
+            }
+
+            if (username == null) return new ArrayList<>();
+
+            User user = userMapper.selectUserByUsername(username);
+            if (user == null) return new ArrayList<>();
+
+            List<Role> roles = roleMapper.selectRolesByUserId(user.getId());
+            boolean isAdmin = roles.stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getRoleCode()));
+            if (isAdmin) return null;
+
+            List<Long> roleIds = roles.stream().map(Role::getId).collect(Collectors.toList());
+            if (roleIds.isEmpty()) return new ArrayList<>();
+
+            List<String> codes = roleOrganizationMapper.selectOrgCodesByRoleIds(roleIds);
+            if (codes == null || codes.isEmpty()) return new ArrayList<>();
+
+            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.in("code", codes);
+            return organizationMapper.selectList(queryWrapper);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
+
     @Override
     public List<Map<String, Object>> getProvincesByDataType(String dataType) {
+        List<Map<String, Object>> result;
         if ("community".equals(dataType)) {
             // 从社区数据表获取省份
             QueryWrapper<CommunityDisasterReductionCapacity> wrapper = new QueryWrapper<>();
@@ -30,8 +89,8 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.isNotNull("province_name");
             wrapper.ne("province_name", "");
 
-            List<Map<String, Object>> result = communityCapacityMapper.selectMaps(wrapper);
-            return result.stream()
+            List<Map<String, Object>> rawResult = communityCapacityMapper.selectMaps(wrapper);
+            result = rawResult.stream()
                 .map(map -> {
                     Map<String, Object> province = new LinkedHashMap<>();
                     province.put("name", map.get("name"));
@@ -46,8 +105,8 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.isNotNull("province");
             wrapper.ne("province", "");
 
-            List<Map<String, Object>> result = surveyDataMapper.selectMaps(wrapper);
-            return result.stream()
+            List<Map<String, Object>> rawResult = surveyDataMapper.selectMaps(wrapper);
+            result = rawResult.stream()
                 .map(map -> {
                     Map<String, Object> province = new LinkedHashMap<>();
                     province.put("name", map.get("name"));
@@ -56,10 +115,25 @@ public class RegionDataServiceImpl implements IRegionDataService {
                 })
                 .collect(Collectors.toList());
         }
+
+        // 权限过滤
+        List<Organization> allowedOrgs = getCurrentUserAllowedOrgs();
+        if (allowedOrgs != null) {
+            Set<String> visibleProvinces = allowedOrgs.stream()
+                .map(Organization::getProvinceName)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+            
+            return result.stream()
+                .filter(m -> visibleProvinces.contains(m.get("name")))
+                .collect(Collectors.toList());
+        }
+        return result;
     }
 
     @Override
     public List<Map<String, Object>> getCitiesByProvince(String dataType, String provinceName) {
+        List<Map<String, Object>> result;
         if ("community".equals(dataType)) {
             // 从社区数据表获取城市
             QueryWrapper<CommunityDisasterReductionCapacity> wrapper = new QueryWrapper<>();
@@ -68,8 +142,8 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.isNotNull("city_name");
             wrapper.ne("city_name", "");
 
-            List<Map<String, Object>> result = communityCapacityMapper.selectMaps(wrapper);
-            return result.stream()
+            List<Map<String, Object>> rawResult = communityCapacityMapper.selectMaps(wrapper);
+            result = rawResult.stream()
                 .map(map -> {
                     Map<String, Object> city = new LinkedHashMap<>();
                     city.put("name", map.get("name"));
@@ -85,8 +159,8 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.isNotNull("city");
             wrapper.ne("city", "");
 
-            List<Map<String, Object>> result = surveyDataMapper.selectMaps(wrapper);
-            return result.stream()
+            List<Map<String, Object>> rawResult = surveyDataMapper.selectMaps(wrapper);
+            result = rawResult.stream()
                 .map(map -> {
                     Map<String, Object> city = new LinkedHashMap<>();
                     city.put("name", map.get("name"));
@@ -95,10 +169,34 @@ public class RegionDataServiceImpl implements IRegionDataService {
                 })
                 .collect(Collectors.toList());
         }
+
+        // 权限过滤
+        List<Organization> allowedOrgs = getCurrentUserAllowedOrgs();
+        if (allowedOrgs != null) {
+            Set<String> visibleCities = new HashSet<>();
+            for (Organization org : allowedOrgs) {
+                // 只关心当前省份下的权限
+                if (!Objects.equals(org.getProvinceName(), provinceName)) continue;
+                
+                if (org.getLevel() == 1) { // Province level - can see all cities
+                    return result;
+                } else if (org.getLevel() >= 2) { // City/County/Township
+                    // If my org is City, I see this city.
+                    // If my org is County, I see its parent city.
+                    visibleCities.add(org.getCityName());
+                }
+            }
+            
+            return result.stream()
+                .filter(m -> visibleCities.contains(m.get("name")))
+                .collect(Collectors.toList());
+        }
+        return result;
     }
 
     @Override
     public List<Map<String, Object>> getCountiesByCity(String dataType, String provinceName, String cityName) {
+        List<Map<String, Object>> result;
         if ("community".equals(dataType)) {
             // 从社区数据表获取区县
             QueryWrapper<CommunityDisasterReductionCapacity> wrapper = new QueryWrapper<>();
@@ -108,8 +206,8 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.isNotNull("county_name");
             wrapper.ne("county_name", "");
 
-            List<Map<String, Object>> result = communityCapacityMapper.selectMaps(wrapper);
-            return result.stream()
+            List<Map<String, Object>> rawResult = communityCapacityMapper.selectMaps(wrapper);
+            result = rawResult.stream()
                 .map(map -> {
                     Map<String, Object> county = new LinkedHashMap<>();
                     county.put("name", map.get("name"));
@@ -126,8 +224,8 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.isNotNull("county");
             wrapper.ne("county", "");
 
-            List<Map<String, Object>> result = surveyDataMapper.selectMaps(wrapper);
-            return result.stream()
+            List<Map<String, Object>> rawResult = surveyDataMapper.selectMaps(wrapper);
+            result = rawResult.stream()
                 .map(map -> {
                     Map<String, Object> county = new LinkedHashMap<>();
                     county.put("name", map.get("name"));
@@ -136,6 +234,27 @@ public class RegionDataServiceImpl implements IRegionDataService {
                 })
                 .collect(Collectors.toList());
         }
+
+        // 权限过滤
+        List<Organization> allowedOrgs = getCurrentUserAllowedOrgs();
+        if (allowedOrgs != null) {
+            Set<String> visibleCounties = new HashSet<>();
+            for (Organization org : allowedOrgs) {
+                if (!Objects.equals(org.getProvinceName(), provinceName)) continue;
+                if (!Objects.equals(org.getCityName(), cityName)) continue;
+                
+                if (org.getLevel() <= 2) { // Province or City - can see all counties
+                    return result;
+                } else if (org.getLevel() >= 3) { // County/Township
+                    visibleCounties.add(org.getCountyName());
+                }
+            }
+            
+            return result.stream()
+                .filter(m -> visibleCounties.contains(m.get("name")))
+                .collect(Collectors.toList());
+        }
+        return result;
     }
 
     @Override

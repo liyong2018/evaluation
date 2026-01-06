@@ -17,7 +17,15 @@
           <div class="legend-title">减灾能力</div>
           <div class="legend-items">
             <div v-for="item in legendItems" :key="item.value" class="legend-item">
-              <span class="legend-color" :style="{backgroundColor: item.color}"></span>
+              <span
+                class="legend-color"
+                :style="{
+                  backgroundColor: item.color,
+                  width: (isCommunityVillageLevel ? (item.size || 16) : 16) + 'px',
+                  height: (isCommunityVillageLevel ? (item.size || 16) : 16) + 'px',
+                  borderRadius: isCommunityVillageLevel ? '50%' : '0'
+                }"
+              ></span>
               <span class="legend-label">{{ item.label }}</span>
             </div>
           </div>
@@ -66,6 +74,7 @@
           <div class="scale-bar" ref="scaleBar">
             <div class="scale-line"></div>
             <div class="scale-text">{{ scaleText }}</div>
+            <div class="scale-note">注：本图境界不作实地划界依据</div>
           </div>
         </div>
         
@@ -117,6 +126,9 @@ console.log('ThematicMapGenerator组件导入完成')
 import { ElMessage, ElCard, ElCheckbox } from 'element-plus'
 import { thematicMapApi } from '@/api'
 
+let villagePointsCache: any | null = null
+let villagePointsCachePromise: Promise<any | null> | null = null
+
 // 组件属性
 interface Props {
   reportId?: number
@@ -157,6 +169,9 @@ const scaleBar = ref<HTMLElement>()
 const map = ref<L.Map | null>(null)
 const isFullscreen = ref(false)
 const thematicLayer = ref<L.LayerGroup | null>(null)
+const villagePointLayer = ref<L.LayerGroup | null>(null)
+const baseTileLayer = ref<any | null>(null)
+const labelTileLayer = ref<any | null>(null)
 
 const mapConfigState = ref({
   title: '四川省雅安市青神县乡镇减灾能力评估结果图',
@@ -188,6 +203,320 @@ const normalizeRegionName = (name: string) => {
     .trim()
     .replace(/\s+/g, '')
     .replace(/街道办事处|街道|镇|乡|社区|行政村|村|省|市|县|区/g, '')
+}
+
+const escapeHtml = (value: unknown) => {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+const getCountyCodeFromOrgCode = (orgCode: unknown) => {
+  const raw = String(orgCode ?? '').trim()
+  if (!raw) return ''
+  return raw.length >= 6 ? raw.slice(0, 6) : raw
+}
+
+const normalizeVillageLabel = (value: unknown) => {
+  let name = String(value ?? '').trim()
+  if (!name) return ''
+
+  name = name.replace(/社区居民委员会$/g, '社区').trim()
+  name = name.replace(/社区居委会$/g, '社区').trim()
+
+  name = name.replace(/村民委员会$/g, (m) => {
+    const base = name.slice(0, -m.length).trim()
+    if (!base) return ''
+    return base.endsWith('村') ? base : base + '村'
+  }).trim()
+
+  name = name.replace(/村委会$/g, (m) => {
+    const base = name.slice(0, -m.length).trim()
+    if (!base) return ''
+    return base.endsWith('村') ? base : base + '村'
+  }).trim()
+
+  if (name.includes('社区')) {
+    name = name.replace(/居民委员会$/g, '').trim()
+    name = name.replace(/居委会$/g, '').trim()
+    name = name.replace(/委员会$/g, '').trim()
+  } else {
+    name = name.replace(/委员会$/g, '').trim()
+  }
+
+  const fullRepeat = name.match(/^(.+?)\1$/)
+  if (fullRepeat && fullRepeat[1]) {
+    name = fullRepeat[1]
+  } else if (name.endsWith('村')) {
+    const base = name.slice(0, -1)
+    const baseRepeat = base.match(/^(.+?)\1$/)
+    if (baseRepeat && baseRepeat[1]) {
+      name = baseRepeat[1] + '村'
+    }
+  }
+
+  return name
+}
+
+const extractVillageTail = (value: unknown) => {
+  const raw = String(value ?? '').trim()
+  if (!raw) return ''
+
+  const tokens = ['街道办事处', '街道', '镇', '乡']
+  let bestPos = -1
+  let bestLen = 0
+  for (const t of tokens) {
+    const idx = raw.lastIndexOf(t)
+    if (idx >= 0 && idx + t.length > bestPos + bestLen) {
+      bestPos = idx
+      bestLen = t.length
+    }
+  }
+
+  if (bestPos < 0) return raw
+  return raw.slice(bestPos + bestLen).trim()
+}
+
+const getVillageMatchKeys = (value: unknown) => {
+  const raw = String(value ?? '').trim()
+  if (!raw) return [] as string[]
+
+  const candidates = [
+    raw,
+    extractVillageTail(raw),
+    normalizeVillageLabel(raw),
+    extractVillageTail(normalizeVillageLabel(raw))
+  ]
+
+  const keys = new Set<string>()
+  for (const c of candidates) {
+    const k = normalizeRegionName(c)
+    if (k) keys.add(k)
+  }
+  return Array.from(keys)
+}
+
+const normalizeCapabilityLevelKey = (value: unknown) => {
+  const raw = String(value ?? '').trim()
+  if (!raw) return ''
+
+  const normalized = raw.replace(/\s+/g, '')
+  if (normalized.includes('较强')) return '较强'
+  if (normalized.includes('中等')) return '中等'
+  if (normalized.includes('较弱')) return '较弱'
+  if (normalized.includes('弱')) return '弱'
+  if (normalized.includes('强')) return '强'
+
+  const english = normalized.toLowerCase()
+  if (english === 'strong') return '强'
+  if (english === 'mediumstrong') return '较强'
+  if (english === 'medium') return '中等'
+  if (english === 'weak') return '较弱'
+  if (english === 'veryweak') return '弱'
+
+  return normalized
+}
+
+const setLabelLayerVisible = (visible: boolean) => {
+  if (!map.value || !labelTileLayer.value) return
+
+  const has = map.value.hasLayer(labelTileLayer.value as any)
+  if (visible && !has) labelTileLayer.value.addTo(map.value)
+  if (!visible && has) map.value.removeLayer(labelTileLayer.value as any)
+}
+
+const pickVillageDataItem = (index: Map<string, any[]>, featureKey: string) => {
+  if (!featureKey) return null
+
+  const direct = index.get(featureKey)
+  if (direct && direct.length > 0) return direct[0]
+
+  let best: any | null = null
+  let bestScore = Number.POSITIVE_INFINITY
+  let bestLenDiff = Number.POSITIVE_INFINITY
+
+  for (const [k, items] of index.entries()) {
+    if (!items || items.length === 0) continue
+
+    let score = Number.POSITIVE_INFINITY
+    if (k === featureKey) score = 0
+    else if (k.endsWith(featureKey)) score = 1
+    else if (k.includes(featureKey)) score = 2
+    else if (featureKey.includes(k)) score = 3
+    else continue
+
+    const lenDiff = Math.abs(k.length - featureKey.length)
+    if (score < bestScore || (score === bestScore && lenDiff < bestLenDiff)) {
+      best = items[0]
+      bestScore = score
+      bestLenDiff = lenDiff
+    }
+  }
+
+  return best
+}
+
+const loadVillagePointsGeoJSON = async (): Promise<any | null> => {
+  if (villagePointsCache) return villagePointsCache
+  if (villagePointsCachePromise) return villagePointsCachePromise
+
+  villagePointsCachePromise = (async () => {
+    try {
+      const response = await fetch('/village_points/village_points.geojson?t=' + Date.now())
+      if (!response.ok) return null
+
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('json') && !contentType.includes('geo')) return null
+
+      const geo = await response.json()
+      if (!geo || geo.type !== 'FeatureCollection' || !Array.isArray(geo.features)) return null
+
+      villagePointsCache = geo
+      return geo
+    } catch (e) {
+      console.warn('加载行政村点位数据失败:', e)
+      return null
+    } finally {
+      villagePointsCachePromise = null
+    }
+  })()
+
+  return villagePointsCachePromise
+}
+
+const renderVillagePointOverlay = async (data: any) => {
+  if (!map.value) return
+  if (!thematicLayer.value) return
+
+  if (villagePointLayer.value) {
+    thematicLayer.value.removeLayer(villagePointLayer.value as any)
+    villagePointLayer.value = null
+  }
+
+  const currentLevel = getCurrentLevel()
+  if (currentLevel !== 'community_village' && currentLevel !== 'community_township') {
+    setLabelLayerVisible(true)
+    return
+  }
+
+  const countyCode = getCountyCodeFromOrgCode(props.orgCode)
+  if (!countyCode) {
+    setLabelLayerVisible(true)
+    return
+  }
+
+  const geo = await loadVillagePointsGeoJSON()
+  const allFeatures = Array.isArray(geo?.features) ? geo.features : []
+  if (!allFeatures.length) {
+    setLabelLayerVisible(true)
+    return
+  }
+
+  const targetNames = new Set<string>()
+  const dataList = Array.isArray(data?.data) ? data.data : []
+  if (currentLevel === 'community_village') {
+    dataList.forEach((item: any) => {
+      const name = item?.regionName || item?.name || ''
+      getVillageMatchKeys(name).forEach((k) => targetNames.add(k))
+    })
+  }
+
+  let countyFeatures = allFeatures.filter((f: any) => {
+    const code = String(f?.properties?.code ?? '')
+    return code.startsWith(countyCode)
+  })
+
+  if (currentLevel === 'community_village' && targetNames.size > 0) {
+    const matched = countyFeatures.filter((f: any) => {
+      const name = f?.properties?.dzcun || f?.properties?.name || ''
+      const key = normalizeRegionName(name)
+      return key && targetNames.has(key)
+    })
+    if (matched.length > 0) countyFeatures = matched
+  }
+
+  if (!countyFeatures.length) {
+    setLabelLayerVisible(true)
+    return
+  }
+
+  setLabelLayerVisible(false)
+
+  // 建立数据映射以便快速查找
+  const villageDataIndex = new Map<string, any[]>()
+  if (currentLevel === 'community_village') {
+    dataList.forEach((item: any) => {
+      const name = item?.regionName || item?.name || ''
+      const keys = getVillageMatchKeys(name)
+      keys.forEach((k) => {
+        const list = villageDataIndex.get(k) || []
+        list.push(item)
+        villageDataIndex.set(k, list)
+      })
+    })
+  }
+
+  const group = L.layerGroup()
+
+  countyFeatures.forEach((f: any) => {
+    const coords = f?.geometry?.coordinates
+    if (!Array.isArray(coords) || coords.length < 2) return
+    const lng = Number(coords[0])
+    const lat = Number(coords[1])
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return
+
+    const rawName = f?.properties?.dzcun || f?.properties?.name || ''
+    const key = normalizeRegionName(rawName)
+    const label = escapeHtml(normalizeVillageLabel(rawName))
+    
+    let radius = 2
+    let fillColor = '#666'
+
+    if (currentLevel === 'community_village') {
+      const dataItem = pickVillageDataItem(villageDataIndex, key)
+      const level = normalizeCapabilityLevelKey(dataItem?.capabilityLevel || '')
+      const legendItem = legendItems.value.find(item =>
+        item.value === level || item.label === level
+      ) || legendItems.value[2]
+
+      fillColor = legendItem.color
+      const size = Number(legendItem.size || 6)
+      radius = Math.max(2, size / 2)
+    }
+
+    const circle = L.circleMarker([lat, lng], {
+      radius,
+      color: 'rgba(0,0,0,0.5)',
+      weight: 1,
+      opacity: 1,
+      fillColor,
+      fillOpacity: 1,
+      interactive: false,
+      pane: 'villagePointPane'
+    })
+
+    if ((currentLevel === 'community_village' || currentLevel === 'community_township') && label) {
+      circle.bindTooltip(label, {
+        permanent: true,
+        direction: 'right',
+        offset: L.point(radius + 4, 0),
+        opacity: 1,
+        className:
+          currentLevel === 'community_village'
+            ? 'village-point-tooltip'
+            : 'village-point-tooltip village-point-tooltip--small',
+        pane: 'villagePointPane'
+      })
+    }
+
+    group.addLayer(circle)
+  })
+
+  villagePointLayer.value = group
+  thematicLayer.value.addLayer(group)
 }
 
 // 递归查找区域层级信息的辅助函数
@@ -280,19 +609,19 @@ const applyOrgFilter = (boundaries: any, thematicData: any[]) => {
 }
 
 const legendItems = ref([
-  { value: 'strong', label: '强', color: '#137909' },        // 深绿色
-  { value: 'mediumStrong', label: '较强', color: '#46952f' }, // 浅绿色
-  { value: 'medium', label: '中等', color: '#79b517' },      // 黄绿色
-  { value: 'weak', label: '较弱', color: '#abd17c' },        // 浅黄色
-  { value: 'veryWeak', label: '弱', color: '#e2efa8' }       // 米色
+  { value: 'strong', label: '强', color: '#137909', size: 18 },
+  { value: 'mediumStrong', label: '较强', color: '#46952f', size: 14 },
+  { value: 'medium', label: '中等', color: '#79b517', size: 11 },
+  { value: 'weak', label: '较弱', color: '#abd17c', size: 9 },
+  { value: 'veryWeak', label: '弱', color: '#e2efa8', size: 7 }
 ])
 
 // 根据级别动态生成表格标题
 const tableTitle = computed(() => {
   const titles: Record<string, string> = {
     'township': '乡镇（街道）减灾能力统计表',
-    'community_village': '社区（行政村）减灾能力统计表',
-    'community_township': '社区-乡镇减灾能力统计表',
+    'community_village': '社区（行政村）减灾能力_社区单元统计表',
+    'community_township': '社区（行政村）减灾能力_乡镇单元统计表',
     'comprehensive': '综合减灾能力统计表'
   }
   return titles[getCurrentLevel()] || '减灾能力统计表'
@@ -318,7 +647,9 @@ const overrideLevel = ref<string | null>(null)
 // 获取当前使用的级别
 const getCurrentLevel = () => overrideLevel.value || props.level
 
-const scaleText = ref('0    5    10 km')
+const isCommunityVillageLevel = computed(() => getCurrentLevel() === 'community_village')
+
+const scaleText = ref('比例尺 1:--')
 
 const calculateCapabilityLevel = (score: unknown): string => {
   const n = Number(score)
@@ -423,27 +754,35 @@ const initMap = () => {
   map.value = L.map(mapRef.value, {
     center: [30.65, 104.06], // 默认四川省中心
     zoom: 7,
+    attributionControl: false,
     zoomControl: false, // 隐藏默认缩放控件
     preferCanvas: true // 使用Canvas渲染，提高性能并改善html2canvas截图效果
   })
   
   console.log('地图实例创建成功:', map.value)
+
+  const pane = map.value.createPane('villagePointPane')
+  pane.style.zIndex = '650'
+  pane.style.pointerEvents = 'none'
   
   // 添加天地图底图
-  const baseLayer = (L.tileLayer as any).chinaProvider('TianDiTu.Normal.Map', {
+  baseTileLayer.value = (L.tileLayer as any).chinaProvider('TianDiTu.Normal.Map', {
     key: '0252639b1589bd33a54817f48d982093',
-    attribution: '© 天地图'
+    attribution: ''
   })
-  baseLayer.addTo(map.value)
+  baseTileLayer.value.addTo(map.value)
   
   // 添加天地图标注
-  const labelLayer = (L.tileLayer as any).chinaProvider('TianDiTu.Normal.Annotion', {
-    key: '0252639b1589bd33a54817f48d982093'
+  labelTileLayer.value = (L.tileLayer as any).chinaProvider('TianDiTu.Normal.Annotion', {
+    key: '0252639b1589bd33a54817f48d982093',
+    attribution: ''
   })
-  labelLayer.addTo(map.value)
+  labelTileLayer.value.addTo(map.value)
   
   // 监听地图缩放事件，更新比例尺
   map.value.on('zoomend', updateScale)
+  map.value.on('moveend', updateScale)
+  updateScale()
 }
 
 // 从window.evaluationData读取数据
@@ -1358,6 +1697,8 @@ const renderThematicLayer = async (data: any) => {
       console.error('绘制县界失败:', e)
     }
 
+    await renderVillagePointOverlay(data)
+
     // 统计渲染结果
     const renderedCount = thematicLayer.value?.getLayers()?.length || 0
     const dataCount = data.data?.length || 0
@@ -1483,22 +1824,27 @@ const renderThematicLayer = async (data: any) => {
 // 更新比例尺
 const updateScale = () => {
   if (!map.value) return
-  
-  const zoom = map.value.getZoom()
-  const scale = calculateScale(zoom)
-  scaleText.value = scale
+
+  const denominator = calculateScaleDenominator()
+  if (!denominator) return
+
+  const rounded = Math.max(1, Math.round(denominator / 1000) * 1000)
+  scaleText.value = `比例尺 1:${String(rounded)}`
 }
 
-// 计算比例尺文本
-const calculateScale = (zoom: number): string => {
-  const scales: Record<number, string> = {
-    8: '0    20    40 km',
-    9: '0    10    20 km',
-    10: '0    5    10 km',
-    11: '0    2    4 km',
-    12: '0    1    2 km'
-  }
-  return scales[zoom] || '0    5    10 km'
+const calculateScaleDenominator = (): number | null => {
+  if (!map.value) return null
+
+  const zoom = map.value.getZoom()
+  const lat = map.value.getCenter().lat
+  const metersPerPixel = 156543.03392 * Math.cos((lat * Math.PI) / 180) / Math.pow(2, zoom)
+
+  const dpi = 96
+  const inchesPerMeter = 39.37007874
+  const denominator = metersPerPixel * dpi * inchesPerMeter
+
+  if (!Number.isFinite(denominator) || denominator <= 0) return null
+  return denominator
 }
 
 // 导出并上传专题图图片供OnlyOffice使用
@@ -1693,11 +2039,107 @@ const processThematicData = (thematicData: any[], regionData: any[]) => {
 const loadRealBoundaryData = async () => {
   try {
     console.log('开始加载真实边界数据')
-    const response = await fetch('/shp.geojson?t=' + Date.now())
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    
+        // 1. 获取目标区域名称
+    const evaluationData = (window as any).evaluationData
+    const targetName = (props.orgName || (evaluationData && evaluationData.countyName) || '青神县').trim()
+    const targetKey = normalizeRegionName(targetName)
+    console.log('目标区域:', targetName)
+
+    // 2. 加载区域层级信息，用于判断所属城市以及层级过滤
+    let filterLevel = 'county'; // 默认为县级过滤
+    let hierarchyData = null;
+    let targetRegionNode = null;
+    let cityName = null;
+
+    try {
+        const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now());
+        if (hierarchyResponse.ok) {
+            hierarchyData = await hierarchyResponse.json();
+            
+            // 查找节点以确定 filterLevel
+            targetRegionNode = findRegionInHierarchy(hierarchyData, targetName);
+            if (targetRegionNode) {
+                filterLevel = targetRegionNode.level || 'county';
+                console.log(`目标区域 ${targetName} 的层级为: ${filterLevel}`);
+            }
+
+            // 查找所属城市 (用于按需加载边界文件)
+            const targetKey = normalizeRegionName(targetName);
+            if (hierarchyData.children) {
+                 for (const city of hierarchyData.children) {
+                     const cityKey = normalizeRegionName(city.name);
+                     // 检查是否是该城市本身
+                     if (cityKey === targetKey || cityKey.includes(targetKey) || targetKey.includes(cityKey)) {
+                         cityName = city.name;
+                         break;
+                     }
+                     // 检查该城市的下级区县
+                     if (city.children) {
+                         const found = city.children.find((c: any) => {
+                             const cKey = normalizeRegionName(c.name);
+                             return cKey === targetKey || cKey.includes(targetKey) || targetKey.includes(cKey);
+                         });
+                         if (found) {
+                             cityName = city.name;
+                             break;
+                         }
+                     }
+                 }
+            }
+        }
+    } catch (e) {
+        console.warn('加载区域层级信息失败，将默认按县级过滤', e);
     }
-    const data = await response.json()
+
+    // 3. 决定加载哪个边界文件
+    // 只有当明确找到了所属城市，且不是省级视图时，才加载分片文件
+    // 如果是省级视图，可能需要加载所有城市的简图（这由 hierarchy 优化逻辑处理），
+    // 或者如果 hierarchy 优化没命中，这里回退到 shp.geojson (虽然很慢)
+    let fetchUrl = '/shp.geojson'; 
+    if (cityName) {
+        // 使用 props.year 或默认 2025 (如果 props.year 未定义)
+        const year = props.year || 2025;
+        fetchUrl = `/boundaries/${year}/city/${cityName}.json`;
+        console.log(`定位到城市: ${cityName}, 年份: ${year}, 准备加载分片边界文件: ${fetchUrl}`);
+    } else {
+        console.warn(`未定位到所属城市 (目标: ${targetName}), 将使用全量边界文件`);
+    }
+
+    // 4. 执行加载
+    let data;
+    try {
+        const response = await fetch(fetchUrl + '?t=' + Date.now())
+        if (!response.ok) {
+            // 如果特定年份的文件不存在，尝试降级到默认年份 (2025)
+            if (fetchUrl.includes('/boundaries/') && props.year && props.year != 2025) {
+                 console.warn(`年份 ${props.year} 的边界文件不存在，尝试降级到 2025`);
+                 const fallbackYearUrl = `/boundaries/2025/city/${cityName}.json`;
+                 const fallbackYearResponse = await fetch(fallbackYearUrl + '?t=' + Date.now());
+                 if (fallbackYearResponse.ok) {
+                     data = await fallbackYearResponse.json();
+                 } else {
+                     throw new Error(`HTTP error! status: ${response.status}`);
+                 }
+            } else {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+        } else {
+            data = await response.json()
+        }
+    } catch (err) {
+        console.warn(`加载 ${fetchUrl} 失败，尝试回退到 shp.geojson`, err);
+        if (fetchUrl !== '/shp.geojson') {
+            const fallbackResponse = await fetch('/shp.geojson?t=' + Date.now());
+            if (fallbackResponse.ok) {
+                data = await fallbackResponse.json();
+            } else {
+                throw new Error('无法加载边界数据');
+            }
+        } else {
+            throw err;
+        }
+    }
     
     // 检查数据有效性
     if (!data || !data.features || !Array.isArray(data.features)) {
@@ -1707,35 +2149,11 @@ const loadRealBoundaryData = async () => {
     // 过滤掉无效的features
     data.features = data.features.filter((feature: any) => feature && feature.properties && feature.geometry)
     
-    console.log('真实边界数据加载成功，特征数量:', data.features?.length)
-    // console.log('前3个特征的属性:', data.features?.slice(0, 3).map((f: any) => f.properties))
+    console.log('边界数据加载成功，特征数量:', data.features?.length)
     
-    // 检查是否有评估数据，如果有则根据评估数据中的乡镇名称过滤边界数据
-    const evaluationData = (window as any).evaluationData
-    
-    // 获取目标区域名称
-    const targetName = (props.orgName || (evaluationData && evaluationData.countyName) || '青神县').trim()
-    const targetKey = normalizeRegionName(targetName)
-    console.log('目标区域:', targetName)
+    // 后续逻辑保持不变...
+    // 但需要移除原有的 targetName 获取和 hierarchy 加载逻辑，因为已经移到前面了
 
-    // 加载区域层级信息，用于判断是按县还是按市过滤
-    let filterLevel = 'county'; // 默认为县级过滤
-    let hierarchyData = null;
-    let targetRegionNode = null;
-
-    try {
-        const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now());
-        if (hierarchyResponse.ok) {
-            hierarchyData = await hierarchyResponse.json();
-            targetRegionNode = findRegionInHierarchy(hierarchyData, targetName);
-            if (targetRegionNode) {
-                filterLevel = targetRegionNode.level || 'county';
-                console.log(`目标区域 ${targetName} 的层级为: ${filterLevel}`);
-            }
-        }
-    } catch (e) {
-        console.warn('加载区域层级信息失败，将默认按县级过滤', e);
-    }
 
     // 如果目标是省或市，且在 region_hierarchy.json 中找到了对应节点
     // 则优先使用 hierarchy 中的 children 生成 feature collection
@@ -2176,7 +2594,7 @@ defineExpose({
   // 图例样式 - 移动到左下角
   .map-legend {
     position: absolute;
-    bottom: 65px;
+    bottom: 20px;
     left: 20px;
     background: rgba(255, 255, 255, 0.95);
     padding: 15px;
@@ -2199,7 +2617,7 @@ defineExpose({
       gap: 8px;
     }
     
-    .legend-item {
+      .legend-item {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -2208,7 +2626,7 @@ defineExpose({
       .legend-color {
         width: 16px;
         height: 16px;
-        border-radius: 3px;
+        border-radius: 0;
         border: 1px solid #ccc;
       }
       
@@ -2270,42 +2688,30 @@ defineExpose({
   .map-scale {
     position: absolute;
     bottom: 20px;
-    left: 20px;
+    left: 50%;
+    transform: translateX(-50%);
     
     .scale-bar {
       background: rgba(255, 255, 255, 0.9);
-      padding: 8px 12px;
+      padding: 6px 12px;
       border-radius: 4px;
       border: 1px solid #ccc;
+      text-align: center;
       
       .scale-line {
-        height: 2px;
-        background: #333;
-        margin-bottom: 4px;
-        position: relative;
-        width: 80px;
-        
-        &::before,
-        &::after {
-          content: '';
-          position: absolute;
-          width: 1px;
-          height: 6px;
-          background: #333;
-          top: -2px;
-        }
-        
-        &::before {
-          left: 0;
-        }
-        
-        &::after {
-          right: 0;
-        }
+        display: none;
       }
       
       .scale-text {
-        font-size: 11px;
+        font-size: 14px;
+        color: #333;
+        text-align: center;
+        font-weight: bold;
+      }
+
+      .scale-note {
+        margin-top: 2px;
+        font-size: 12px;
         color: #333;
         text-align: center;
       }
@@ -2399,5 +2805,26 @@ defineExpose({
     font-size: 12px;
     color: #666;
   }
+}
+
+:deep(.leaflet-tooltip.village-point-tooltip) {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  color: #000;
+  font-size: 10px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;
+  white-space: nowrap;
+}
+
+:deep(.leaflet-tooltip.village-point-tooltip::before) {
+  display: none;
+}
+
+:deep(.leaflet-tooltip.village-point-tooltip.village-point-tooltip--small) {
+  font-size: 9px;
+  font-weight: normal;
 }
 </style>

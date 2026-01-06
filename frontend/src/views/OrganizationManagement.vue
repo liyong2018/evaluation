@@ -65,6 +65,10 @@
                   <el-icon><Edit /></el-icon>
                   修改
                 </el-button>
+                <el-button size="small" type="info" @click.stop="showBoundaryDialog(data)" v-if="data.level === 2">
+                  <el-icon><Location /></el-icon>
+                  边界
+                </el-button>
                 <el-button size="small" type="danger" @click.stop="deleteNode(data)" :disabled="data.children && data.children.length > 0">
                   <el-icon><Delete /></el-icon>
                   删除
@@ -105,6 +109,59 @@
         <el-button type="primary" @click="saveOrg" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 边界管理对话框 -->
+    <el-dialog
+      v-model="boundaryDialogVisible"
+      title="边界范围配置"
+      width="700px"
+    >
+      <el-form :model="boundaryForm" label-width="120px">
+        <el-form-item label="组织机构">
+          <el-input v-model="boundaryOrgName" disabled />
+        </el-form-item>
+        <el-form-item label="年份">
+          <el-select v-model="boundaryForm.year" placeholder="请选择年份" @change="loadBoundaryData">
+            <el-option
+              v-for="year in yearOptions"
+              :key="year"
+              :label="year + '年'"
+              :value="year"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="边界坐标">
+          <el-input
+            v-model="boundaryForm.boundaryCoordinates"
+            type="textarea"
+            :rows="10"
+            placeholder="请输入GeoJSON格式的边界坐标数据"
+          />
+        </el-form-item>
+        <el-form-item label="边界文件">
+          <div style="display: flex; width: 100%; gap: 10px;">
+            <el-input v-model="boundaryForm.filePath" placeholder="请输入文件路径或URL" style="flex: 1;" />
+            <el-upload
+              action="/api/organization/boundary/upload"
+              :show-file-list="false"
+              :on-success="handleBoundaryUploadSuccess"
+              :before-upload="beforeBoundaryUpload"
+              :headers="uploadHeaders"
+              accept=".json"
+            >
+              <el-button type="primary">
+                <el-icon><Upload /></el-icon>
+                上传
+              </el-button>
+            </el-upload>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="boundaryDialogVisible = false">关闭</el-button>
+        <el-button type="primary" @click="saveBoundary" :loading="boundarySaving">保存配置</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -122,6 +179,209 @@ const saving = ref(false)
 const organizationTree = ref<any[]>([])
 const orgTreeRef = ref()
 const uploadRef = ref()
+
+// 边界管理状态
+const boundaryDialogVisible = ref(false)
+const boundarySaving = ref(false)
+const boundaryOrgName = ref('')
+const currentBoundaryNode = ref<any>(null)
+const boundaryForm = ref({
+  id: null,
+  organizationId: null,
+  year: new Date().getFullYear(),
+  boundaryCoordinates: '',
+  filePath: ''
+})
+
+// 上传相关
+const uploadHeaders = computed(() => {
+  const userStr = localStorage.getItem('user')
+  const user = userStr ? JSON.parse(userStr) : null
+  return {
+    'X-Current-User': user ? user.username : 'admin'
+  }
+})
+
+const beforeBoundaryUpload: UploadProps['beforeUpload'] = (rawFile) => {
+  if (rawFile.type !== 'application/json' && !rawFile.name.endsWith('.json')) {
+    ElMessage.error('请上传 JSON 格式的文件')
+    return false
+  }
+  return true
+}
+
+const handleBoundaryUploadSuccess: UploadProps['onSuccess'] = (response, uploadFile) => {
+  if (response.success) {
+    boundaryForm.value.filePath = response.data
+    ElMessage.success('文件上传成功')
+    
+    // 读取文件内容并更新边界坐标
+    if (uploadFile.raw) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string
+          const json = JSON.parse(content)
+          boundaryForm.value.boundaryCoordinates = JSON.stringify(json)
+          ElMessage.success('边界坐标数据已根据上传文件自动更新')
+        } catch (err) {
+          console.error('JSON解析失败', err)
+          ElMessage.warning('上传的文件内容不是有效的JSON格式，未能更新边界坐标')
+        }
+      }
+      reader.readAsText(uploadFile.raw)
+    }
+  } else {
+    ElMessage.error(response.message || '上传失败')
+  }
+}
+
+const isJsonResponse = (res: Response) => {
+  const contentType = (res.headers.get('content-type') || '').toLowerCase()
+  return contentType.includes('json')
+}
+
+const resolveCityBoundaryPath = async (cityName: string, year: number) => {
+  const yearPath = `/boundaries/${year}/city/${cityName}.json`
+  try {
+    const res = await fetch(yearPath)
+    if (res.ok && isJsonResponse(res)) return yearPath
+  } catch { }
+
+  const commonPath = `/boundaries/city/${cityName}.json`
+  try {
+    const res = await fetch(commonPath)
+    if (res.ok && isJsonResponse(res)) return commonPath
+  } catch { }
+
+  return ''
+}
+
+// 生成最近10年的年份列表
+const yearOptions = computed(() => {
+  const currentYear = new Date().getFullYear()
+  const years = []
+  for (let i = 0; i < 10; i++) {
+    years.push(currentYear - i)
+  }
+  return years
+})
+
+// 显示边界管理对话框
+const showBoundaryDialog = async (data: any) => {
+  boundaryOrgName.value = data.name
+  currentBoundaryNode.value = data
+  boundaryForm.value = {
+    id: null,
+    organizationId: data.id,
+    year: new Date().getFullYear(),
+    boundaryCoordinates: '',
+    filePath: ''
+  }
+  boundaryDialogVisible.value = true
+  await loadBoundaryData()
+}
+
+// 加载边界数据
+const loadBoundaryData = async () => {
+  if (!boundaryForm.value.organizationId || !boundaryForm.value.year) return
+  
+  try {
+    const response = await request.get(`/api/organization/boundary/${boundaryForm.value.organizationId}/${boundaryForm.value.year}`)
+    if (response.success && response.data) {
+      boundaryForm.value = {
+        ...response.data,
+        year: boundaryForm.value.year // 保持当前选择的年份
+      }
+
+      const node = currentBoundaryNode.value
+      if (!boundaryForm.value.filePath) {
+        if (node && node.level === 2) {
+          const foundPath = await resolveCityBoundaryPath(node.name, boundaryForm.value.year as number)
+          if (foundPath) {
+            boundaryForm.value.filePath = foundPath
+          }
+        } else if (node && node.level === 3) {
+          boundaryForm.value.filePath = '/region_boundaries.json'
+        }
+      }
+    } else {
+      // 如果没有数据，重置表单（除了orgId和year）
+      boundaryForm.value.id = null
+      boundaryForm.value.boundaryCoordinates = ''
+      boundaryForm.value.filePath = ''
+
+      // 尝试加载默认的本地边界数据
+      try {
+        let coordinates = ''
+        let foundPath = ''
+        const node = currentBoundaryNode.value
+        
+        if (node && node.level === 2) { // 市级
+          const path = await resolveCityBoundaryPath(node.name, boundaryForm.value.year as number)
+          if (path) {
+            try {
+              const res = await fetch(path)
+              if (res.ok && isJsonResponse(res)) {
+                const json = await res.json()
+                coordinates = JSON.stringify(json)
+                foundPath = path
+              }
+            } catch { }
+          }
+        } else if (node && node.level === 3) { // 县级
+          if (!(window as any).regionBoundariesCache) {
+            const res = await fetch('/region_boundaries.json')
+            if (res.ok) {
+              (window as any).regionBoundariesCache = await res.json()
+            }
+          }
+          if ((window as any).regionBoundariesCache) {
+            const feature = (window as any).regionBoundariesCache.features.find((f: any) => f.properties.name === node.name)
+            if (feature) {
+              coordinates = JSON.stringify(feature.geometry)
+              foundPath = '/region_boundaries.json' // 县级统一文件
+            }
+          }
+        }
+        
+        if (coordinates) {
+          boundaryForm.value.boundaryCoordinates = coordinates
+          if (foundPath) {
+            boundaryForm.value.filePath = foundPath
+          }
+          ElMessage.info('已自动加载本地默认边界数据')
+        }
+      } catch (e) {
+      }
+    }
+  } catch (error) {
+    // 不提示错误，因为可能就是没有数据
+    boundaryForm.value.id = null
+    boundaryForm.value.boundaryCoordinates = ''
+    boundaryForm.value.filePath = ''
+  }
+}
+
+// 保存边界配置
+const saveBoundary = async () => {
+  boundarySaving.value = true
+  try {
+    const response = await request.post('/api/organization/boundary/save', boundaryForm.value)
+    if (response.success) {
+      ElMessage.success('保存成功')
+      // 刷新数据以获取可能的ID更新
+      await loadBoundaryData()
+    } else {
+      ElMessage.error(response.message || '保存失败')
+    }
+  } catch (error) {
+    ElMessage.error('保存失败')
+    console.error(error)
+  } finally {
+    boundarySaving.value = false
+  }
+}
 
 // 对话框控制
 const dialogVisible = ref(false)
