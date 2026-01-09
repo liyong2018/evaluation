@@ -182,6 +182,16 @@ public class ThematicMapController {
     }
 
     /**
+     * 获取天地图配置
+     */
+    @GetMapping("/tianditu-config")
+    public Result<Map<String, String>> getTiandituConfig() {
+        Map<String, String> config = new HashMap<>();
+        config.put("key", "4c407164ccb46765d77421869875152a");
+        return Result.success(config);
+    }
+
+    /**
      * 保存专题图图片
      */
     @PostMapping("/save-image")

@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 
 export interface UserInfo {
+  id?: number
   username: string
   isAdmin: boolean
 }

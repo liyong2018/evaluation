@@ -90,16 +90,16 @@
                 border
               >
                 <el-table-column prop="id" label="ID" width="80" />
-                <el-table-column prop="configName" label="配置名称" width="200" />
-                <el-table-column label="状态" width="70">
+                <el-table-column prop="configName" label="配置名称" width="450" />
+                <el-table-column label="状态" width="150">
                   <template #default>
                     <el-tag type="success">
                       激活
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="createTime" label="创建时间" width="180" />
-                <el-table-column label="操作" width="400" fixed="right">
+                <el-table-column prop="createTime" label="创建时间" width="300" />
+                <el-table-column label="操作" width="570" fixed="right">
                   <template #default="{ row }">
                     <el-button type="primary" size="small" @click="editConfig(row)">
                       <el-icon><Edit /></el-icon>

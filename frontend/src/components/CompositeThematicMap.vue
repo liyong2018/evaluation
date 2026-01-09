@@ -199,8 +199,8 @@ defineExpose({
 .composite-map-container {
   display: flex;
   flex-direction: column;
-  width: 1920px;
-  height: 1080px;
+  width: 100%;
+  height: 100%;
   background: white;
   border: 1px solid #ddd;
   box-sizing: border-box;

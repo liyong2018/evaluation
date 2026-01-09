@@ -60,31 +60,34 @@
           </template>
           
           <div class="map-container" v-loading="loading">
-            <CompositeThematicMap
-              v-if="selectedLevel === 'comprehensive_composite'"
-              :year="selectedYear || undefined"
-              :orgCode="selectedOrgCode || undefined"
-              ref="compositeMapRef"
-            />
-            <ThematicMapGenerator
-              v-else-if="showMap"
-              :reportId="mapSettings.reportId"
-              :mapConfig="computedMapConfig"
-              :year="selectedYear || undefined"
-              :orgCode="selectedOrgCode || undefined"
-              :orgName="selectedOrgName || undefined"
-              :level="selectedLevel"
-              ref="mapGeneratorRef"
-            />
-            <div v-else class="empty-map">
-              <el-empty description="请配置参数并生成专题图" />
+            <div class="map-stage">
+              <CompositeThematicMap
+                v-if="selectedLevel === 'comprehensive_composite'"
+                :year="selectedYear || undefined"
+                :orgCode="selectedOrgCode || undefined"
+                ref="compositeMapRef"
+              />
+              <ThematicMapGenerator
+                v-else-if="showMap"
+                :reportId="mapSettings.reportId"
+                :mapConfig="computedMapConfig"
+                :year="selectedYear || undefined"
+                :orgCode="selectedOrgCode || undefined"
+                :orgName="selectedOrgName || undefined"
+                :parentName="selectedOrgParentName || undefined"
+                :level="selectedLevel"
+                ref="mapGeneratorRef"
+              />
+              <div v-else class="empty-map">
+                <el-empty description="请配置参数并生成专题图" />
+              </div>
             </div>
           </div>
         </el-card>
       </div>
 
       <!-- 用于生成报告的隐藏地图实例 -->
-      <div class="hidden-map-container" style="position: absolute; left: -10000px; top: 0; width: 1920px; height: 1080px; z-index: -1000; pointer-events: none;">
+      <div class="hidden-map-container" style="position: absolute; left: -10000px; top: 0; width: 1856px; height: 1199px; z-index: -1000; pointer-events: none; overflow: hidden;">
         <ThematicMapGenerator
           ref="generationMapRef"
           :reportId="mapSettings.reportId"
@@ -94,44 +97,14 @@
           :orgName="selectedOrgName || undefined"
           level="township"
         />
-        <CompositeThematicMap
-          ref="generationCompositeMapRef"
-          :year="selectedYear || undefined"
-          :orgCode="selectedOrgCode || undefined"
-        />
-      </div>
-    </div>
-    
-    <!-- 历史记录面板 -->
-    <div class="history-panel">
-      <el-card>
-        <template #header>
-          <div class="card-header">
-            <span>结果图历史</span>
-            <el-button size="small" @click="loadHistory">刷新</el-button>
-          </div>
-        </template>
-        
-        <div class="history-list">
-          <div 
-            v-for="item in historyList" 
-            :key="item.id" 
-            class="history-item"
-            @click="loadHistoryMap(item)"
-          >
-            <div class="history-info">
-              <div class="history-title">{{ item.title }}</div>
-              <div class="history-time">{{ formatTime(item.createTime) }}</div>
-            </div>
-            <div class="history-actions">
-              <el-button size="small" type="text" @click.stop="downloadHistory(item)">下载</el-button>
-              <el-button size="small" type="text" danger @click.stop="deleteHistory(item)">删除</el-button>
-            </div>
-          </div>
-          
-          <el-empty v-if="historyList.length === 0" description="暂无历史记录" />
+        <div style="width: 1856px; height: 1044px;">
+          <CompositeThematicMap
+            ref="generationCompositeMapRef"
+            :year="selectedYear || undefined"
+            :orgCode="selectedOrgCode || undefined"
+          />
         </div>
-      </el-card>
+      </div>
     </div>
 
     <!-- OnlyOffice编辑器组件 -->
@@ -156,11 +129,11 @@
 <script setup lang="ts">
 console.log('ThematicMap页面开始加载')
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import CompositeThematicMap from '@/components/CompositeThematicMap.vue'
 import ThematicMapGenerator from '@/components/ThematicMapGenerator.vue'
 import OnlyOfficeEditor from '@/components/OnlyOfficeEditor.vue'
-import { thematicMapApi, wordTemplateApi, organizationApi } from '@/api'
+import { wordTemplateApi, organizationApi } from '@/api'
 console.log('ThematicMap页面导入完成')
 
 // 响应式数据
@@ -187,10 +160,8 @@ const mapSettings = reactive({
   reportId: 1,
   title: '四川省雅安市青神县乡镇减灾能力评估结果图',
   subtitle: `数据来源：减灾能力评估工具 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`,
-  displayElements: ['title', 'legend', 'scale', 'compass', 'border']
+  displayElements: ['title', 'legend', 'table', 'scale', 'compass', 'border']
 })
-
-const historyList = ref<any[]>([])
 
 // 计算属性
 const computedMapConfig = computed(() => ({
@@ -198,6 +169,7 @@ const computedMapConfig = computed(() => ({
   subtitle: mapSettings.subtitle,
   showTitle: mapSettings.displayElements.includes('title'),
   showLegend: mapSettings.displayElements.includes('legend'),
+  showDataTable: mapSettings.displayElements.includes('table'),
   showScale: mapSettings.displayElements.includes('scale'),
   showCompass: mapSettings.displayElements.includes('compass'),
   showBorder: mapSettings.displayElements.includes('border')
@@ -215,10 +187,27 @@ const findOrgNodeByCode = (tree: any[], code: string): any | null => {
   return null
 }
 
+const findOrgNodeAndParent = (tree: any[], code: string, parent: any = null): { node: any, parent: any } | null => {
+  for (const node of tree || []) {
+    if (String(node?.code) === String(code)) return { node, parent }
+    if (node?.children?.length) {
+      const result = findOrgNodeAndParent(node.children, code, node)
+      if (result) return result
+    }
+  }
+  return null
+}
+
 const selectedOrgName = computed(() => {
   if (!selectedOrgCode.value) return ''
   const node = findOrgNodeByCode(organizationList.value, selectedOrgCode.value)
   return node?.name || ''
+})
+
+const selectedOrgParentName = computed(() => {
+  if (!selectedOrgCode.value) return ''
+  const result = findOrgNodeAndParent(organizationList.value, selectedOrgCode.value)
+  return result?.parent?.name || ''
 })
 
 const generateYearOptions = () => {
@@ -290,7 +279,7 @@ const resetSettings = () => {
   mapSettings.reportId = 1
   mapSettings.title = '四川省雅安市青神县乡镇减灾能力评估结果图'
   mapSettings.subtitle = `数据来源：减灾能力评估工具 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
-  mapSettings.displayElements = ['title', 'legend', 'scale', 'compass', 'border']
+  mapSettings.displayElements = ['title', 'legend', 'table', 'scale', 'compass', 'border']
   showMap.value = false
 }
 
@@ -313,90 +302,6 @@ const fullscreen = () => {
     }
   }
 }
-
-// 加载历史记录
-const loadHistory = async () => {
-  try {
-    console.log('开始加载历史记录...')
-    // 暂时跳过API调用，直接使用模拟数据，避免404错误
-    // const response = await thematicMapApi.getMapHistory()
-    // historyList.value = response.data || []
-    
-    // 使用模拟数据，避免影响用户体验
-    historyList.value = [
-      {
-        id: 1,
-        title: '青神县减灾能力评估结果图',
-        createTime: new Date().toISOString(),
-        format: 'png',
-        reportId: 1
-      },
-      {
-        id: 2,
-        title: '雅安市减灾能力分析图',
-        createTime: new Date(Date.now() - 86400000).toISOString(),
-        format: 'pdf',
-        reportId: 2
-      },
-      {
-        id: 3,
-        title: '眉山市综合评估结果图',
-        createTime: new Date(Date.now() - 172800000).toISOString(),
-        format: 'png',
-        reportId: 3
-      }
-    ]
-    console.log('使用模拟历史记录数据:', historyList.value)
-  } catch (error) {
-    console.error('加载历史记录失败:', error)
-    // 使用空数组作为后备
-    historyList.value = []
-  }
-}
-
-// 加载历史专题图
-const loadHistoryMap = (item: any) => {
-  mapSettings.reportId = item.reportId
-  mapSettings.title = item.title
-  generateMap()
-}
-
-// 下载历史记录
-const downloadHistory = (item: any) => {
-  ElMessage.info(`下载 ${item.title}`)
-  // 这里实现下载逻辑
-}
-
-// 删除历史记录
-const deleteHistory = async (item: any) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除专题图 "${item.title}" 吗？`,
-      '确认删除',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    await thematicMapApi.deleteMapRecord(item.id)
-    ElMessage.success('删除成功')
-    loadHistory()
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除失败:', error)
-      ElMessage.error('删除失败')
-    }
-  }
-}
-
-// 格式化时间
-const formatTime = (timeStr: string) => {
-  const date = new Date(timeStr)
-  return date.toLocaleString('zh-CN')
-}
-
 
 // 打开Word预览编辑器
 const openOnlyOfficeEditor = async () => {
@@ -524,7 +429,6 @@ const openOnlyOfficeEditor = async () => {
 onMounted(async () => {
   generateYearOptions()
   await getOrganizationList()
-  await loadHistory()
 
   // 初始化标题
   handleFilterChange()
@@ -608,17 +512,16 @@ const loadDataFromSession = () => {
 
 <style scoped lang="scss">
 .thematic-map-page {
-  padding: 20px 0;
+  padding: 10px 0;
   width: 100%;
-  max-width: 1920px;
+  max-width: 100%;
   margin: 0 auto;
   background: #f5f5f5;
-  min-height: 100vh;
+
   box-sizing: border-box;
-  overflow-x: auto;
   
   .page-header {
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     padding: 0 20px;
     
     h1 {
@@ -636,18 +539,40 @@ const loadDataFromSession = () => {
   
   .page-content {
     margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
     
     .map-display-area {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+
       .map-card {
-        // height: 600px;
+        width: 100%;
+        max-width: 1920px;
+        margin: 0 auto;
         
         .map-container {
-          width: 1920px;
-          height: 1240px;
+          width: 1440px;
+          max-height: none; 
+          
+          aspect-ratio: 1856 / 1199;
+          
+          max-width: 100%;
+          
           position: relative;
           overflow: hidden;
           margin: 0 auto;
           
+          .map-stage {
+            width: 100%;
+            height: 100%;
+            flex: 0 0 auto;
+            position: relative;
+            background: #fff;
+            overflow: hidden;
+          }
+
           .empty-map {
             height: 100%;
             display: flex;
@@ -658,51 +583,7 @@ const loadDataFromSession = () => {
       }
     }
   }
-  
-  .history-panel {
-    .history-list {
-      max-height: 300px;
-      overflow-y: auto;
-      
-      .history-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px;
-        border: 1px solid #eee;
-        border-radius: 6px;
-        margin-bottom: 8px;
-        cursor: pointer;
-        transition: all 0.3s;
-        
-        &:hover {
-          background: #f9f9f9;
-          border-color: #409eff;
-        }
-        
-        .history-info {
-          flex: 1;
-          
-          .history-title {
-            font-weight: 500;
-            color: #333;
-            margin-bottom: 4px;
-          }
-          
-          .history-time {
-            font-size: 12px;
-            color: #999;
-          }
-        }
-        
-        .history-actions {
-          display: flex;
-          gap: 8px;
-        }
-      }
-    }
-  }
-  
+
   .card-header {
     display: flex;
     justify-content: space-between;

@@ -15,6 +15,27 @@ const props = defineProps<{
 const editorContainer = ref<HTMLElement | null>(null)
 let docEditor: any = null
 
+const isLocalhostLike = (hostname: string) => {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+}
+
+const getOnlyOfficeApiUrl = (): string => {
+  const envUrl = import.meta.env.VITE_ONLYOFFICE_API_URL
+  if (envUrl) {
+    try {
+      const u = new URL(envUrl, window.location.origin)
+      if (isLocalhostLike(u.hostname)) {
+        u.hostname = window.location.hostname
+      }
+      return u.toString()
+    } catch {
+      return envUrl
+    }
+  }
+  const { protocol, hostname } = window.location
+  return `${protocol}//${hostname}:8080/web-apps/apps/api/documents/api.js`
+}
+
 const loadScript = (src: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     if ((window as any).DocsAPI) {
@@ -34,8 +55,7 @@ const initEditor = async () => {
   if (!props.documentUrl) return
 
   try {
-    const apiUrl = import.meta.env.VITE_ONLYOFFICE_API_URL || 'http://localhost:8080/web-apps/apps/api/documents/api.js'
-    await loadScript(apiUrl)
+    await loadScript(getOnlyOfficeApiUrl())
 
     if (docEditor) {
       docEditor.destroyEditor()

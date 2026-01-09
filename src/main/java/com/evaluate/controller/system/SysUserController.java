@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import com.evaluate.mapper.UserOrganizationMapper;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
@@ -25,6 +27,15 @@ public class SysUserController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private UserOrganizationMapper userOrganizationMapper;
+
+    @Autowired
+    private com.evaluate.mapper.UserRoleMapper userRoleMapper;
+
+    @Autowired
+    private com.evaluate.mapper.RoleMapper roleMapper;
+
     /**
      * 分页查询用户
      */
@@ -38,7 +49,10 @@ public class SysUserController {
             wrapper.like(User::getUsername, username);
         }
         Page<User> result = userMapper.selectPage(pageParam, wrapper);
-        result.getRecords().forEach(u -> u.setPassword(null));
+        result.getRecords().forEach(u -> {
+            u.setPassword(null);
+            u.setRoles(roleMapper.selectRolesByUserId(u.getId()));
+        });
         return Result.success(result);
     }
 
@@ -74,6 +88,40 @@ public class SysUserController {
     @DeleteMapping("/{id}")
     public Result<Boolean> delete(@PathVariable Long id) {
         userMapper.deleteById(id);
+        return Result.success(true);
+    }
+
+    @GetMapping("/{userId}/organizations")
+    public Result<List<Long>> getUserOrganizations(@PathVariable Long userId) {
+        return Result.success(userOrganizationMapper.selectOrgIdsByUserId(userId));
+    }
+
+    @PostMapping("/{userId}/organizations")
+    @Transactional(rollbackFor = Exception.class)
+    public Result<Boolean> assignOrganizations(@PathVariable Long userId, @RequestBody List<Long> orgIds) {
+        userOrganizationMapper.deleteByUserId(userId);
+        if (orgIds != null && !orgIds.isEmpty()) {
+            for (Long orgId : orgIds) {
+                userOrganizationMapper.insertUserOrg(userId, orgId);
+            }
+        }
+        return Result.success(true);
+    }
+
+    @GetMapping("/{userId}/roles")
+    public Result<List<Long>> getUserRoles(@PathVariable Long userId) {
+        return Result.success(userRoleMapper.selectRoleIdsByUserId(userId));
+    }
+
+    @PostMapping("/{userId}/roles")
+    @Transactional(rollbackFor = Exception.class)
+    public Result<Boolean> assignRoles(@PathVariable Long userId, @RequestBody List<Long> roleIds) {
+        userRoleMapper.deleteByUserId(userId);
+        if (roleIds != null && !roleIds.isEmpty()) {
+            for (Long roleId : roleIds) {
+                userRoleMapper.insert(userId, roleId);
+            }
+        }
         return Result.success(true);
     }
 }

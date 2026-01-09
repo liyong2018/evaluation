@@ -88,7 +88,7 @@ const handleUserCommand = (command: string) => {
 
 <style scoped>
 .app-container {
-  height: 100vh;
+  min-height: 100vh;
 }
 
 .app-header {

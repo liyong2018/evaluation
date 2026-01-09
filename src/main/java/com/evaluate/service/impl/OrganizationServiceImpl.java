@@ -9,6 +9,7 @@ import com.evaluate.entity.Organization;
 import com.evaluate.entity.SurveyData;
 import com.evaluate.mapper.RoleMapper;
 import com.evaluate.mapper.RoleOrganizationMapper;
+import com.evaluate.mapper.UserOrganizationMapper;
 import com.evaluate.mapper.UserMapper;
 import com.evaluate.entity.Role;
 import com.evaluate.entity.User;
@@ -37,6 +38,9 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
     @Autowired
     private RoleOrganizationMapper roleOrganizationMapper;
+
+    @Autowired
+    private UserOrganizationMapper userOrganizationMapper;
 
     @Autowired
     private UserMapper userMapper;
@@ -83,11 +87,23 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             boolean isAdmin = roles.stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getRoleCode()));
             if (isAdmin) return null; // Admin has all access
 
-            List<Long> roleIds = roles.stream().map(Role::getId).collect(Collectors.toList());
-            if (roleIds.isEmpty()) return new ArrayList<>(); // No roles, no access
+            List<String> codes = new ArrayList<>();
 
-            List<String> codes = roleOrganizationMapper.selectOrgCodesByRoleIds(roleIds);
-            return codes != null ? codes : new ArrayList<>();
+            List<Long> roleIds = roles.stream().map(Role::getId).collect(Collectors.toList());
+            if (!roleIds.isEmpty()) {
+                List<String> roleCodes = roleOrganizationMapper.selectOrgCodesByRoleIds(roleIds);
+                if (roleCodes != null) {
+                    codes.addAll(roleCodes);
+                }
+            }
+            
+            // 获取用户直接关联的组织机构权限
+            List<String> userCodes = userOrganizationMapper.selectOrgCodesByUserId(user.getId());
+            if (userCodes != null) {
+                codes.addAll(userCodes);
+            }
+            
+            return codes;
         } catch (Exception e) {
             log.error("获取用户权限失败", e);
             return new ArrayList<>(); // Fail safe: no access

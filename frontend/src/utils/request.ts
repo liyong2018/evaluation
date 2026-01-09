@@ -2,11 +2,11 @@ import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestCo
 import { ElMessage } from 'element-plus'
 
 // 创建axios实例
-const baseURL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'http://localhost:8081'
+const baseURL = (import.meta as any)?.env?.VITE_API_BASE_URL || ''
 const DEFAULT_TIMEOUT = Number((import.meta as any)?.env?.VITE_API_TIMEOUT) || 60000
 
 const request: any = axios.create({
-  baseURL, // 后端服务地址（可通过环境变量覆盖）
+  baseURL,
   timeout: DEFAULT_TIMEOUT, // 请求超时时间（默认60秒，可配置）
   headers: {
     'Content-Type': 'application/json'

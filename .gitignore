@@ -26,6 +26,7 @@ frontend/.vscode/*
 *.njsproj
 *.sln
 *.sw?
+*.bak
 
 *.tsbuildinfo
 .trae
@@ -39,3 +40,4 @@ logs/
 .vercel/
 .vscode/
 uploads/
+.env

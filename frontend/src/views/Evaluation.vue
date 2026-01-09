@@ -397,19 +397,15 @@
         stripe
         border
       >
-        <el-table-column prop="executionCode" label="执行编号" width="200" />
-        <el-table-column label="状态" width="120">
+        <el-table-column prop="executionCode" label="执行编号" width="350" />
+        <el-table-column label="状态" width="200">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.executionStatus)">
               {{ getStatusText(row.executionStatus) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createBy" label="操作人" width="120">
-          <template #default="{ row }">
-            {{ row.createBy || '-' }}
-          </template>
-        </el-table-column>
+        
         <el-table-column prop="startTime" label="开始时间" width="280">
           <template #default="{ row }">
             {{ formatDate(row.startTime) }}
@@ -418,6 +414,11 @@
         <el-table-column prop="endTime" label="结束时间" width="280">
           <template #default="{ row }">
             {{ formatDate(row.endTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="createBy" label="执行人" width="300">
+          <template #default="{ row }">
+            {{ row.createBy || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="操作" fixed="right">

@@ -64,6 +64,7 @@ public class UserController {
 
             // 构造返回数据（不包含密码）
             Map<String, Object> result = new HashMap<>();
+            result.put("id", user.getId());
             result.put("username", user.getUsername());
             result.put("isAdmin", user.getIsAdmin() != null ? user.getIsAdmin() : false);
 

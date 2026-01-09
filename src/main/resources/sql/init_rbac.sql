@@ -54,9 +54,8 @@ CREATE TABLE IF NOT EXISTS sys_role_menu (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色菜单关联表';
 
 -- 初始化数据
--- 默认管理员 admin / 123456 (BCrypt加密后)
 INSERT INTO sys_user (username, password, nickname, status) 
-SELECT 'admin', '$2a$10$7JB720yubVSZv5w54jPOS.r./.ABu.q0qjV2W.0.0.0.0', '管理员', 1 
+SELECT 'admin', '$2a$10$u.bP1mZcpRpU2zb/C7MbwO6TaeIXHPJUW8xJ1mOL4qWke1Hhu27ca', '管理员', 1 
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM sys_user WHERE username = 'admin');
 
 -- 初始化角色
@@ -67,6 +66,60 @@ FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM sys_role WHERE role_code = 'ROLE_ADMIN
 INSERT INTO sys_role (role_name, role_code, description)
 SELECT '普通用户', 'ROLE_USER', '普通用户'
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM sys_role WHERE role_code = 'ROLE_USER');
+
+CREATE TABLE IF NOT EXISTS organization (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    parent_id BIGINT NULL COMMENT '父级机构ID',
+    code VARCHAR(32) NOT NULL COMMENT '机构编码（行政区划代码）',
+    name VARCHAR(128) NOT NULL COMMENT '机构名称',
+    level TINYINT NOT NULL COMMENT '级别：1省、2市、3县、4乡镇、5社区',
+    data_source VARCHAR(32) NOT NULL COMMENT '来源：COMMUNITY/TOWNSHIP 等',
+    province_name VARCHAR(128) NULL COMMENT '省名称',
+    city_name VARCHAR(128) NULL COMMENT '市名称',
+    county_name VARCHAR(128) NULL COMMENT '县名称',
+    township_name VARCHAR(128) NULL COMMENT '乡镇名称',
+    community_name VARCHAR(128) NULL COMMENT '社区名称',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否删除 0-否 1-是',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_organization_code (code),
+    KEY idx_organization_parent (parent_id),
+    KEY idx_organization_level (level)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='组织机构表';
+
+INSERT INTO organization (parent_id, code, name, level, data_source, province_name, city_name, county_name, township_name, community_name, is_deleted)
+SELECT NULL, '51', '四川省', 1, 'TOWNSHIP', '四川省', NULL, NULL, NULL, NULL, 0
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM organization WHERE code = '51');
+
+INSERT INTO organization (parent_id, code, name, level, data_source, province_name, city_name, county_name, township_name, community_name, is_deleted)
+SELECT p.id, '5114', '眉山市', 2, 'TOWNSHIP', '四川省', '眉山市', NULL, NULL, NULL, 0
+FROM organization p
+WHERE p.code = '51'
+AND NOT EXISTS (SELECT 1 FROM organization WHERE code = '5114');
+
+INSERT INTO organization (parent_id, code, name, level, data_source, province_name, city_name, county_name, township_name, community_name, is_deleted)
+SELECT c.id, '511425', '青神县', 3, 'TOWNSHIP', '四川省', '眉山市', '青神县', NULL, NULL, 0
+FROM organization c
+WHERE c.code = '5114'
+AND NOT EXISTS (SELECT 1 FROM organization WHERE code = '511425');
+
+CREATE TABLE IF NOT EXISTS sys_role_organization (
+    role_id BIGINT NOT NULL COMMENT '角色ID',
+    organization_id BIGINT NOT NULL COMMENT '机构ID',
+    PRIMARY KEY (role_id, organization_id),
+    KEY idx_role_id (role_id),
+    KEY idx_organization_id (organization_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色-机构关联表';
+
+INSERT INTO sys_role_organization (role_id, organization_id)
+SELECT r.id, o.id
+FROM sys_role r, organization o
+WHERE r.role_code = 'ROLE_ADMIN'
+  AND o.code = '51'
+  AND NOT EXISTS (
+    SELECT 1 FROM sys_role_organization sro WHERE sro.role_id = r.id AND sro.organization_id = o.id
+  );
 
 -- 关联管理员用户和角色
 INSERT INTO sys_user_role (user_id, role_id)

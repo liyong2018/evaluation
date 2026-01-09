@@ -83,6 +83,42 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode, String createBy) {
+        // 执行评估模型（核心逻辑）
+        Map<String, Object> result = executeModelInternal(modelId, regionCodes, weightConfigId, year, orgCode, createBy);
+
+        // 保存执行记录和评估结果
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> tableData = (List<Map<String, Object>>) result.get("tableData");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> stepResults = (Map<String, Object>) result.get("stepResults");
+        List<String> currentRegionCodes = (List<String>) result.get("currentRegionCodes");
+
+        Long executionRecordId = saveExecutionRecordAndResults(
+                modelId,
+                (String) result.get("modelName"),
+                currentRegionCodes,
+                weightConfigId,
+                stepResults,
+                tableData,
+                year, orgCode, createBy);
+
+        result.put("executionRecordId", executionRecordId);
+        return result;
+    }
+
+    /**
+     * 执行评估模型的核心逻辑（不保存执行记录）
+     * 用于异步执行，避免重复创建执行记录
+     *
+     * @param modelId 模型ID
+     * @param regionCodes 地区代码列表
+     * @param weightConfigId 权重配置ID
+     * @param year 评估年份
+     * @param orgCode 机构代码
+     * @param createBy 操作人
+     * @return 执行结果（包含每个步骤的输出）
+     */
+    private Map<String, Object> executeModelInternal(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode, String createBy) {
         // 1. 验证模型是否存在且启用
         EvaluationModel model = evaluationModelMapper.selectById(modelId);
         if (model == null || model.getStatus() == 0) {
@@ -111,21 +147,45 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
 
         // 如果指定了年份，则严格校验该年份是否存在数据，避免错误回退到其它年份
+        // 根据评估模型类型检查所需的数据：
+        // - Model 3: 乡镇减灾能力评估模型 - 需要乡镇数据
+        // - Model 4: 社区-行政村减灾能力评估模型 - 需要社区数据
+        // - Model 8: 社区-乡镇减灾能力评估模型 - 需要社区数据
+        // - Model 11: 综合减灾能力评估模型 - 需要乡镇减灾能力评估结果(Model 3)和社区-乡镇减灾能力评估结果(Model 8)
         if (year != null) {
             for (String regionCode : regionCodes) {
-                if (modelId != null && (modelId == 4 || modelId == 8)) {
+                if (modelId == 4 || modelId == 8) {
+                    // 社区-行政村/乡镇减灾能力评估模型：检查社区数据
                     QueryWrapper<CommunityDisasterReductionCapacity> q = new QueryWrapper<>();
                     q.eq("region_code", regionCode).eq("year", year);
                     CommunityDisasterReductionCapacity exists = communityDataMapper.selectOne(q);
                     if (exists == null) {
-                        throw new RuntimeException("地区 " + regionCode + " 在年份 " + year + " 无社区级数据");
+                        throw new RuntimeException("所选年份无社区数据，无法进行社区-行政村/乡镇减灾能力评估");
+                    }
+                } else if (modelId == 11) {
+                    // 综合减灾能力评估模型：需要检查评估历史表中是否存在Model 3和Model 8的评估结果
+                    // 检查是否存在乡镇减灾能力评估结果（Model 3）
+                    List<EvaluationResult> townshipEvalResults = evaluationResultMapper.selectByModelIdAndYearAndOrgCode(3L, year, orgCode != null ? orgCode : "511425");
+                    boolean hasTownshipResult = townshipEvalResults != null && townshipEvalResults.stream()
+                            .anyMatch(r -> regionCode.equals(r.getRegionCode()));
+                    if (!hasTownshipResult) {
+                        throw new RuntimeException("所选年份无乡镇减灾能力评估结果（请先执行乡镇减灾能力评估模型），综合减灾能力评估需要乡镇减灾能力评估结果和社区-乡镇减灾能力评估结果");
+                    }
+
+                    // 检查是否存在社区-乡镇减灾能力评估结果（Model 8）
+                    List<EvaluationResult> communityEvalResults = evaluationResultMapper.selectByModelIdAndYearAndOrgCode(8L, year, orgCode != null ? orgCode : "511425");
+                    boolean hasCommunityResult = communityEvalResults != null && communityEvalResults.stream()
+                            .anyMatch(r -> regionCode.equals(r.getRegionCode()));
+                    if (!hasCommunityResult) {
+                        throw new RuntimeException("所选年份无社区-乡镇减灾能力评估结果（请先执行社区-乡镇减灾能力评估模型），综合减灾能力评估需要乡镇减灾能力评估结果和社区-乡镇减灾能力评估结果");
                     }
                 } else {
+                    // 默认（Model 3 乡镇减灾能力评估模型等）：检查乡镇数据
                     QueryWrapper<SurveyData> q = new QueryWrapper<>();
                     q.eq("region_code", regionCode).eq("year", year);
                     SurveyData exists = surveyDataMapper.selectOne(q);
                     if (exists == null) {
-                        throw new RuntimeException("地区 " + regionCode + " 在年份 " + year + " 无乡镇级数据");
+                        throw new RuntimeException("所选年份无乡镇数据，无法进行乡镇减灾能力评估");
                     }
                 }
             }
@@ -232,17 +292,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             orderedStepResults.add(packagedStep);
         }
 
-        // 6. 保存执行记录和评估结果
-        Long executionRecordId = saveExecutionRecordAndResults(
-                modelId,
-                model.getModelName(),
-                currentRegionCodes,
-                weightConfigId,
-                stepResults,
-                tableData,
-                year, orgCode, createBy);
-
-        // 7. 构建最终结果
+        // 6. 构建最终结果（不保存执行记录）
         Map<String, Object> result = new HashMap<>();
         result.put("modelId", modelId);
         result.put("modelName", model.getModelName());
@@ -253,9 +303,178 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         result.put("tableData", tableData);
         result.put("columns", columns);
         result.put("success", true);
-        result.put("executionRecordId", executionRecordId);
+        result.put("currentRegionCodes", currentRegionCodes);  // 添加当前地区代码列表
 
         return result;
+    }
+
+    /**
+     * 异步执行评估模型
+     * 立即返回执行记录ID，实际计算在后台进行
+     *
+     * @param modelId 模型ID
+     * @param regionCodes 地区代码列表
+     * @param weightConfigId 权重配置ID
+     * @param year 评估年份
+     * @param orgCode 机构代码
+     * @param createBy 操作人
+     * @return 执行记录ID
+     */
+    @Override
+    public Long executeModelAsync(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode, String createBy) {
+        log.info("开始异步执行评估模型, modelId={}, regionCodes={}, year={}", modelId, regionCodes, year);
+
+        // 1. 验证模型是否存在且启用
+        EvaluationModel model = evaluationModelMapper.selectById(modelId);
+        if (model == null || model.getStatus() == 0) {
+            throw new RuntimeException("评估模型不存在或已禁用");
+        }
+
+        // 2. 创建执行记录，状态为 RUNNING
+        ModelExecutionRecord executionRecord = new ModelExecutionRecord();
+        executionRecord.setModelId(modelId);
+        executionRecord.setExecutionCode("EXEC_" + System.currentTimeMillis());
+        executionRecord.setRegionIds(String.join(",", regionCodes));
+        executionRecord.setWeightConfigId(weightConfigId);
+        executionRecord.setExecutionStatus(com.evaluate.enums.ExecutionStatus.RUNNING.getCode());
+        executionRecord.setStartTime(java.time.LocalDateTime.now());
+        if (year != null) {
+            executionRecord.setYear(year);
+        }
+        if (orgCode != null && !orgCode.trim().isEmpty()) {
+            executionRecord.setOrgCode(orgCode.trim());
+        }
+        if (createBy != null && !createBy.trim().isEmpty()) {
+            executionRecord.setCreateBy(createBy.trim());
+        }
+
+        // 保存执行记录
+        modelExecutionRecordMapper.insert(executionRecord);
+        Long executionRecordId = executionRecord.getId();
+
+        log.info("创建执行记录成功, executionRecordId={}, status=RUNNING", executionRecordId);
+
+        // 3. 启动异步任务执行评估
+        executeModelAsyncTask(executionRecordId, modelId, model.getModelName(), regionCodes, weightConfigId, year, orgCode, createBy);
+
+        return executionRecordId;
+    }
+
+    /**
+     * 异步执行评估任务
+     * 使用 @Async 注解使方法在独立线程中执行
+     *
+     * @param executionRecordId 执行记录ID
+     * @param modelId 模型ID
+     * @param modelName 模型名称
+     * @param regionCodes 地区代码列表
+     * @param weightConfigId 权重配置ID
+     * @param year 评估年份
+     * @param orgCode 机构代码
+     * @param createBy 操作人
+     */
+    @org.springframework.scheduling.annotation.Async("evaluationTaskExecutor")
+    public void executeModelAsyncTask(Long executionRecordId, Long modelId, String modelName,
+                                       List<String> regionCodes, Long weightConfigId,
+                                       Integer year, String orgCode, String createBy) {
+        log.info("异步任务开始执行, executionRecordId={}, modelId={}", executionRecordId, modelId);
+
+        Map<String, Object> result = null;
+        try {
+            // 调用内部执行方法（不创建新的执行记录）
+            result = executeModelInternal(modelId, regionCodes, weightConfigId, year, orgCode, createBy);
+
+            // 保存评估结果到数据库
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> tableData = (List<Map<String, Object>>) result.get("tableData");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> stepResults = (Map<String, Object>) result.get("stepResults");
+            List<String> currentRegionCodes = (List<String>) result.get("currentRegionCodes");
+
+            saveEvaluationResults(executionRecordId, modelId, modelName, stepResults, tableData, year, orgCode);
+
+            // 更新执行记录状态为 SUCCESS
+            updateExecutionRecordStatus(executionRecordId, com.evaluate.enums.ExecutionStatus.SUCCESS, null, result);
+            log.info("异步任务执行成功, executionRecordId={}", executionRecordId);
+
+        } catch (Exception e) {
+            log.error("异步任务执行失败, executionRecordId={}, error={}", executionRecordId, e.getMessage(), e);
+
+            // 更新执行记录状态为 FAILED
+            updateExecutionRecordStatus(executionRecordId, com.evaluate.enums.ExecutionStatus.FAILED, e.getMessage(), null);
+        }
+    }
+
+    /**
+     * 保存评估结果到数据库（不创建新的执行记录）
+     *
+     * @param executionRecordId 执行记录ID
+     * @param modelId 模型ID
+     * @param modelName 模型名称
+     * @param stepResults 步骤结果
+     * @param tableData 表格数据
+     * @param year 年份
+     * @param orgCode 机构代码
+     */
+    private void saveEvaluationResults(Long executionRecordId, Long modelId, String modelName,
+                                       Map<String, Object> stepResults, List<Map<String, Object>> tableData,
+                                       Integer year, String orgCode) {
+        try {
+            // 从stepResults中提取评估结果
+            List<EvaluationResult> evaluationResults = extractEvaluationResults(
+                    modelId, executionRecordId, stepResults, tableData, year, orgCode);
+
+            // 批量保存评估结果
+            if (!evaluationResults.isEmpty()) {
+                for (EvaluationResult result : evaluationResults) {
+                    evaluationResultMapper.insert(result);
+                }
+            }
+
+            log.info("保存评估结果成功, executionRecordId={}, resultsCount={}", executionRecordId, evaluationResults.size());
+        } catch (Exception e) {
+            log.error("保存评估结果失败, executionRecordId={}, error={}", executionRecordId, e.getMessage(), e);
+            throw new RuntimeException("保存评估结果失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 更新执行记录状态
+     *
+     * @param executionRecordId 执行记录ID
+     * @param status 执行状态
+     * @param errorMessage 错误信息（失败时）
+     * @param result 执行结果（成功时）
+     */
+    private void updateExecutionRecordStatus(Long executionRecordId, com.evaluate.enums.ExecutionStatus status,
+                                             String errorMessage, Map<String, Object> result) {
+        try {
+            ModelExecutionRecord executionRecord = modelExecutionRecordMapper.selectById(executionRecordId);
+            if (executionRecord != null) {
+                executionRecord.setExecutionStatus(status.getCode());
+                executionRecord.setEndTime(java.time.LocalDateTime.now());
+
+                if (status == com.evaluate.enums.ExecutionStatus.FAILED) {
+                    executionRecord.setErrorMessage(errorMessage);
+                } else if (status == com.evaluate.enums.ExecutionStatus.SUCCESS && result != null) {
+                    // 生成结果摘要
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> tableData = (List<Map<String, Object>>) result.get("tableData");
+                    if (tableData != null) {
+                        StringBuilder summary = new StringBuilder();
+                        summary.append("模型: ").append(result.get("modelName")).append("; ");
+                        summary.append("地区数: ").append(executionRecord.getRegionIds().split(",").length).append("; ");
+                        summary.append("评估结果数: ").append(tableData.size());
+                        executionRecord.setResultSummary(summary.toString());
+                    }
+                }
+
+                modelExecutionRecordMapper.updateById(executionRecord);
+                log.info("更新执行记录状态成功, executionRecordId={}, status={}", executionRecordId, status.getCode());
+            }
+        } catch (Exception e) {
+            log.error("更新执行记录状态失败, executionRecordId={}, error={}", executionRecordId, e.getMessage(), e);
+        }
     }
 
     /**
@@ -3213,6 +3432,72 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         } catch (Exception e) {
             throw new RuntimeException("获取评估历史列表失败: " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public Map<String, Object> checkEvaluationData(Long modelId, List<String> regionCodes, Integer year, String orgCode) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("exists", true);
+        result.put("message", "");
+
+        try {
+            // 根据评估模型类型检查所需的数据：
+            // - Model 3: 乡镇减灾能力评估模型 - 需要乡镇数据
+            // - Model 4: 社区-行政村减灾能力评估模型 - 需要社区数据
+            // - Model 8: 社区-乡镇减灾能力评估模型 - 需要社区数据
+            // - Model 11: 综合减灾能力评估模型 - 需要乡镇减灾能力评估结果(Model 3)和社区-乡镇减灾能力评估结果(Model 8)
+            if (year != null) {
+                for (String regionCode : regionCodes) {
+                    if (modelId == 4 || modelId == 8) {
+                        // 社区-行政村/乡镇减灾能力评估模型：检查社区数据
+                        QueryWrapper<CommunityDisasterReductionCapacity> q = new QueryWrapper<>();
+                        q.eq("region_code", regionCode).eq("year", year);
+                        CommunityDisasterReductionCapacity exists = communityDataMapper.selectOne(q);
+                        if (exists == null) {
+                            result.put("exists", false);
+                            result.put("message", "所选年份无社区数据，无法进行社区-行政村/乡镇减灾能力评估");
+                            return result;
+                        }
+                    } else if (modelId == 11) {
+                        // 综合减灾能力评估模型：需要检查评估历史表中是否存在Model 3和Model 8的评估结果
+                        // 检查是否存在乡镇减灾能力评估结果（Model 3）
+                        List<EvaluationResult> townshipEvalResults = evaluationResultMapper.selectByModelIdAndYearAndOrgCode(3L, year, orgCode != null ? orgCode : "511425");
+                        boolean hasTownshipResult = townshipEvalResults != null && townshipEvalResults.stream()
+                                .anyMatch(r -> regionCode.equals(r.getRegionCode()));
+                        if (!hasTownshipResult) {
+                            result.put("exists", false);
+                            result.put("message", "所选年份无乡镇减灾能力评估结果（请先执行乡镇减灾能力评估模型），综合减灾能力评估需要乡镇减灾能力评估结果和社区-乡镇减灾能力评估结果");
+                            return result;
+                        }
+
+                        // 检查是否存在社区-乡镇减灾能力评估结果（Model 8）
+                        List<EvaluationResult> communityEvalResults = evaluationResultMapper.selectByModelIdAndYearAndOrgCode(8L, year, orgCode != null ? orgCode : "511425");
+                        boolean hasCommunityResult = communityEvalResults != null && communityEvalResults.stream()
+                                .anyMatch(r -> regionCode.equals(r.getRegionCode()));
+                        if (!hasCommunityResult) {
+                            result.put("exists", false);
+                            result.put("message", "所选年份无社区-乡镇减灾能力评估结果（请先执行社区-乡镇减灾能力评估模型），综合减灾能力评估需要乡镇减灾能力评估结果和社区-乡镇减灾能力评估结果");
+                            return result;
+                        }
+                    } else {
+                        // 默认（Model 3 乡镇减灾能力评估模型等）：检查乡镇数据
+                        QueryWrapper<SurveyData> q = new QueryWrapper<>();
+                        q.eq("region_code", regionCode).eq("year", year);
+                        SurveyData exists = surveyDataMapper.selectOne(q);
+                        if (exists == null) {
+                            result.put("exists", false);
+                            result.put("message", "所选年份无乡镇数据，无法进行乡镇减灾能力评估");
+                            return result;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            result.put("exists", false);
+            result.put("message", "检查数据时发生错误: " + e.getMessage());
+        }
+
+        return result;
     }
 
     @Override

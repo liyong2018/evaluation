@@ -368,9 +368,6 @@ const loadVillagePointsGeoJSON = async (): Promise<any | null> => {
       const response = await fetch('/village_points/village_points.geojson?t=' + Date.now())
       if (!response.ok) return null
 
-      const contentType = response.headers.get('content-type') || ''
-      if (!contentType.includes('json') && !contentType.includes('geo')) return null
-
       const geo = await response.json()
       if (!geo || geo.type !== 'FeatureCollection' || !Array.isArray(geo.features)) return null
 
@@ -768,14 +765,16 @@ const initMap = () => {
   // 添加天地图底图
   baseTileLayer.value = (L.tileLayer as any).chinaProvider('TianDiTu.Normal.Map', {
     key: '0252639b1589bd33a54817f48d982093',
-    attribution: ''
+    attribution: '',
+    keepBuffer: 0
   })
   baseTileLayer.value.addTo(map.value)
   
   // 添加天地图标注
   labelTileLayer.value = (L.tileLayer as any).chinaProvider('TianDiTu.Normal.Annotion', {
     key: '0252639b1589bd33a54817f48d982093',
-    attribution: ''
+    attribution: '',
+    keepBuffer: 0
   })
   labelTileLayer.value.addTo(map.value)
   
@@ -1729,8 +1728,12 @@ const renderThematicLayer = async (data: any) => {
 
       // 如果没有 hierarchy 数据，回退到计算 GeoJSON bounds
       const bounds = L.geoJSON(data.boundaries).getBounds()
-      map.value.fitBounds(bounds, { padding: [20, 20] })
-      console.log('根据 GeoJSON 调整地图视图到数据范围')
+      if (bounds.isValid()) {
+        map.value.fitBounds(bounds, { padding: [20, 20] })
+        console.log('根据 GeoJSON 调整地图视图到数据范围')
+      } else {
+        console.warn('GeoJSON bounds无效，跳过调整视图')
+      }
     } catch (error) {
       console.error('调整地图视图失败:', error)
       
@@ -1738,7 +1741,9 @@ const renderThematicLayer = async (data: any) => {
       try {
          if (data.boundaries && data.boundaries.features && data.boundaries.features.length > 0) {
             const bounds = L.geoJSON(data.boundaries).getBounds()
-            map.value.fitBounds(bounds, { padding: [20, 20] })
+            if (bounds.isValid()) {
+              map.value.fitBounds(bounds, { padding: [20, 20] })
+            }
          }
       } catch (e) {
          console.warn('最终视图调整尝试失败', e)
@@ -2508,11 +2513,12 @@ defineExpose({
 <style scoped lang="scss">
 .thematic-map-container {
   position: relative;
-  width: 1910px; /* 1920px等比例缩小10px */
-  height: 1233.54px; /* 1240px * (1910/1920) */
+  width: 100%;
+  height: 100%;
   background: #fff;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   
   // 全屏模式
   &.fullscreen {
@@ -2559,12 +2565,20 @@ defineExpose({
     position: relative;
     width: 100%;
     min-height: 0;
+    overflow: hidden;
   }
 
   .map-content {
     width: 100%;
     height: 100%;
     position: relative;
+    overflow: hidden;
+  }
+  
+  :deep(.leaflet-container) {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
   }
   
   .map-elements-overlay {

@@ -253,7 +253,7 @@ export const evaluationApi = {
   // 完成评估
   finalize: (evaluationId: number) => request.post(`/api/evaluation/finalize/${evaluationId}`),
 
-  // 执行评估模型（基于模型配置）
+  // 执行评估模型（基于模型配置，异步执行）
   executeModel: (modelId: number, regionCodes: string[], weightConfigId: number, year?: number, orgCode?: string, createBy?: string) => {
     const requestBody = {
       modelId,
@@ -263,8 +263,17 @@ export const evaluationApi = {
       orgCode,
       createBy
     };
+    // 异步执行，立即返回执行记录ID，无需设置超时
     return request.post('/api/evaluation/execute-model', requestBody);
   },
+
+  // 检查评估数据是否存在
+  checkEvaluationData: (params: {
+    modelId: number;
+    regionCodes: string[];
+    year: number;
+    orgCode?: string;
+  }) => request.get('/api/evaluation/check-data', { params }),
 
   // 生成评估结果二维表
   generateResultTable: (executionResults: any) =>
@@ -829,7 +838,18 @@ export const userApi = {
 
   // 用户注册
   register: (data: { username: string; password: string }) =>
-    request.post('/api/user/register', data)
+    request.post('/api/user/register', data),
+
+  // 获取用户角色
+  getUserRoles: (userId: number) =>
+    request.get(`/api/sys/user/${userId}/roles`)
+}
+
+// 角色相关API
+export const roleApi = {
+  // 获取角色组织机构
+  getRoleOrganizations: (roleId: number) =>
+    request.get(`/api/sys/role/${roleId}/organizations`)
 }
 
 // Word模板处理相关API

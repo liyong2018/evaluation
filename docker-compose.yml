@@ -1,98 +1,43 @@
 version: '3.8'
 
 services:
-  # 应用服务
-  evaluation-app:
+  backend:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    container_name: evaluation-app
+    container_name: evaluation-backend
     ports:
-      - "8087:8087"
+      - "8082:8081"
     environment:
-      - SERVER_PORT=8087
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:mysql://evaluation-mysql:3306/evaluate_db?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2B8
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=123456
-      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
-      - SPRING_REDIS_HOST=evaluation-redis
-      - SPRING_REDIS_PORT=6379
-    depends_on:
-      evaluation-mysql:
-        condition: service_healthy
-      evaluation-redis:
-        condition: service_healthy
+      - SERVER_PORT=8081
+      - SPRING_PROFILES_ACTIVE=mysql
+      - MYSQL_JDBC_URL=jdbc:mysql://host.docker.internal:30314/evaluate_db?useSSL=false&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      - MYSQL_JDBC_USER=root
+      - MYSQL_JDBC_PASSWORD=123456
+      - INIT_ADMIN_USERNAME=admin
+      - INIT_ADMIN_PASSWORD=123456
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
-      - ./frontend/dist:/usr/share/nginx/html:ro  # 挂载前端静态文件
     restart: unless-stopped
     networks:
       - evaluation-network
 
-  # MySQL数据库
-  evaluation-mysql:
-    image: mysql:8.0
-    container_name: evaluation-mysql
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: evaluation-frontend
     ports:
-      - "3306:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=123456
-      - MYSQL_DATABASE=evaluate_db
-      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
-      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./sql:/docker-entrypoint-initdb.d:ro
-      - ./mysql/conf.d:/etc/mysql/conf.d:ro
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    networks:
-      - evaluation-network
-
-  # Redis缓存
-  evaluation-redis:
-    image: redis:7-alpine
-    container_name: evaluation-redis
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes --requirepass "redis123"
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - evaluation-network
-
-  # Nginx反向代理（可选）
-  evaluation-nginx:
-    image: nginx:alpine
-    container_name: evaluation-nginx
-    ports:
-      - "8088:80"   # 对外提供前端与路由回退（HTTP）
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./frontend/dist:/usr/share/nginx/html:ro  # 部署前端静态资源
+      - "${FRONTEND_PORT:-5173}:80"
     depends_on:
-      - evaluation-app
+      - backend
     restart: unless-stopped
     networks:
       - evaluation-network
 
 volumes:
   mysql_data:
-    driver: local
-  redis_data:
     driver: local
 
 networks:

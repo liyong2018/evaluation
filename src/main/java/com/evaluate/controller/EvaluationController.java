@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,19 +26,47 @@ public class EvaluationController {
     private ModelExecutionService modelExecutionService;
 
     /**
-     * 执行评估模型（基于模型配置）
+     * 执行评估模型（基于模型配置）- 异步执行
+     * 立即返回执行记录ID，实际计算在后台进行
      */
     @PostMapping("/execute-model")
     public Result<Map<String, Object>> executeModel(@RequestBody ModelExecutionRequest request) {
-        log.info("开始执行评估模型, modelId={}, regionCodes={}, weightConfigId={}, year={}, createBy={}",
+        log.info("开始异步执行评估模型, modelId={}, regionCodes={}, weightConfigId={}, year={}, createBy={}",
                 request.getModelId(), request.getRegionCodes(), request.getWeightConfigId(), request.getYear(), request.getCreateBy());
         try {
-            Map<String, Object> result = modelExecutionService.executeModel(
-                    request.getModelId(), request.getRegionCodes(), request.getWeightConfigId(), request.getYear(), request.getOrgCode(), request.getCreateBy());
+            // 异步执行，立即返回执行记录ID
+            Long executionRecordId = modelExecutionService.executeModelAsync(
+                    request.getModelId(), request.getRegionCodes(), request.getWeightConfigId(),
+                    request.getYear(), request.getOrgCode(), request.getCreateBy());
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("executionRecordId", executionRecordId);
+            result.put("status", "RUNNING");
+            result.put("message", "评估任务已提交，正在后台执行中");
+
             return Result.success(result);
         } catch (Exception e) {
-            log.error("执行评估模型失败", e);
-            return Result.error("执行评估模型失败: " + e.getMessage());
+            log.error("提交评估任务失败", e);
+            return Result.error("提交评估任务失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 检查评估数据是否存在
+     */
+    @GetMapping("/check-data")
+    public Result<Map<String, Object>> checkEvaluationData(
+            @RequestParam Long modelId,
+            @RequestParam List<String> regionCodes,
+            @RequestParam Integer year,
+            @RequestParam(required = false) String orgCode) {
+        log.info("检查评估数据, modelId={}, regionCodes={}, year={}, orgCode={}", modelId, regionCodes, year, orgCode);
+        try {
+            Map<String, Object> result = modelExecutionService.checkEvaluationData(modelId, regionCodes, year, orgCode);
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("检查评估数据失败", e);
+            return Result.error("检查评估数据失败: " + e.getMessage());
         }
     }
 

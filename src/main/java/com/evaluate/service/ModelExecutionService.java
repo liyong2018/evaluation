@@ -6,14 +6,14 @@ import java.util.Map;
 /**
  * 模型执行服务接口
  * 负责按步骤执行QLExpress表达式并生成评估结果
- * 
+ *
  * @author System
  * @since 2025-01-01
  */
 public interface ModelExecutionService {
 
     /**
-     * 执行评估模型
+     * 执行评估模型（同步）
      *
      * @param modelId 模型ID
      * @param regionCodes 地区代码列表
@@ -24,6 +24,20 @@ public interface ModelExecutionService {
      * @return 执行结果（包含每个步骤的输出）
      */
     Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode, String createBy);
+
+    /**
+     * 异步执行评估模型
+     * 立即返回执行记录ID，实际计算在后台进行
+     *
+     * @param modelId 模型ID
+     * @param regionCodes 地区代码列表
+     * @param weightConfigId 权重配置ID
+     * @param year 评估年份
+     * @param orgCode 机构代码
+     * @param createBy 操作人
+     * @return 执行记录ID
+     */
+    Long executeModelAsync(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode, String createBy);
 
     /**
      * 执行单个步骤
@@ -104,6 +118,17 @@ public interface ModelExecutionService {
      * @return 分页的评估历史列表
      */
     Map<String, Object> getEvaluationHistoryList(Integer page, Integer size, Long modelId, String executionStatus, Integer year, String county);
+
+    /**
+     * 检查评估数据是否存在
+     *
+     * @param modelId 模型ID
+     * @param regionCodes 地区代码列表
+     * @param year 评估年份
+     * @param orgCode 机构代码
+     * @return 检查结果，包含是否存在和错误信息
+     */
+    Map<String, Object> checkEvaluationData(Long modelId, List<String> regionCodes, Integer year, String orgCode);
 
     /**
      * 删除评估历史记录（同时删除关联的 evaluation_result 记录）

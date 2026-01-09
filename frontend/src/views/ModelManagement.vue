@@ -20,10 +20,10 @@
       <!-- 模型列表 -->
       <div style="margin-top: 15px">
         <el-table :data="models" style="width: 100%" v-loading="loading" class="model-list">
-        <el-table-column prop="modelName" label="模型名称" width="250" />
-        <el-table-column prop="modelCode" label="模型编码" width="380" />
-        <el-table-column prop="version" label="版本" width="80" />
-        <el-table-column label="状态" width="80">
+        <el-table-column prop="modelName" label="模型名称" width="450" />
+        <el-table-column prop="modelCode" label="模型编码" width="450" />
+        <el-table-column prop="version" label="版本" width="150" />
+        <el-table-column label="状态" width="150">
           <template #default="scope">
             <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
               {{ scope.row.status === 1 ? '启用' : '禁用' }}
@@ -35,7 +35,7 @@
             <el-tag v-if="scope.row.isDefault" type="warning">默认</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="操作" width="550" fixed="right">
           <template #default="scope">
             <el-button size="small" type="primary" @click="viewModelDetail(scope.row)">
               配置

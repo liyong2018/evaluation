@@ -36,6 +36,9 @@ public class RegionDataServiceImpl implements IRegionDataService {
     private com.evaluate.mapper.RoleOrganizationMapper roleOrganizationMapper;
 
     @Autowired
+    private com.evaluate.mapper.UserOrganizationMapper userOrganizationMapper;
+
+    @Autowired
     private com.evaluate.mapper.OrganizationMapper organizationMapper;
 
     /**
@@ -64,11 +67,23 @@ public class RegionDataServiceImpl implements IRegionDataService {
             boolean isAdmin = roles.stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getRoleCode()));
             if (isAdmin) return null;
 
-            List<Long> roleIds = roles.stream().map(Role::getId).collect(Collectors.toList());
-            if (roleIds.isEmpty()) return new ArrayList<>();
+            List<String> codes = new ArrayList<>();
 
-            List<String> codes = roleOrganizationMapper.selectOrgCodesByRoleIds(roleIds);
-            if (codes == null || codes.isEmpty()) return new ArrayList<>();
+            List<Long> roleIds = roles.stream().map(Role::getId).collect(Collectors.toList());
+            if (!roleIds.isEmpty()) {
+                List<String> roleCodes = roleOrganizationMapper.selectOrgCodesByRoleIds(roleIds);
+                if (roleCodes != null) {
+                    codes.addAll(roleCodes);
+                }
+            }
+
+            // User direct permissions
+            List<String> userCodes = userOrganizationMapper.selectOrgCodesByUserId(user.getId());
+            if (userCodes != null) {
+                codes.addAll(userCodes);
+            }
+
+            if (codes.isEmpty()) return new ArrayList<>();
 
             QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
             queryWrapper.in("code", codes);

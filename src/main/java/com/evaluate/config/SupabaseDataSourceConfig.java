@@ -20,10 +20,6 @@ public class SupabaseDataSourceConfig {
     @ConfigurationProperties(prefix = "supabase.jdbc")
     public DataSource supabaseDataSource() {
         return DataSourceBuilder.create()
-                .url("jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres")
-                .username("postgres.olcdeeonmpjijxtvolum")
-                .password("Htht@1234")
-                .driverClassName("org.postgresql.Driver")
                 .build();
     }
 }

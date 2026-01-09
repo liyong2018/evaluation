@@ -24,30 +24,30 @@
       <el-table
         :data="tableData"
         v-loading="loading"
-        style="width: 100%"
+        style="width: 100%;"
         row-key="id"
         border
         default-expand-all
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
       >
-        <el-table-column prop="menuName" label="菜单名称" min-width="180" />
-        <el-table-column prop="icon" label="图标" width="80" align="center">
+        <el-table-column prop="menuName" label="菜单名称" min-width="21%" />
+        <el-table-column prop="icon" label="图标" width="9%" align="center">
           <template #default="{ row }">
             <el-icon v-if="row.icon"><component :is="row.icon" /></el-icon>
           </template>
         </el-table-column>
-        <el-table-column prop="menuType" label="类型" width="100" align="center">
+        <el-table-column prop="menuType" label="类型" width="12%" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.menuType === 0">目录</el-tag>
             <el-tag v-else-if="row.menuType === 1" type="success">菜单</el-tag>
             <el-tag v-else type="info">按钮</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="path" label="路由路径" min-width="150" />
-        <el-table-column prop="perms" label="权限标识" min-width="150" />
-        <el-table-column prop="component" label="组件路径" min-width="150" />
-        <el-table-column prop="sortOrder" label="排序" width="80" align="center" />
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column prop="path" label="路由路径" min-width="18%" />
+        <el-table-column prop="perms" label="权限标识" min-width="18%" />
+        <el-table-column prop="component" label="组件路径" min-width="18%" />
+        <el-table-column prop="sortOrder" label="排序" width="9%" align="center" />
+        <el-table-column label="操作" width="26%" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="editMenu(row)">编辑</el-button>
             <el-button type="success" link @click="showAddDialog(row)" v-if="row.menuType !== 2">添加子项</el-button>

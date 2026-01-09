@@ -42,32 +42,27 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button
-            type="primary"
-            size="large"
-            style="width: 100%"
-            :loading="loading"
-            @click="handleLogin"
-          >
-            登 录
-          </el-button>
-        </el-form-item>
-
-        <el-form-item>
-          <el-button
-            type="success"
-            size="large"
-            style="width: 100%"
-            @click="showRegisterDialog = true"
-          >
-            注 册
-          </el-button>
+          <div style="display: flex; gap: 12px; width: 100%;">
+            <el-button
+              type="primary"
+              size="large"
+              style="flex: 1"
+              :loading="loading"
+              @click="handleLogin"
+            >
+              登 录
+            </el-button>
+            <el-button
+              type="success"
+              size="large"
+              style="flex: 1"
+              @click="showRegisterDialog = true"
+            >
+              注 册
+            </el-button>
+          </div>
         </el-form-item>
       </el-form>
-
-      <div class="login-footer">
-        <p>默认密码: 123456 (admin除外)</p>
-      </div>
     </div>
 
     <!-- 注册对话框 -->
@@ -126,7 +121,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { userApi } from '@/api'
+import { userApi, roleApi } from '@/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -213,15 +208,42 @@ const handleLogin = async () => {
         })
 
         if (res.code === 200 && res.data) {
-          await userStore.login({
-            username: res.data.username,
-            isAdmin: res.data.isAdmin || false
-          })
+          const userId = res.data.id
 
-          ElMessage.success('登录成功')
+          // 检查用户是否有关联的组织机构
+          try {
+            // 1. 获取用户角色
+            const rolesRes = await userApi.getUserRoles(userId)
+            if (rolesRes.success && rolesRes.data && rolesRes.data.length > 0) {
+              const roleId = rolesRes.data[0]
 
-          const redirect = (route.query.redirect as string) || '/data-management'
-          router.push(redirect)
+              // 2. 获取角色关联的组织机构
+              const orgsRes = await roleApi.getRoleOrganizations(roleId)
+              if (orgsRes.success && orgsRes.data && orgsRes.data.length > 0) {
+                // 用户有关联的组织机构，允许登录
+                await userStore.login({
+                  id: userId,
+                  username: res.data.username,
+                  isAdmin: res.data.isAdmin || false
+                })
+
+                ElMessage.success('登录成功')
+
+                const redirect = (route.query.redirect as string) || '/data-management'
+                router.push(redirect)
+              } else {
+                // 用户没有关联任何组织机构，拒绝登录
+                ElMessage.error('您尚未分配任何组织机构权限，无法登录系统。请联系管理员。')
+              }
+            } else {
+              // 用户没有分配任何角色，拒绝登录
+              ElMessage.error('您尚未分配任何角色，无法登录系统。请联系管理员。')
+            }
+          } catch (orgCheckError) {
+            console.error('检查组织机构权限失败:', orgCheckError)
+            // 权限检查失败，拒绝登录以确保安全
+            ElMessage.error('登录验证失败，请稍后重试或联系管理员。')
+          }
         } else {
           ElMessage.error(res.msg || '用户名或密码错误')
         }
