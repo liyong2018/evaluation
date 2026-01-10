@@ -53,9 +53,10 @@ public interface IOrganizationService extends IService<Organization> {
      *
      * @param parentId 父级ID
      * @param maxLevel 最大层级
+     * @param year 年份（可选，用于过滤该年份有数据的组织）
      * @return 树形结构
      */
-    List<Map<String, Object>> getOrganizationTree(Long parentId, Integer maxLevel);
+    List<Map<String, Object>> getOrganizationTree(Long parentId, Integer maxLevel, Integer year);
 
     /**
      * 根据父级ID获取子级组织机构

@@ -12,13 +12,31 @@
       <el-card class="org-tree-panel">
         <template #header>
           <div class="card-header">
-            <span>组织机构</span>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span>组织机构</span>
+              <el-select
+                v-model="searchForm.year"
+                placeholder="选择年份"
+                clearable
+                size="small"
+                style="width: 120px;"
+                @change="handleSearch"
+              >
+                <el-option
+                  v-for="year in yearOptions"
+                  :key="year"
+                  :label="year + '年'"
+                  :value="year"
+                />
+              </el-select>
+            </div>
             <el-button type="primary" size="small" @click="refreshOrganizations">
               <el-icon><Refresh /></el-icon>
             </el-button>
           </div>
         </template>
         <el-tree
+          :key="orgTreeRenderKey"
           ref="orgTreeRef"
           v-loading="loading.organizations"
           :data="organizationList"
@@ -78,20 +96,6 @@
                   <el-icon><Search /></el-icon>
                 </template>
               </el-input>
-              <el-select
-                v-model="searchForm.year"
-                placeholder="选择年份"
-                clearable
-                style="width: 120px; margin-right: 12px;"
-                @change="handleSearch"
-              >
-                <el-option
-                  v-for="year in yearOptions"
-                  :key="year"
-                  :label="year + '年'"
-                  :value="year"
-                />
-              </el-select>
             </el-col>
             <el-col :span="8">
               <div class="toolbar-actions">
@@ -495,7 +499,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import {
   Search,
@@ -536,6 +540,8 @@ const searchForm = reactive({
   year: new Date().getFullYear() as number | null,
   selectedRegion: null as null | { code: string; name: string }
 })
+
+const orgTreeRenderKey = computed(() => `orgTree-${searchForm.year ?? 'all'}`)
 
 const pagination = reactive({
   currentPage: 1,
@@ -636,15 +642,35 @@ const collectExpandedKeys = (nodes: any[], level: number = 1, keys: string[] = [
   return keys
 }
 
+const findOrgNodeByCode = (tree: any[], code: any): any | null => {
+  for (const node of tree || []) {
+    if (String(node?.code) === String(code)) return node
+    if (node?.children?.length) {
+      const found = findOrgNodeByCode(node.children, code)
+      if (found) return found
+    }
+  }
+  return null
+}
+
 const getOrganizationList = async () => {
   loading.organizations = true
   try {
-    const response = await organizationApi.getTree()
+    // 传递当前选择的年份参数
+    const response = await organizationApi.getTree({ year: searchForm.year || undefined })
     if (response.success && response.data) {
       organizationList.value = response.data || []
       // 收集需要展开的节点key
       defaultExpandedKeys.value = collectExpandedKeys(organizationList.value)
-      console.log('组织机构树形数据:', organizationList.value)
+      console.log('组织机构树形数据 (年份:', searchForm.year, '):', organizationList.value)
+      if (selectedOrg.value) {
+        const exists = findOrgNodeByCode(organizationList.value, selectedOrg.value.code)
+        if (!exists) {
+          selectedOrg.value = null
+        }
+      }
+      await nextTick()
+      orgTreeRef.value?.setCurrentKey(selectedOrg.value?.code ?? null)
     }
   } catch (error) {
     console.error('获取组织机构列表失败:', error)
@@ -718,10 +744,10 @@ const getRegionName = (row?: any) => {
 const handleDataTypeChange = (newType: 'township' | 'community' | 'medical') => {
   console.info('[DataManagement] 切换数据类型:', newType)
   dataType.value = newType
-  // 清空搜索条件和表格数据
+  // 清空搜索条件和表格数据（但保留用户选择的年份）
   searchForm.keyword = ''
   searchForm.selectedRegion = null
-  searchForm.year = new Date().getFullYear() // 重置为当前年份
+  // searchForm.year 保持用户选择的值，不重置
   tableData.value = []
   regionSelectOptions.value = []
   // 重新加载数据
@@ -824,6 +850,9 @@ const getDataList = async () => {
 
 // 搜索
 const handleSearch = async () => {
+  // 当年份改变时，刷新组织机构树
+  await getOrganizationList()
+
   if (!searchForm.keyword && !searchForm.selectedRegion && !searchForm.year) {
     getDataList()
     return

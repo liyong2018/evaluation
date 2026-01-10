@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="evaluation">
     <!-- 页面标题 -->
     <div class="page-header">
@@ -981,19 +981,22 @@ const handleModelChange = (modelId: number) => {
   // evaluationForm.algorithmId = null
 }
 
-// 处理数据类型变化
-const handleDataTypeChange = () => {
-  console.log('数据类型变化:', evaluationForm.dataType)
-  // 清空三级联动数据
+const resetRegionSelect = () => {
   evaluationForm.selectedProvince = ''
   evaluationForm.selectedCity = ''
   evaluationForm.selectedCounty = ''
   evaluationForm.countyData = []
   evaluationForm.regions = []
-  // 清空下拉框数据
+  evaluationForm.orgCode = ''
   provinces.value = []
   cities.value = []
   counties.value = []
+}
+
+// 处理数据类型变化
+const handleDataTypeChange = () => {
+  console.log('数据类型变化:', evaluationForm.dataType)
+  resetRegionSelect()
   // 重新获取省份数据
   getProvinces()
 }
@@ -1001,7 +1004,7 @@ const handleDataTypeChange = () => {
 // 获取省份列表
 const getProvinces = async () => {
   try {
-    const response = await regionDataApi.getProvinces(evaluationForm.dataType)
+    const response = await regionDataApi.getProvinces(evaluationForm.dataType, evaluationForm.year)
     if (response.code === 200) {
       provinces.value = response.data || []
       console.log('获取到省份列表:', provinces.value)
@@ -1029,13 +1032,14 @@ const handleProvinceChange = async (provinceName: string) => {
   evaluationForm.selectedCounty = ''
   evaluationForm.countyData = []
   evaluationForm.regions = []
+  evaluationForm.orgCode = ''
   cities.value = []
   counties.value = []
 
   if (provinceName) {
     // 获取城市列表
     try {
-      const response = await regionDataApi.getCities(evaluationForm.dataType, provinceName)
+      const response = await regionDataApi.getCities(evaluationForm.dataType, provinceName, evaluationForm.year)
       if (response.code === 200) {
         cities.value = response.data || []
         console.log('获取到城市列表:', cities.value)
@@ -1063,12 +1067,13 @@ const handleCityChange = async (cityName: string) => {
   evaluationForm.selectedCounty = ''
   evaluationForm.countyData = []
   evaluationForm.regions = []
+  evaluationForm.orgCode = ''
   counties.value = []
 
   if (cityName && evaluationForm.selectedProvince) {
     // 获取区县列表
     try {
-      const response = await regionDataApi.getCounties(evaluationForm.dataType, evaluationForm.selectedProvince, cityName)
+      const response = await regionDataApi.getCounties(evaluationForm.dataType, evaluationForm.selectedProvince, cityName, evaluationForm.year)
       if (response.code === 200) {
         counties.value = response.data || []
         console.log('获取到区县列表:', counties.value)
@@ -1123,7 +1128,8 @@ const handleCountyChange = async (countyCode: string) => {
         evaluationForm.dataType,
         evaluationForm.selectedProvince,
         evaluationForm.selectedCity,
-        countyName
+        countyName,
+        evaluationForm.year
       )
       if (response.code === 200) {
         evaluationForm.countyData = response.data || []
@@ -2646,6 +2652,8 @@ watch(
       filterForm.year = String(year)
       currentPage.value = 1
       getEvaluationHistory(1, pageSize.value)
+      resetRegionSelect()
+      getProvinces()
     }
 
     // 更新筛选条件中的区县（使用机构代码）

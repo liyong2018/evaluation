@@ -1,11 +1,13 @@
 package com.evaluate.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.evaluate.common.Result;
 import com.evaluate.entity.WeightConfig;
 import com.evaluate.service.IWeightConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 
@@ -24,14 +26,21 @@ public class WeightConfigController {
     private IWeightConfigService weightConfigService;
 
     @GetMapping
-    public Result<List<WeightConfig>> getAllWeightConfigs(@RequestParam(required = false) String orgcode) {
+    public Result<List<WeightConfig>> getAllWeightConfigs(
+            @RequestParam(required = false) String orgcode,
+            @RequestParam(required = false) Integer year
+    ) {
         try {
-            List<WeightConfig> list;
-            if (orgcode != null && !orgcode.trim().isEmpty()) {
-                list = weightConfigService.getByOrgcode(orgcode);
-            } else {
-                list = weightConfigService.list();
+            QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
+            if (StringUtils.hasText(orgcode)) {
+                queryWrapper.eq("orgcode", orgcode.trim());
             }
+            if (year != null) {
+                queryWrapper.apply("YEAR(create_time) = {0}", year);
+            }
+            queryWrapper.orderByDesc("create_time");
+
+            List<WeightConfig> list = weightConfigService.list(queryWrapper);
             return Result.success(list);
         } catch (Exception e) {
             log.error("获取权重配置列表失败", e);
@@ -65,9 +74,20 @@ public class WeightConfigController {
     }
 
     @GetMapping("/name/{configName}")
-    public Result<WeightConfig> getWeightConfigByName(@PathVariable String configName) {
+    public Result<WeightConfig> getWeightConfigByName(
+            @PathVariable String configName,
+            @RequestParam(required = false) Integer year
+    ) {
         try {
-            WeightConfig weightConfig = weightConfigService.getByConfigName(configName);
+            QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("config_name", configName);
+            if (year != null) {
+                queryWrapper.apply("YEAR(create_time) = {0}", year);
+            }
+            queryWrapper.orderByDesc("create_time");
+            queryWrapper.last("LIMIT 1");
+
+            WeightConfig weightConfig = weightConfigService.getOne(queryWrapper, false);
             if (weightConfig == null) {
                 return Result.error("权重配置不存在");
             }

@@ -25,9 +25,12 @@ public class RegionDataController {
      * 根据数据类型获取省份列表
      */
     @GetMapping("/provinces")
-    public Result<List<Map<String, Object>>> getProvinces(@RequestParam String dataType) {
+    public Result<List<Map<String, Object>>> getProvinces(
+            @RequestParam String dataType,
+            @RequestParam(required = false) Integer year
+    ) {
         try {
-            List<Map<String, Object>> provinces = regionDataService.getProvincesByDataType(dataType);
+            List<Map<String, Object>> provinces = regionDataService.getProvincesByDataType(dataType, year);
             return Result.success(provinces);
         } catch (Exception e) {
             return Result.error("获取省份列表失败：" + e.getMessage());
@@ -40,9 +43,10 @@ public class RegionDataController {
     @GetMapping("/cities")
     public Result<List<Map<String, Object>>> getCities(
             @RequestParam String dataType,
-            @RequestParam String provinceName) {
+            @RequestParam String provinceName,
+            @RequestParam(required = false) Integer year) {
         try {
-            List<Map<String, Object>> cities = regionDataService.getCitiesByProvince(dataType, provinceName);
+            List<Map<String, Object>> cities = regionDataService.getCitiesByProvince(dataType, provinceName, year);
             return Result.success(cities);
         } catch (Exception e) {
             return Result.error("获取城市列表失败：" + e.getMessage());
@@ -56,9 +60,10 @@ public class RegionDataController {
     public Result<List<Map<String, Object>>> getCounties(
             @RequestParam String dataType,
             @RequestParam String provinceName,
-            @RequestParam String cityName) {
+            @RequestParam String cityName,
+            @RequestParam(required = false) Integer year) {
         try {
-            List<Map<String, Object>> counties = regionDataService.getCountiesByCity(dataType, provinceName, cityName);
+            List<Map<String, Object>> counties = regionDataService.getCountiesByCity(dataType, provinceName, cityName, year);
             return Result.success(counties);
         } catch (Exception e) {
             return Result.error("获取区县列表失败：" + e.getMessage());
@@ -73,9 +78,10 @@ public class RegionDataController {
             @RequestParam String dataType,
             @RequestParam String provinceName,
             @RequestParam String cityName,
-            @RequestParam String countyName) {
+            @RequestParam String countyName,
+            @RequestParam(required = false) Integer year) {
         try {
-            List<?> data = regionDataService.getDataByCounty(dataType, provinceName, cityName, countyName);
+            List<?> data = regionDataService.getDataByCounty(dataType, provinceName, cityName, countyName, year);
             return Result.success(data);
         } catch (Exception e) {
             return Result.error("获取县数据失败：" + e.getMessage());

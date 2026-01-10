@@ -11,6 +11,21 @@
         <div class="card-header">
           <span>组织机构树</span>
           <div class="header-actions">
+            <el-select
+              v-model="treeYear"
+              size="small"
+              clearable
+              placeholder="评估年份"
+              class="org-year-select"
+              @change="loadOrganizationTree"
+            >
+              <el-option
+                v-for="year in yearOptions"
+                :key="year"
+                :label="year + '年'"
+                :value="year"
+              />
+            </el-select>
             <el-upload
               ref="uploadRef"
               :auto-upload="false"
@@ -34,6 +49,7 @@
       <!-- 组织机构树 -->
       <div class="tree-container" v-loading="loading">
         <el-tree
+          :key="orgTreeRenderKey"
           ref="orgTreeRef"
           :data="organizationTree"
           :props="{ label: 'name', children: 'children' }"
@@ -69,7 +85,7 @@
                   <el-icon><Location /></el-icon>
                   边界
                 </el-button>
-                <el-button size="small" type="danger" @click.stop="deleteNode(data)" :disabled="data.children && data.children.length > 0">
+                <el-button size="small" type="danger" @click.stop="deleteNode(data)">
                   <el-icon><Delete /></el-icon>
                   删除
                 </el-button>
@@ -166,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadProps } from 'element-plus'
 import { Plus, Edit, Delete, Upload, OfficeBuilding, MapLocation, Location, Position, House } from '@element-plus/icons-vue'
@@ -192,6 +208,9 @@ const boundaryForm = ref({
   boundaryCoordinates: '',
   filePath: ''
 })
+
+const treeYear = ref<number | null>(new Date().getFullYear())
+const orgTreeRenderKey = computed(() => `orgTree-${treeYear.value ?? 'all'}`)
 
 // 上传相关
 const uploadHeaders = computed(() => {
@@ -429,14 +448,34 @@ const getLevelTagType = (level: number) => {
   return types[level] || ''
 }
 
+const findNodeById = (nodes: any[], id: any): any | null => {
+  for (const node of nodes || []) {
+    if (String(node?.id) === String(id)) return node
+    if (node?.children?.length) {
+      const found = findNodeById(node.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
 // 加载组织机构树
 const loadOrganizationTree = async () => {
   loading.value = true
   try {
-    const response = await request.get('/api/organization/tree')
+    const response = await request.get('/api/organization/tree', {
+      params: { year: treeYear.value || undefined }
+    })
     if (response.success) {
       // 后端已返回构建好的树形结构，直接使用
       organizationTree.value = response.data || []
+
+      if (selectedNode.value?.id != null) {
+        const exists = findNodeById(organizationTree.value, selectedNode.value.id)
+        if (!exists) {
+          selectedNode.value = null
+        }
+      }
 
       // 数据加载完成后，展开到县级节点
       await nextTick()
@@ -555,12 +594,7 @@ const saveOrg = async () => {
 
 // 删除节点
 const deleteNode = (node: any) => {
-  if (node.children && node.children.length > 0) {
-    ElMessage.warning('该节点下有子节点，无法删除')
-    return
-  }
-
-  ElMessageBox.confirm(`确定要删除组织机构 "${node.name}" 吗？`, '确认删除', {
+  ElMessageBox.confirm(`确定要删除组织机构 "${node.name}" 吗？将同时删除本节点的所有子节点，此操作不可恢复。`, '确认删除', {
     type: 'warning'
   }).then(async () => {
     try {
@@ -622,6 +656,15 @@ const uploading = ref(false)
 onMounted(() => {
   loadOrganizationTree()
 })
+
+watch(
+  () => treeYear.value,
+  async (year, oldYear) => {
+    if (year === oldYear) return
+    selectedNode.value = null
+    await loadOrganizationTree()
+  }
+)
 </script>
 
 <style scoped>
@@ -661,6 +704,10 @@ onMounted(() => {
 .header-actions {
   display: flex;
   gap: 10px;
+}
+
+.org-year-select {
+  width: 120px;
 }
 
 .tree-container {

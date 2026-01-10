@@ -5,8 +5,12 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
+import com.evaluate.entity.MedicalInstitution;
 import com.evaluate.entity.Organization;
+import com.evaluate.entity.OrganizationBoundary;
 import com.evaluate.entity.SurveyData;
+import com.evaluate.mapper.MedicalInstitutionMapper;
+import com.evaluate.mapper.OrganizationBoundaryMapper;
 import com.evaluate.mapper.RoleMapper;
 import com.evaluate.mapper.RoleOrganizationMapper;
 import com.evaluate.mapper.UserOrganizationMapper;
@@ -44,6 +48,18 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private com.evaluate.mapper.SurveyDataMapper surveyDataMapper;
+
+    @Autowired
+    private com.evaluate.mapper.CommunityDisasterReductionCapacityMapper communityDataMapper;
+
+    @Autowired
+    private MedicalInstitutionMapper medicalInstitutionMapper;
+
+    @Autowired
+    private OrganizationBoundaryMapper organizationBoundaryMapper;
 
     private static final String SOURCE_COMMUNITY = "COMMUNITY";
     private static final String SOURCE_TOWNSHIP = "TOWNSHIP";
@@ -373,7 +389,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     }
 
     @Override
-    public List<Map<String, Object>> getOrganizationTree(Long parentId, Integer maxLevel) {
+    public List<Map<String, Object>> getOrganizationTree(Long parentId, Integer maxLevel, Integer year) {
         try {
             QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
 
@@ -408,6 +424,11 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
             List<Organization> allOrganizations = list(queryWrapper);
 
+            // 如果指定了年份，过滤掉该年份没有数据的组织机构
+            if (year != null) {
+                allOrganizations = filterOrganizationsByYear(allOrganizations, year);
+            }
+
             // When parentId is null, start building from root (parent_id = 0 or null)
             // When parentId is provided, start building from that parent
             return buildTree(allOrganizations, parentId);
@@ -415,6 +436,151 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             log.error("获取组织机构树形结构失败", e);
             return new ArrayList<>();
         }
+    }
+
+    /**
+     * 根据年份过滤组织机构（只保留该年份有数据的组织）
+     */
+    private List<Organization> filterOrganizationsByYear(List<Organization> organizations, Integer year) {
+        if (organizations == null || organizations.isEmpty()) {
+            return organizations;
+        }
+
+        List<Organization> deduped = deduplicateOrganizationsByCode(organizations);
+
+        Set<String> dataCodes = new HashSet<>();
+        List<Object> surveyCodes = surveyDataMapper.selectObjs(new QueryWrapper<SurveyData>()
+                .select("DISTINCT region_code")
+                .eq("year", year)
+                .isNotNull("region_code"));
+        for (Object code : surveyCodes) {
+            if (code != null && StringUtils.hasText(code.toString())) {
+                dataCodes.add(code.toString().trim());
+            }
+        }
+
+        List<Object> communityCodes = communityDataMapper.selectObjs(new QueryWrapper<CommunityDisasterReductionCapacity>()
+                .select("DISTINCT region_code")
+                .eq("year", year)
+                .isNotNull("region_code"));
+        for (Object code : communityCodes) {
+            if (code != null && StringUtils.hasText(code.toString())) {
+                dataCodes.add(code.toString().trim());
+            }
+        }
+
+        List<Object> medicalCodes = medicalInstitutionMapper.selectObjs(new QueryWrapper<MedicalInstitution>()
+                .select("DISTINCT org_code")
+                .eq("year", year)
+                .isNotNull("org_code"));
+        for (Object code : medicalCodes) {
+            if (code != null && StringUtils.hasText(code.toString())) {
+                dataCodes.add(code.toString().trim());
+            }
+        }
+
+        if (dataCodes.isEmpty()) {
+            log.info("年份过滤: year={} 无任何数据组织编码", year);
+            return new ArrayList<>();
+        }
+
+        Map<Long, Organization> idMap = new HashMap<>();
+        for (Organization org : deduped) {
+            if (org.getId() != null) {
+                idMap.putIfAbsent(org.getId(), org);
+            }
+        }
+
+        Set<Long> keepIds = new HashSet<>();
+        for (Organization org : deduped) {
+            if (org.getId() == null || !StringUtils.hasText(org.getCode())) {
+                continue;
+            }
+            if (!dataCodes.contains(org.getCode().trim())) {
+                continue;
+            }
+            if (!keepIds.add(org.getId())) {
+                continue;
+            }
+
+            Long pid = org.getParentId();
+            while (pid != null && pid != 0L) {
+                Organization parent = idMap.get(pid);
+                if (parent == null || parent.getId() == null) {
+                    break;
+                }
+                if (!keepIds.add(parent.getId())) {
+                    break;
+                }
+                pid = parent.getParentId();
+            }
+        }
+
+        List<Organization> filtered = new ArrayList<>();
+        for (Organization org : deduped) {
+            if (org.getId() != null && keepIds.contains(org.getId())) {
+                filtered.add(org);
+            }
+        }
+
+        log.info("年份过滤: year={} 从 {} 个组织过滤到 {} 个组织(含祖先)", year, organizations.size(), filtered.size());
+        return filtered;
+    }
+
+    private List<Organization> deduplicateOrganizationsByCode(List<Organization> organizations) {
+        if (organizations == null || organizations.isEmpty()) {
+            return organizations;
+        }
+
+        Set<Long> allIds = organizations.stream()
+                .map(Organization::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<String, Organization> byCode = new LinkedHashMap<>();
+        int dropped = 0;
+
+        for (Organization org : organizations) {
+            if (org == null || !StringUtils.hasText(org.getCode())) {
+                continue;
+            }
+            String code = org.getCode().trim();
+            Organization existing = byCode.get(code);
+            if (existing == null) {
+                byCode.put(code, org);
+                continue;
+            }
+
+            Organization chosen = chooseBetterOrganizationCandidate(existing, org, allIds);
+            if (chosen != existing) {
+                byCode.put(code, chosen);
+            }
+            dropped++;
+        }
+
+        if (dropped > 0) {
+            log.warn("组织机构去重: 输入 {} 条，去重后 {} 条", organizations.size(), byCode.size());
+        }
+
+        return new ArrayList<>(byCode.values());
+    }
+
+    private Organization chooseBetterOrganizationCandidate(Organization a, Organization b, Set<Long> allIds) {
+        boolean aParentOk = a.getParentId() == null || a.getParentId() == 0L || allIds.contains(a.getParentId());
+        boolean bParentOk = b.getParentId() == null || b.getParentId() == 0L || allIds.contains(b.getParentId());
+        if (aParentOk != bParentOk) {
+            return bParentOk ? b : a;
+        }
+
+        boolean aNameOk = StringUtils.hasText(a.getName());
+        boolean bNameOk = StringUtils.hasText(b.getName());
+        if (aNameOk != bNameOk) {
+            return bNameOk ? b : a;
+        }
+
+        if (a.getId() == null) return b;
+        if (b.getId() == null) return a;
+        return b.getId() < a.getId() ? b : a;
     }
 
     @Override
@@ -562,25 +728,39 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             return new ArrayList<>();
         }
 
-        Map<Long, List<Organization>> parentMap = organizations.stream()
+        List<Organization> deduped = deduplicateOrganizationsByCode(organizations);
+
+        Map<Long, List<Organization>> parentMap = deduped.stream()
                 .collect(Collectors.groupingBy(
                         org -> org.getParentId() != null ? org.getParentId() : 0L
                 ));
 
+        Set<String> emittedCodes = new HashSet<>();
+        Set<Long> stack = new HashSet<>();
+
         if (parentId != null) {
-            return buildTreeRecursive(parentId, parentMap);
+            return buildTreeRecursive(parentId, parentMap, emittedCodes, stack);
         } else {
             // 如果 parentId 为 null，说明需要构建完整的树（或者当前可见范围的树）
             // 我们需要找到所有的"根"节点
             // 根节点是那些：1. parentId 为 0 或 null 的节点
             //              2. 或者 parentId 指向的节点不在 organizations 列表中的节点（孤儿节点）
             
-            Set<Long> allIds = organizations.stream().map(Organization::getId).collect(Collectors.toSet());
+            Set<Long> allIds = deduped.stream().map(Organization::getId).filter(Objects::nonNull).collect(Collectors.toSet());
             List<Map<String, Object>> result = new ArrayList<>();
+            Set<Long> addedRootIds = new HashSet<>();
             
             // 1. 标准根节点
             if (parentMap.containsKey(0L)) {
-                result.addAll(buildTreeRecursive(0L, parentMap));
+                List<Organization> roots = parentMap.get(0L);
+                if (roots != null) {
+                    for (Organization root : roots) {
+                        if (root != null && root.getId() != null) {
+                            addedRootIds.add(root.getId());
+                        }
+                    }
+                }
+                result.addAll(buildTreeRecursive(0L, parentMap, emittedCodes, stack));
             }
             
             // 2. 查找孤儿节点作为根节点
@@ -592,20 +772,32 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                     // 这里 entry.getValue() 就是我们要找的根节点列表
                     List<Organization> roots = entry.getValue();
                     for (Organization root : roots) {
+                        if (root == null || root.getId() == null) {
+                            continue;
+                        }
+                        if (addedRootIds.contains(root.getId())) {
+                            continue;
+                        }
+                        String normalizedCode = normalizeText(root.getCode());
+                        if (!StringUtils.hasText(normalizedCode) || emittedCodes.contains(normalizedCode)) {
+                            continue;
+                        }
+                        emittedCodes.add(normalizedCode);
+                        addedRootIds.add(root.getId());
                         Map<String, Object> node = new HashMap<>();
                         node.put("id", root.getId());
                         node.put("parentId", root.getParentId());
-                        node.put("code", root.getCode());
-                        node.put("name", root.getName());
+                        node.put("code", normalizedCode);
+                        node.put("name", normalizeText(root.getName()));
                         node.put("level", root.getLevel());
-                        node.put("dataSource", root.getDataSource());
-                        node.put("provinceName", root.getProvinceName());
-                        node.put("cityName", root.getCityName());
-                        node.put("countyName", root.getCountyName());
-                        node.put("townshipName", root.getTownshipName());
-                        node.put("communityName", root.getCommunityName());
+                        node.put("dataSource", normalizeText(root.getDataSource()));
+                        node.put("provinceName", normalizeText(root.getProvinceName()));
+                        node.put("cityName", normalizeText(root.getCityName()));
+                        node.put("countyName", normalizeText(root.getCountyName()));
+                        node.put("townshipName", normalizeText(root.getTownshipName()));
+                        node.put("communityName", normalizeText(root.getCommunityName()));
                         
-                        List<Map<String, Object>> childNodes = buildTreeRecursive(root.getId(), parentMap);
+                        List<Map<String, Object>> childNodes = buildTreeRecursive(root.getId(), parentMap, emittedCodes, stack);
                         if (!childNodes.isEmpty()) {
                             node.put("children", childNodes);
                         }
@@ -615,8 +807,10 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             }
             
             // 排序
-            result.sort(Comparator.comparing((Map<String, Object> m) -> (Integer) m.get("level"))
-                    .thenComparing(m -> (String) m.get("code")));
+            Comparator<Integer> levelComparator = Comparator.nullsLast(Integer::compareTo);
+            Comparator<String> codeComparator = Comparator.nullsLast(String::compareTo);
+            result.sort(Comparator.comparing((Map<String, Object> m) -> (Integer) m.get("level"), levelComparator)
+                    .thenComparing(m -> (String) m.get("code"), codeComparator));
             
             return result;
         }
@@ -625,33 +819,62 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     /**
      * 递归构建树形结构
      */
-    private List<Map<String, Object>> buildTreeRecursive(Long parentId, Map<Long, List<Organization>> parentMap) {
+    private List<Map<String, Object>> buildTreeRecursive(
+            Long parentId,
+            Map<Long, List<Organization>> parentMap,
+            Set<String> emittedCodes,
+            Set<Long> stack
+    ) {
+        if (parentId == null) {
+            return new ArrayList<>();
+        }
+        if (!stack.add(parentId)) {
+            return new ArrayList<>();
+        }
         List<Organization> children = parentMap.get(parentId);
         if (children == null || children.isEmpty()) {
+            stack.remove(parentId);
             return new ArrayList<>();
         }
 
-        return children.stream().map(org -> {
+        List<Map<String, Object>> result = children.stream().map(org -> {
+            String normalizedCode = normalizeText(org.getCode());
+            if (!StringUtils.hasText(normalizedCode) || emittedCodes.contains(normalizedCode)) {
+                return null;
+            }
+            emittedCodes.add(normalizedCode);
+
             Map<String, Object> node = new HashMap<>();
             node.put("id", org.getId());
             node.put("parentId", org.getParentId());
-            node.put("code", org.getCode());
-            node.put("name", org.getName());
+            node.put("code", normalizedCode);
+            node.put("name", normalizeText(org.getName()));
             node.put("level", org.getLevel());
-            node.put("dataSource", org.getDataSource());
-            node.put("provinceName", org.getProvinceName());
-            node.put("cityName", org.getCityName());
-            node.put("countyName", org.getCountyName());
-            node.put("townshipName", org.getTownshipName());
-            node.put("communityName", org.getCommunityName());
+            node.put("dataSource", normalizeText(org.getDataSource()));
+            node.put("provinceName", normalizeText(org.getProvinceName()));
+            node.put("cityName", normalizeText(org.getCityName()));
+            node.put("countyName", normalizeText(org.getCountyName()));
+            node.put("townshipName", normalizeText(org.getTownshipName()));
+            node.put("communityName", normalizeText(org.getCommunityName()));
 
-            List<Map<String, Object>> childNodes = buildTreeRecursive(org.getId(), parentMap);
+            List<Map<String, Object>> childNodes = buildTreeRecursive(org.getId(), parentMap, emittedCodes, stack);
             if (!childNodes.isEmpty()) {
                 node.put("children", childNodes);
             }
 
             return node;
-        }).collect(Collectors.toList());
+        }).filter(Objects::nonNull).collect(Collectors.toList());
+
+        stack.remove(parentId);
+        return result;
+    }
+
+    private String normalizeText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @Override
@@ -710,15 +933,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     @Transactional(rollbackFor = Exception.class)
     public boolean deleteOrganization(Long id) {
         try {
-            // 检查是否有子节点
-            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("parent_id", id);
-            Long childCount = baseMapper.selectCount(queryWrapper);
-            if (childCount > 0) {
-                throw new RuntimeException("该组织机构下有子节点，无法删除");
-            }
-
-            return removeById(id);
+            return cascadeDeleteOrganizations(Collections.singletonList(id));
         } catch (Exception e) {
             log.error("删除组织机构失败: {}", id, e);
             throw e;
@@ -729,19 +944,83 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     @Transactional(rollbackFor = Exception.class)
     public boolean batchDeleteOrganizations(List<Long> ids) {
         try {
-            // 检查是否有子节点
-            QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
-            queryWrapper.in("parent_id", ids);
-            Long childCount = baseMapper.selectCount(queryWrapper);
-            if (childCount > 0) {
-                throw new RuntimeException("所选组织机构中存在有子节点的记录，无法删除");
-            }
-
-            return removeByIds(ids);
+            return cascadeDeleteOrganizations(ids);
         } catch (Exception e) {
             log.error("批量删除组织机构失败: {}", ids, e);
             throw e;
         }
+    }
+
+    private boolean cascadeDeleteOrganizations(List<Long> rootIds) {
+        if (rootIds == null || rootIds.isEmpty()) {
+            return true;
+        }
+
+        List<Organization> roots = listByIds(rootIds).stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (roots.isEmpty()) {
+            return true;
+        }
+
+        List<String> prefixes = roots.stream()
+                .map(Organization::getCode)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (prefixes.isEmpty()) {
+            removeByIds(rootIds);
+            return true;
+        }
+
+        QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+        queryWrapper.and(wrapper -> {
+            for (String prefix : prefixes) {
+                wrapper.or().likeRight("code", prefix);
+            }
+        });
+
+        List<Organization> organizations = list(queryWrapper);
+        if (organizations == null || organizations.isEmpty()) {
+            return true;
+        }
+
+        Set<Long> deleteIds = organizations.stream()
+                .map(Organization::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (deleteIds.isEmpty()) {
+            return true;
+        }
+
+        List<Long> deleteIdList = new ArrayList<>(deleteIds);
+
+        roleOrganizationMapper.deleteByOrgIds(deleteIdList);
+        userOrganizationMapper.deleteByOrgIds(deleteIdList);
+        organizationBoundaryMapper.delete(new QueryWrapper<OrganizationBoundary>().in("organization_id", deleteIdList));
+
+        Map<Integer, List<Long>> byLevel = new HashMap<>();
+        int maxLevel = 0;
+        for (Organization org : organizations) {
+            if (org == null || org.getId() == null) {
+                continue;
+            }
+            int level = org.getLevel() == null ? 0 : org.getLevel();
+            maxLevel = Math.max(maxLevel, level);
+            byLevel.computeIfAbsent(level, k -> new ArrayList<>()).add(org.getId());
+        }
+
+        for (int level = maxLevel; level >= 0; level--) {
+            List<Long> idsAtLevel = byLevel.get(level);
+            if (idsAtLevel == null || idsAtLevel.isEmpty()) {
+                continue;
+            }
+            removeByIds(idsAtLevel);
+        }
+
+        return true;
     }
 
     @Override

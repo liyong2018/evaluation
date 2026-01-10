@@ -69,18 +69,19 @@ export const surveyDataApi = {
 // 权重配置相关API
 export const weightConfigApi = {
   // 获取所有权重配置（支持按组织机构过滤）
-  getAll: (orgcode?: string) => {
-    if (orgcode) {
-      return request.get('/api/weight-config', { params: { orgcode } })
+  getAll: (params?: { orgcode?: string; year?: number } | string) => {
+    if (typeof params === 'string') {
+      return request.get('/api/weight-config', { params: { orgcode: params } })
     }
-    return request.get('/api/weight-config')
+    return request.get('/api/weight-config', { params })
   },
   
   // 根据ID获取权重配置
   getById: (id: number) => request.get(`/api/weight-config/${id}`),
   
   // 根据名称获取权重配置
-  getByName: (configName: string) => request.get(`/api/weight-config/name/${configName}`),
+  getByName: (configName: string, params?: { year?: number }) =>
+    request.get(`/api/weight-config/name/${configName}`, { params }),
   
   // 获取激活的权重配置
   getActive: () => request.get('/api/weight-config/active'),
@@ -681,20 +682,20 @@ export const medicalInstitutionApi = {
 // 地区数据相关API（三级联动）
 export const regionDataApi = {
   // 根据数据类型获取省份列表
-  getProvinces: (dataType: string) =>
-    request.get('/api/region/provinces', { params: { dataType } }),
+  getProvinces: (dataType: string, year?: number) =>
+    request.get('/api/region/provinces', { params: { dataType, year } }),
 
   // 根据省份名称获取城市列表
-  getCities: (dataType: string, provinceName: string) =>
-    request.get('/api/region/cities', { params: { dataType, provinceName } }),
+  getCities: (dataType: string, provinceName: string, year?: number) =>
+    request.get('/api/region/cities', { params: { dataType, provinceName, year } }),
 
   // 根据城市名称获取区县列表
-  getCounties: (dataType: string, provinceName: string, cityName: string) =>
-    request.get('/api/region/counties', { params: { dataType, provinceName, cityName } }),
+  getCounties: (dataType: string, provinceName: string, cityName: string, year?: number) =>
+    request.get('/api/region/counties', { params: { dataType, provinceName, cityName, year } }),
 
   // 根据选择的县获取对应的数据
-  getDataByCounty: (dataType: string, provinceName: string, cityName: string, countyName: string) =>
-    request.get('/api/region/data', { params: { dataType, provinceName, cityName, countyName } })
+  getDataByCounty: (dataType: string, provinceName: string, cityName: string, countyName: string, year?: number) =>
+    request.get('/api/region/data', { params: { dataType, provinceName, cityName, countyName, year } })
 }
 
 // 模型管理相关API
@@ -795,6 +796,7 @@ export const organizationApi = {
   getTree: (params?: {
     parentId?: number;
     maxLevel?: number;
+    year?: number;
   }) => request.get('/api/organization/tree', { params }),
 
   // 根据父级ID获取子级组织机构

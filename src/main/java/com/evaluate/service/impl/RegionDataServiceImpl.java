@@ -95,7 +95,7 @@ public class RegionDataServiceImpl implements IRegionDataService {
     }
 
     @Override
-    public List<Map<String, Object>> getProvincesByDataType(String dataType) {
+    public List<Map<String, Object>> getProvincesByDataType(String dataType, Integer year) {
         List<Map<String, Object>> result;
         if ("community".equals(dataType)) {
             // 从社区数据表获取省份
@@ -103,6 +103,9 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.select("DISTINCT province_name as name, province_name as code");
             wrapper.isNotNull("province_name");
             wrapper.ne("province_name", "");
+            if (year != null) {
+                wrapper.eq("year", year);
+            }
 
             List<Map<String, Object>> rawResult = communityCapacityMapper.selectMaps(wrapper);
             result = rawResult.stream()
@@ -119,6 +122,9 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.select("DISTINCT province as name, province as code");
             wrapper.isNotNull("province");
             wrapper.ne("province", "");
+            if (year != null) {
+                wrapper.eq("year", year);
+            }
 
             List<Map<String, Object>> rawResult = surveyDataMapper.selectMaps(wrapper);
             result = rawResult.stream()
@@ -147,7 +153,7 @@ public class RegionDataServiceImpl implements IRegionDataService {
     }
 
     @Override
-    public List<Map<String, Object>> getCitiesByProvince(String dataType, String provinceName) {
+    public List<Map<String, Object>> getCitiesByProvince(String dataType, String provinceName, Integer year) {
         List<Map<String, Object>> result;
         if ("community".equals(dataType)) {
             // 从社区数据表获取城市
@@ -156,6 +162,9 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.eq("province_name", provinceName);
             wrapper.isNotNull("city_name");
             wrapper.ne("city_name", "");
+            if (year != null) {
+                wrapper.eq("year", year);
+            }
 
             List<Map<String, Object>> rawResult = communityCapacityMapper.selectMaps(wrapper);
             result = rawResult.stream()
@@ -173,6 +182,9 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.eq("province", provinceName);
             wrapper.isNotNull("city");
             wrapper.ne("city", "");
+            if (year != null) {
+                wrapper.eq("year", year);
+            }
 
             List<Map<String, Object>> rawResult = surveyDataMapper.selectMaps(wrapper);
             result = rawResult.stream()
@@ -210,7 +222,7 @@ public class RegionDataServiceImpl implements IRegionDataService {
     }
 
     @Override
-    public List<Map<String, Object>> getCountiesByCity(String dataType, String provinceName, String cityName) {
+    public List<Map<String, Object>> getCountiesByCity(String dataType, String provinceName, String cityName, Integer year) {
         List<Map<String, Object>> result;
         if ("community".equals(dataType)) {
             // 从社区数据表获取区县
@@ -220,6 +232,9 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.eq("city_name", cityName);
             wrapper.isNotNull("county_name");
             wrapper.ne("county_name", "");
+            if (year != null) {
+                wrapper.eq("year", year);
+            }
 
             List<Map<String, Object>> rawResult = communityCapacityMapper.selectMaps(wrapper);
             result = rawResult.stream()
@@ -238,6 +253,9 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.eq("city", cityName);
             wrapper.isNotNull("county");
             wrapper.ne("county", "");
+            if (year != null) {
+                wrapper.eq("year", year);
+            }
 
             List<Map<String, Object>> rawResult = surveyDataMapper.selectMaps(wrapper);
             result = rawResult.stream()
@@ -273,13 +291,16 @@ public class RegionDataServiceImpl implements IRegionDataService {
     }
 
     @Override
-    public List<?> getDataByCounty(String dataType, String provinceName, String cityName, String countyName) {
+    public List<?> getDataByCounty(String dataType, String provinceName, String cityName, String countyName, Integer year) {
         if ("community".equals(dataType)) {
             // 从社区数据表获取数据
             QueryWrapper<CommunityDisasterReductionCapacity> wrapper = new QueryWrapper<>();
             wrapper.eq("province_name", provinceName);
             wrapper.eq("city_name", cityName);
             wrapper.eq("county_name", countyName);
+            if (year != null) {
+                wrapper.eq("year", year);
+            }
             wrapper.orderByAsc("id");
 
             return communityCapacityMapper.selectList(wrapper);
@@ -289,6 +310,9 @@ public class RegionDataServiceImpl implements IRegionDataService {
             wrapper.eq("province", provinceName);
             wrapper.eq("city", cityName);
             wrapper.eq("county", countyName);
+            if (year != null) {
+                wrapper.eq("year", year);
+            }
             wrapper.orderByAsc("id");
 
             return surveyDataMapper.selectList(wrapper);

@@ -20,6 +20,14 @@ public interface UserOrganizationMapper {
     @Delete("DELETE FROM sys_user_organization WHERE user_id = #{userId}")
     int deleteByUserId(@Param("userId") Long userId);
 
+    @Delete("<script>" +
+            "DELETE FROM sys_user_organization WHERE organization_id IN " +
+            "<foreach item='orgId' collection='orgIds' open='(' separator=',' close=')'>" +
+            "#{orgId}" +
+            "</foreach>" +
+            "</script>")
+    int deleteByOrgIds(@Param("orgIds") List<Long> orgIds);
+
     @Select("<script>" +
             "SELECT o.code FROM sys_user_organization uo " +
             "LEFT JOIN organization o ON uo.organization_id = o.id " +

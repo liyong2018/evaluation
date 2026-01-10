@@ -20,6 +20,14 @@ public interface RoleOrganizationMapper {
     @Delete("DELETE FROM sys_role_organization WHERE role_id = #{roleId}")
     int deleteByRoleId(@Param("roleId") Long roleId);
 
+    @Delete("<script>" +
+            "DELETE FROM sys_role_organization WHERE organization_id IN " +
+            "<foreach item='orgId' collection='orgIds' open='(' separator=',' close=')'>" +
+            "#{orgId}" +
+            "</foreach>" +
+            "</script>")
+    int deleteByOrgIds(@Param("orgIds") List<Long> orgIds);
+
     @Select("<script>" +
             "SELECT o.code FROM sys_role_organization ro " +
             "LEFT JOIN organization o ON ro.organization_id = o.id " +

@@ -15,13 +15,26 @@
           <el-card class="org-tree-panel">
             <template #header>
               <div class="card-header">
-                <span>组织机构</span>
+                <div class="card-header-left">
+                  <span>组织机构</span>
+                  <el-select
+                    v-model="orgYear"
+                    size="small"
+                    clearable
+                    placeholder="年份"
+                    class="org-year-select"
+                    @change="refreshOrganizations"
+                  >
+                    <el-option v-for="year in yearOptions" :key="year" :label="`${year}年`" :value="year" />
+                  </el-select>
+                </div>
                 <el-button type="primary" size="small" @click="refreshOrganizations">
                   <el-icon><Refresh /></el-icon>
                 </el-button>
               </div>
             </template>
             <el-tree
+              :key="orgTreeRenderKey"
               ref="orgTreeRef"
               v-loading="loading.organizations"
               :data="organizationList"
@@ -490,7 +503,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import {
   Search,
@@ -519,6 +532,9 @@ const selectedConfigId = ref<number | null>(null)
 const selectedOrg = ref<any>(null) // 当前选中的组织机构
 const organizationList = ref<any[]>([]) // 组织机构列表
 const orgTreeRef = ref() // 组织机构树引用
+const orgYear = ref<number | null>(new Date().getFullYear())
+const yearOptions = ref<number[]>([])
+const orgTreeRenderKey = computed(() => `orgTree-${orgYear.value ?? 'all'}`)
 
 // 树形组件配置
 const treeProps = {
@@ -763,7 +779,7 @@ const getConfigList = async () => {
   try {
     // 支持按组织机构过滤
     const orgcode = selectedOrg.value ? selectedOrg.value.code : undefined
-    const response = await weightConfigApi.getAll(orgcode)
+    const response = await weightConfigApi.getAll({ orgcode, year: orgYear.value || undefined })
     console.log('权重配置API响应:', response)
     if (response.success) {
       configList.value = response.data || []
@@ -797,15 +813,44 @@ const collectExpandedKeys = (nodes: any[], level: number = 1, keys: string[] = [
   return keys
 }
 
+const findOrgNodeByCode = (tree: any[], code: any): any | null => {
+  for (const node of tree || []) {
+    if (String(node?.code) === String(code)) return node
+    if (node?.children?.length) {
+      const found = findOrgNodeByCode(node.children, code)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+const generateYearOptions = () => {
+  const currentYear = new Date().getFullYear()
+  const options: number[] = []
+  // 倒序生成年份选项：2026, 2025, 2024... 2020
+  for (let year = currentYear; year >= 2020; year--) {
+    options.push(year)
+  }
+  yearOptions.value = options
+}
+
 const getOrganizationList = async () => {
   loading.organizations = true
   try {
-    const response = await organizationApi.getTree()
+    const response = await organizationApi.getTree({ year: orgYear.value || undefined })
     if (response.success && response.data) {
       organizationList.value = response.data || []
       // 收集需要展开的节点key
       defaultExpandedKeys.value = collectExpandedKeys(organizationList.value)
-      console.log('组织机构树形数据:', organizationList.value)
+      console.log('组织机构树形数据 (年份:', orgYear.value, '):', organizationList.value)
+      if (selectedOrg.value) {
+        const exists = findOrgNodeByCode(organizationList.value, selectedOrg.value.code)
+        if (!exists) {
+          selectedOrg.value = null
+        }
+      }
+      await nextTick()
+      orgTreeRef.value?.setCurrentKey(selectedOrg.value?.code ?? null)
     }
   } catch (error) {
     console.error('获取组织机构列表失败:', error)
@@ -816,8 +861,9 @@ const getOrganizationList = async () => {
 }
 
 // 刷新组织机构树
-const refreshOrganizations = () => {
-  getOrganizationList()
+const refreshOrganizations = async () => {
+  await getOrganizationList()
+  await getConfigList()
 }
 
 // 处理组织机构节点点击
@@ -837,7 +883,7 @@ const searchConfigs = async () => {
   
   loading.configs = true
   try {
-    const response = await weightConfigApi.getByName(configSearch.value)
+    const response = await weightConfigApi.getByName(configSearch.value, { year: orgYear.value || undefined })
     if (response.success) {
       configList.value = response.data ? [response.data] : []
     }
@@ -1337,6 +1383,7 @@ const scoreTreeData = computed(() => {
 // 组件挂载时获取数据
 onMounted(() => {
   console.log('WeightConfig组件已挂载，开始加载数据')
+  generateYearOptions()
   getConfigList()
   getOrganizationList() // 获取组织机构列表
 })
@@ -1387,6 +1434,16 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.org-year-select {
+  width: 110px;
 }
 
 /* 组织机构树节点样式 */

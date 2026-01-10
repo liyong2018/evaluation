@@ -9,7 +9,7 @@
     <div class="map-body-wrapper">
       <!-- 地图容器 -->
       <div id="map" ref="mapRef" class="map-content"></div>
-      
+
       <!-- 制图要素覆盖层 -->
       <div class="map-elements-overlay">
         <!-- 图例 - 移动到左下角 -->
@@ -155,7 +155,7 @@ const props = withDefaults(defineProps<Props>(), {
   reportId: 0,
   regionData: () => [],
   mapConfig: undefined,
-  year: 2024,
+  year: 2025,
   orgCode: '511425',
   orgName: '',
   level: 'township',
@@ -1059,9 +1059,9 @@ const loadThematicData = async () => {
     }
     
     const processedData = applyOrgFilter(boundaries, thematicData)
-    
+
     console.log('准备渲染真实边界数据:', processedData)
-    
+
     currentThematicData.value = processedData.data
     console.log('存储专题数据用于统计:', currentThematicData.value.length, '条记录')
     
@@ -1124,17 +1124,17 @@ const loadThematicData = async () => {
     }
     
     const processedData = applyOrgFilter(boundaries, thematicData)
-    
+
     console.log('步骤3: 准备渲染数据')
     console.log('边界特征数量:', processedData.boundaries.features?.length)
     console.log('专题数据数量:', processedData.data?.length)
-    
+
     // 渲染专题图层
     await renderThematicLayer(processedData)
-    
+
     currentThematicData.value = processedData.data
     console.log('存储专题数据用于统计:', currentThematicData.value.length, '条记录')
-    
+
     console.log('=== 专题数据加载完成 ===')
   } catch (error) {
     console.error('加载专题数据失败:', error)
@@ -2116,34 +2116,12 @@ const loadRealBoundaryData = async () => {
     try {
         const response = await fetch(fetchUrl + '?t=' + Date.now())
         if (!response.ok) {
-            // 如果特定年份的文件不存在，尝试降级到默认年份 (2025)
-            if (fetchUrl.includes('/boundaries/') && props.year && props.year != 2025) {
-                 console.warn(`年份 ${props.year} 的边界文件不存在，尝试降级到 2025`);
-                 const fallbackYearUrl = `/boundaries/2025/city/${cityName}.json`;
-                 const fallbackYearResponse = await fetch(fallbackYearUrl + '?t=' + Date.now());
-                 if (fallbackYearResponse.ok) {
-                     data = await fallbackYearResponse.json();
-                 } else {
-                     throw new Error(`HTTP error! status: ${response.status}`);
-                 }
-            } else {
-                throw new Error(`HTTP error! status: ${response.status}`)
-            }
-        } else {
-            data = await response.json()
+            throw new Error(`HTTP error! status: ${response.status}`)
         }
+        data = await response.json()
     } catch (err) {
-        console.warn(`加载 ${fetchUrl} 失败，尝试回退到 shp.geojson`, err);
-        if (fetchUrl !== '/shp.geojson') {
-            const fallbackResponse = await fetch('/shp.geojson?t=' + Date.now());
-            if (fallbackResponse.ok) {
-                data = await fallbackResponse.json();
-            } else {
-                throw new Error('无法加载边界数据');
-            }
-        } else {
-            throw err;
-        }
+        console.warn(`加载 ${fetchUrl} 失败`, err);
+        throw err;
     }
     
     // 检查数据有效性
