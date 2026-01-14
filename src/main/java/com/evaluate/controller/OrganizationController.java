@@ -278,12 +278,36 @@ public class OrganizationController {
     }
 
     /**
+     * 删除组织机构的年度数据
+     */
+    @DeleteMapping("/{id}/data")
+    public Result<Map<String, Object>> deleteYearData(
+            @PathVariable Long id,
+            @RequestParam("year") Integer year) {
+        log.info("删除组织机构的年度数据，ID: {}, 年份: {}", id, year);
+        try {
+            Map<String, Object> result = organizationService.deleteOrganizationYearData(id, year);
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("删除组织机构的年度数据失败", e);
+            return Result.error("删除年度数据失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 导入组织机构Excel
      */
     @PostMapping("/import")
-    public Result<Map<String, Object>> importExcel(@RequestParam("file") MultipartFile file) {
-        log.info("导入组织机构Excel，文件名: {}", file.getOriginalFilename());
+    public Result<Map<String, Object>> importExcel(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("year") Integer year) {
+        log.info("导入组织机构Excel，文件名: {}, 年份: {}", file.getOriginalFilename(), year);
         try {
+            // 验证年份
+            if (year == null) {
+                return Result.error("请指定导入年份");
+            }
+
             // 验证文件
             if (file.isEmpty()) {
                 return Result.error("文件为空");
@@ -302,16 +326,32 @@ public class OrganizationController {
             }
 
             // 调用服务层导入
-            int count = organizationService.importFromExcel(importList);
+            int count = organizationService.importFromExcel(importList, year);
 
             Map<String, Object> result = new HashMap<>();
             result.put("count", count);
             result.put("total", importList.size());
+            result.put("year", year);
 
             return Result.success(result);
         } catch (Exception e) {
             log.error("导入组织机构Excel失败", e);
             return Result.error("导入失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/copy-from-previous-year")
+    public Result<Map<String, Object>> copyFromPreviousYear(@RequestParam("targetYear") Integer targetYear) {
+        try {
+            int count = organizationService.copyFromPreviousYear(targetYear);
+            Map<String, Object> data = new HashMap<>();
+            data.put("targetYear", targetYear);
+            data.put("sourceYear", targetYear != null ? targetYear - 1 : null);
+            data.put("count", count);
+            return Result.success(data);
+        } catch (Exception e) {
+            log.error("从上一年复制年度配置失败: targetYear={}", targetYear, e);
+            return Result.error("复制失败: " + e.getMessage());
         }
     }
 

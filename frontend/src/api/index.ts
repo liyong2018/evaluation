@@ -828,6 +828,18 @@ export const organizationApi = {
     request.get('/api/organization/communities', { params: { townshipCode } })
 }
 
+export const organizationBoundaryApi = {
+  getBoundary: (orgId: number, year: number) => request.get(`/api/organization/boundary/${orgId}/${year}`),
+  saveBoundary: (data: any) => request.post('/api/organization/boundary/save', data),
+  uploadBoundary: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post('/api/organization/boundary/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
+}
+
 // 用户认证相关API
 export const userApi = {
   // 用户登录验证

@@ -62,9 +62,11 @@
           <div class="map-container" v-loading="loading">
             <div class="map-stage">
               <CompositeThematicMap
-                v-if="selectedLevel === 'comprehensive_composite'"
+                v-if="selectedLevel === 'comprehensive_composite' && showMap"
                 :year="selectedYear || undefined"
-                :orgCode="selectedOrgCode || undefined"
+                :orgCode="selectedOrgCode || ''"
+                :orgId="selectedOrgId || undefined"
+                :orgName="selectedOrgName || undefined"
                 ref="compositeMapRef"
               />
               <ThematicMapGenerator
@@ -73,6 +75,7 @@
                 :mapConfig="computedMapConfig"
                 :year="selectedYear || undefined"
                 :orgCode="selectedOrgCode || undefined"
+                :orgId="selectedOrgId || undefined"
                 :orgName="selectedOrgName || undefined"
                 :parentName="selectedOrgParentName || undefined"
                 :level="selectedLevel"
@@ -94,6 +97,7 @@
           :mapConfig="{ ...computedMapConfig, showTitle: true, showLegend: true, showScale: true, showCompass: true, showBorder: true }"
           :year="selectedYear || undefined"
           :orgCode="selectedOrgCode || undefined"
+          :orgId="selectedOrgId || undefined"
           :orgName="selectedOrgName || undefined"
           level="township"
         />
@@ -101,7 +105,9 @@
           <CompositeThematicMap
             ref="generationCompositeMapRef"
             :year="selectedYear || undefined"
-            :orgCode="selectedOrgCode || undefined"
+            :orgCode="selectedOrgCode || ''"
+            :orgId="selectedOrgId || undefined"
+            :orgName="selectedOrgName || undefined"
           />
         </div>
       </div>
@@ -133,7 +139,7 @@ import { ElMessage } from 'element-plus'
 import CompositeThematicMap from '@/components/CompositeThematicMap.vue'
 import ThematicMapGenerator from '@/components/ThematicMapGenerator.vue'
 import OnlyOfficeEditor from '@/components/OnlyOfficeEditor.vue'
-import { wordTemplateApi, organizationApi } from '@/api'
+import { wordTemplateApi, organizationApi, algorithmManagementApi } from '@/api'
 console.log('ThematicMap页面导入完成')
 
 // 响应式数据
@@ -154,7 +160,11 @@ const yearOptions = ref<number[]>([])
 const selectedOrgCode = ref<string | null>('511425')
 const organizationList = ref<any[]>([])
 const loadingOrganizations = ref(false)
+const lastLoadedOrgTreeYear = ref<number | null>(null)
+const orgTreeMaxLevel = 3
 const selectedLevel = ref<string>('township') // 默认乡镇级
+const algorithmList = ref<any[]>([])
+const selectedAlgorithmId = ref<number | null>(null)
 
 const mapSettings = reactive({
   reportId: 1,
@@ -210,19 +220,55 @@ const selectedOrgParentName = computed(() => {
   return result?.parent?.name || ''
 })
 
+const selectedOrgId = computed(() => {
+  if (!selectedOrgCode.value) return null
+  const node = findOrgNodeByCode(organizationList.value, selectedOrgCode.value)
+  const id = node?.id
+  return typeof id === 'number' ? id : id != null ? Number(id) : null
+})
+
 const generateYearOptions = () => {
-  const currentYear = new Date().getFullYear()
   const options: number[] = []
-  for (let year = 2020; year <= currentYear; year++) options.push(year)
+  for (let year = 2026; year >= 2020; year--) options.push(year)
   yearOptions.value = options
 }
 
-const getOrganizationList = async () => {
+const findFirstNodeByLevel = (tree: any[], level: number): any | null => {
+  const queue: any[] = [...(tree || [])]
+  while (queue.length) {
+    const node = queue.shift()
+    if (!node) continue
+    if (Number(node.level) === level) return node
+    if (Array.isArray(node.children) && node.children.length) queue.push(...node.children)
+  }
+  return null
+}
+
+const getOrganizationList = async (year?: number | null) => {
   loadingOrganizations.value = true
   try {
-    const response = await organizationApi.getTree()
+    const response = await organizationApi.getTree({ year: year ?? undefined, maxLevel: orgTreeMaxLevel })
     if (response.success && response.data) {
       organizationList.value = response.data || []
+      lastLoadedOrgTreeYear.value = year ?? null
+      if (!organizationList.value.length) {
+        selectedOrgCode.value = null
+        showMap.value = false
+        return
+      }
+      if (selectedOrgCode.value) {
+        const exists = findOrgNodeByCode(organizationList.value, selectedOrgCode.value)
+        if (!exists) {
+          selectedOrgCode.value = null
+        }
+      }
+      if (!selectedOrgCode.value) {
+        const firstCounty = findFirstNodeByLevel(organizationList.value, 3)
+        if (firstCounty?.code != null) {
+          selectedOrgCode.value = String(firstCounty.code)
+        }
+      }
+      showMap.value = Boolean(selectedOrgCode.value)
     }
   } catch (error) {
     console.error('获取组织机构列表失败:', error)
@@ -232,20 +278,25 @@ const getOrganizationList = async () => {
   }
 }
 
-const handleFilterChange = () => {
+const handleFilterChange = async () => {
+  if (selectedYear.value !== lastLoadedOrgTreeYear.value) {
+    await getOrganizationList(selectedYear.value)
+  }
   const y = selectedYear.value ? `${selectedYear.value}年` : '全部年份'
   const org = selectedOrgName.value ? ` | 区域：${selectedOrgName.value}` : ''
   const levelNames: Record<string, string> = {
     'township': '乡镇级',
     'community_village': '社区-行政村级',
     'community_township': '社区-乡镇级',
-    'comprehensive': '综合'
+    'comprehensive': '综合',
+    'comprehensive_composite': '综合'
   }
   const levelName = levelNames[selectedLevel.value] || '乡镇级'
-  const regionName = selectedOrgName.value || '青神县'
+  const regionName = selectedOrgName.value || '无区域'
 
   mapSettings.title = `四川省眉山市${regionName}${levelName}减灾能力评估结果图`
   mapSettings.subtitle = `数据年份：${y}${org} | 级别：${levelName} | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
+  showMap.value = Boolean(selectedOrgCode.value)
   refreshMap()
 }
 
@@ -305,6 +356,10 @@ const fullscreen = () => {
 
 // 打开Word预览编辑器
 const openOnlyOfficeEditor = async () => {
+  if (!selectedOrgCode.value) {
+    ElMessage.warning('当前年份无可用区划，无法生成报告')
+    return
+  }
   let loadingInstance: any = null
   const showLoading = (msg: string) => {
     if (loadingInstance) loadingInstance.close()
@@ -428,10 +483,21 @@ const openOnlyOfficeEditor = async () => {
 // 组件挂载
 onMounted(async () => {
   generateYearOptions()
-  await getOrganizationList()
+  try {
+    const response = await algorithmManagementApi.getList()
+    if (response.success && Array.isArray(response.data)) {
+      algorithmList.value = response.data
+      if (selectedAlgorithmId.value == null && algorithmList.value.length > 0) {
+        selectedAlgorithmId.value = algorithmList.value[0]?.id ?? null
+      }
+    }
+  } catch (e) {
+    algorithmList.value = []
+  }
+  await getOrganizationList(selectedYear.value)
 
   // 初始化标题
-  handleFilterChange()
+  await handleFilterChange()
 
   // 检查是否有从评估计算传递的数据
   const evaluationData = (window as any).evaluationData

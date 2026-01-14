@@ -13,6 +13,9 @@
           ref="mainMapRef"
           :year="year"
           :orgCode="orgCode"
+          :orgId="orgId"
+          :orgName="orgName"
+          :algorithmId="algorithmId"
           level="comprehensive"
           :isCompact="true"
           :mapConfig="{ 
@@ -35,6 +38,9 @@
           <ThematicMapGenerator
             :year="year"
             :orgCode="orgCode"
+            :orgId="orgId"
+            :orgName="orgName"
+            :algorithmId="algorithmId"
             level="township"
             :isCompact="true"
             :mapConfig="{ 
@@ -56,6 +62,9 @@
           <ThematicMapGenerator
             :year="year"
             :orgCode="orgCode"
+            :orgId="orgId"
+            :orgName="orgName"
+            :algorithmId="algorithmId"
             level="community_township"
             :isCompact="true"
             :mapConfig="{ 
@@ -77,6 +86,9 @@
           <ThematicMapGenerator
             :year="year"
             :orgCode="orgCode"
+            :orgId="orgId"
+            :orgName="orgName"
+            :algorithmId="algorithmId"
             level="community_village"
             :isCompact="true"
             :mapConfig="{ 
@@ -113,16 +125,19 @@ import { ElMessage } from 'element-plus'
 interface Props {
   year?: number
   orgCode?: string
+  orgId?: number
   orgName?: string
+  algorithmId?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   year: 2025,
-  orgCode: '511425'
+  orgCode: '',
+  algorithmId: 1
 })
 
 const mapTitle = computed(() => {
-  const region = props.orgName || '青神县'
+  const region = (props.orgName || '').trim() || '无区域'
   return `${region}综合减灾能力评估结果图`
 })
 
@@ -141,6 +156,9 @@ const exportAndUploadForOnlyOffice = async () => {
   if (!containerRef.value) return null
   
   try {
+    const orgCode = (props.orgCode || '').trim()
+    if (!orgCode) return null
+
     console.log('开始生成组合专题图...')
     
     // 等待地图完全渲染
@@ -174,7 +192,7 @@ const exportAndUploadForOnlyOffice = async () => {
     const response = await thematicMapApi.uploadMapImageWithLevel(
       imageFile,
       props.year || 2025,
-      props.orgCode || '511425',
+      orgCode,
       'comprehensive'
     )
 

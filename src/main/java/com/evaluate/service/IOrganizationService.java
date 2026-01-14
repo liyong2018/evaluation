@@ -148,10 +148,32 @@ public interface IOrganizationService extends IService<Organization> {
     boolean batchDeleteOrganizations(List<Long> ids);
 
     /**
-     * 从Excel导入组织机构
+     * 从Excel导入组织机构（旧版本，兼容性保留）
      *
      * @param importList 导入数据列表
      * @return 导入的记录数
+     * @deprecated 请使用带年份参数的版本
      */
+    @Deprecated
     int importFromExcel(List<com.evaluate.dto.OrganizationImportDTO> importList);
+
+    /**
+     * 从Excel导入组织机构（带年份）
+     *
+     * @param importList 导入数据列表
+     * @param year 数据所属年份
+     * @return 导入的记录数
+     */
+    int importFromExcel(List<com.evaluate.dto.OrganizationImportDTO> importList, Integer year);
+
+    int copyFromPreviousYear(Integer targetYear);
+
+    /**
+     * 删除组织机构的年度数据
+     *
+     * @param organizationId 组织机构ID
+     * @param year 年份
+     * @return 删除结果统计
+     */
+    Map<String, Object> deleteOrganizationYearData(Long organizationId, Integer year);
 }

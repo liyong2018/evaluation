@@ -48,7 +48,7 @@
             </thead>
             <tbody>
               <tr>
-                <td>{{ props.orgName || '青神县' }}</td>
+                <td>{{ props.orgName || '无区域' }}</td>
                 <td>{{ getStatistics().strong }}</td>
                 <td>{{ getStatistics().mediumStrong }}</td>
                 <td>{{ getStatistics().medium }}</td>
@@ -124,7 +124,7 @@ import html2canvas from 'html2canvas'
 import * as turf from '@turf/turf'
 console.log('ThematicMapGenerator组件导入完成')
 import { ElMessage, ElCard, ElCheckbox } from 'element-plus'
-import { thematicMapApi } from '@/api'
+import { thematicMapApi, organizationBoundaryApi } from '@/api'
 
 let villagePointsCache: any | null = null
 let villagePointsCachePromise: Promise<any | null> | null = null
@@ -146,7 +146,10 @@ interface Props {
   }>
   year?: number
   orgCode?: string
+  orgId?: number
   orgName?: string
+  parentName?: string
+  algorithmId?: number
   level?: string  // 数据级别: township(乡镇), community_village(社区-行政村), community_township(社区-乡镇), comprehensive(综合)
   isCompact?: boolean // 是否为紧凑模式（用于组合图）
 }
@@ -156,8 +159,10 @@ const props = withDefaults(defineProps<Props>(), {
   regionData: () => [],
   mapConfig: undefined,
   year: 2025,
-  orgCode: '511425',
+  orgCode: '',
   orgName: '',
+  parentName: '',
+  algorithmId: 1,
   level: 'township',
   isCompact: false
 })
@@ -866,24 +871,35 @@ const loadThematicData = async () => {
     // 检查是否有从评估计算传递的数据
     const evaluationData = (window as any).evaluationData
     console.log('从window.evaluationData读取数据:', evaluationData)
+
+    const hasOrgFilter = Boolean(props.orgId || (props.orgCode && props.orgCode.trim()) || (props.orgName && props.orgName.trim()))
+    if (!hasOrgFilter && !(evaluationData && evaluationData.tableData)) {
+      await renderThematicLayer({ boundaries: emptyFeatureCollection(), data: [] })
+      currentThematicData.value = []
+      return
+    }
     
     let thematicData: any[] = []
 
     try {
-      const apiResponse = await thematicMapApi.getThematicData({
-        reportId: props.reportId,
-        surveyId: 1,
-        algorithmId: 1,
-        year: props.year,
-        orgCode: props.orgCode,
-        level: getCurrentLevel()
-      })
-      const apiData = (apiResponse as any)?.data
-      if (Array.isArray(apiData) && apiData.length > 0) {
-        thematicData = apiData
-        console.log('从API加载专题数据成功:', apiResponse)
+      if (props.orgCode && props.orgCode.trim()) {
+        const apiResponse = await thematicMapApi.getThematicData({
+          reportId: props.reportId,
+          surveyId: 1,
+          algorithmId: props.algorithmId || 1,
+          year: props.year,
+          orgCode: props.orgCode,
+          level: getCurrentLevel()
+        })
+        const apiData = (apiResponse as any)?.data
+        if (Array.isArray(apiData) && apiData.length > 0) {
+          thematicData = apiData
+          console.log('从API加载专题数据成功:', apiResponse)
+        } else {
+          throw new Error('API响应数据为空')
+        }
       } else {
-        throw new Error('API响应数据为空')
+        throw new Error('未选择区划，跳过API请求')
       }
     } catch (apiError) {
       console.log('从API加载专题数据失败，尝试使用评估数据或模拟数据:', apiError)
@@ -1094,10 +1110,16 @@ const loadThematicData = async () => {
     let thematicData = []
     try {
       console.log('步骤2: 尝试从API获取专题数据')
+      if (!(props.orgCode && props.orgCode.trim())) {
+        await renderThematicLayer({ boundaries: emptyFeatureCollection(), data: [] })
+        currentThematicData.value = []
+        return
+      }
+
       const response = await thematicMapApi.getThematicData({
         reportId: props.reportId,
         surveyId: 1, // 默认调查ID
-        algorithmId: 1, // 默认算法ID
+        algorithmId: props.algorithmId || 1, // 默认算法ID
         year: props.year,
         orgCode: props.orgCode,
         level: getCurrentLevel()
@@ -1140,10 +1162,10 @@ const loadThematicData = async () => {
     console.error('加载专题数据失败:', error)
     ElMessage.error('加载专题数据失败')
     
-    // 出错时使用备用边界数据
+    // 出错时尝试仅用真实边界生成并渲染
     try {
       console.log('使用备用方案')
-      const boundaries = generateFallbackBoundaries()
+      const boundaries = await loadRealBoundaryData()
       
       // 检查备用边界数据是否有效
       if (boundaries && boundaries.features && Array.isArray(boundaries.features)) {
@@ -1298,6 +1320,10 @@ const renderThematicLayer = async (data: any) => {
   
   // 创建新的图层组
   thematicLayer.value = L.layerGroup().addTo(map.value as any)
+
+  const evaluationData = (window as any).evaluationData
+  const resolvedOrgName = (props.orgName || (evaluationData && evaluationData.countyName) || '').trim()
+  const hasOrgContext = Boolean(props.orgId || (props.orgCode && props.orgCode.trim()) || resolvedOrgName)
   
   // 渲染边界数据
   if (data.boundaries && data.boundaries.features && Array.isArray(data.boundaries.features)) {
@@ -1434,238 +1460,159 @@ const renderThematicLayer = async (data: any) => {
       }
     })
 
-    // 绘制县域边界和中心文字
-    try {
-        // 尝试优先加载静态县界文件，如果失败则使用动态计算
-        let staticBoundaryLoaded = false
-        // 只有当目标区域是青神县时，才加载静态的青神县边界文件
-        const currentCounty = props.orgName || '青神县'
-        
-        // 禁用静态加载逻辑，强制走通用逻辑
-        if (false && currentCounty === '青神县') {
-          try {
-             const response = await fetch('/county_boundary.json')
-             if (response.ok) {
-              const boundaryJson = await response.json()
-              if (boundaryJson) {
-                  // 静态文件加载成功，直接使用
-                  console.log('成功加载静态县界数据')
-                  staticBoundaryLoaded = true
-                  
-                  const layerGroup = thematicLayer.value
-                  if (layerGroup) {
-                      const finalPoly = boundaryJson
-                      
-                      // 绘制外部红色描边
-                      const redBorder = L.geoJSON(finalPoly as any, {
-                        style: {
-                          color: 'red',
-                          weight: 8,
-                          opacity: 1,
-                          fill: false,
-                          lineCap: 'round',
-                          lineJoin: 'round'
-                        },
-                        interactive: false
-                      })
-                      layerGroup?.addLayer(redBorder)
-                      
-                      // 绘制内部黑色实线
-                      const blackBorder = L.geoJSON(finalPoly as any, {
-                        style: {
-                          color: 'black',
-                          weight: 3,
-                          opacity: 1,
-                          fill: false,
-                          lineCap: 'round',
-                          lineJoin: 'round'
-                        },
-                        interactive: false
-                      })
-                      layerGroup?.addLayer(blackBorder)
-                      
-                      // 添加中心文字
-                      const center = turf.centerOfMass(finalPoly as any)
-                      if (center && center.geometry && center.geometry.coordinates) {
-                          const latlng = [center.geometry.coordinates[1], center.geometry.coordinates[0]]
-                          const countyName = props.orgName || '青神县'
-                          
-                          const labelMarker = L.marker(latlng as L.LatLngExpression, {
-                            icon: L.divIcon({
-                              html: `<div style="
-                                  color: red; 
-                                  font-weight: bold; 
-                                  font-size: 24px; 
-                                  text-shadow: 2px 2px 0 #fff, -1px -1px 0 #fff, 2px -1px 0 #fff, -1px 2px 0 #fff; 
-                                  white-space: nowrap; 
-                                  text-align: center;
-                                  transform: translate(-50%, -50%);
-                              ">${countyName}</div>`,
-                              className: 'county-label-icon',
-                              iconSize: [0, 0],
-                              iconAnchor: [0, 0]
-                            }),
-                            interactive: false,
-                            zIndexOffset: 2000
-                          })
-                          layerGroup?.addLayer(labelMarker)
-                      }
-                  }
-              }
-           }
-        } catch (err) {
-           console.warn('加载静态县界数据失败，回退到动态计算:', err)
-        }
-      } else {
-        console.log(`当前区域为 ${currentCounty}，跳过加载青神县静态边界`)
-      }
-
-      if (!staticBoundaryLoaded) {
-        const currentOrg = (props.orgName || '青神县').trim()
-        let outlineRendered = false
-
-        try {
-          const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now())
-          if (hierarchyResponse.ok) {
-            const hierarchy = await hierarchyResponse.json()
-            const regionInfo = findRegionInHierarchy(hierarchy, currentOrg)
-
-            if (
-              regionInfo &&
-              (regionInfo.level === 'city' || regionInfo.level === 'province') &&
-              regionInfo.geometry &&
-              thematicLayer.value
-            ) {
-              outlineRendered = true
-
-              const geo = {
-                type: 'Feature',
-                properties: {},
-                geometry: regionInfo.geometry
-              }
-
-              const redBorder = L.geoJSON(geo as any, {
-                style: {
-                  color: 'red',
-                  weight: 8,
-                  opacity: 1,
-                  fill: false,
-                  lineCap: 'round',
-                  lineJoin: 'round'
-                },
-                interactive: false
-              })
-              thematicLayer.value.addLayer(redBorder)
-
-              const blackBorder = L.geoJSON(geo as any, {
-                style: {
-                  color: 'black',
-                  weight: 3,
-                  opacity: 1,
-                  fill: false,
-                  lineCap: 'round',
-                  lineJoin: 'round'
-                },
-                interactive: false
-              })
-              thematicLayer.value.addLayer(blackBorder)
-
-              const name = currentOrg
-              let labelLatLng: [number, number] | null = null
-
-              if (regionInfo.center && Array.isArray(regionInfo.center) && regionInfo.center.length === 2) {
-                labelLatLng = [regionInfo.center[1], regionInfo.center[0]]
-              } else {
-                try {
-                  const center = turf.centerOfMass(geo as any)
-                  if (center?.geometry?.coordinates?.length === 2) {
-                    labelLatLng = [center.geometry.coordinates[1], center.geometry.coordinates[0]]
-                  }
-                } catch {}
-              }
-
-              if (labelLatLng) {
-                const labelMarker = L.marker(labelLatLng as L.LatLngExpression, {
-                  icon: L.divIcon({
-                    html: `<div style="
-                        color: red; 
-                        font-weight: bold; 
-                        font-size: 24px; 
-                        text-shadow: 2px 2px 0 #fff, -1px -1px 0 #fff, 2px -1px 0 #fff, -1px 2px 0 #fff; 
-                        white-space: nowrap; 
-                        text-align: center;
-                        transform: translate(-50%, -50%);
-                    ">${name}</div>`,
-                    className: 'county-label-icon',
-                    iconSize: [0, 0],
-                    iconAnchor: [0, 0]
-                  }),
-                  interactive: false,
-                  zIndexOffset: 2000
-                })
-                thematicLayer.value.addLayer(labelMarker)
-              }
-            }
-          }
-        } catch {}
-
-        if (!outlineRendered) {
-          const features = data.boundaries.features.filter((f: any) => f && f.geometry)
-          if (features.length > 0) {
-            let unionPoly = null
+    if (hasOrgContext) {
+      // 绘制县域边界和中心文字
+      try {
+          // 尝试优先加载静态县界文件，如果失败则使用动态计算
+          let staticBoundaryLoaded = false
+          // 只有当目标区域是青神县时，才加载静态的青神县边界文件
+          const currentCounty = props.orgName || '青神县'
+          
+          // 禁用静态加载逻辑，强制走通用逻辑
+          if (false && currentCounty === '青神县') {
             try {
-              unionPoly = (turf as any).union(turf.featureCollection(features as any))
-            } catch (e) {
-              console.warn('Turf union v7 error, trying iterative fallback:', e)
-              if (features.length > 0) {
-                unionPoly = features[0]
-                for (let i = 1; i < features.length; i++) {
-                  try {
-                    const res: any = (turf as any).union(turf.featureCollection([unionPoly, features[i]] as any))
-                    if (res) unionPoly = res
-                  } catch (err) {
-                    console.warn('Iterative union failed:', err)
-                  }
+               const response = await fetch('/county_boundary.json')
+               if (response.ok) {
+                const boundaryJson = await response.json()
+                if (boundaryJson) {
+                    // 静态文件加载成功，直接使用
+                    console.log('成功加载静态县界数据')
+                    staticBoundaryLoaded = true
+                    
+                    const layerGroup = thematicLayer.value
+                    if (layerGroup) {
+                        const finalPoly = boundaryJson
+                        
+                        // 绘制外部红色描边
+                        const redBorder = L.geoJSON(finalPoly as any, {
+                          style: {
+                            color: 'red',
+                            weight: 8,
+                            opacity: 1,
+                            fill: false,
+                            lineCap: 'round',
+                            lineJoin: 'round'
+                          },
+                          interactive: false
+                        })
+                        layerGroup?.addLayer(redBorder)
+                        
+                        // 绘制内部黑色实线
+                        const blackBorder = L.geoJSON(finalPoly as any, {
+                          style: {
+                            color: 'black',
+                            weight: 3,
+                            opacity: 1,
+                            fill: false,
+                            lineCap: 'round',
+                            lineJoin: 'round'
+                          },
+                          interactive: false
+                        })
+                        layerGroup?.addLayer(blackBorder)
+                        
+                        // 添加中心文字
+                        const center = turf.centerOfMass(finalPoly as any)
+                        if (center && center.geometry && center.geometry.coordinates) {
+                            const latlng = [center.geometry.coordinates[1], center.geometry.coordinates[0]]
+                            const countyName = props.orgName || '青神县'
+                            
+                            const labelMarker = L.marker(latlng as L.LatLngExpression, {
+                              icon: L.divIcon({
+                                html: `<div style="
+                                    color: red; 
+                                    font-weight: bold; 
+                                    font-size: 24px; 
+                                    text-shadow: 2px 2px 0 #fff, -1px -1px 0 #fff, 2px -1px 0 #fff, -1px 2px 0 #fff; 
+                                    white-space: nowrap; 
+                                    text-align: center;
+                                    transform: translate(-50%, -50%);
+                                ">${countyName}</div>`,
+                                className: 'county-label-icon',
+                                iconSize: [0, 0],
+                                iconAnchor: [0, 0]
+                              }),
+                              interactive: false,
+                              zIndexOffset: 2000
+                            })
+                            layerGroup?.addLayer(labelMarker)
+                        }
+                    }
                 }
-              }
-            }
+             }
+          } catch (err) {
+             console.warn('加载静态县界数据失败，回退到动态计算:', err)
+          }
+        } else {
+          console.log(`当前区域为 ${currentCounty}，跳过加载青神县静态边界`)
+        }
 
-            if (unionPoly && thematicLayer.value) {
-              const finalPoly = unionPoly.type === 'FeatureCollection' ? unionPoly.features[0] : unionPoly
+        if (!staticBoundaryLoaded) {
+          const currentOrg = (props.orgName || '青神县').trim()
+          let outlineRendered = false
 
-              const redBorder = L.geoJSON(finalPoly, {
-                style: {
-                  color: 'red',
-                  weight: 8,
-                  opacity: 1,
-                  fill: false,
-                  lineCap: 'round',
-                  lineJoin: 'round'
-                },
-                interactive: false
-              })
-              thematicLayer.value.addLayer(redBorder)
+          try {
+            const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now())
+            if (hierarchyResponse.ok) {
+              const hierarchy = await hierarchyResponse.json()
+              const regionInfo = findRegionInHierarchy(hierarchy, currentOrg)
 
-              const blackBorder = L.geoJSON(finalPoly, {
-                style: {
-                  color: 'black',
-                  weight: 3,
-                  opacity: 1,
-                  fill: false,
-                  lineCap: 'round',
-                  lineJoin: 'round'
-                },
-                interactive: false
-              })
-              thematicLayer.value.addLayer(blackBorder)
+              if (
+                regionInfo &&
+                (regionInfo.level === 'city' || regionInfo.level === 'province') &&
+                regionInfo.geometry &&
+                thematicLayer.value
+              ) {
+                outlineRendered = true
 
-              try {
-                const center = turf.centerOfMass(finalPoly)
-                if (center && center.geometry && center.geometry.coordinates) {
-                  const latlng = [center.geometry.coordinates[1], center.geometry.coordinates[0]]
-                  const countyName = props.orgName || '青神县'
+                const geo = {
+                  type: 'Feature',
+                  properties: {},
+                  geometry: regionInfo.geometry
+                }
 
-                  const labelMarker = L.marker(latlng as L.LatLngExpression, {
+                const redBorder = L.geoJSON(geo as any, {
+                  style: {
+                    color: 'red',
+                    weight: 8,
+                    opacity: 1,
+                    fill: false,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  },
+                  interactive: false
+                })
+                thematicLayer.value.addLayer(redBorder)
+
+                const blackBorder = L.geoJSON(geo as any, {
+                  style: {
+                    color: 'black',
+                    weight: 3,
+                    opacity: 1,
+                    fill: false,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  },
+                  interactive: false
+                })
+                thematicLayer.value.addLayer(blackBorder)
+
+                const name = currentOrg
+                let labelLatLng: [number, number] | null = null
+
+                if (regionInfo.center && Array.isArray(regionInfo.center) && regionInfo.center.length === 2) {
+                  labelLatLng = [regionInfo.center[1], regionInfo.center[0]]
+                } else {
+                  try {
+                    const center = turf.centerOfMass(geo as any)
+                    if (center?.geometry?.coordinates?.length === 2) {
+                      labelLatLng = [center.geometry.coordinates[1], center.geometry.coordinates[0]]
+                    }
+                  } catch {}
+                }
+
+                if (labelLatLng) {
+                  const labelMarker = L.marker(labelLatLng as L.LatLngExpression, {
                     icon: L.divIcon({
                       html: `<div style="
                           color: red; 
@@ -1675,7 +1622,7 @@ const renderThematicLayer = async (data: any) => {
                           white-space: nowrap; 
                           text-align: center;
                           transform: translate(-50%, -50%);
-                      ">${countyName}</div>`,
+                      ">${name}</div>`,
                       className: 'county-label-icon',
                       iconSize: [0, 0],
                       iconAnchor: [0, 0]
@@ -1685,68 +1632,151 @@ const renderThematicLayer = async (data: any) => {
                   })
                   thematicLayer.value.addLayer(labelMarker)
                 }
-              } catch (centerErr) {
-                console.warn('Calculate center error:', centerErr)
+              }
+            }
+          } catch {}
+
+          if (!outlineRendered) {
+            const features = data.boundaries.features.filter((f: any) => f && f.geometry)
+            if (features.length > 0) {
+              let unionPoly = null
+              try {
+                unionPoly = (turf as any).union(turf.featureCollection(features as any))
+              } catch (e) {
+                console.warn('Turf union v7 error, trying iterative fallback:', e)
+                if (features.length > 0) {
+                  unionPoly = features[0]
+                  for (let i = 1; i < features.length; i++) {
+                    try {
+                      const res: any = (turf as any).union(turf.featureCollection([unionPoly, features[i]] as any))
+                      if (res) unionPoly = res
+                    } catch (err) {
+                      console.warn('Iterative union failed:', err)
+                    }
+                  }
+                }
+              }
+
+              if (unionPoly && thematicLayer.value) {
+                const finalPoly = unionPoly.type === 'FeatureCollection' ? unionPoly.features[0] : unionPoly
+
+                const redBorder = L.geoJSON(finalPoly, {
+                  style: {
+                    color: 'red',
+                    weight: 8,
+                    opacity: 1,
+                    fill: false,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  },
+                  interactive: false
+                })
+                thematicLayer.value.addLayer(redBorder)
+
+                const blackBorder = L.geoJSON(finalPoly, {
+                  style: {
+                    color: 'black',
+                    weight: 3,
+                    opacity: 1,
+                    fill: false,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  },
+                  interactive: false
+                })
+                thematicLayer.value.addLayer(blackBorder)
+
+                try {
+                  const center = turf.centerOfMass(finalPoly)
+                  if (center && center.geometry && center.geometry.coordinates) {
+                    const latlng = [center.geometry.coordinates[1], center.geometry.coordinates[0]]
+                    const countyName = props.orgName || '青神县'
+
+                    const labelMarker = L.marker(latlng as L.LatLngExpression, {
+                      icon: L.divIcon({
+                        html: `<div style="
+                            color: red; 
+                            font-weight: bold; 
+                            font-size: 24px; 
+                            text-shadow: 2px 2px 0 #fff, -1px -1px 0 #fff, 2px -1px 0 #fff, -1px 2px 0 #fff; 
+                            white-space: nowrap; 
+                            text-align: center;
+                            transform: translate(-50%, -50%);
+                        ">${countyName}</div>`,
+                        className: 'county-label-icon',
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0]
+                      }),
+                      interactive: false,
+                      zIndexOffset: 2000
+                    })
+                    thematicLayer.value.addLayer(labelMarker)
+                  }
+                } catch (centerErr) {
+                  console.warn('Calculate center error:', centerErr)
+                }
               }
             }
           }
         }
+      } catch (e) {
+        console.error('绘制县界失败:', e)
       }
-    } catch (e) {
-      console.error('绘制县界失败:', e)
-    }
 
-    await renderVillagePointOverlay(data)
+      await renderVillagePointOverlay(data)
+    }
 
     // 统计渲染结果
     const renderedCount = thematicLayer.value?.getLayers()?.length || 0
     const dataCount = data.data?.length || 0
     console.log(`=== 渲染完成 === 边界特征: ${data.boundaries.features?.length}, 数据条数: ${dataCount}, 实际渲染: ${renderedCount}, 跳过: ${data.boundaries.features?.length - renderedCount}`)
 
-    // 调整地图视图到数据范围
-    try {
-      // 优先尝试使用 region_hierarchy.json 中的 bbox
-      const currentOrg = (props.orgName || '青神县').trim()
-      const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now())
-      if (hierarchyResponse.ok) {
-        const hierarchy = await hierarchyResponse.json()
-        const regionInfo = findRegionInHierarchy(hierarchy, currentOrg)
-        
-        if (regionInfo && regionInfo.bbox) {
-          // region_hierarchy.json 中的 bbox 格式为 [minX, minY, maxX, maxY]
-          // Leaflet fitBounds 需要 [[minY, minX], [maxY, maxX]]
-          const bbox = regionInfo.bbox
-          const bounds = [
-            [bbox[1], bbox[0]], // SouthWest: lat, lng
-            [bbox[3], bbox[2]]  // NorthEast: lat, lng
-          ]
-          map.value.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [20, 20] })
-          console.log(`使用 region_hierarchy.json 调整视图到 ${currentOrg}`, bounds)
-          return // 如果成功使用了 hierarchy，直接返回
-        }
-      }
-
-      // 如果没有 hierarchy 数据，回退到计算 GeoJSON bounds
-      const bounds = L.geoJSON(data.boundaries).getBounds()
-      if (bounds.isValid()) {
-        map.value.fitBounds(bounds, { padding: [20, 20] })
-        console.log('根据 GeoJSON 调整地图视图到数据范围')
-      } else {
-        console.warn('GeoJSON bounds无效，跳过调整视图')
-      }
-    } catch (error) {
-      console.error('调整地图视图失败:', error)
-      
-      // 最后尝试：如果都失败了，且是 GeoJSON 数据，尝试计算 bounds
+    if (hasOrgContext) {
+      // 调整地图视图到数据范围
       try {
-         if (data.boundaries && data.boundaries.features && data.boundaries.features.length > 0) {
-            const bounds = L.geoJSON(data.boundaries).getBounds()
-            if (bounds.isValid()) {
-              map.value.fitBounds(bounds, { padding: [20, 20] })
-            }
-         }
-      } catch (e) {
-         console.warn('最终视图调整尝试失败', e)
+        // 优先尝试使用 region_hierarchy.json 中的 bbox
+        const currentOrg = (props.orgName || '青神县').trim()
+        const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now())
+        if (hierarchyResponse.ok) {
+          const hierarchy = await hierarchyResponse.json()
+          const regionInfo = findRegionInHierarchy(hierarchy, currentOrg)
+          
+          if (regionInfo && regionInfo.bbox) {
+            // region_hierarchy.json 中的 bbox 格式为 [minX, minY, maxX, maxY]
+            // Leaflet fitBounds 需要 [[minY, minX], [maxY, maxX]]
+            const bbox = regionInfo.bbox
+            const bounds = [
+              [bbox[1], bbox[0]], // SouthWest: lat, lng
+              [bbox[3], bbox[2]]  // NorthEast: lat, lng
+            ]
+            map.value.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [20, 20] })
+            console.log(`使用 region_hierarchy.json 调整视图到 ${currentOrg}`, bounds)
+            return // 如果成功使用了 hierarchy，直接返回
+          }
+        }
+
+        // 如果没有 hierarchy 数据，回退到计算 GeoJSON bounds
+        const bounds = L.geoJSON(data.boundaries).getBounds()
+        if (bounds.isValid()) {
+          map.value.fitBounds(bounds, { padding: [20, 20] })
+          console.log('根据 GeoJSON 调整地图视图到数据范围')
+        } else {
+          console.warn('GeoJSON bounds无效，跳过调整视图')
+        }
+      } catch (error) {
+        console.error('调整地图视图失败:', error)
+        
+        // 最后尝试：如果都失败了，且是 GeoJSON 数据，尝试计算 bounds
+        try {
+           if (data.boundaries && data.boundaries.features && data.boundaries.features.length > 0) {
+              const bounds = L.geoJSON(data.boundaries).getBounds()
+              if (bounds.isValid()) {
+                map.value.fitBounds(bounds, { padding: [20, 20] })
+              }
+           }
+        } catch (e) {
+           console.warn('最终视图调整尝试失败', e)
+        }
       }
     }
   } else if (data.regions) {
@@ -2040,14 +2070,101 @@ const processThematicData = (thematicData: any[], regionData: any[]) => {
   return { regions }
 }
 
+const normalizeToFeatureCollection = (raw: any, name: string) => {
+  if (!raw || typeof raw !== 'object') return null
+  if (raw.type === 'FeatureCollection' && Array.isArray(raw.features)) return raw
+  if (raw.type === 'Feature' && raw.geometry) {
+    return { type: 'FeatureCollection', features: [raw] }
+  }
+  if (raw.type && raw.coordinates) {
+    return {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { name },
+          geometry: raw
+        }
+      ]
+    }
+  }
+  if (raw.geometry && raw.type && raw.type !== 'FeatureCollection') {
+    return { type: 'FeatureCollection', features: [raw] }
+  }
+  return null
+}
+
+const looksLikeSubregionBoundaries = (fc: any, targetName: string) => {
+  if (!fc || fc.type !== 'FeatureCollection' || !Array.isArray(fc.features)) return false
+
+  const features = fc.features.filter((f: any) => f && f.geometry)
+  const count = features.length
+  if (count <= 0) return false
+
+  const name = String(targetName || '').trim()
+  const isProvince = name.includes('省') && !name.includes('市') && !name.includes('县') && !name.includes('区') && !name.includes('镇') && !name.includes('乡') && !name.includes('街道')
+  const isCity = name.includes('市') && !name.includes('县') && !name.includes('区') && !name.includes('镇') && !name.includes('乡') && !name.includes('街道')
+  const isCounty = (name.includes('县') || name.includes('区')) && !name.includes('镇') && !name.includes('乡') && !name.includes('街道')
+  const needsChildren = isProvince || isCity || isCounty
+  if (needsChildren) return count >= 3
+
+  if (count > 1) return true
+  const f = features[0]
+  const p = f?.properties || {}
+  return Boolean(p.xiang || p.XIANG || p.township || p.TOWNSHIP || p.TOWN || p.Town || p.village || p.VILLAGE || p.name || p.NAME)
+}
+
+const emptyFeatureCollection = () => ({ type: 'FeatureCollection', features: [] as any[] })
+
 // 加载真实的乡镇边界数据
 const loadRealBoundaryData = async () => {
   try {
     console.log('开始加载真实边界数据')
-    
-        // 1. 获取目标区域名称
+
     const evaluationData = (window as any).evaluationData
-    const targetName = (props.orgName || (evaluationData && evaluationData.countyName) || '青神县').trim()
+    const resolvedOrgName = (props.orgName || (evaluationData && evaluationData.countyName) || '').trim()
+    const hasOrgContext = Boolean(props.orgId || (props.orgCode && props.orgCode.trim()) || resolvedOrgName)
+    if (!hasOrgContext) {
+      return emptyFeatureCollection()
+    }
+
+    const targetName = resolvedOrgName || '青神县'
+    
+    if (props.orgId && props.year) {
+      try {
+        const boundaryResponse = await organizationBoundaryApi.getBoundary(props.orgId, props.year)
+        const boundaryData = (boundaryResponse as any)?.data
+
+        const filePath = typeof boundaryData?.filePath === 'string' ? boundaryData.filePath.trim() : ''
+        if (filePath) {
+          try {
+            const res = await fetch(filePath + (filePath.includes('?') ? '&' : '?') + 't=' + Date.now())
+            if (res.ok) {
+              const json = await res.json()
+              const normalized = normalizeToFeatureCollection(json, props.orgName || '')
+              if (normalized && looksLikeSubregionBoundaries(normalized, targetName)) {
+                console.log('使用组织边界配置的文件路径加载边界:', filePath)
+                return normalized
+              }
+            }
+          } catch { }
+        }
+
+        const coordinates = boundaryData?.boundaryCoordinates
+        if (coordinates) {
+          try {
+            const parsed = typeof coordinates === 'string' ? JSON.parse(coordinates) : coordinates
+            const normalized = normalizeToFeatureCollection(parsed, props.orgName || '')
+            if (normalized && looksLikeSubregionBoundaries(normalized, targetName)) {
+              console.log('使用组织边界配置的坐标数据加载边界')
+              return normalized
+            }
+          } catch { }
+        }
+      } catch { }
+    }
+
+    // 1. 获取目标区域名称
     const targetKey = normalizeRegionName(targetName)
     console.log('目标区域:', targetName)
 
@@ -2061,6 +2178,17 @@ const loadRealBoundaryData = async () => {
         const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now());
         if (hierarchyResponse.ok) {
             hierarchyData = await hierarchyResponse.json();
+
+            const hierarchyRoot =
+              hierarchyData && Array.isArray((hierarchyData as any).children)
+                ? hierarchyData
+                : (() => {
+                    const values = hierarchyData && typeof hierarchyData === 'object' ? Object.values(hierarchyData) : []
+                    const provinceNode = (values as any[]).find(v => v && v.level === 'province' && Array.isArray(v.children))
+                    if (provinceNode) return provinceNode
+                    const anyNode = (values as any[]).find(v => v && Array.isArray(v.children))
+                    return anyNode || null
+                  })();
             
             // 查找节点以确定 filterLevel
             targetRegionNode = findRegionInHierarchy(hierarchyData, targetName);
@@ -2071,8 +2199,8 @@ const loadRealBoundaryData = async () => {
 
             // 查找所属城市 (用于按需加载边界文件)
             const targetKey = normalizeRegionName(targetName);
-            if (hierarchyData.children) {
-                 for (const city of hierarchyData.children) {
+            if (hierarchyRoot && (hierarchyRoot as any).children) {
+                 for (const city of (hierarchyRoot as any).children) {
                      const cityKey = normalizeRegionName(city.name);
                      // 检查是否是该城市本身
                      if (cityKey === targetKey || cityKey.includes(targetKey) || targetKey.includes(cityKey)) {
@@ -2114,11 +2242,47 @@ const loadRealBoundaryData = async () => {
     // 4. 执行加载
     let data;
     try {
-        const response = await fetch(fetchUrl + '?t=' + Date.now())
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
+        const cacheBuster = () => (Date.now() + Math.random()).toString(36)
+
+        const tryFetchJson = async (url: string) => {
+          const response = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + cacheBuster())
+          if (!response.ok) return { ok: false as const, status: response.status }
+          const json = await response.json()
+          return { ok: true as const, json }
         }
-        data = await response.json()
+
+        if (cityName) {
+          const year = props.year || 2025
+          const candidates = [
+            `/boundaries/${year}/city/${cityName}.json`,
+            `/boundaries/city/${cityName}.json`,
+            `/boundaries/2025/city/${cityName}.json`,
+            `/boundaries/2024/city/${cityName}.json`
+          ].filter((v, i, a) => a.indexOf(v) === i)
+
+          let loaded: any = null
+          for (const u of candidates) {
+            const res = await tryFetchJson(u)
+            if (res.ok) {
+              fetchUrl = u
+              loaded = res.json
+              break
+            }
+            console.warn(`加载 ${u} 失败 (status: ${res.status})`)
+          }
+
+          if (!loaded) {
+            throw new Error(`未找到可用的城市边界文件: ${cityName}`)
+          }
+
+          data = loaded
+        } else {
+          const response = await fetch(fetchUrl + '?t=' + cacheBuster())
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`)
+          }
+          data = await response.json()
+        }
     } catch (err) {
         console.warn(`加载 ${fetchUrl} 失败`, err);
         throw err;
@@ -2201,11 +2365,9 @@ const loadRealBoundaryData = async () => {
             return fProvinceKey && targetKey ? (fProvinceKey === targetKey || fProvinceKey.includes(targetKey) || targetKey.includes(fProvinceKey)) : fProvince === targetName
         } else {
             // 默认为县级，匹配县名
-            // 如果有COUNTY属性，必须匹配目标区域
-            if (fCounty && targetKey && fCountyKey && fCountyKey !== targetKey && !fCountyKey.includes(targetKey) && !targetKey.includes(fCountyKey)) {
-                return false;
-            }
-            return true;
+            if (!targetKey) return true
+            if (!fCountyKey) return false
+            return fCountyKey === targetKey || fCountyKey.includes(targetKey) || targetKey.includes(fCountyKey)
         }
       });
     
@@ -2214,7 +2376,7 @@ const loadRealBoundaryData = async () => {
     // 如果过滤后没有特征，尝试使用备用数据
     if (filteredFeatures.length === 0) {
       console.warn('过滤后没有有效的边界特征，使用备用边界数据')
-      return generateFallbackBoundaries()
+      return emptyFeatureCollection()
     }
     
     // 返回过滤后的数据
@@ -2226,154 +2388,13 @@ const loadRealBoundaryData = async () => {
     return filteredData
   } catch (error) {
     console.error('加载真实边界数据失败:', error)
-    return generateFallbackBoundaries()
+    return emptyFeatureCollection()
   }
 }
 
 // 生成备用边界数据（当真实数据加载失败时使用）
 const generateFallbackBoundaries = () => {
-  // 如果不是青神县，且没有真实数据，返回空或提示
-  if (props.orgName && props.orgName !== '青神县') {
-    console.warn(`未找到区域 ${props.orgName} 的边界数据，且无备用数据`)
-    // 返回一个空的FeatureCollection，或者一个默认的矩形框提示无数据
-    // 这里我们返回一个空的集合，这样地图会显示为空，而不是错误的青神县
-    return {
-      type: 'FeatureCollection',
-      features: []
-    }
-  }
-
-  return {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        properties: {
-          name: '青竹街道',
-          COUNTY: '青神县',
-          xiang: '青竹街道'
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [103.84, 29.83],
-            [103.86, 29.83],
-            [103.86, 29.85],
-            [103.84, 29.85],
-            [103.84, 29.83]
-          ]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: {
-          name: '汉阳镇',
-          COUNTY: '青神县',
-          xiang: '汉阳镇'
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [103.82, 29.81],
-            [103.84, 29.81],
-            [103.84, 29.83],
-            [103.82, 29.83],
-            [103.82, 29.81]
-          ]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: {
-          name: '瑞峰镇',
-          COUNTY: '青神县',
-          xiang: '瑞峰镇'
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [103.80, 29.79],
-            [103.82, 29.79],
-            [103.82, 29.81],
-            [103.80, 29.81],
-            [103.80, 29.79]
-          ]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: {
-          name: '西龙镇',
-          COUNTY: '青神县',
-          xiang: '西龙镇'
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [103.86, 29.81],
-            [103.88, 29.81],
-            [103.88, 29.83],
-            [103.86, 29.83],
-            [103.86, 29.81]
-          ]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: {
-          name: '高台镇',
-          COUNTY: '青神县',
-          xiang: '高台镇'
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [103.84, 29.79],
-            [103.86, 29.79],
-            [103.86, 29.81],
-            [103.84, 29.81],
-            [103.84, 29.79]
-          ]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: {
-          name: '罗波乡',
-          COUNTY: '青神县',
-          xiang: '罗波乡'
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [103.82, 29.77],
-            [103.84, 29.77],
-            [103.84, 29.79],
-            [103.82, 29.79],
-            [103.82, 29.77]
-          ]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: {
-          name: '白果乡',
-          COUNTY: '青神县',
-          xiang: '白果乡'
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [103.86, 29.77],
-            [103.88, 29.77],
-            [103.88, 29.79],
-            [103.86, 29.79],
-            [103.86, 29.77]
-          ]]
-        }
-      }
-    ]
-  }
+  return emptyFeatureCollection()
 }
 
 // 生成模拟边界数据 - 使用更真实的乡镇边界形状
@@ -2442,7 +2463,7 @@ const generateMockBoundaries = (regionId: number) => {
 }
 
 watch(
-  () => [props.year, props.orgCode, props.orgName, props.reportId],
+  () => [props.year, props.orgCode, props.orgName, props.orgId, props.algorithmId, props.reportId],
   () => {
     if (!map.value) return
     loadThematicData()

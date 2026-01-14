@@ -13,11 +13,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
@@ -66,6 +68,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
     @Autowired
     private EvaluationResultService evaluationResultService;
+
+    @Autowired
+    @Qualifier("evaluationTaskExecutor")
+    private Executor evaluationTaskExecutor;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -355,7 +361,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         log.info("创建执行记录成功, executionRecordId={}, status=RUNNING", executionRecordId);
 
         // 3. 启动异步任务执行评估
-        executeModelAsyncTask(executionRecordId, modelId, model.getModelName(), regionCodes, weightConfigId, year, orgCode, createBy);
+        evaluationTaskExecutor.execute(() ->
+                executeModelAsyncTask(executionRecordId, modelId, model.getModelName(), regionCodes, weightConfigId, year, orgCode, createBy)
+        );
 
         return executionRecordId;
     }

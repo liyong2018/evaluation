@@ -89,6 +89,16 @@
         <el-form-item label="密码" prop="password" v-if="dialogMode === 'create'">
           <el-input v-model="currentUser.password" type="password" show-password />
         </el-form-item>
+        <el-form-item label="角色" prop="roleIds">
+          <el-select v-model="currentUser.roleIds" multiple placeholder="请选择角色" style="width: 100%">
+            <el-option
+              v-for="role in roleOptions"
+              :key="role.id"
+              :label="role.roleName"
+              :value="role.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-switch
             v-model="currentUser.status"
@@ -125,11 +135,14 @@ const searchQuery = ref('')
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const formRef = ref()
+const roleOptions = ref<any[]>([])
+
 const currentUser = reactive({
   id: undefined,
   username: '',
   nickname: '',
   password: '',
+  roleIds: [] as number[],
   status: 1
 })
 
@@ -144,6 +157,9 @@ const rules = {
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+  ],
+  roleIds: [
+    { required: true, message: '请选择角色', trigger: 'change', type: 'array' }
   ]
 }
 
@@ -163,6 +179,16 @@ const loadData = async () => {
     console.error('获取用户列表失败', error)
   } finally {
     loading.value = false
+  }
+}
+
+const loadRoles = async () => {
+  try {
+    const res = await request.get('/api/sys/role/list')
+    // Handle paginated response
+    roleOptions.value = res.data?.records || res.data || []
+  } catch (error) {
+    console.error('获取角色列表失败', error)
   }
 }
 
@@ -188,6 +214,7 @@ const showAddDialog = () => {
     username: '',
     nickname: '',
     password: '',
+    roleIds: [],
     status: 1
   })
   dialogVisible.value = true
@@ -197,6 +224,8 @@ const editUser = (row: any) => {
   dialogMode.value = 'edit'
   Object.assign(currentUser, row)
   currentUser.password = '' // 编辑时不显示密码
+  // Convert roles array to roleIds array
+  currentUser.roleIds = (row.roles || []).map((r: any) => r.id)
   dialogVisible.value = true
 }
 
@@ -240,11 +269,14 @@ const submitForm = async () => {
   await formRef.value.validate(async (valid: boolean) => {
     if (valid) {
       try {
+        const { roleIds, ...userData } = currentUser
         if (dialogMode.value === 'create') {
-          await request.post('/api/sys/user', currentUser)
+          const res = await request.post('/api/sys/user', userData)
+          await request.post(`/api/sys/user/${res.data}/roles`, roleIds)
           ElMessage.success('添加成功')
         } else {
-          await request.put('/api/sys/user', currentUser)
+          await request.put('/api/sys/user', userData)
+          await request.post(`/api/sys/user/${currentUser.id}/roles`, roleIds)
           ElMessage.success('修改成功')
         }
         dialogVisible.value = false
@@ -258,6 +290,7 @@ const submitForm = async () => {
 
 onMounted(() => {
   loadData()
+  loadRoles()
 })
 </script>
 

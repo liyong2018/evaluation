@@ -305,6 +305,15 @@
             <el-icon><VideoPlay /></el-icon>
             开始评估
           </el-button>
+          <el-button
+            type="warning"
+            @click="startAsyncEvaluation"
+            :loading="loading.evaluation"
+            :disabled="!evaluationForm.modelId"
+          >
+            <el-icon><Clock /></el-icon>
+            异步开始评估
+          </el-button>
           <!-- <el-button type="success" @click="validateParameters">
             <el-icon><Check /></el-icon>
             验证参数
@@ -563,6 +572,7 @@ import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import {
   Refresh,
   VideoPlay,
+  Clock,
   Check,
   View,
   Download,
@@ -1561,70 +1571,224 @@ const startEvaluation = async () => {
   })
 }
 
-// 执行模型评估
-const executeModelEvaluation = async () => {
-  loading.evaluation = true
-  evaluationProgress.visible = true
-  evaluationProgress.percentage = 0
-  evaluationProgress.status = 'success'
-  evaluationProgress.message = '正在执行评估模型...'
+const startAsyncEvaluation = async () => {
+  if (!evaluationFormRef.value) return
 
-  try {
-    // 提取地区代码（从选择的ID中提取region_code）
-    const regionCodes = evaluationForm.regions.map((regionId: string) => {
-      // regionId格式可能是 "township_province_city_county_township"
-      // 我们需要提取实际的region_code
-      return extractRegionCode(regionId)
-    })
+  await evaluationFormRef.value.validate(async (valid) => {
+    if (!valid) return
 
-    evaluationProgress.percentage = 20
-    evaluationProgress.detail = '加载模型配置...'
+    if (!evaluationForm.year) {
+      ElMessage.error('请选择评估年份')
+      return
+    }
 
-    // 调用模型执行 API
-    const response = await evaluationApi.executeModel(
-      evaluationForm.modelId,
-      regionCodes,
-      evaluationForm.weightConfigId,
-      evaluationForm.year,
-      evaluationForm.orgCode || '',
-      userStore.username || ''  // 传递当前登录用户名作为操作人
-    )
+    if (!evaluationForm.regions || evaluationForm.regions.length === 0) {
+      ElMessage.error('请选择评估地区')
+      return
+    }
 
-    evaluationProgress.percentage = 80
+    if (!evaluationForm.modelId) {
+      ElMessage.error('请选择评估模型')
+      return
+    }
 
-    if (response.success && response.data) {
-      evaluationProgress.percentage = 90
-      
-      console.log('=== execute-model 返回的数据 ===')
-      console.log('response.data:', response.data)
-      console.log('数据结构:', {
-        hasColumns: !!response.data?.columns,
-        hasTableData: !!response.data?.tableData,
-        columnsLength: response.data?.columns?.length,
-        tableDataLength: response.data?.tableData?.length,
-        sampleColumns: response.data?.columns?.slice(0, 3)
-      })
-      
+    loading.evaluation = true
+    try {
+      const executionRecordId = await submitModelEvaluationTask()
+      evaluationProgress.message = '任务已提交，正在后台执行中'
+      evaluationProgress.detail = `任务ID：${executionRecordId}`
+      ElMessage.success('异步评估任务已提交')
+      pollAsyncModelExecutionLite(executionRecordId)
+    } catch (error: any) {
+      console.error('提交异步评估任务失败:', error)
       evaluationProgress.percentage = 100
-      evaluationProgress.status = 'success'
-      evaluationProgress.message = '评估执行完成'
-      evaluationProgress.detail = ''
+      evaluationProgress.status = 'exception'
+      evaluationProgress.message = '提交评估任务失败'
+      evaluationProgress.detail = error.message || '未知错误'
+      ElMessage.error(error.message || '提交异步评估任务失败')
+    } finally {
+      loading.evaluation = false
+    }
+  })
+}
 
-      // 直接使用 execute-model 返回的数据（已包含 columns 和 tableData）
-      const hasTable = Array.isArray(response.data?.tableData) && (response.data?.tableData?.length > 0)
-      if (!hasTable) {
+const asyncExecutionRecordId = ref<number | null>(null)
+const asyncExecutionPollTimer = ref<number | null>(null)
+
+const clearAsyncExecutionPoll = () => {
+  if (asyncExecutionPollTimer.value != null) {
+    window.clearTimeout(asyncExecutionPollTimer.value)
+    asyncExecutionPollTimer.value = null
+  }
+}
+
+const fetchExecutionRecordDetail = async (executionRecordId: number) => {
+  const response = await fetch(`/api/evaluation/history/detail/${executionRecordId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error('获取执行记录失败')
+  }
+
+  const result = await response.json()
+  if (!result?.success) {
+    throw new Error(result?.message || '获取执行记录失败')
+  }
+
+  return result.data
+}
+
+const pollAsyncModelExecutionLite = (executionRecordId: number) => {
+  clearAsyncExecutionPoll()
+  const startedAt = Date.now()
+  const tick = async (attempt: number) => {
+    try {
+      const detail = await fetchExecutionRecordDetail(executionRecordId)
+      const record = detail?.executionRecord
+      const status = record?.executionStatus
+
+      if (status === 'SUCCESS') {
         evaluationProgress.percentage = 100
-        evaluationProgress.status = 'warning'
-        evaluationProgress.message = '所选年份无数据'
-        evaluationProgress.detail = ''
-        ElMessage.warning('所选年份无数据')
+        evaluationProgress.status = 'success'
+        evaluationProgress.message = '异步评估已完成（可在评估历史查看详情）'
+        evaluationProgress.detail = record?.executionCode ? `执行编号：${record.executionCode}` : ''
+        await getEvaluationHistory(1, pageSize.value)
         return
       }
-      displayModelResults(response.data)
-      ElMessage.success('评估执行成功')
-    } else {
-      throw new Error(response.message || '模型执行失败')
+
+      if (status === 'FAILED') {
+        evaluationProgress.percentage = 100
+        evaluationProgress.status = 'exception'
+        evaluationProgress.message = '异步评估执行失败'
+        evaluationProgress.detail = record?.errorMessage || '未知错误'
+        await getEvaluationHistory(1, pageSize.value)
+        return
+      }
+
+      const elapsedMs = Date.now() - startedAt
+      const nextPercent = Math.min(90, Math.max(10, Math.floor(elapsedMs / 1500) * 5 + 10))
+      evaluationProgress.percentage = Math.max(evaluationProgress.percentage, nextPercent)
+      evaluationProgress.status = 'warning'
+      evaluationProgress.message = '后台评估执行中...'
+      evaluationProgress.detail = record?.executionCode ? `执行编号：${record.executionCode}` : `任务ID：${executionRecordId}`
+
+      asyncExecutionPollTimer.value = window.setTimeout(() => tick(attempt + 1), 1500)
+    } catch (e: any) {
+      if (attempt >= 10) {
+        evaluationProgress.status = 'warning'
+        evaluationProgress.message = '任务已提交，等待结果中...'
+      }
+      asyncExecutionPollTimer.value = window.setTimeout(() => tick(attempt + 1), 2000)
     }
+  }
+
+  void tick(0)
+}
+
+const pollAsyncModelExecution = async (executionRecordId: number) => {
+  clearAsyncExecutionPoll()
+  const startedAt = Date.now()
+  const tick = async (attempt: number) => {
+    try {
+      const detail = await fetchExecutionRecordDetail(executionRecordId)
+      const record = detail?.executionRecord
+      const status = record?.executionStatus
+
+      if (status === 'SUCCESS') {
+        evaluationProgress.percentage = 100
+        evaluationProgress.status = 'success'
+        evaluationProgress.message = '评估执行完成'
+        evaluationProgress.detail = ''
+
+        currentExecutionRecord.value = record
+        evaluationResults.value = detail?.evaluationResults || []
+        dialogVisible.evaluationDetail = true
+
+        await getEvaluationHistory(1, pageSize.value)
+        loading.evaluation = false
+        return
+      }
+
+      if (status === 'FAILED') {
+        evaluationProgress.percentage = 100
+        evaluationProgress.status = 'exception'
+        evaluationProgress.message = '评估执行失败'
+        evaluationProgress.detail = record?.errorMessage || '未知错误'
+
+        await getEvaluationHistory(1, pageSize.value)
+        loading.evaluation = false
+        return
+      }
+
+      const elapsedMs = Date.now() - startedAt
+      const nextPercent = Math.min(90, Math.max(10, Math.floor(elapsedMs / 1500) * 5 + 10))
+      evaluationProgress.percentage = Math.max(evaluationProgress.percentage, nextPercent)
+      evaluationProgress.status = 'warning'
+      evaluationProgress.message = '后台评估执行中...'
+      evaluationProgress.detail = record?.executionCode ? `执行编号：${record.executionCode}` : ''
+
+      asyncExecutionPollTimer.value = window.setTimeout(() => tick(attempt + 1), 1500)
+    } catch (e: any) {
+      if (attempt >= 10) {
+        evaluationProgress.status = 'warning'
+        evaluationProgress.message = '任务已提交，等待结果中...'
+      }
+      asyncExecutionPollTimer.value = window.setTimeout(() => tick(attempt + 1), 2000)
+    }
+  }
+
+  await tick(0)
+}
+
+const submitModelEvaluationTask = async () => {
+  evaluationProgress.visible = true
+  evaluationProgress.percentage = 0
+  evaluationProgress.status = 'warning'
+  evaluationProgress.message = '正在提交评估任务...'
+  evaluationProgress.detail = ''
+
+  const regionCodes = evaluationForm.regions.map((regionId: string) => extractRegionCode(regionId))
+
+  evaluationProgress.percentage = 20
+  evaluationProgress.detail = '加载模型配置...'
+
+  const response = await evaluationApi.executeModel(
+    evaluationForm.modelId,
+    regionCodes,
+    evaluationForm.weightConfigId,
+    evaluationForm.year,
+    evaluationForm.orgCode || '',
+    userStore.username || ''
+  )
+
+  const executionRecordId = response?.data?.executionRecordId
+  if (!response.success || !executionRecordId) {
+    throw new Error(response.message || '提交评估任务失败')
+  }
+
+  asyncExecutionRecordId.value = Number(executionRecordId)
+
+  evaluationProgress.percentage = 30
+  evaluationProgress.status = 'warning'
+  evaluationProgress.message = '任务已提交，正在后台执行中'
+  evaluationProgress.detail = `任务ID：${asyncExecutionRecordId.value}`
+
+  await getEvaluationHistory(1, pageSize.value)
+
+  return asyncExecutionRecordId.value
+}
+
+// 执行模型评估（等待完成并展示结果）
+const executeModelEvaluation = async () => {
+  loading.evaluation = true
+
+  try {
+    const executionRecordId = await submitModelEvaluationTask()
+    await pollAsyncModelExecution(executionRecordId)
   } catch (error: any) {
     console.error('执行评估模型失败:', error)
     evaluationProgress.percentage = 100
@@ -1632,7 +1796,6 @@ const executeModelEvaluation = async () => {
     evaluationProgress.message = '评估执行失败'
     evaluationProgress.detail = error.message || '未知错误'
     ElMessage.error(error.message || '执行评估模型失败')
-  } finally {
     loading.evaluation = false
   }
 }

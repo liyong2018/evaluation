@@ -26,6 +26,9 @@
                 :value="year"
               />
             </el-select>
+            <el-button type="warning" :disabled="!treeYear" @click="copyFromPreviousYear">
+              从上一年复制
+            </el-button>
             <el-upload
               ref="uploadRef"
               :auto-upload="false"
@@ -85,9 +88,13 @@
                   <el-icon><Location /></el-icon>
                   边界
                 </el-button>
+                <el-button size="small" type="danger" plain @click.stop="deleteYearData(data)" v-if="treeYear">
+                  <el-icon><Delete /></el-icon>
+                  删除{{ treeYear }}年数据
+                </el-button>
                 <el-button size="small" type="danger" @click.stop="deleteNode(data)">
                   <el-icon><Delete /></el-icon>
-                  删除
+                  删除组织
                 </el-button>
               </div>
             </div>
@@ -594,13 +601,57 @@ const saveOrg = async () => {
 
 // 删除节点
 const deleteNode = (node: any) => {
-  ElMessageBox.confirm(`确定要删除组织机构 "${node.name}" 吗？将同时删除本节点的所有子节点，此操作不可恢复。`, '确认删除', {
-    type: 'warning'
-  }).then(async () => {
+  const yearText = treeYear.value
+    ? `\n\n注意：当前选择了 ${treeYear.value} 年，但删除组织机构操作会影响所有年份的数据。`
+    : '\n\n注意：删除组织机构会影响所有年份的数据，包括相关的业务数据。'
+
+  ElMessageBox.confirm(
+    `确定要删除组织机构 "${node.name}" 吗？${yearText}\n\n此操作将同时删除本节点的所有子节点，且不可恢复。\n\n建议：如果只想删除特定年份的数据，请使用"删除年度数据"按钮。`,
+    '确认删除',
+    {
+      type: 'warning',
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      dangerouslyUseHTMLString: true
+    }
+  ).then(async () => {
     try {
       const response = await request.delete(`/api/organization/${node.id}`)
       if (response.success) {
         ElMessage.success('删除成功')
+        await loadOrganizationTree()
+      } else {
+        ElMessage.error(response.message || '删除失败')
+      }
+    } catch (error: any) {
+      ElMessage.error('删除失败: ' + (error.message || ''))
+    }
+  })
+}
+
+// 删除年度数据
+const deleteYearData = (node: any) => {
+  if (!treeYear.value) {
+    ElMessage.warning('请先选择年份')
+    return
+  }
+
+  ElMessageBox.confirm(
+    `确定要删除组织机构 "${node.name}" 及其所有子组织在 ${treeYear.value} 年的数据吗？\n\n此操作将删除以下数据：\n- 社区防灾减灾能力数据\n- 调查数据\n- 医疗机构数据\n- 边界配置\n\n此操作不可恢复！`,
+    '确认删除年度数据',
+    {
+      type: 'warning',
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消'
+    }
+  ).then(async () => {
+    try {
+      const response = await request.delete(`/api/organization/${node.id}/data`, {
+        params: { year: treeYear.value }
+      })
+      if (response.success) {
+        const data = response.data
+        ElMessage.success(`删除成功！共删除 ${data.totalDeleted || 0} 条记录`)
         await loadOrganizationTree()
       } else {
         ElMessage.error(response.message || '删除失败')
@@ -616,6 +667,12 @@ const handleFileChange: UploadProps['onChange'] = async (uploadFile) => {
   const file = uploadFile.raw
   if (!file) return
 
+  // 检查是否选择了年份
+  if (!treeYear.value) {
+    ElMessage.warning('请先选择要导入到的年份')
+    return
+  }
+
   // 检查文件类型
   const validTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']
   if (!validTypes.includes(file.type)) {
@@ -626,17 +683,19 @@ const handleFileChange: UploadProps['onChange'] = async (uploadFile) => {
   // 创建FormData
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('year', String(treeYear.value))
 
   uploading.value = true
   try {
     const response = await request.post('/api/organization/import', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
-      }
+      },
+      params: { year: treeYear.value }
     })
 
     if (response.success) {
-      ElMessage.success(`导入成功，共导入 ${response.data?.count || 0} 条记录`)
+      ElMessage.success(`导入成功，共导入 ${response.data?.count || 0} 条记录到 ${treeYear.value} 年`)
       await loadOrganizationTree()
     } else {
       ElMessage.error(response.message || '导入失败')
@@ -651,6 +710,33 @@ const handleFileChange: UploadProps['onChange'] = async (uploadFile) => {
 }
 
 const uploading = ref(false)
+
+const copyFromPreviousYear = async () => {
+  if (!treeYear.value) {
+    ElMessage.warning('请选择目标年份')
+    return
+  }
+  const targetYear = treeYear.value
+  const sourceYear = targetYear - 1
+  try {
+    await ElMessageBox.confirm(`将把 ${sourceYear} 年的边界配置复制到 ${targetYear} 年，是否继续？`, '确认复制', {
+      type: 'warning'
+    })
+    const response = await request.post('/api/organization/copy-from-previous-year', null, {
+      params: { targetYear }
+    })
+    if (response.success) {
+      const count = response.data?.count ?? 0
+      ElMessage.success(`复制完成：新增 ${count} 条年度配置`)
+      await loadOrganizationTree()
+    } else {
+      ElMessage.error(response.message || '复制失败')
+    }
+  } catch (e: any) {
+    if (e === 'cancel' || e === 'close') return
+    ElMessage.error('复制失败')
+  }
+}
 
 // 初始化
 onMounted(() => {
