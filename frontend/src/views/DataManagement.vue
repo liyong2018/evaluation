@@ -456,15 +456,8 @@
     <!-- 导入对话框 -->
     <el-dialog v-model="dialogVisible.import" title="批量导入" width="500px">
       <el-form label-width="100px">
-        <el-form-item label="数据年份" required>
-          <el-select v-model="importYear" placeholder="请选择数据所属年份" style="width: 100%">
-            <el-option
-              v-for="year in yearOptions"
-              :key="year"
-              :label="year + '年'"
-              :value="year"
-            />
-          </el-select>
+        <el-form-item label="数据年份">
+          <span>{{ searchForm.year }}年</span>
         </el-form-item>
         <el-form-item label="上传文件">
           <el-upload
@@ -567,8 +560,7 @@ const formRef = ref<FormInstance>()
 const uploadRef = ref()
 const uploadFile = ref<File | null>(null)
 
-// 导入年份选择
-const importYear = ref<number>(new Date().getFullYear())
+// 年份选项（用于主筛选）
 const yearOptions = ref<number[]>([])
 
 // 生成年份选项（从2020年到当前年份）
@@ -756,6 +748,15 @@ const handleDataTypeChange = (newType: 'township' | 'community' | 'medical') => 
 
 // 获取数据列表
 const getDataList = async () => {
+  // 如果选择了年份，但该年份没有组织机构，不查询数据
+  if (searchForm.year && (!organizationList.value || organizationList.value.length === 0)) {
+    console.log('当前年份没有组织机构，清空数据列表')
+    tableData.value = []
+    pagination.total = 0
+    loading.table = false
+    return
+  }
+
   loading.table = true
   try {
     let response
@@ -786,7 +787,7 @@ const getDataList = async () => {
     }
 
     // 如果选中了组织机构，过滤数据
-    if (selectedOrg.value && allData.length > 0 && dataType.value !== 'medical') {
+    if (selectedOrg.value && allData.length > 0) {
       const orgCode = selectedOrg.value.code
       allData = allData.filter((row: any) => {
         // 根据数据类型过滤
@@ -809,7 +810,13 @@ const getDataList = async () => {
             String(row.townshipName || '').includes(selectedOrg.value.name) ||
             String(row.communityName || '').includes(selectedOrg.value.name)
           )
+        } else if (dataType.value === 'medical') {
+          // 医疗卫生机构数据：按机构地址匹配
+          const address = String(row.institutionAddress || '')
+          // 匹配逻辑：地址包含选中组织机构的名称
+          return address.includes(selectedOrg.value.name)
         }
+        return true
       })
     }
 
@@ -852,6 +859,14 @@ const getDataList = async () => {
 const handleSearch = async () => {
   // 当年份改变时，刷新组织机构树
   await getOrganizationList()
+
+  // 如果选择了年份，但该年份没有组织机构，清空数据列表
+  if (searchForm.year && (!organizationList.value || organizationList.value.length === 0)) {
+    console.log('当前年份没有组织机构，清空数据列表')
+    tableData.value = []
+    pagination.total = 0
+    return
+  }
 
   if (!searchForm.keyword && !searchForm.selectedRegion && !searchForm.year) {
     getDataList()
@@ -896,7 +911,43 @@ const handleSearch = async () => {
     }
 
     if (response?.success) {
-      tableData.value = response.data || []
+      let allData = response.data || []
+
+      // 如果选中了组织机构，过滤数据
+      if (selectedOrg.value && allData.length > 0) {
+        const orgCode = selectedOrg.value.code
+        allData = allData.filter((row: any) => {
+          // 根据数据类型过滤
+          if (dataType.value === 'township') {
+            // 乡镇数据：匹配省、市、县、乡镇代码
+            return (
+              String(row.regionCode || '').startsWith(orgCode) ||
+              String(row.province || '').includes(selectedOrg.value.name) ||
+              String(row.city || '').includes(selectedOrg.value.name) ||
+              String(row.county || '').includes(selectedOrg.value.name) ||
+              String(row.township || '').includes(selectedOrg.value.name)
+            )
+          } else if (dataType.value === 'community') {
+            // 社区数据：匹配省、市、县、乡镇、社区名称
+            return (
+              String(row.regionCode || '').startsWith(orgCode) ||
+              String(row.provinceName || '').includes(selectedOrg.value.name) ||
+              String(row.cityName || '').includes(selectedOrg.value.name) ||
+              String(row.countyName || '').includes(selectedOrg.value.name) ||
+              String(row.townshipName || '').includes(selectedOrg.value.name) ||
+              String(row.communityName || '').includes(selectedOrg.value.name)
+            )
+          } else if (dataType.value === 'medical') {
+            // 医疗卫生机构数据：按机构地址匹配
+            const address = String(row.institutionAddress || '')
+            // 匹配逻辑：地址包含选中组织机构的名称
+            return address.includes(selectedOrg.value.name)
+          }
+          return true
+        })
+      }
+
+      tableData.value = allData
       pagination.total = tableData.value.length
     }
   } catch (error) {
@@ -1109,8 +1160,8 @@ const beforeUpload = (file: File) => {
 
 // 导入数据
 const handleImport = async () => {
-  if (!importYear.value) {
-    ElMessage.warning('请选择数据所属年份')
+  if (!searchForm.year) {
+    ElMessage.warning('请先选择年份')
     return
   }
 
@@ -1126,7 +1177,7 @@ const handleImport = async () => {
         message: '正在检查导入前置条件...',
         duration: 0
       })
-      const checkResponse = await surveyDataApi.checkImportPrerequisites(importYear.value)
+      const checkResponse = await surveyDataApi.checkImportPrerequisites(searchForm.year)
 
       // 关闭检查消息
       ElMessage.closeAll()
@@ -1159,13 +1210,13 @@ const handleImport = async () => {
     let response
     if (dataType.value === 'township') {
       // 导入乡镇数据
-      response = await surveyDataApi.importData(uploadFile.value, importYear.value)
+      response = await surveyDataApi.importData(uploadFile.value, searchForm.year)
     } else if (dataType.value === 'community') {
       // 导入社区数据
-      response = await communityCapacityApi.importData(uploadFile.value, importYear.value)
+      response = await communityCapacityApi.importData(uploadFile.value, searchForm.year)
     } else if (dataType.value === 'medical') {
       // 导入医疗卫生机构数据
-      response = await medicalInstitutionApi.importData(uploadFile.value, importYear.value)
+      response = await medicalInstitutionApi.importData(uploadFile.value, searchForm.year)
     }
 
     if (response.success) {

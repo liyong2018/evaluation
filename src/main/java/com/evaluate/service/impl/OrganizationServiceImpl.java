@@ -21,7 +21,6 @@ import com.evaluate.mapper.OrganizationMapper;
 import com.evaluate.service.IOrganizationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,9 +60,6 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
     @Autowired
     private OrganizationBoundaryMapper organizationBoundaryMapper;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
 
     private static final String SOURCE_COMMUNITY = "COMMUNITY";
     private static final String SOURCE_TOWNSHIP = "TOWNSHIP";
@@ -300,6 +296,9 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         String normalizedCode = code.trim();
         String normalizedName = name.trim();
 
+        Long parentId = parent != null ? parent.getId() : null;
+
+        // 查询现有记录
         QueryWrapper<Organization> query = new QueryWrapper<>();
         query.eq("code", normalizedCode);
         if (year != null) {
@@ -307,9 +306,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         }
         Organization organization = getOne(query, false);
 
-        Long parentId = parent != null ? parent.getId() : null;
         if (organization == null) {
-            // 组织机构不存在，创建新记录
+            // 记录不存在，创建新记录
             organization = new Organization();
             organization.setCode(normalizedCode);
             organization.setName(normalizedName);
@@ -325,8 +323,51 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             save(organization);
             log.debug("新增组织机构: code={}, name={}, level={}, year={}", normalizedCode, normalizedName, level, year);
         } else {
-            // 组织机构已存在，跳过不做任何更新
-            log.debug("组织机构已存在，跳过: code={}, name={}, level={}, year={}", normalizedCode, normalizedName, level, year);
+            // 组织机构已存在，检查是否需要更新
+            boolean needUpdate = false;
+            Organization updateOrg = new Organization();
+            updateOrg.setId(organization.getId());
+
+            // 如果名称是代码（说明之前导入时没有正确解析名称），更新名称
+            if (normalizedCode.equals(organization.getName()) && !normalizedCode.equals(normalizedName)) {
+                updateOrg.setName(normalizedName);
+                needUpdate = true;
+                log.debug("更新组织机构名称: code={}, oldName={}, newName={}", normalizedCode, organization.getName(), normalizedName);
+            }
+
+            // 更新其他可能为空的字段
+            if (StringUtils.hasText(provinceName) && !StringUtils.hasText(organization.getProvinceName())) {
+                updateOrg.setProvinceName(provinceName.trim());
+                needUpdate = true;
+            }
+            if (StringUtils.hasText(cityName) && !StringUtils.hasText(organization.getCityName())) {
+                updateOrg.setCityName(cityName.trim());
+                needUpdate = true;
+            }
+            if (StringUtils.hasText(countyName) && !StringUtils.hasText(organization.getCountyName())) {
+                updateOrg.setCountyName(countyName.trim());
+                needUpdate = true;
+            }
+            if (StringUtils.hasText(townshipName) && !StringUtils.hasText(organization.getTownshipName())) {
+                updateOrg.setTownshipName(townshipName.trim());
+                needUpdate = true;
+            }
+            if (StringUtils.hasText(communityName) && !StringUtils.hasText(organization.getCommunityName())) {
+                updateOrg.setCommunityName(communityName.trim());
+                needUpdate = true;
+            }
+            if (parentId != null && !parentId.equals(organization.getParentId())) {
+                updateOrg.setParentId(parentId);
+                needUpdate = true;
+            }
+
+            if (needUpdate) {
+                updateById(updateOrg);
+                // 刷新 organization 对象
+                organization = getById(organization.getId());
+            } else {
+                log.debug("组织机构已存在，跳过: code={}, name={}, level={}, year={}", normalizedCode, normalizedName, level, year);
+            }
         }
         return organization;
     }
@@ -607,53 +648,18 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             return 0;
         }
 
-        // 2. 查询目标年份已存在的组织机构（包括软删除的）
-        // 使用 @TableLogic 注解的方法默认过滤软删除记录
-        List<Organization> targetOrgsActive = baseMapper.selectList(
+        // 2. 查询目标年份已存在的组织机构
+        List<Organization> targetOrgs = baseMapper.selectList(
                 new QueryWrapper<Organization>().eq("year", targetYear)
         );
 
-        // 使用 JdbcTemplate 查询软删除的记录（绕过 @TableLogic）
-        List<Organization> targetOrgsDeleted = jdbcTemplate.query(
-                "SELECT * FROM organization WHERE year = ? AND is_deleted = 1",
-                (rs, rowNum) -> {
-                    Organization org = new Organization();
-                    org.setId(rs.getLong("id"));
-                    org.setParentId(rs.getLong("parent_id"));
-                    org.setCode(rs.getString("code"));
-                    org.setName(rs.getString("name"));
-                    org.setLevel(rs.getInt("level"));
-                    org.setYear(rs.getInt("year"));
-                    org.setDataSource(rs.getString("data_source"));
-                    org.setProvinceName(rs.getString("province_name"));
-                    org.setCityName(rs.getString("city_name"));
-                    org.setCountyName(rs.getString("county_name"));
-                    org.setTownshipName(rs.getString("township_name"));
-                    org.setCommunityName(rs.getString("community_name"));
-                    org.setIsDeleted(rs.getInt("is_deleted"));
-                    return org;
-                },
-                targetYear
-        );
-
-        // 分离正常存在和软删除的组织
         Set<String> existingCodes = new HashSet<>();
-        Map<String, Organization> softDeletedOrgs = new HashMap<>();
-        Map<String, Organization> existingActiveOrgs = new HashMap<>();
-
-        if (targetOrgsActive != null) {
-            for (Organization org : targetOrgsActive) {
+        Map<String, Organization> existingOrgs = new HashMap<>();
+        if (targetOrgs != null) {
+            for (Organization org : targetOrgs) {
                 if (org.getCode() != null) {
                     existingCodes.add(org.getCode());
-                    existingActiveOrgs.put(org.getCode(), org);
-                }
-            }
-        }
-
-        if (targetOrgsDeleted != null) {
-            for (Organization org : targetOrgsDeleted) {
-                if (org.getCode() != null) {
-                    softDeletedOrgs.put(org.getCode(), org);
+                    existingOrgs.put(org.getCode(), org);
                 }
             }
         }
@@ -674,12 +680,11 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         Map<Long, Organization> oldIdToNewOrg = new HashMap<>();
         Map<String, Organization> codeToNewOrg = new HashMap<>();
         int copiedCount = 0;
-        int restoredCount = 0;
 
         for (Organization src : sourceOrgs) {
-            // 如果目标年份已存在相同code的活跃组织，跳过
+            // 如果目标年份已存在相同code的组织，跳过
             if (existingCodes.contains(src.getCode())) {
-                Organization existing = existingActiveOrgs.get(src.getCode());
+                Organization existing = existingOrgs.get(src.getCode());
                 if (existing != null) {
                     oldIdToNewOrg.put(src.getId(), existing);
                     codeToNewOrg.put(src.getCode(), existing);
@@ -687,48 +692,21 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 continue;
             }
 
-            Organization targetOrg;
-            boolean isRestored = false;
+            // 插入新记录
+            Organization targetOrg = new Organization();
+            targetOrg.setCode(src.getCode());
+            targetOrg.setName(src.getName());
+            targetOrg.setLevel(src.getLevel());
+            targetOrg.setYear(targetYear);
+            targetOrg.setDataSource(src.getDataSource());
+            targetOrg.setProvinceName(src.getProvinceName());
+            targetOrg.setCityName(src.getCityName());
+            targetOrg.setCountyName(src.getCountyName());
+            targetOrg.setTownshipName(src.getTownshipName());
+            targetOrg.setCommunityName(src.getCommunityName());
 
-            // 检查是否有软删除的记录可以恢复
-            Organization softDeleted = softDeletedOrgs.get(src.getCode());
-            if (softDeleted != null) {
-                // 使用 JdbcTemplate 恢复软删除的记录（绕过 @TableLogic）
-                jdbcTemplate.update(
-                    "UPDATE organization SET name = ?, level = ?, data_source = ?, " +
-                    "province_name = ?, city_name = ?, county_name = ?, township_name = ?, " +
-                    "community_name = ?, is_deleted = 0, update_time = NOW() WHERE id = ?",
-                    src.getName(),
-                    src.getLevel(),
-                    src.getDataSource(),
-                    src.getProvinceName(),
-                    src.getCityName(),
-                    src.getCountyName(),
-                    src.getTownshipName(),
-                    src.getCommunityName(),
-                    softDeleted.getId()
-                );
-                // 重新加载恢复后的记录
-                targetOrg = baseMapper.selectById(softDeleted.getId());
-                isRestored = true;
-                restoredCount++;
-            } else {
-                // 插入新记录
-                targetOrg = new Organization();
-                targetOrg.setCode(src.getCode());
-                targetOrg.setName(src.getName());
-                targetOrg.setLevel(src.getLevel());
-                targetOrg.setYear(targetYear);
-                targetOrg.setDataSource(src.getDataSource());
-                targetOrg.setProvinceName(src.getProvinceName());
-                targetOrg.setCityName(src.getCityName());
-                targetOrg.setCountyName(src.getCountyName());
-                targetOrg.setTownshipName(src.getTownshipName());
-                targetOrg.setCommunityName(src.getCommunityName());
-
-                baseMapper.insert(targetOrg);
-                copiedCount++;
-            }
+            baseMapper.insert(targetOrg);
+            copiedCount++;
 
             // 处理父节点ID：需要从新复制的组织中找到对应的父节点
             if (src.getParentId() != null) {
@@ -749,21 +727,20 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 }
             }
 
-            // 如果是恢复的记录，需要更新parent_id（使用JdbcTemplate）
-            if (isRestored && targetOrg.getParentId() != null) {
-                jdbcTemplate.update(
-                    "UPDATE organization SET parent_id = ?, update_time = NOW() WHERE id = ?",
-                    targetOrg.getParentId(),
-                    targetOrg.getId()
-                );
+            // 更新parent_id
+            if (targetOrg.getParentId() != null) {
+                Organization updateOrg = new Organization();
+                updateOrg.setId(targetOrg.getId());
+                updateOrg.setParentId(targetOrg.getParentId());
+                baseMapper.updateById(updateOrg);
             }
 
             oldIdToNewOrg.put(src.getId(), targetOrg);
             codeToNewOrg.put(src.getCode(), targetOrg);
         }
 
-        log.info("从上一年复制组织机构：新增 {} 条，恢复 {} 条（{} -> {}），跳过已存在 {} 条",
-                copiedCount, restoredCount, sourceYear, targetYear, sourceOrgs.size() - copiedCount - restoredCount);
+        log.info("从上一年复制组织机构：新增 {} 条（{} -> {}），跳过已存在 {} 条",
+                copiedCount, sourceYear, targetYear, sourceOrgs.size() - copiedCount);
 
         // 5. 复制边界配置（使用新的组织ID）
         List<OrganizationBoundary> sourceBoundaries = organizationBoundaryMapper.selectList(
@@ -822,7 +799,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             log.info("从上一年复制边界配置：{} 条（{} -> {}）", toInsert.size(), sourceYear, targetYear);
         }
 
-        return copiedCount + restoredCount;
+        return copiedCount;
     }
 
     private List<Organization> deduplicateOrganizationsByCode(List<Organization> organizations) {
@@ -1621,38 +1598,52 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 String communityName = null;
 
                 if (StringUtils.hasText(address)) {
-                    // 简单解析：按省、市、县、镇、社区关键词分割
-                    if (address.contains("省")) {
-                        provinceName = address.substring(0, address.indexOf("省") + 1);
-                        address = address.substring(address.indexOf("省") + 1);
+                    // 解析省
+                    int provIdx = address.indexOf("省");
+                    if (provIdx >= 0) {
+                        provinceName = address.substring(0, provIdx + 1);
+                        address = address.substring(provIdx + 1);
                     }
-                    if (address.contains("市")) {
-                        cityName = address.substring(0, address.indexOf("市") + 1);
-                        address = address.substring(address.indexOf("市") + 1);
+
+                    // 解析市（地级市）
+                    int cityIdx = address.indexOf("市");
+                    if (cityIdx >= 0) {
+                        cityName = address.substring(0, cityIdx + 1);
+                        address = address.substring(cityIdx + 1);
                     }
-                    if (address.contains("县")) {
-                        countyName = address.substring(0, address.indexOf("县") + 1);
-                        address = address.substring(address.indexOf("县") + 1);
+
+                    // 解析区县（优先解析区，再解析县）
+                    int districtIdx = address.indexOf("区");
+                    int countyIdx = address.indexOf("县");
+                    if (districtIdx >= 0 && (countyIdx < 0 || districtIdx < countyIdx)) {
+                        countyName = address.substring(0, districtIdx + 1);
+                        address = address.substring(districtIdx + 1);
+                    } else if (countyIdx >= 0) {
+                        countyName = address.substring(0, countyIdx + 1);
+                        address = address.substring(countyIdx + 1);
                     }
-                    if (address.contains("镇")) {
-                        townshipName = address.substring(0, address.indexOf("镇") + 1);
-                        address = address.substring(address.indexOf("镇") + 1);
+
+                    // 解析乡镇街道（优先解析街道，再解析镇）
+                    int streetIdx = address.indexOf("街道");
+                    int townIdx = address.indexOf("镇");
+                    if (streetIdx >= 0 && (townIdx < 0 || streetIdx < townIdx)) {
+                        townshipName = address.substring(0, streetIdx + 2);
+                        address = address.substring(streetIdx + 2);
+                    } else if (townIdx >= 0) {
+                        townshipName = address.substring(0, townIdx + 1);
+                        address = address.substring(townIdx + 1);
                     }
+
+                    // 解析社区村（优先解析社区，再解析村）
                     if (dto.getCommunityName() != null) {
                         communityName = dto.getCommunityName();
-                    } else if (address.contains("社区") || address.contains("村")) {
-                        int communityEnd = address.indexOf("社区") > 0 ? address.indexOf("社区") : address.indexOf("村");
-                        if (communityEnd > 0) {
-                            String temp = address.substring(0, communityEnd + 2);
-                            int lastSpace = temp.lastIndexOf(" ");
-                            if (lastSpace < 0) {
-                                lastSpace = temp.lastIndexOf("、");
-                            }
-                            if (lastSpace >= 0) {
-                                communityName = temp.substring(lastSpace + 1);
-                            } else {
-                                communityName = temp;
-                            }
+                    } else {
+                        int commIdx = address.indexOf("社区");
+                        int villIdx = address.indexOf("村");
+                        if (commIdx >= 0 && (villIdx < 0 || commIdx < villIdx)) {
+                            communityName = address.substring(0, commIdx + 2);
+                        } else if (villIdx >= 0) {
+                            communityName = address.substring(0, villIdx + 1);
                         }
                     }
                 }
