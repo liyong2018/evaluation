@@ -68,10 +68,10 @@
     >
       <el-form ref="formRef" :model="currentRole" :rules="rules" label-width="80px">
         <el-form-item label="角色名称" prop="roleName">
-          <el-input v-model="currentRole.roleName" />
+          <el-input v-model="currentRole.roleName" @input="handleRoleNameInput" placeholder="例如: 管理员" />
         </el-form-item>
         <el-form-item label="角色编码" prop="roleCode">
-          <el-input v-model="currentRole.roleCode" :disabled="dialogMode === 'edit'" placeholder="例如: ROLE_USER" />
+          <el-input v-model="currentRole.roleCode" :disabled="dialogMode === 'edit'" placeholder="自动生成，例如: ROLE_ADMIN" />
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input v-model="currentRole.description" type="textarea" />
@@ -142,11 +142,16 @@ const currentRole = reactive({
 const rules = {
   roleName: [
     { required: true, message: '请输入角色名称', trigger: 'blur' }
-  ],
-  roleCode: [
-    { required: true, message: '请输入角色编码', trigger: 'blur' },
-    { pattern: /^ROLE_[A-Z_]+$/, message: '编码格式应为 ROLE_XXX', trigger: 'blur' }
   ]
+}
+
+// 角色名称输入时自动生成角色编码
+const handleRoleNameInput = (value: string) => {
+  if (dialogMode.value === 'create' && value) {
+    // 将角色名称转换为大写拼音/英文格式，例如 "管理员" -> "ROLE_管理员" (或用拼音)
+    // 这里简化处理：使用 ROLE_ + 去除空格后的角色名称
+    currentRole.roleCode = 'ROLE_' + value.trim().replace(/\s+/g, '_').toUpperCase()
+  }
 }
 
 const loadData = async () => {

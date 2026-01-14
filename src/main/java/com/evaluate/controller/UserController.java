@@ -57,9 +57,16 @@ public class UserController {
                 return Result.error("密码不能为空");
             }
 
-            User user = userService.validateUser(username, password);
+            // 先验证用户名和密码
+            User user = userService.validateCredentials(username, password);
             if (user == null) {
                 return Result.error("用户名或密码错误");
+            }
+
+            // 再检查用户是否有角色
+            if (!userService.hasRoles(user.getId())) {
+                log.warn("用户 {} 尝试登录但没有分配任何角色", username);
+                return Result.error("您还没有被分配任何角色，无法登录系统");
             }
 
             // 构造返回数据（不包含密码）

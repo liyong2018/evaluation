@@ -21,7 +21,24 @@ public interface IUserService {
     List<User> getAllUsers();
 
     /**
-     * 根据用户名验证用户密码
+     * 根据用户名验证用户密码（不检查角色）
+     *
+     * @param username 用户名
+     * @param password 密码
+     * @return 验证通过返回用户对象，否则返回 null
+     */
+    User validateCredentials(String username, String password);
+
+    /**
+     * 检查用户是否有角色
+     *
+     * @param userId 用户ID
+     * @return 有角色返回 true，否则返回 false
+     */
+    boolean hasRoles(Long userId);
+
+    /**
+     * 根据用户名验证用户密码（包含角色检查）
      *
      * @param username 用户名
      * @param password 密码

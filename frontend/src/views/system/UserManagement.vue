@@ -81,16 +81,16 @@
     >
       <el-form ref="formRef" :model="currentUser" :rules="rules" label-width="80px">
         <el-form-item label="用户名" prop="username">
-          <el-input v-model="currentUser.username" :disabled="dialogMode === 'edit'" />
+          <el-input v-model="currentUser.username" :disabled="dialogMode === 'edit'" @input="handleUsernameInput" />
         </el-form-item>
         <el-form-item label="昵称" prop="nickname">
-          <el-input v-model="currentUser.nickname" />
+          <el-input v-model="currentUser.nickname" placeholder="默认与用户名相同" />
         </el-form-item>
         <el-form-item label="密码" prop="password" v-if="dialogMode === 'create'">
           <el-input v-model="currentUser.password" type="password" show-password />
         </el-form-item>
-        <el-form-item label="角色" prop="roleIds">
-          <el-select v-model="currentUser.roleIds" multiple placeholder="请选择角色" style="width: 100%">
+        <el-form-item label="角色" prop="roleId">
+          <el-select v-model="currentUser.roleId" placeholder="请选择角色" style="width: 100%">
             <el-option
               v-for="role in roleOptions"
               :key="role.id"
@@ -142,7 +142,7 @@ const currentUser = reactive({
   username: '',
   nickname: '',
   password: '',
-  roleIds: [] as number[],
+  roleId: undefined as number | undefined,
   status: 1
 })
 
@@ -151,16 +151,20 @@ const rules = {
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 3, max: 20, message: '长度在 3 到 20 个字符', trigger: 'blur' }
   ],
-  nickname: [
-    { required: true, message: '请输入昵称', trigger: 'blur' }
-  ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
   ],
-  roleIds: [
-    { required: true, message: '请选择角色', trigger: 'change', type: 'array' }
+  roleId: [
+    { required: true, message: '请选择角色', trigger: 'change' }
   ]
+}
+
+// 用户名输入时自动填充昵称
+const handleUsernameInput = (value: string) => {
+  if (dialogMode.value === 'create') {
+    currentUser.nickname = value
+  }
 }
 
 const loadData = async () => {
@@ -214,7 +218,7 @@ const showAddDialog = () => {
     username: '',
     nickname: '',
     password: '',
-    roleIds: [],
+    roleId: undefined,
     status: 1
   })
   dialogVisible.value = true
@@ -224,8 +228,12 @@ const editUser = (row: any) => {
   dialogMode.value = 'edit'
   Object.assign(currentUser, row)
   currentUser.password = '' // 编辑时不显示密码
-  // Convert roles array to roleIds array
-  currentUser.roleIds = (row.roles || []).map((r: any) => r.id)
+  // Get first role ID (ensure it's a number)
+  currentUser.roleId = (row.roles && row.roles.length > 0) ? Number(row.roles[0].id) : undefined
+  // Ensure status is a number
+  if (typeof currentUser.status !== 'number') {
+    currentUser.status = currentUser.status === 'true' || currentUser.status === true ? 1 : 0
+  }
   dialogVisible.value = true
 }
 
@@ -269,20 +277,30 @@ const submitForm = async () => {
   await formRef.value.validate(async (valid: boolean) => {
     if (valid) {
       try {
-        const { roleIds, ...userData } = currentUser
+        const { roleId, ...userData } = currentUser
+
         if (dialogMode.value === 'create') {
+          // 创建用户
           const res = await request.post('/api/sys/user', userData)
-          await request.post(`/api/sys/user/${res.data}/roles`, roleIds)
+          // 分配角色（确保roleId是数字类型）
+          if (roleId != null) {
+            await request.post(`/api/sys/user/${res.data}/roles`, [Number(roleId)])
+          }
           ElMessage.success('添加成功')
         } else {
+          // 修改用户
           await request.put('/api/sys/user', userData)
-          await request.post(`/api/sys/user/${currentUser.id}/roles`, roleIds)
+          // 分配角色（确保roleId是数字类型）
+          if (roleId != null) {
+            await request.post(`/api/sys/user/${currentUser.id}/roles`, [Number(roleId)])
+          }
           ElMessage.success('修改成功')
         }
         dialogVisible.value = false
         loadData()
-      } catch (error) {
+      } catch (error: any) {
         console.error('提交失败', error)
+        ElMessage.error(error?.response?.data?.msg || error?.message || '提交失败')
       }
     }
   })

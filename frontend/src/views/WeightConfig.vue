@@ -775,6 +775,14 @@ const totalWeight = computed(() => {
 // 获取权重配置列表
 const getConfigList = async () => {
   console.log('开始获取权重配置列表')
+  // 如果当前年份没有组织机构，不查询权重配置
+  if (!organizationList.value || organizationList.value.length === 0) {
+    console.log('当前年份没有组织机构，清空权重配置列表')
+    configList.value = []
+    loading.configs = false
+    return
+  }
+
   loading.configs = true
   try {
     // 支持按组织机构过滤

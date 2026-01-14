@@ -1,9 +1,7 @@
 package com.evaluate.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.evaluate.entity.Role;
 import com.evaluate.entity.User;
-import com.evaluate.mapper.RoleMapper;
 import com.evaluate.mapper.UserMapper;
 import com.evaluate.mapper.UserRoleMapper;
 import com.evaluate.service.IUserService;
@@ -30,9 +28,6 @@ public class UserServiceImpl implements IUserService {
     private UserMapper userMapper;
 
     @Autowired
-    private RoleMapper roleMapper;
-
-    @Autowired
     private UserRoleMapper userRoleMapper;
 
     @Autowired
@@ -45,9 +40,29 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
-    public User validateUser(String username, String password) {
+    public User validateCredentials(String username, String password) {
         User user = userMapper.selectUserByUsername(username);
         if (user != null && passwordEncoder.matches(password, user.getPassword())) {
+            return user;
+        }
+        return null;
+    }
+
+    @Override
+    public boolean hasRoles(Long userId) {
+        List<Long> roleIds = userRoleMapper.selectRoleIdsByUserId(userId);
+        return roleIds != null && !roleIds.isEmpty();
+    }
+
+    @Override
+    public User validateUser(String username, String password) {
+        User user = validateCredentials(username, password);
+        if (user != null) {
+            // 检查用户是否有角色，没有角色的用户不能登录
+            if (!hasRoles(user.getId())) {
+                log.warn("用户 {} 没有分配任何角色，禁止登录", username);
+                return null;
+            }
             return user;
         }
         return null;
@@ -68,24 +83,14 @@ public class UserServiceImpl implements IUserService {
             return false;
         }
 
-        // 创建新用户
+        // 创建新用户（不授予任何角色）
         User newUser = new User();
         newUser.setUsername(username);
         newUser.setPassword(passwordEncoder.encode(password));
         newUser.setStatus(1); // 默认启用
-        
+
         int rows = userMapper.insert(newUser);
-        
-        // 分配默认角色 (普通用户)
-        if (rows > 0) {
-            // 假设 ROLE_USER 是默认角色，先查询出来
-            Role defaultRole = roleMapper.selectOne(new LambdaQueryWrapper<Role>().eq(Role::getRoleCode, "ROLE_USER"));
-            if (defaultRole != null) {
-                userRoleMapper.insert(newUser.getId(), defaultRole.getId());
-            }
-            return true;
-        }
-        
-        return false;
+
+        return rows > 0;
     }
 }

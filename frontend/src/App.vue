@@ -26,7 +26,6 @@
                 <el-dropdown-menu>
                   <el-dropdown-item @click="router.push('/system/user')">用户管理</el-dropdown-item>
                   <el-dropdown-item @click="router.push('/system/role')">角色管理</el-dropdown-item>
-                  <el-dropdown-item @click="router.push('/system/menu')">权限管理</el-dropdown-item>
                   <el-dropdown-item @click="router.push('/system/organization')">组织机构管理</el-dropdown-item>
                 </el-dropdown-menu>
               </template>

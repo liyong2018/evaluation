@@ -60,12 +60,12 @@ public class SysUserController {
      * 新增用户
      */
     @PostMapping
-    public Result<Boolean> add(@RequestBody User user) {
+    public Result<Long> add(@RequestBody User user) {
         if (user.getPassword() != null) {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
         userMapper.insert(user);
-        return Result.success(true);
+        return Result.success(user.getId());
     }
 
     /**

@@ -37,6 +37,9 @@ public class Organization implements Serializable {
     @TableField("level")
     private Integer level;
 
+    @TableField("year")
+    private Integer year;
+
     @TableField("data_source")
     private String dataSource;
 
