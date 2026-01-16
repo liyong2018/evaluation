@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    image: evaluation-backend:latest
+    container_name: evaluation-backend
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+      - SPRING_PROFILES_ACTIVE=mysql
+      - MYSQL_JDBC_URL=jdbc:mysql://evaluation-mysql:3306/evaluate_db?useSSL=false&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      - MYSQL_JDBC_USER=root
+      - MYSQL_JDBC_PASSWORD=123456
+      - INIT_ADMIN_USERNAME=admin
+      - INIT_ADMIN_PASSWORD=123456
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    networks:
+      - evaluation-network
+
+  frontend:
+    image: evaluation-frontend:latest
+    container_name: evaluation-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - evaluation-network
+
+networks:
+  evaluation-network:
+    name: evaluation_evaluation-network
+    external: true

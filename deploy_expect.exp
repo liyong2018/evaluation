@@ -1,0 +1,94 @@
+#!/usr/bin/expect -f
+# Expect script for passwordless SSH deployment
+# This script automates SSH connections with password
+
+set timeout 60
+set PASSWORD "Htht@12#$"
+set SERVER "172.16.43.189"
+set USER "root"
+set REMOTE_DIR "~/evaluation"
+set LOCAL_DIR "d:/Evaluation/evaluation"
+
+# Function to execute SSH command with password
+proc ssh_exec {command} {
+    global PASSWORD SERVER USER
+    spawn ssh -o StrictHostKeyChecking=no $USER@$SERVER $command
+    expect {
+        "password:" {
+            send "$PASSWORD\r"
+            expect eof
+        } eof {
+            catch wait result
+            return [lindex $result 3]
+        }
+    }
+}
+
+# Function to SCP file with password
+proc scp_file {local_path remote_path} {
+    global PASSWORD SERVER USER
+    spawn scp -o StrictHostKeyChecking=no $local_path $USER@$SERVER:$remote_path
+    expect {
+        "password:" {
+            send "$PASSWORD\r"
+            expect eof
+        } eof {
+            catch wait result
+            return [lindex $result 3]
+        }
+    }
+}
+
+# Function to SCP directory with password
+proc scp_dir {local_path remote_path} {
+    global PASSWORD SERVER USER
+    spawn scp -o StrictHostKeyChecking=no -r $local_path $USER@$SERVER:$remote_path
+    expect {
+        "password:" {
+            send "$PASSWORD\r"
+            expect eof
+        } eof {
+            catch wait result
+            return [lindex $result 3]
+        }
+    }
+}
+
+# Main deployment
+puts "========================================"
+puts "Deploy to Remote Server"
+puts "Server: $SERVER"
+puts "========================================"
+puts ""
+
+# Step 1: Stop Docker containers
+puts "Step 1: Stopping Docker containers..."
+ssh_exec "cd $REMOTE_DIR && docker compose down"
+puts ""
+
+# Step 2: Upload JAR file
+puts "Step 2: Uploading JAR file..."
+scp_file "$LOCAL_DIR/target/disaster-reduction-evaluation-1.0.0.jar" "$REMOTE_DIR/target/"
+puts ""
+
+# Step 3: Clear and recreate frontend dist directory
+puts "Step 3: Clearing remote dist directory..."
+ssh_exec "rm -rf $REMOTE_DIR/frontend/dist && mkdir -p $REMOTE_DIR/frontend/dist"
+
+puts "Uploading frontend files..."
+scp_dir "$LOCAL_DIR/frontend/dist/*" "$REMOTE_DIR/frontend/dist/"
+puts ""
+
+# Step 4: Rebuild Docker image
+puts "Step 4: Rebuilding Docker image..."
+ssh_exec "cd $REMOTE_DIR && docker compose build evaluation-app"
+puts ""
+
+# Step 5: Start Docker containers
+puts "Step 5: Starting Docker containers..."
+ssh_exec "cd $REMOTE_DIR && docker compose up -d"
+puts ""
+
+puts "========================================"
+puts "Deployment completed!"
+puts "========================================"
