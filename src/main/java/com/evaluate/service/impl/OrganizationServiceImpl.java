@@ -558,9 +558,15 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 existing.setCountyId(countyId);
                 needUpdate = true;
             }
+            // 确保 is_baseline 字段正确设置
+            int expectedIsBaseline = year != null ? 0 : 1;
+            if (existing.getIsBaseline() == null || existing.getIsBaseline() != expectedIsBaseline) {
+                existing.setIsBaseline(expectedIsBaseline);
+                needUpdate = true;
+            }
             if (needUpdate) {
                 grassrootsOrganizationMapper.updateById(existing);
-                log.debug("更新基层组织机构关联字段: code={}, parentId={}, countyId={}", normalizedCode, parentId, countyId);
+                log.debug("更新基层组织机构关联字段: code={}, parentId={}, countyId={}, isBaseline={}", normalizedCode, parentId, countyId, expectedIsBaseline);
             }
             return existing;
         }
@@ -574,6 +580,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         org.setDataSource(source);
         org.setCountyId(countyId);
         org.setParentId(parentId);
+        // 设置 is_baseline：有年份则为年度数据(0)，否则为基准数据(1)
+        org.setIsBaseline(year != null ? 0 : 1);
         org.setProvinceName(StringUtils.hasText(provinceName) ? provinceName.trim() : null);
         org.setCityName(StringUtils.hasText(cityName) ? cityName.trim() : null);
         org.setCountyName(StringUtils.hasText(countyName) ? countyName.trim() : null);
