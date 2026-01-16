@@ -125,6 +125,16 @@ export const CAPABILITY_LEVEL_RANGES: Record<string, { min: number; max: number 
  * 根据分数获取能力等级
  */
 export function getCapabilityLevel(score: number): string {
+  if (!Number.isFinite(score)) return '中等'
+
+  if (score >= 0 && score <= 1) {
+    if (score >= 0.8) return '强'
+    if (score >= 0.6) return '较强'
+    if (score >= 0.4) return '中等'
+    if (score >= 0.2) return '较弱'
+    return '弱'
+  }
+
   for (const [level, range] of Object.entries(CAPABILITY_LEVEL_RANGES)) {
     if (score >= range.min && score <= range.max) {
       return level

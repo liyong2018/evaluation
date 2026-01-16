@@ -659,7 +659,7 @@ export const medicalInstitutionApi = {
   create: (data: any) => request.post('/api/medical-institution', data),
 
   // 更新医疗卫生机构数据
-  update: (data: any) => request.put('/api/medical-institution', data),
+  update: (data: any) => request.put('/api/medical-institution/update', data),
 
   // 删除医疗卫生机构数据
   delete: (id: number) => request.delete(`/api/medical-institution/${id}`),
@@ -838,6 +838,77 @@ export const organizationBoundaryApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   }
+}
+
+// 基层组织机构相关API（乡镇和社区）
+export const grassrootsOrganizationApi = {
+  // 获取基层组织机构列表
+  getAll: (params?: {
+    page?: number;
+    size?: number;
+    countyId?: number;
+    code?: string;
+    name?: string;
+    level?: number;
+    parentId?: number;
+    year?: number;
+  }) => request.get('/api/grassroots-organization/list', { params }),
+
+  // 根据区县ID获取乡镇列表
+  getTownshipsByCountyId: (countyId: number, year?: number) =>
+    request.get(`/api/grassroots-organization/townships/by-county-id/${countyId}`, { params: { year } }),
+
+  // 根据区县代码获取乡镇列表
+  getTownshipsByCountyCode: (countyCode: string, year?: number) =>
+    request.get('/api/grassroots-organization/townships/by-county-code', { params: { countyCode, year } }),
+
+  // 根据乡镇ID获取社区列表
+  getCommunitiesByTownshipId: (townshipId: number, year?: number) =>
+    request.get(`/api/grassroots-organization/communities/by-township-id/${townshipId}`, { params: { year } }),
+
+  // 根据乡镇代码获取社区列表
+  getCommunitiesByTownshipCode: (townshipCode: string, year?: number) =>
+    request.get('/api/grassroots-organization/communities/by-township-code', { params: { townshipCode, year } }),
+
+  // 根据区县ID获取树形结构
+  getTreeByCountyId: (countyId: number, year?: number) =>
+    request.get(`/api/grassroots-organization/tree/by-county-id/${countyId}`, { params: { year } }),
+
+  // 根据区县代码获取树形结构
+  getTreeByCountyCode: (countyCode: string, year?: number) =>
+    request.get('/api/grassroots-organization/tree/by-county-code', { params: { countyCode, year } }),
+
+  // 根据编码获取基层组织机构
+  getByCode: (code: string, year?: number) =>
+    request.get(`/api/grassroots-organization/code/${code}`, { params: { year } }),
+
+  // 搜索基层组织机构
+  search: (params: {
+    countyId?: number;
+    keyword?: string;
+    level?: number;
+    year?: number;
+  }) => request.get('/api/grassroots-organization/search', { params }),
+
+  // 创建基层组织机构
+  create: (data: any) => request.post('/api/grassroots-organization', data),
+
+  // 更新基层组织机构
+  update: (data: any) => request.put('/api/grassroots-organization', data),
+
+  // 删除基层组织机构
+  delete: (id: number) => request.delete(`/api/grassroots-organization/${id}`),
+
+  // 批量删除基层组织机构
+  batchDelete: (ids: number[]) => request.delete('/api/grassroots-organization/batch', { data: ids }),
+
+  // 从上一年复制年度配置
+  copyFromPreviousYear: (targetYear: number) =>
+    request.post('/api/grassroots-organization/copy-from-previous-year', null, { params: { targetYear } }),
+
+  // 删除区县的年度数据
+  deleteYearData: (countyId: number, year: number) =>
+    request.delete(`/api/grassroots-organization/year-data/${countyId}`, { params: { year } })
 }
 
 // 用户认证相关API

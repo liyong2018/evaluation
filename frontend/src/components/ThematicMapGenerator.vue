@@ -672,6 +672,39 @@ const calculateCapabilityLevel = (score: unknown): string => {
   return '弱'
 }
 
+const normalizeCapabilityLevel = (rawLevel: unknown, score?: unknown): string => {
+  const validLevels = ['强', '较强', '中等', '较弱', '弱']
+
+  if (rawLevel === null || rawLevel === undefined) {
+    return calculateCapabilityLevel(score)
+  }
+
+  const text = String(rawLevel).trim()
+  if (!text) return calculateCapabilityLevel(score)
+
+  const aliases: Record<string, string> = {
+    极强: '强',
+    极弱: '弱'
+  }
+
+  const normalizedText = aliases[text] ?? text
+  if (validLevels.includes(normalizedText)) return normalizedText
+
+  const englishMap: Record<string, string> = {
+    strong: '强',
+    mediumStrong: '较强',
+    medium: '中等',
+    weak: '较弱',
+    veryWeak: '弱'
+  }
+  if (englishMap[normalizedText]) return englishMap[normalizedText]
+
+  const n = Number(normalizedText)
+  if (Number.isFinite(n)) return calculateCapabilityLevel(n)
+
+  return calculateCapabilityLevel(score)
+}
+
 // 根据能力等级获取颜色
 const getCapabilityColor = (level: string): string => {
   // 处理可能的null/undefined
@@ -808,7 +841,19 @@ const loadDataFromSession = async () => {
           const totalScore = parseFloat(row.totalScore || row.总分 || row.综合得分 || row.score || 0)
           
           // 直接使用二维表中的灾害管理能力字段，不再根据分数计算
-          const capabilityLevel = row.comprehensiveCapability || row.综合能力分级 || row.management_grade || '中等'
+          const rawCapabilityLevel =
+            row.capabilityLevel ||
+            row.comprehensiveCapabilityLevel ||
+            row.comprehensiveCapabilityGrade ||
+            row.综合能力分级 ||
+            row.totalGrade ||
+            row.overallGrade ||
+            row.overall_grade ||
+            row.comprehensiveGrade ||
+            row.comprehensive_grade ||
+            row.comprehensiveCapability ||
+            row.management_grade
+          const capabilityLevel = normalizeCapabilityLevel(rawCapabilityLevel, totalScore)
           
           return {
             name: regionName,
@@ -915,13 +960,20 @@ const loadThematicData = async () => {
             const regionName = evaluationRow.region || evaluationRow.地区名称 || evaluationRow.name || `区域${index + 1}`
             const totalScore = parseFloat(evaluationRow.totalScore || evaluationRow.总分 || evaluationRow.综合得分 || evaluationRow.score || 0)
 
-            const capabilityLevel =
+            const rawCapabilityLevel =
+              evaluationRow.capabilityLevel ||
+              evaluationRow.comprehensiveCapabilityLevel ||
               evaluationRow.comprehensiveCapabilityGrade ||
               evaluationRow.综合能力分级 ||
               evaluationRow.totalGrade ||
+              evaluationRow.overallGrade ||
+              evaluationRow.overall_grade ||
+              evaluationRow.comprehensiveGrade ||
+              evaluationRow.comprehensive_grade ||
               evaluationRow.comprehensiveCapability ||
-              evaluationRow.management_grade ||
-              '中等'
+              evaluationRow.management_grade
+
+            const capabilityLevel = normalizeCapabilityLevel(rawCapabilityLevel, totalScore)
 
             const matchingFeature =
               boundaries.features.find((feature: any) => {
@@ -1028,14 +1080,19 @@ const loadThematicData = async () => {
 
                 const totalScore = parseFloat(evaluationRow?.totalScore || evaluationRow?.总分 || evaluationRow?.综合得分 || evaluationRow?.score || 0)
 
-                const capabilityLevel =
+                const rawCapabilityLevel =
+                  evaluationRow?.capabilityLevel ||
+                  evaluationRow?.comprehensiveCapabilityLevel ||
                   evaluationRow?.comprehensiveCapabilityGrade ||
                   evaluationRow?.综合能力分级 ||
                   evaluationRow?.totalGrade ||
-                  evaluationRow?.disasterManagement ||
-                  evaluationRow?.灾害管理能力 ||
-                  evaluationRow?.management_grade ||
-                  '中等'
+                  evaluationRow?.overallGrade ||
+                  evaluationRow?.overall_grade ||
+                  evaluationRow?.comprehensiveGrade ||
+                  evaluationRow?.comprehensive_grade ||
+                  evaluationRow?.management_grade
+
+                const capabilityLevel = normalizeCapabilityLevel(rawCapabilityLevel, totalScore)
 
                 return {
                   regionId: index + 1,
@@ -1987,27 +2044,22 @@ const getStatistics = () => {
   currentThematicData.value.forEach(item => {
     stats.total++
 
-    // 优先使用后端API返回的综合能力等级字段
-    let level = item.capabilityLevel ||              // 后端API返回的字段 (ThematicMapController.java:105)
-                  item.comprehensiveCapabilityLevel ||  // 后端 EvaluationResult 原始字段
-                  item.comprehensiveCapabilityGrade ||  // 兼容旧字段名
-                  item.综合能力分级
+    const rawLevel =
+      item.capabilityLevel ||
+      item.comprehensiveCapabilityLevel ||
+      item.comprehensiveCapabilityGrade ||
+      item.综合能力分级 ||
+      item.totalGrade ||
+      item.overallGrade ||
+      item.overall_grade ||
+      item.comprehensiveGrade ||
+      item.comprehensive_grade ||
+      item.comprehensiveCapability ||
+      item.level
 
-    // 如果没有分级结果，尝试从其他字段获取
-    if (!level) {
-      level = item.comprehensiveCapability || item.level || '中等'
+    const score = item.score ?? item.totalScore ?? item.comprehensiveCapabilityScore ?? item.comprehensiveCapability
 
-      // 如果comprehensiveCapability是数值，需要根据数值范围判断等级
-      if (typeof level === 'number' || (typeof level === 'string' && !isNaN(parseFloat(level)))) {
-        const numValue = typeof level === 'number' ? level : parseFloat(level)
-        // 根据TOPSIS算法结果的数值范围进行分级（0-1之间）
-        if (numValue >= 0.8) level = '强'
-        else if (numValue >= 0.6) level = '较强'
-        else if (numValue >= 0.4) level = '中等'
-        else if (numValue >= 0.2) level = '较弱'
-        else level = '弱'
-      }
-    }
+    let level = normalizeCapabilityLevel(rawLevel, score)
 
     // 确保level是有效的等级值，如果不是则默认为中等
     const validLevels = ['强', '较强', '中等', '较弱', '弱']
