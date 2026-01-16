@@ -266,9 +266,11 @@ import { Plus, Edit, Delete, OfficeBuilding, MapLocation, Location, Position, Ho
 import type { ElTree } from 'element-plus'
 import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
+import { useGlobalYearStore } from '@/stores/globalYear'
 
 // 用户状态
 const userStore = useUserStore()
+const globalYearStore = useGlobalYearStore()
 
 // 状态管理
 const loading = ref(false)
@@ -319,12 +321,12 @@ const currentBoundaryNode = ref<any>(null)
 const boundaryForm = ref({
   id: null,
   organizationId: null,
-  year: new Date().getFullYear(),
+  year: globalYearStore.selectedYear,
   boundaryCoordinates: '',
   filePath: ''
 })
 
-const treeYear = ref<number | null>(new Date().getFullYear())
+const treeYear = ref<number | null>(globalYearStore.selectedYear)
 const orgTreeRenderKey = computed(() => `orgTree-${treeYear.value ?? 'all'}`)
 
 // 上传相关
@@ -960,6 +962,10 @@ watch(
   () => treeYear.value,
   async (year, oldYear) => {
     if (year === oldYear) return
+    // 同步到全局年份 store
+    if (year != null) {
+      globalYearStore.setYear(year)
+    }
     selectedNode.value = null
     selectedOrganization.value = null
     rightPanelTree.value = []
