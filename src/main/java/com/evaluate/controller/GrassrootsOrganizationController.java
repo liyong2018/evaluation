@@ -305,4 +305,19 @@ public class GrassrootsOrganizationController {
             return Result.error("删除年度数据失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 修复社区数据的parent_id（根据township_name匹配）
+     */
+    @PostMapping("/fix-parent-ids/{year}")
+    public Result<Map<String, Object>> fixParentIds(@PathVariable Integer year) {
+        try {
+            log.info("开始修复{}年社区数据的parent_id", year);
+            Map<String, Object> result = grassrootsOrganizationService.fixCommunityParentIds(year);
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("修复parent_id失败", e);
+            return Result.error("修复失败: " + e.getMessage());
+        }
+    }
 }

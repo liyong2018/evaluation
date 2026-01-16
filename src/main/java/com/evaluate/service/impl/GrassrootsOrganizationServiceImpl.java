@@ -915,4 +915,57 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             return node;
         }).collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> fixCommunityParentIds(Integer year) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            // 查询所有parent_id为NULL或不匹配的社区数据
+            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("level", LEVEL_COMMUNITY);
+            queryWrapper.eq("year", year);
+            List<GrassrootsOrganization> communities = list(queryWrapper);
+
+            int fixedCount = 0;
+            int skippedCount = 0;
+
+            for (GrassrootsOrganization community : communities) {
+                // 根据township_name和county_name查找对应的乡镇
+                QueryWrapper<GrassrootsOrganization> townshipQuery = new QueryWrapper<>();
+                townshipQuery.eq("level", LEVEL_TOWNSHIP);
+                townshipQuery.eq("year", year);
+                townshipQuery.eq("name", community.getTownshipName());
+                townshipQuery.eq("county_name", community.getCountyName());
+                GrassrootsOrganization township = getOne(townshipQuery, false);
+
+                if (township != null) {
+                    // 检查是否需要更新parent_id
+                    if (!township.getId().equals(community.getParentId())) {
+                        community.setParentId(township.getId());
+                        community.setCountyId(township.getCountyId());
+                        updateById(community);
+                        fixedCount++;
+                        log.debug("修复社区parent_id: community={}, parent_id={}", community.getName(), township.getId());
+                    }
+                } else {
+                    skippedCount++;
+                    log.warn("未找到乡镇: township_name={}, county_name={}", community.getTownshipName(), community.getCountyName());
+                }
+            }
+
+            result.put("totalCommunities", communities.size());
+            result.put("fixedCount", fixedCount);
+            result.put("skippedCount", skippedCount);
+            result.put("success", true);
+
+            log.info("修复社区parent_id完成: 总数={}, 修复={}, 跳过={}", communities.size(), fixedCount, skippedCount);
+            return result;
+        } catch (Exception e) {
+            log.error("修复社区parent_id失败: year={}", year, e);
+            result.put("success", false);
+            result.put("message", e.getMessage());
+            throw e;
+        }
+    }
 }

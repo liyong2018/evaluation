@@ -166,4 +166,12 @@ public interface IGrassrootsOrganizationService extends IService<GrassrootsOrgan
      * @return 查询结果
      */
     Map<String, Object> getGrassrootsOrganizationList(Integer page, Integer size, Long countyId, String code, String name, Integer level, Long parentId, Integer year);
+
+    /**
+     * 修复社区数据的parent_id（根据township_name匹配）
+     *
+     * @param year 年份
+     * @return 修复结果统计
+     */
+    Map<String, Object> fixCommunityParentIds(Integer year);
 }
