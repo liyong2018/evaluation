@@ -150,79 +150,104 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         String regionCode = community.getRegionCode().trim();
         Integer year = community.getYear();
 
-        // 省、市、县使用 organization 表
-        Organization province = ensureOrganization(
-                extractCode(regionCode, 2),
-                community.getProvinceName(),
-                LEVEL_PROVINCE,
-                SOURCE_COMMUNITY,
-                null,
-                community.getProvinceName(),
-                null,
-                null,
-                null,
-                null,
-                year
-        );
+        try {
+            // 省、市、县使用 organization 表
+            Organization province = ensureOrganization(
+                    extractCode(regionCode, 2),
+                    community.getProvinceName(),
+                    LEVEL_PROVINCE,
+                    SOURCE_COMMUNITY,
+                    null,
+                    community.getProvinceName(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    year
+            );
 
-        Organization city = ensureOrganization(
-                extractCode(regionCode, 4),
-                community.getCityName(),
-                LEVEL_CITY,
-                SOURCE_COMMUNITY,
-                province,
-                community.getProvinceName(),
-                community.getCityName(),
-                null,
-                null,
-                null,
-                year
-        );
+            Organization city = ensureOrganization(
+                    extractCode(regionCode, 4),
+                    community.getCityName(),
+                    LEVEL_CITY,
+                    SOURCE_COMMUNITY,
+                    province,
+                    community.getProvinceName(),
+                    community.getCityName(),
+                    null,
+                    null,
+                    null,
+                    year
+            );
 
-        Organization county = ensureOrganization(
-                extractCode(regionCode, 6),
-                community.getCountyName(),
-                LEVEL_COUNTY,
-                SOURCE_COMMUNITY,
-                city,
-                community.getProvinceName(),
-                community.getCityName(),
-                community.getCountyName(),
-                null,
-                null,
-                year
-        );
+            Organization county = ensureOrganization(
+                    extractCode(regionCode, 6),
+                    community.getCountyName(),
+                    LEVEL_COUNTY,
+                    SOURCE_COMMUNITY,
+                    city,
+                    community.getProvinceName(),
+                    community.getCityName(),
+                    community.getCountyName(),
+                    null,
+                    null,
+                    year
+            );
 
-        // 乡镇和社区使用 grassroots_organization 表
-        GrassrootsOrganization township = ensureGrassrootsOrganization(
-                extractCode(regionCode, 9),
-                community.getTownshipName(),
-                LEVEL_TOWNSHIP,
-                SOURCE_COMMUNITY,
-                county != null ? county.getId() : null,
-                null,
-                community.getProvinceName(),
-                community.getCityName(),
-                community.getCountyName(),
-                community.getTownshipName(),
-                null,
-                year
-        );
+            if (county == null) {
+                log.warn("无法同步组织机构数据：区县不存在。regionCode={}, countyName={}, year={}",
+                    regionCode, community.getCountyName(), year);
+                return;
+            }
 
-        ensureGrassrootsOrganization(
-                regionCode,
-                community.getCommunityName(),
-                LEVEL_COMMUNITY,
-                SOURCE_COMMUNITY,
-                null,
-                township != null ? township.getId() : null,
-                community.getProvinceName(),
-                community.getCityName(),
-                community.getCountyName(),
-                community.getTownshipName(),
-                community.getCommunityName(),
-                year
-        );
+            // 乡镇和社区使用 grassroots_organization 表
+            GrassrootsOrganization township = ensureGrassrootsOrganization(
+                    extractCode(regionCode, 9),
+                    community.getTownshipName(),
+                    LEVEL_TOWNSHIP,
+                    SOURCE_COMMUNITY,
+                    county.getId(),
+                    null,
+                    community.getProvinceName(),
+                    community.getCityName(),
+                    community.getCountyName(),
+                    community.getTownshipName(),
+                    null,
+                    year
+            );
+
+            if (township == null) {
+                log.warn("无法同步社区组织机构：乡镇不存在。regionCode={}, townshipName={}, year={}",
+                    regionCode, community.getTownshipName(), year);
+            }
+
+            GrassrootsOrganization communityOrg = ensureGrassrootsOrganization(
+                    regionCode,
+                    community.getCommunityName(),
+                    LEVEL_COMMUNITY,
+                    SOURCE_COMMUNITY,
+                    null,
+                    township != null ? township.getId() : null,
+                    community.getProvinceName(),
+                    community.getCityName(),
+                    community.getCountyName(),
+                    community.getTownshipName(),
+                    community.getCommunityName(),
+                    year
+            );
+
+            if (communityOrg != null) {
+                log.debug("成功同步社区组织机构：code={}, name={}, township={}, year={}",
+                    regionCode, community.getCommunityName(), community.getTownshipName(), year);
+            } else {
+                log.warn("社区组织机构同步失败：code={}, name={}, year={}",
+                    regionCode, community.getCommunityName(), year);
+            }
+        } catch (Exception e) {
+            log.error("同步社区组织机构数据失败：regionCode={}, communityName={}, year={}",
+                regionCode, community.getCommunityName(), year, e);
+            // 不抛出异常，避免影响主流程
+        }
     }
 
     @Override
@@ -590,14 +615,23 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
         try {
             grassrootsOrganizationMapper.insert(org);
-            log.debug("新增基层组织机构: code={}, name={}, level={}, year={}", normalizedCode, normalizedName, level, year);
+            log.info("新增基层组织机构: code={}, name={}, level={}, year={}, countyId={}, parentId={}",
+                normalizedCode, normalizedName, level, year, countyId, parentId);
         } catch (Exception e) {
-            log.warn("插入基层组织机构失败（可能是重复）: code={}, error={}", normalizedCode, e.getMessage());
-            // 插入失败时，尝试重新查询
-            existing = grassrootsOrganizationMapper.selectOne(query);
-            if (existing != null) {
-                return existing;
+            log.error("插入基层组织机构失败: code={}, name={}, level={}, year={}, countyId={}, parentId={}, error={}",
+                normalizedCode, normalizedName, level, year, countyId, parentId, e.getMessage(), e);
+            // 插入失败时，尝试重新查询（可能是并发插入）
+            try {
+                existing = grassrootsOrganizationMapper.selectOne(query);
+                if (existing != null) {
+                    log.info("插入失败但查询到已有记录: code={}", normalizedCode);
+                    return existing;
+                }
+            } catch (Exception queryException) {
+                log.error("重新查询也失败: code={}", normalizedCode, queryException);
             }
+            // 返回null表示插入失败
+            return null;
         }
         return org;
     }
