@@ -145,6 +145,14 @@ public interface IGrassrootsOrganizationService extends IService<GrassrootsOrgan
     Map<String, Object> deleteYearDataByCountyId(Long countyId, Integer year);
 
     /**
+     * 调试方法：获取乡镇下的所有社区（不受年份限制）
+     *
+     * @param townshipId 乡镇ID
+     * @return 社区列表
+     */
+    List<GrassrootsOrganization> debugGetCommunitiesByTownshipId(Long townshipId);
+
+    /**
      * 分页查询基层组织机构列表
      *
      * @param page 页码

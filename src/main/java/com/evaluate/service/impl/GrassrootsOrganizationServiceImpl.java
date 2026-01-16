@@ -771,6 +771,28 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         return result;
     }
 
+    @Override
+    public List<GrassrootsOrganization> debugGetCommunitiesByTownshipId(Long townshipId) {
+        try {
+            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("parent_id", townshipId);
+            queryWrapper.eq("level", LEVEL_COMMUNITY);
+            queryWrapper.orderByAsc("code");
+            List<GrassrootsOrganization> result = list(queryWrapper);
+            log.info("调试查询：乡镇ID {} 下有 {} 个社区（所有年份）", townshipId, result == null ? 0 : result.size());
+            if (result != null && !result.isEmpty()) {
+                for (GrassrootsOrganization org : result) {
+                    log.info("  - code: {}, name: {}, year: {}, is_baseline: {}, parent_id: {}",
+                            org.getCode(), org.getName(), org.getYear(), org.getIsBaseline(), org.getParentId());
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("调试查询失败: townshipId={}", townshipId, e);
+            return new ArrayList<>();
+        }
+    }
+
     /**
      * 合并基准数据和当年变更数据
      * 当年记录优先，相同code的基准记录被覆盖

@@ -91,10 +91,29 @@ public class GrassrootsOrganizationController {
         log.info("根据乡镇ID获取社区列表，乡镇ID: {}, 年份: {}", townshipId, year);
         try {
             List<GrassrootsOrganization> communities = grassrootsOrganizationService.getCommunitiesByTownshipId(townshipId, year);
+            log.info("查询结果: 找到 {} 个社区", communities == null ? 0 : communities.size());
             return Result.success(communities);
         } catch (Exception e) {
             log.error("根据乡镇ID获取社区列表失败", e);
             return Result.error("查询失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 调试接口：查看乡镇下的所有社区（不受年份限制）
+     */
+    @GetMapping("/debug/communities-by-township-id/{townshipId}")
+    public Result<Map<String, Object>> debugGetCommunitiesByTownshipId(@PathVariable Long townshipId) {
+        try {
+            Map<String, Object> result = new HashMap<>();
+            List<GrassrootsOrganization> allCommunities = grassrootsOrganizationService.debugGetCommunitiesByTownshipId(townshipId);
+            result.put("townshipId", townshipId);
+            result.put("communities", allCommunities);
+            result.put("count", allCommunities == null ? 0 : allCommunities.size());
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("调试查询失败", e);
+            return Result.error("调试查询失败: " + e.getMessage());
         }
     }
 
