@@ -41,3 +41,18 @@ logs/
 .vscode/
 uploads/
 .env
+
+# Temporary data files
+nul
+org_levels.txt
+org_tree.json
+
+# Build artifacts
+frontend/evaluation-frontend.tar.gz
+
+# Public data files (generated/imported)
+frontend/public/organizations.json
+frontend/public/organizations_import.xlsx
+frontend/public/sichuan_county_township_community_relation.txt
+frontend/public/sichuan_province_city_county.txt
+frontend/public/zzjg.txt
