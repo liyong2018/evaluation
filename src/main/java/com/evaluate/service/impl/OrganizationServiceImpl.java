@@ -371,20 +371,14 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             baselineQuery.eq("is_baseline", 1);
             Organization baselineOrg = getOne(baselineQuery, false);
 
-            // 检查是否有业务变更
-            boolean hasChange = hasBusinessChange(
-                    normalizedName, provinceName, cityName, countyName, townshipName, communityName,
-                    baselineOrg
-            );
-
             if (yearOrg != null) {
                 // 当年变更记录已存在，更新它
                 updateOrganizationFields(yearOrg, normalizedName, parentId, source,
                         provinceName, cityName, countyName, townshipName, communityName);
                 updateById(yearOrg);
                 return yearOrg;
-            } else if (hasChange && baselineOrg != null) {
-                // 有变更且基准记录存在，创建当年变更记录
+            } else {
+                // 当年变更记录不存在，需要创建
                 Organization newYearOrg = new Organization();
                 newYearOrg.setCode(normalizedCode);
                 newYearOrg.setName(normalizedName);
@@ -400,11 +394,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 newYearOrg.setTownshipName(StringUtils.hasText(townshipName) ? townshipName.trim() : null);
                 newYearOrg.setCommunityName(StringUtils.hasText(communityName) ? communityName.trim() : null);
                 save(newYearOrg);
-                log.debug("新增年度变更记录: code={}, year={}", normalizedCode, year);
+                log.info("新增年度变更记录: code={}, name={}, year={}", normalizedCode, normalizedName, year);
                 return newYearOrg;
-            } else if (baselineOrg != null) {
-                // 无变更，返回基准记录
-                return baselineOrg;
             }
         }
 
