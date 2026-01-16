@@ -57,6 +57,12 @@ public class Organization implements Serializable {
     @TableField("community_name")
     private String communityName;
 
+    @TableField("is_baseline")
+    private Integer isBaseline;
+
+    @TableField("baseline_code")
+    private String baselineCode;
+
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

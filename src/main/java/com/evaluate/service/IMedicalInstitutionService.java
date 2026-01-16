@@ -41,6 +41,14 @@ public interface IMedicalInstitutionService extends IService<MedicalInstitution>
     List<MedicalInstitution> searchByInstitutionName(String institutionName);
 
     /**
+     * 更新医疗卫生机构数据
+     *
+     * @param medicalInstitution 医疗卫生机构数据
+     * @return 更新结果
+     */
+    boolean updateMedicalInstitution(MedicalInstitution medicalInstitution);
+
+    /**
      * 批量删除医疗卫生机构数据
      *
      * @param ids ID列表

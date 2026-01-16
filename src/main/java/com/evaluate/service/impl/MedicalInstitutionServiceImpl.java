@@ -224,6 +224,15 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public boolean updateMedicalInstitution(MedicalInstitution medicalInstitution) {
+        if (medicalInstitution == null || medicalInstitution.getId() == null) {
+            return false;
+        }
+        return updateById(medicalInstitution);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean batchDelete(List<Long> ids) {
         return this.removeByIds(ids);
     }

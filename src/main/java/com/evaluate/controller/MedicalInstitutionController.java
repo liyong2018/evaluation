@@ -133,6 +133,40 @@ public class MedicalInstitutionController {
     }
 
     /**
+     * 更新医疗卫生机构数据
+     */
+    @PutMapping("/update")
+    public Map<String, Object> updateMedicalInstitution(@RequestBody MedicalInstitution medicalInstitution) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法更新数据");
+                return result;
+            }
+
+            boolean updateResult = medicalInstitutionService.updateMedicalInstitution(medicalInstitution);
+
+            if (updateResult) {
+                result.put("success", true);
+                result.put("message", "更新成功");
+            } else {
+                result.put("success", false);
+                result.put("message", "更新失败");
+            }
+
+        } catch (Exception e) {
+            log.error("更新医疗卫生机构数据失败", e);
+            result.put("success", false);
+            result.put("message", "更新失败：" + e.getMessage());
+        }
+
+        return result;
+    }
+
+    /**
      * 批量删除医疗卫生机构数据
      */
     @DeleteMapping("/batch")
@@ -270,40 +304,6 @@ public class MedicalInstitutionController {
             log.error("创建医疗卫生机构数据失败", e);
             result.put("success", false);
             result.put("message", "创建失败：" + e.getMessage());
-        }
-
-        return result;
-    }
-
-    /**
-     * 更新医疗卫生机构数据
-     */
-    @PutMapping
-    public Map<String, Object> updateMedicalInstitution(@RequestBody MedicalInstitution medicalInstitution) {
-        Map<String, Object> result = new HashMap<>();
-
-        try {
-            if (!isServiceAvailable()) {
-                result.put("success", false);
-                result.put("message", "服务暂时不可用，请稍后重试");
-                log.warn("医疗卫生机构服务未注入，无法更新数据");
-                return result;
-            }
-            boolean updateResult = medicalInstitutionService.updateById(medicalInstitution);
-
-            if (updateResult) {
-                result.put("success", true);
-                result.put("message", "更新成功");
-                result.put("data", medicalInstitution);
-            } else {
-                result.put("success", false);
-                result.put("message", "更新失败");
-            }
-
-        } catch (Exception e) {
-            log.error("更新医疗卫生机构数据失败", e);
-            result.put("success", false);
-            result.put("message", "更新失败：" + e.getMessage());
         }
 
         return result;
