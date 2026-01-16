@@ -548,7 +548,20 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         GrassrootsOrganization existing = grassrootsOrganizationMapper.selectOne(query);
 
         if (existing != null) {
-            // 已存在，直接返回（不更新）
+            // 已存在，但需要更新可能缺失的关联字段
+            boolean needUpdate = false;
+            if (parentId != null && !parentId.equals(existing.getParentId())) {
+                existing.setParentId(parentId);
+                needUpdate = true;
+            }
+            if (countyId != null && !countyId.equals(existing.getCountyId())) {
+                existing.setCountyId(countyId);
+                needUpdate = true;
+            }
+            if (needUpdate) {
+                grassrootsOrganizationMapper.updateById(existing);
+                log.debug("更新基层组织机构关联字段: code={}, parentId={}, countyId={}", normalizedCode, parentId, countyId);
+            }
             return existing;
         }
 
