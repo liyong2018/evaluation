@@ -85,23 +85,37 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
     @Override
     public List<GrassrootsOrganization> getCommunitiesByTownshipId(Long townshipId, Integer year) {
         try {
-            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("parent_id", townshipId);
-            queryWrapper.eq("level", LEVEL_COMMUNITY);
-            // 增量存储：查询当年变更 OR 基准记录
+            List<GrassrootsOrganization> result = new ArrayList<>();
+
             if (year != null) {
-                queryWrapper.and(wrapper -> wrapper
-                        .and(w -> w.eq("year", year).eq("is_baseline", 0))
-                        .or().eq("is_baseline", 1)
-                );
+                // 递归降级查询：从指定年份开始，逐年往前查，直到查到数据或到达2020年
+                for (int searchYear = year; searchYear >= 2020; searchYear--) {
+                    QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+                    queryWrapper.eq("parent_id", townshipId);
+                    queryWrapper.eq("level", LEVEL_COMMUNITY);
+                    queryWrapper.eq("year", searchYear);
+                    queryWrapper.orderByAsc("code");
+
+                    List<GrassrootsOrganization> yearData = list(queryWrapper);
+                    if (!yearData.isEmpty()) {
+                        log.info("找到{}年的社区数据: {}条", searchYear, yearData.size());
+                        // 使用找到的数据，记录来源年份
+                        for (GrassrootsOrganization org : yearData) {
+                            org.setDataSource(org.getDataSource() + "_FROM_YEAR_" + searchYear);
+                        }
+                        result = yearData;
+                        break;
+                    }
+                }
             } else {
-                queryWrapper.eq("is_baseline", 1);
+                // 没有指定年份，查询所有数据
+                QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+                queryWrapper.eq("parent_id", townshipId);
+                queryWrapper.eq("level", LEVEL_COMMUNITY);
+                queryWrapper.orderByAsc("year", "code");
+                result = list(queryWrapper);
             }
-            queryWrapper.orderByAsc("code");
-            List<GrassrootsOrganization> result = list(queryWrapper);
-            if (year != null && !result.isEmpty()) {
-                result = mergeBaselineWithYearData(result, year);
-            }
+
             return result;
         } catch (Exception e) {
             log.error("根据乡镇ID获取社区列表失败: townshipId={}, year={}", townshipId, year, e);
