@@ -102,12 +102,14 @@
           </div>
           <el-tree
             v-else
+            ref="rightPanelTreeRef"
             :data="rightPanelTree"
             :props="{ label: 'name', children: 'children' }"
             node-key="id"
             :default-expand-all="false"
             :expand-on-click-node="false"
             class="grassroots-tree"
+            @node-click="handleRightPanelNodeClick"
           >
             <template #default="{ data }">
               <div class="tree-node grassroots-node">
@@ -263,12 +265,31 @@ import type { UploadProps } from 'element-plus'
 import { Plus, Edit, Delete, OfficeBuilding, MapLocation, Location, Position, House, FolderOpened } from '@element-plus/icons-vue'
 import type { ElTree } from 'element-plus'
 import request from '@/utils/request'
+import { useUserStore } from '@/stores/user'
+
+// 用户状态
+const userStore = useUserStore()
 
 // 状态管理
 const loading = ref(false)
 const saving = ref(false)
 const organizationTree = ref<any[]>([])
 const orgTreeRef = ref()
+const rightPanelTreeRef = ref()
+
+// 根据用户角色确定树展开层级
+// admin或省级用户：展开到县级（level=3，区县级折叠）
+// 市级用户：展开到乡镇级（level=4）
+// 区县用户：展开到社区级（level=5）
+const treeExpandLevel = computed(() => {
+  // admin用户默认展开到县级
+  if (userStore.isAdmin) {
+    return 3
+  }
+  // 非admin用户：展开到社区级（显示完整数据）
+  // TODO: 未来可以根据用户的组织机构级别来确定展开层级
+  return 5
+})
 
 // 右侧面板状态（支持省/市/区的子级展示）
 const rightPanelLoading = ref(false)
@@ -598,9 +619,9 @@ const loadOrganizationTree = async () => {
         }
       }
 
-      // 数据加载完成后，展开到县级节点
+      // 数据加载完成后，根据用户角色展开到相应层级
       await nextTick()
-      expandToLevel(3)
+      expandToLevel(treeExpandLevel.value)
     }
   } catch (error: any) {
     ElMessage.error('加载组织机构树失败: ' + (error.message || ''))
@@ -642,6 +663,46 @@ const handleNodeClick = async (data: any) => {
   } else {
     // 其他级别直接使用树中的children数据
     rightPanelTree.value = data.children || []
+  }
+}
+
+// 处理右侧面板节点点击
+const handleRightPanelNodeClick = async (data: any) => {
+  // 如果点击的是乡镇节点（level=4），加载其下级的社区列表
+  if (data.level === 4) {
+    // 检查是否已经加载了子级数据
+    if (!data.children || data.children.length === 0) {
+      try {
+        // 加载该乡镇下的社区列表
+        const response = await request.get('/api/grassroots-organization/communities/by-township-id/' + data.id, {
+          params: { year: treeYear.value || undefined }
+        })
+        if (response.success && response.data && response.data.length > 0) {
+          // 设置子级数据
+          data.children = response.data
+          // 展开该节点
+          const node = rightPanelTreeRef.value?.store?.nodesMap?.[data.id]
+          if (node) {
+            node.expand()
+          }
+        } else {
+          ElMessage.info('该乡镇下暂无社区数据')
+        }
+      } catch (error: any) {
+        console.error('加载社区列表失败:', error)
+        ElMessage.error('加载社区列表失败')
+      }
+    } else {
+      // 已有子级数据，切换展开状态
+      const node = rightPanelTreeRef.value?.store?.nodesMap?.[data.id]
+      if (node) {
+        if (node.expanded) {
+          node.collapse()
+        } else {
+          node.expand()
+        }
+      }
+    }
   }
 }
 

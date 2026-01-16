@@ -5,10 +5,12 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
+import com.evaluate.entity.GrassrootsOrganization;
 import com.evaluate.entity.MedicalInstitution;
 import com.evaluate.entity.Organization;
 import com.evaluate.entity.OrganizationBoundary;
 import com.evaluate.entity.SurveyData;
+import com.evaluate.mapper.GrassrootsOrganizationMapper;
 import com.evaluate.mapper.MedicalInstitutionMapper;
 import com.evaluate.mapper.OrganizationBoundaryMapper;
 import com.evaluate.mapper.RoleMapper;
@@ -18,6 +20,7 @@ import com.evaluate.mapper.UserMapper;
 import com.evaluate.entity.Role;
 import com.evaluate.entity.User;
 import com.evaluate.mapper.OrganizationMapper;
+import com.evaluate.service.IGrassrootsOrganizationService;
 import com.evaluate.service.IOrganizationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,6 +63,12 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
     @Autowired
     private OrganizationBoundaryMapper organizationBoundaryMapper;
+
+    @Autowired
+    private IGrassrootsOrganizationService grassrootsOrganizationService;
+
+    @Autowired
+    private GrassrootsOrganizationMapper grassrootsOrganizationMapper;
 
     private static final String SOURCE_COMMUNITY = "COMMUNITY";
     private static final String SOURCE_TOWNSHIP = "TOWNSHIP";
@@ -139,6 +148,9 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         }
 
         String regionCode = community.getRegionCode().trim();
+        Integer year = community.getYear();
+
+        // 省、市、县使用 organization 表
         Organization province = ensureOrganization(
                 extractCode(regionCode, 2),
                 community.getProvinceName(),
@@ -149,7 +161,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 null,
                 null,
                 null,
-                null
+                null,
+                year
         );
 
         Organization city = ensureOrganization(
@@ -162,7 +175,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 community.getCityName(),
                 null,
                 null,
-                null
+                null,
+                year
         );
 
         Organization county = ensureOrganization(
@@ -175,33 +189,39 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 community.getCityName(),
                 community.getCountyName(),
                 null,
-                null
+                null,
+                year
         );
 
-        Organization township = ensureOrganization(
+        // 乡镇和社区使用 grassroots_organization 表
+        GrassrootsOrganization township = ensureGrassrootsOrganization(
                 extractCode(regionCode, 9),
                 community.getTownshipName(),
                 LEVEL_TOWNSHIP,
                 SOURCE_COMMUNITY,
-                county,
+                county != null ? county.getId() : null,
+                null,
                 community.getProvinceName(),
                 community.getCityName(),
                 community.getCountyName(),
                 community.getTownshipName(),
-                null
+                null,
+                year
         );
 
-        ensureOrganization(
+        ensureGrassrootsOrganization(
                 regionCode,
                 community.getCommunityName(),
                 LEVEL_COMMUNITY,
                 SOURCE_COMMUNITY,
-                township,
+                null,
+                township != null ? township.getId() : null,
                 community.getProvinceName(),
                 community.getCityName(),
                 community.getCountyName(),
                 community.getTownshipName(),
-                community.getCommunityName()
+                community.getCommunityName(),
+                year
         );
     }
 
@@ -213,6 +233,9 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         }
 
         String regionCode = surveyData.getRegionCode().trim();
+        Integer year = surveyData.getYear();
+
+        // 省、市、县使用 organization 表
         Organization province = ensureOrganization(
                 extractCode(regionCode, 2),
                 surveyData.getProvince(),
@@ -223,7 +246,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 null,
                 null,
                 null,
-                null
+                null,
+                year
         );
 
         Organization city = ensureOrganization(
@@ -236,7 +260,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 surveyData.getCity(),
                 null,
                 null,
-                null
+                null,
+                year
         );
 
         Organization county = ensureOrganization(
@@ -249,20 +274,24 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 surveyData.getCity(),
                 surveyData.getCounty(),
                 null,
-                null
+                null,
+                year
         );
 
-        ensureOrganization(
+        // 乡镇使用 grassroots_organization 表（只插入，不更新）
+        ensureGrassrootsOrganization(
                 extractCode(regionCode, 9),
                 surveyData.getTownship(),
                 LEVEL_TOWNSHIP,
                 SOURCE_TOWNSHIP,
-                county,
+                county != null ? county.getId() : null,
+                null,
                 surveyData.getProvince(),
                 surveyData.getCity(),
                 surveyData.getCounty(),
                 surveyData.getTownship(),
-                null
+                null,
+                year
         );
     }
 
@@ -470,6 +499,86 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         org.setCountyName(StringUtils.hasText(countyName) ? countyName.trim() : null);
         org.setTownshipName(StringUtils.hasText(townshipName) ? townshipName.trim() : null);
         org.setCommunityName(StringUtils.hasText(communityName) ? communityName.trim() : null);
+    }
+
+    /**
+     * 确保基层组织机构存在（乡镇和社区级别）
+     * 只在不存在时插入，存在则直接返回（不更新）
+     * @param code 机构代码
+     * @param name 机构名称
+     * @param level 级别（4=乡镇，5=社区）
+     * @param source 数据来源
+     * @param countyId 所属区县ID
+     * @param parentId 父级ID
+     * @param provinceName 省名称
+     * @param cityName 市名称
+     * @param countyName 区县名称
+     * @param townshipName 乡镇名称
+     * @param communityName 社区名称
+     * @param year 年份
+     * @return GrassrootsOrganization
+     */
+    private GrassrootsOrganization ensureGrassrootsOrganization(
+            String code,
+            String name,
+            int level,
+            String source,
+            Long countyId,
+            Long parentId,
+            String provinceName,
+            String cityName,
+            String countyName,
+            String townshipName,
+            String communityName,
+            Integer year
+    ) {
+        if (!StringUtils.hasText(code) || !StringUtils.hasText(name)) {
+            return null;
+        }
+
+        String normalizedCode = code.trim();
+        String normalizedName = name.trim();
+
+        // 检查是否已存在（优先按代码和年份查询）
+        QueryWrapper<GrassrootsOrganization> query = new QueryWrapper<>();
+        query.eq("code", normalizedCode);
+        if (year != null) {
+            query.eq("year", year);
+        }
+        GrassrootsOrganization existing = grassrootsOrganizationMapper.selectOne(query);
+
+        if (existing != null) {
+            // 已存在，直接返回（不更新）
+            return existing;
+        }
+
+        // 不存在，插入新记录
+        GrassrootsOrganization org = new GrassrootsOrganization();
+        org.setCode(normalizedCode);
+        org.setName(normalizedName);
+        org.setLevel(level);
+        org.setYear(year);
+        org.setDataSource(source);
+        org.setCountyId(countyId);
+        org.setParentId(parentId);
+        org.setProvinceName(StringUtils.hasText(provinceName) ? provinceName.trim() : null);
+        org.setCityName(StringUtils.hasText(cityName) ? cityName.trim() : null);
+        org.setCountyName(StringUtils.hasText(countyName) ? countyName.trim() : null);
+        org.setTownshipName(StringUtils.hasText(townshipName) ? townshipName.trim() : null);
+        org.setCommunityName(StringUtils.hasText(communityName) ? communityName.trim() : null);
+
+        try {
+            grassrootsOrganizationMapper.insert(org);
+            log.debug("新增基层组织机构: code={}, name={}, level={}, year={}", normalizedCode, normalizedName, level, year);
+        } catch (Exception e) {
+            log.warn("插入基层组织机构失败（可能是重复）: code={}, error={}", normalizedCode, e.getMessage());
+            // 插入失败时，尝试重新查询
+            existing = grassrootsOrganizationMapper.selectOne(query);
+            if (existing != null) {
+                return existing;
+            }
+        }
+        return org;
     }
 
     private String extractCode(String regionCode, int length) {

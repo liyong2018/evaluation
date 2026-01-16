@@ -2982,55 +2982,73 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 result.setOrgCode(orgCode.trim());
             }
 
-            result.setManagementCapabilityScore(
-                    getDecimalValueFromMap(outputs,
-                            "management_capability_score",
-                            "managementCapabilityScore",
-                            "disasterMgmtScore",
-                            "disaster_mgmt_score"));
-            result.setSupportCapabilityScore(
-                    getDecimalValueFromMap(outputs,
-                            "support_capability_score",
-                            "supportCapabilityScore",
-                            "disasterPrepScore",
-                            "disaster_prep_score"));
-            result.setSelfRescueCapabilityScore(
-                    getDecimalValueFromMap(outputs,
-                            "self_rescue_capability_score",
-                            "selfRescueCapabilityScore",
-                            "selfRescueScore",
-                            "self_rescue_score"));
-            result.setComprehensiveCapabilityScore(
-                    getDecimalValueFromMap(outputs,
-                            "comprehensive_capability_score",
-                            "comprehensiveCapabilityScore",
-                            "comprehensiveScore",
-                            "comprehensive_score"));
+            // 设置分数
+            BigDecimal managementScore = getDecimalValueFromMap(outputs,
+                    "management_capability_score",
+                    "managementCapabilityScore",
+                    "disasterMgmtScore",
+                    "disaster_mgmt_score");
+            BigDecimal supportScore = getDecimalValueFromMap(outputs,
+                    "support_capability_score",
+                    "supportCapabilityScore",
+                    "disasterPrepScore",
+                    "disaster_prep_score");
+            BigDecimal selfRescueScore = getDecimalValueFromMap(outputs,
+                    "self_rescue_capability_score",
+                    "selfRescueCapabilityScore",
+                    "selfRescueScore",
+                    "self_rescue_score");
+            BigDecimal comprehensiveScore = getDecimalValueFromMap(outputs,
+                    "comprehensive_capability_score",
+                    "comprehensiveCapabilityScore",
+                    "comprehensiveScore",
+                    "comprehensive_score");
 
-            result.setManagementCapabilityLevel(
-                    getStringValueFromMap(outputs,
-                            "management_capability_level",
-                            "managementCapabilityLevel",
-                            "disasterMgmtGrade",
-                            "disaster_mgmt_grade"));
-            result.setSupportCapabilityLevel(
-                    getStringValueFromMap(outputs,
-                            "support_capability_level",
-                            "supportCapabilityLevel",
-                            "disasterPrepGrade",
-                            "disaster_prep_grade"));
-            result.setSelfRescueCapabilityLevel(
-                    getStringValueFromMap(outputs,
-                            "self_rescue_capability_level",
-                            "selfRescueCapabilityLevel",
-                            "selfRescueGrade",
-                            "self_rescue_grade"));
-            result.setComprehensiveCapabilityLevel(
-                    getStringValueFromMap(outputs,
-                            "comprehensive_capability_level",
-                            "comprehensiveCapabilityLevel",
-                            "comprehensiveGrade",
-                            "comprehensive_grade"));
+            result.setManagementCapabilityScore(managementScore);
+            result.setSupportCapabilityScore(supportScore);
+            result.setSelfRescueCapabilityScore(selfRescueScore);
+            result.setComprehensiveCapabilityScore(comprehensiveScore);
+
+            // 设置等级 - 如果算法输出中没有等级信息，基于分数计算默认等级
+            String managementLevel = getStringValueFromMap(outputs,
+                    "management_capability_level",
+                    "managementCapabilityLevel",
+                    "disasterMgmtGrade",
+                    "disaster_mgmt_grade");
+            if (managementLevel == null && managementScore != null) {
+                managementLevel = calculateLevelFromScore(managementScore);
+            }
+            result.setManagementCapabilityLevel(managementLevel);
+
+            String supportLevel = getStringValueFromMap(outputs,
+                    "support_capability_level",
+                    "supportCapabilityLevel",
+                    "disasterPrepGrade",
+                    "disaster_prep_grade");
+            if (supportLevel == null && supportScore != null) {
+                supportLevel = calculateLevelFromScore(supportScore);
+            }
+            result.setSupportCapabilityLevel(supportLevel);
+
+            String selfRescueLevel = getStringValueFromMap(outputs,
+                    "self_rescue_capability_level",
+                    "selfRescueCapabilityLevel",
+                    "selfRescueGrade",
+                    "self_rescue_grade");
+            if (selfRescueLevel == null && selfRescueScore != null) {
+                selfRescueLevel = calculateLevelFromScore(selfRescueScore);
+            }
+            result.setSelfRescueCapabilityLevel(selfRescueLevel);
+
+            String comprehensiveLevel = getStringValueFromMap(outputs,
+                    "comprehensive_capability_level",
+                    "comprehensiveCapabilityLevel",
+                    "comprehensiveGrade",
+                    "comprehensive_grade");
+            if (comprehensiveLevel == null && comprehensiveScore != null) {
+                comprehensiveLevel = calculateLevelFromScore(comprehensiveScore);
+            }
+            result.setComprehensiveCapabilityLevel(comprehensiveLevel);
 
             results.add(result);
         }
@@ -3195,6 +3213,30 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
         return null;
+    }
+
+    /**
+     * 根据分数计算等级（默认分级标准）
+     * 当算法输出中没有等级信息时使用
+     * @param score 能力分数
+     * @return 等级字符串
+     */
+    private String calculateLevelFromScore(java.math.BigDecimal score) {
+        if (score == null) {
+            return "中等";
+        }
+        double value = score.doubleValue();
+        if (value >= 0.8) {
+            return "强";
+        } else if (value >= 0.6) {
+            return "较强";
+        } else if (value >= 0.4) {
+            return "中等";
+        } else if (value >= 0.2) {
+            return "较弱";
+        } else {
+            return "弱";
+        }
     }
 
 
