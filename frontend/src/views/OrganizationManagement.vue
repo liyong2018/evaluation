@@ -278,17 +278,17 @@ const orgTreeRef = ref()
 const rightPanelTreeRef = ref()
 
 // 根据用户角色确定树展开层级
-// admin或省级用户：展开到县级（level=3，区县级折叠）
-// 市级用户：展开到乡镇级（level=4）
-// 区县用户：展开到社区级（level=5）
+// admin或省级用户：展开到市级（level=2，区县级折叠）
+// 市级用户：展开到区县级（level=3，乡镇折叠）
+// 区县用户：展开到乡镇级（level=4，社区折叠）
 const treeExpandLevel = computed(() => {
-  // admin用户默认展开到县级
+  // admin用户默认展开到市级（省→市展开，区县折叠）
   if (userStore.isAdmin) {
-    return 3
+    return 2
   }
-  // 非admin用户：展开到社区级（显示完整数据）
+  // 非admin用户：展开到区县级
   // TODO: 未来可以根据用户的组织机构级别来确定展开层级
-  return 5
+  return 3
 })
 
 // 右侧面板状态（支持省/市/区的子级展示）
