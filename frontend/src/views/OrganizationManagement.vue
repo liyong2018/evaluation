@@ -6,98 +6,151 @@
       <p>组织机构的创建、配置和管理</p>
     </div>
 
-    <el-card class="header-card">
-      <template #header>
-        <div class="card-header">
-          <span>组织机构树</span>
-          <div class="header-actions">
-            <el-select
-              v-model="treeYear"
-              size="small"
-              clearable
-              placeholder="评估年份"
-              class="org-year-select"
-              @change="loadOrganizationTree"
-            >
-              <el-option
-                v-for="year in yearOptions"
-                :key="year"
-                :label="year + '年'"
-                :value="year"
-              />
-            </el-select>
-            <el-button type="warning" :disabled="!treeYear" @click="copyFromPreviousYear">
-              从上一年复制
-            </el-button>
-            <el-upload
-              ref="uploadRef"
-              :auto-upload="false"
-              :show-file-list="false"
-              :on-change="handleFileChange"
-              accept=".xlsx,.xls"
-            >
-              <el-button type="success">
-                <el-icon><Upload /></el-icon>
-                导入Excel
-              </el-button>
-            </el-upload>
-            <el-button type="primary" @click="showAddRootDialog">
-              <el-icon><Plus /></el-icon>
-              添加根节点
-            </el-button>
-          </div>
-        </div>
-      </template>
-
-      <!-- 组织机构树 -->
-      <div class="tree-container" v-loading="loading">
-        <el-tree
-          :key="orgTreeRenderKey"
-          ref="orgTreeRef"
-          :data="organizationTree"
-          :props="{ label: 'name', children: 'children' }"
-          node-key="id"
-          highlight-current
-          :expand-on-click-node="false"
-          @node-click="handleNodeClick"
+    <!-- 主操作栏 -->
+    <el-card class="action-card">
+      <div class="action-bar">
+        <el-select
+          v-model="treeYear"
+          size="default"
+          clearable
+          placeholder="评估年份"
+          class="org-year-select"
+          @change="loadOrganizationTree"
         >
-          <template #default="{ data }">
-            <div class="tree-node">
-              <div class="node-info">
-                <el-icon v-if="data.level === 1" color="#409eff"><OfficeBuilding /></el-icon>
-                <el-icon v-else-if="data.level === 2" color="#67c23a"><MapLocation /></el-icon>
-                <el-icon v-else-if="data.level === 3" color="#e6a23c"><Location /></el-icon>
-                <el-icon v-else-if="data.level === 4" color="#f56c6c"><Position /></el-icon>
-                <el-icon v-else color="#909399"><House /></el-icon>
-                <span class="node-name">{{ data.name }}</span>
-                <el-tag size="small" :type="getLevelTagType(data.level)" class="level-tag">
-                  {{ getLevelName(data.level) }}
-                </el-tag>
-                <span class="node-code">{{ data.code }}</span>
-              </div>
-              <div class="node-actions">
-                <el-button size="small" type="primary" @click.stop="showAddChildDialog(data)">
-                  <el-icon><Plus /></el-icon>
-                  添加子项
-                </el-button>
-                <el-button size="small" type="warning" @click.stop="editNode(data)">
-                  <el-icon><Edit /></el-icon>
-                  修改
-                </el-button>
-                <el-button size="small" type="info" @click.stop="showBoundaryDialog(data)" v-if="data.level === 2">
-                  <el-icon><Location /></el-icon>
-                  边界
-                </el-button>
-                <el-button size="small" type="danger" @click.stop="deleteNode(data)" v-if="treeYear">
-                  <el-icon><Delete /></el-icon>
-                  删除组织及子组织
-                </el-button>
-              </div>
-            </div>
-          </template>
-        </el-tree>
+          <el-option
+            v-for="year in yearOptions"
+            :key="year"
+            :label="year + '年'"
+            :value="year"
+          />
+        </el-select>
       </div>
     </el-card>
+
+    <!-- 左右分栏布局 -->
+    <div class="content-container">
+      <!-- 左侧：组织机构树（省市县） -->
+      <el-card class="tree-card">
+        <template #header>
+          <span>省市区组织机构</span>
+        </template>
+        <div class="tree-container" v-loading="loading">
+          <el-tree
+            :key="orgTreeRenderKey"
+            ref="orgTreeRef"
+            :data="organizationTree"
+            :props="{ label: 'name', children: 'children' }"
+            node-key="id"
+            highlight-current
+            :expand-on-click-node="false"
+            @node-click="handleNodeClick"
+          >
+            <template #default="{ data }">
+              <div class="tree-node" :class="{ 'is-county': data.level === 3 }">
+                <div class="node-info">
+                  <el-icon v-if="data.level === 1" color="#409eff"><OfficeBuilding /></el-icon>
+                  <el-icon v-else-if="data.level === 2" color="#67c23a"><MapLocation /></el-icon>
+                  <el-icon v-else-if="data.level === 3" color="#e6a23c"><Location /></el-icon>
+                  <el-icon v-else-if="data.level === 4" color="#f56c6c"><Position /></el-icon>
+                  <el-icon v-else color="#909399"><House /></el-icon>
+                  <span class="node-name">{{ data.name }}</span>
+                  <el-tag size="small" :type="getLevelTagType(data.level)" class="level-tag">
+                    {{ getLevelName(data.level) }}
+                  </el-tag>
+                  <span class="node-code" v-if="getChildCount(data) > 0">（{{ getChildCount(data) }}）</span>
+                </div>
+                <div class="node-actions">
+                  <el-button size="small" type="primary" @click.stop="showAddChildDialog(data)" v-if="data.level < 3">
+                    <el-icon><Plus /></el-icon>
+                    添加子项
+                  </el-button>
+                  <el-button size="small" type="warning" @click.stop="editNode(data)">
+                    <el-icon><Edit /></el-icon>
+                    修改
+                  </el-button>
+                  <el-button size="small" type="info" @click.stop="showBoundaryDialog(data)" v-if="data.level === 2">
+                    <el-icon><Location /></el-icon>
+                    边界
+                  </el-button>
+                  <el-button size="small" type="danger" @click.stop="deleteNode(data)" v-if="treeYear">
+                    <el-icon><Delete /></el-icon>
+                    删除组织及子组织
+                  </el-button>
+                </div>
+              </div>
+            </template>
+          </el-tree>
+        </div>
+      </el-card>
+
+      <!-- 右侧：子级组织列表 -->
+      <el-card class="list-card">
+        <template #header>
+          <div class="list-header">
+            <span>{{ rightPanelTitle }}</span>
+            <el-tag v-if="selectedOrganization" type="info">{{ rightPanelCount }} 个组织</el-tag>
+          </div>
+        </template>
+        <div class="grassroots-content" v-loading="rightPanelLoading">
+          <div v-if="!selectedOrganization" class="empty-state">
+            <el-icon class="empty-icon"><Location /></el-icon>
+            <p>请在左侧选择一个组织机构查看下级</p>
+          </div>
+          <div v-else-if="rightPanelTree.length === 0" class="empty-state">
+            <el-icon class="empty-icon"><FolderOpened /></el-icon>
+            <p>该组织下暂无下级数据</p>
+          </div>
+          <el-tree
+            v-else
+            :data="rightPanelTree"
+            :props="{ label: 'name', children: 'children' }"
+            node-key="id"
+            :default-expand-all="false"
+            :expand-on-click-node="false"
+            class="grassroots-tree"
+          >
+            <template #default="{ data }">
+              <div class="tree-node grassroots-node">
+                <div class="node-info">
+                  <el-icon v-if="data.level === 2" color="#67c23a"><MapLocation /></el-icon>
+                  <el-icon v-else-if="data.level === 3" color="#e6a23c"><Location /></el-icon>
+                  <el-icon v-else-if="data.level === 4" color="#f56c6c"><Position /></el-icon>
+                  <el-icon v-else color="#909399"><House /></el-icon>
+                  <span class="node-name">{{ data.name }}</span>
+                  <el-tag size="small" :type="getLevelTagType(data.level)" class="level-tag">
+                    {{ getLevelName(data.level) }}
+                  </el-tag>
+                  <span class="node-code" v-if="getChildCount(data) > 0">（{{ getChildCount(data) }}）</span>
+                </div>
+                <div class="node-actions">
+                  <!-- 省市区组织：显示编辑按钮，基层组织显示修改/删除 -->
+                  <template v-if="data.level <= 3">
+                    <el-button size="small" type="warning" @click.stop="editNode(data)">
+                      <el-icon><Edit /></el-icon>
+                      修改
+                    </el-button>
+                    <el-button size="small" type="danger" @click.stop="deleteNode(data)" v-if="treeYear && data.level > 1">
+                      <el-icon><Delete /></el-icon>
+                      删除
+                    </el-button>
+                  </template>
+                  <template v-else>
+                    <el-button size="small" type="warning" @click.stop="editGrassrootsNode(data)">
+                      <el-icon><Edit /></el-icon>
+                      修改
+                    </el-button>
+                    <el-button size="small" type="danger" @click.stop="deleteGrassrootsNode(data)" v-if="treeYear">
+                      <el-icon><Delete /></el-icon>
+                      删除
+                    </el-button>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </el-tree>
+        </div>
+      </el-card>
+    </div>
 
     <!-- 创建/编辑组织机构对话框 -->
     <el-dialog
@@ -115,12 +168,6 @@
         </el-form-item>
         <el-form-item label="上级机构">
           <el-input v-model="parentName" disabled />
-        </el-form-item>
-        <el-form-item label="排序">
-          <el-input-number v-model="currentOrg.sortOrder" :min="1" :max="1000" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="currentOrg.remark" type="textarea" :rows="3" placeholder="请输入备注" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -181,6 +228,31 @@
         <el-button type="primary" @click="saveBoundary" :loading="boundarySaving">保存配置</el-button>
       </template>
     </el-dialog>
+
+    <!-- 基层组织编辑对话框 -->
+    <el-dialog
+      v-model="grassrootsDialogVisible"
+      :title="grassrootsDialogMode === 'create' ? '添加基层组织' : '修改基层组织'"
+      width="600px"
+    >
+      <el-form :model="currentGrassrootsOrg" label-width="100px">
+        <el-form-item label="组织名称" required>
+          <el-input v-model="currentGrassrootsOrg.name" placeholder="请输入组织名称" />
+        </el-form-item>
+        <el-form-item label="组织编码" required>
+          <el-input v-model="currentGrassrootsOrg.code" placeholder="请输入组织编码" :disabled="grassrootsDialogMode === 'edit'" />
+          <div class="form-hint" v-if="grassrootsDialogMode === 'edit'">编码不可修改</div>
+        </el-form-item>
+        <el-form-item label="组织类型">
+          <el-tag v-if="currentGrassrootsOrg.level === 4" type="danger">乡镇</el-tag>
+          <el-tag v-else type="info">社区</el-tag>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="grassrootsDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveGrassrootsOrg" :loading="saving">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -188,7 +260,7 @@
 import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadProps } from 'element-plus'
-import { Plus, Edit, Delete, Upload, OfficeBuilding, MapLocation, Location, Position, House } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, OfficeBuilding, MapLocation, Location, Position, House, FolderOpened } from '@element-plus/icons-vue'
 import type { ElTree } from 'element-plus'
 import request from '@/utils/request'
 
@@ -197,7 +269,26 @@ const loading = ref(false)
 const saving = ref(false)
 const organizationTree = ref<any[]>([])
 const orgTreeRef = ref()
-const uploadRef = ref()
+
+// 右侧面板状态（支持省/市/区的子级展示）
+const rightPanelLoading = ref(false)
+const rightPanelTree = ref<any[]>([])
+const selectedOrganization = ref<any>(null)
+const rightPanelTitle = computed(() => {
+  if (!selectedOrganization.value) return '请选择组织机构'
+  const level = selectedOrganization.value.level
+  if (level === 1) return `${selectedOrganization.value.name} - 市州列表`
+  if (level === 2) return `${selectedOrganization.value.name} - 区县列表`
+  if (level === 3) return `${selectedOrganization.value.name} - 乡镇社区`
+  return selectedOrganization.value.name
+})
+const rightPanelCount = computed(() => {
+  const countNodes = (nodes: any[]): number => {
+    if (!nodes || nodes.length === 0) return 0
+    return nodes.reduce((sum, node) => sum + 1 + countNodes(node.children || []), 0)
+  }
+  return countNodes(rightPanelTree.value)
+})
 
 // 边界管理状态
 const boundaryDialogVisible = ref(false)
@@ -415,14 +506,37 @@ const currentOrg = ref<any>({
   name: '',
   code: '',
   parentId: null,
-  level: 1,
-  sortOrder: 1,
-  remark: ''
+  level: 1
 })
 
 const parentName = computed(() => {
+  // 编辑模式：根据当前编辑节点的级别查找父级名称
+  if (dialogMode.value === 'edit' && currentOrg.value.level) {
+    const level = currentOrg.value.level
+    if (level === 2) {
+      // 市级，父级是省级（从selectedOrganization获取，因为点击了省）
+      if (selectedOrganization.value && selectedOrganization.value.level === 1) {
+        return selectedOrganization.value.name
+      }
+      // 或从organizationTree中查找省级节点
+      const province = organizationTree.value[0]
+      return province?.name || '根节点'
+    } else if (level === 3) {
+      // 县级，父级是市级（从selectedOrganization获取，因为点击了市）
+      if (selectedOrganization.value && selectedOrganization.value.level === 2) {
+        return selectedOrganization.value.name
+      }
+      // 或从rightPanelTree中查找市级节点
+      const city = rightPanelTree.value.find((n: any) => n.id === currentOrg.value.parentId)
+      return city?.name || '未知市'
+    }
+  }
+  // 创建模式：显示selectedNode或selectedOrganization的名称
   if (selectedNode.value) {
     return selectedNode.value.name || '根节点'
+  }
+  if (selectedOrganization.value) {
+    return selectedOrganization.value.name || '根节点'
   }
   return '根节点'
 })
@@ -449,6 +563,10 @@ const getLevelTagType = (level: number) => {
     5: 'info'
   }
   return types[level] || ''
+}
+
+const getChildCount = (node: any) => {
+  return Array.isArray(node?.children) ? node.children.length : 0
 }
 
 const findNodeById = (nodes: any[], id: any): any | null => {
@@ -514,23 +632,38 @@ const expandToLevel = (level: number) => {
 }
 
 // 处理节点点击
-const handleNodeClick = (data: any) => {
+const handleNodeClick = async (data: any) => {
   selectedNode.value = data
+  selectedOrganization.value = data
+
+  // 如果点击的是区县节点（level=3），加载乡镇数据
+  if (data.level === 3) {
+    await loadGrassrootsTree(data.id, data.code)
+  } else {
+    // 其他级别直接使用树中的children数据
+    rightPanelTree.value = data.children || []
+  }
 }
 
-// 显示添加根节点对话框
-const showAddRootDialog = () => {
-  dialogMode.value = 'create'
-  currentOrg.value = {
-    name: '',
-    code: '',
-    parentId: null,
-    level: 1,
-    sortOrder: 1,
-    remark: ''
+// 加载基层组织的树形数据
+const loadGrassrootsTree = async (countyId: number, countyCode: string) => {
+  rightPanelLoading.value = true
+  try {
+    const response = await request.get('/api/grassroots-organization/tree/by-county-id/' + countyId, {
+      params: { year: treeYear.value || undefined }
+    })
+    if (response.success) {
+      rightPanelTree.value = response.data || []
+    } else {
+      rightPanelTree.value = []
+      ElMessage.warning('加载乡镇社区数据失败')
+    }
+  } catch (error: any) {
+    rightPanelTree.value = []
+    console.error('加载基层组织失败:', error)
+  } finally {
+    rightPanelLoading.value = false
   }
-  selectedNode.value = null
-  dialogVisible.value = true
 }
 
 // 显示添加子项对话框
@@ -541,9 +674,7 @@ const showAddChildDialog = (parent: any) => {
     name: '',
     code: '',
     parentId: parent.id,
-    level: (parent.level || 0) + 1,
-    sortOrder: 1,
-    remark: ''
+    level: (parent.level || 0) + 1
   }
   dialogVisible.value = true
 }
@@ -551,15 +682,14 @@ const showAddChildDialog = (parent: any) => {
 // 编辑节点
 const editNode = (node: any) => {
   dialogMode.value = 'edit'
-  selectedNode.value = node
+  // 注意：不要设置selectedNode.value = node，因为selectedNode应该保持为左侧树选中的节点
+  // 这样parentName才能正确显示父级名称
   currentOrg.value = {
     id: node.id,
     name: node.name,
     code: node.code,
     parentId: node.parentId,
-    level: node.level,
-    sortOrder: node.sortOrder || 1,
-    remark: node.remark || ''
+    level: node.level
   }
   dialogVisible.value = true
 }
@@ -571,6 +701,12 @@ const saveOrg = async () => {
     return
   }
 
+  // 如果没有选择年份，不允许修改（防止误改基准数据）
+  if (dialogMode.value === 'edit' && !treeYear.value) {
+    ElMessage.warning('请先选择年份后再修改组织机构')
+    return
+  }
+
   saving.value = true
   try {
     const url = dialogMode.value === 'create'
@@ -579,12 +715,26 @@ const saveOrg = async () => {
 
     const method = dialogMode.value === 'create' ? 'post' : 'put'
 
-    const response = await request[method](url, currentOrg.value)
+    // 构建请求数据：更新时包含年份
+    const requestData = { ...currentOrg.value }
+    if (dialogMode.value === 'edit' && treeYear.value) {
+      requestData.year = treeYear.value
+    }
+
+    const response = await request[method](url, requestData)
 
     if (response.success) {
       ElMessage.success(dialogMode.value === 'create' ? '创建成功' : '更新成功')
       dialogVisible.value = false
       await loadOrganizationTree()
+
+      // 刷新右侧面板
+      if (selectedOrganization.value && (selectedOrganization.value.level === 1 || selectedOrganization.value.level === 2)) {
+        const updatedNode = findNodeById(organizationTree.value, selectedOrganization.value.id)
+        if (updatedNode) {
+          rightPanelTree.value = updatedNode.children || []
+        }
+      }
     } else {
       ElMessage.error(response.message || '操作失败')
     }
@@ -633,79 +783,110 @@ const deleteYearData = (node: any) => {
   deleteNode(node)
 }
 
-// 处理Excel文件选择
-const handleFileChange: UploadProps['onChange'] = async (uploadFile) => {
-  const file = uploadFile.raw
-  if (!file) return
+// 基层组织编辑对话框
+const grassrootsDialogVisible = ref(false)
+const grassrootsDialogMode = ref<'create' | 'edit'>('edit')
+const currentGrassrootsOrg = ref<any>({
+  id: null,
+  name: '',
+  code: '',
+  countyId: null,
+  parentId: null,
+  level: 4
+})
 
-  // 检查是否选择了年份
-  if (!treeYear.value) {
-    ElMessage.warning('请先选择要导入到的年份')
-    return
+// 编辑基层组织节点
+const editGrassrootsNode = (node: any) => {
+  grassrootsDialogMode.value = 'edit'
+  currentGrassrootsOrg.value = {
+    id: node.id,
+    name: node.name,
+    code: node.code,
+    countyId: node.countyId,
+    parentId: node.parentId,
+    level: node.level
   }
-
-  // 检查文件类型
-  const validTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']
-  if (!validTypes.includes(file.type)) {
-    ElMessage.error('请选择Excel文件(.xlsx或.xls)')
-    return
-  }
-
-  // 创建FormData
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('year', String(treeYear.value))
-
-  uploading.value = true
-  try {
-    const response = await request.post('/api/organization/import', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      },
-      params: { year: treeYear.value }
-    })
-
-    if (response.success) {
-      ElMessage.success(`导入成功，共导入 ${response.data?.count || 0} 条记录到 ${treeYear.value} 年`)
-      await loadOrganizationTree()
-    } else {
-      ElMessage.error(response.message || '导入失败')
-    }
-  } catch (error: any) {
-    ElMessage.error('导入失败: ' + (error.message || ''))
-  } finally {
-    uploading.value = false
-    // 清空文件选择
-    uploadRef.value?.clearFiles()
-  }
+  grassrootsDialogVisible.value = true
 }
 
-const uploading = ref(false)
-
-const copyFromPreviousYear = async () => {
+// 删除基层组织节点
+const deleteGrassrootsNode = (node: any) => {
   if (!treeYear.value) {
-    ElMessage.warning('请选择目标年份')
+    ElMessage.warning('请先选择年份')
     return
   }
-  const targetYear = treeYear.value
-  const sourceYear = targetYear - 1
-  try {
-    await ElMessageBox.confirm(`将把 ${sourceYear} 年的边界配置复制到 ${targetYear} 年，是否继续？`, '确认复制', {
-      type: 'warning'
-    })
-    const response = await request.post('/api/organization/copy-from-previous-year', null, {
-      params: { targetYear }
-    })
-    if (response.success) {
-      const count = response.data?.count ?? 0
-      ElMessage.success(`复制完成：新增 ${count} 条年度配置`)
-      await loadOrganizationTree()
-    } else {
-      ElMessage.error(response.message || '复制失败')
+
+  ElMessageBox.confirm(
+    `确定要删除 "${node.name}" 吗？\n\n此操作将删除该组织及其所有子组织在 ${treeYear.value} 年的数据。\n此操作不可恢复！`,
+    '确认删除',
+    {
+      type: 'warning',
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消'
     }
-  } catch (e: any) {
-    if (e === 'cancel' || e === 'close') return
-    ElMessage.error('复制失败')
+  ).then(async () => {
+    try {
+      const response = await request.delete(`/api/grassroots-organization/${node.id}`, {
+        params: { year: treeYear.value }
+      })
+      if (response.success) {
+        ElMessage.success('删除成功')
+        // 重新加载右侧面板
+        if (selectedOrganization.value && selectedOrganization.value.level === 3) {
+          await loadGrassrootsTree(selectedOrganization.value.id, selectedOrganization.value.code)
+        } else {
+          await loadOrganizationTree()
+        }
+      } else {
+        ElMessage.error(response.message || '删除失败')
+      }
+    } catch (error: any) {
+      ElMessage.error('删除失败: ' + (error.message || ''))
+    }
+  })
+}
+
+// 保存基层组织
+const saveGrassrootsOrg = async () => {
+  if (!currentGrassrootsOrg.value.name || !currentGrassrootsOrg.value.code) {
+    ElMessage.warning('请填写必填项')
+    return
+  }
+
+  // 如果没有选择年份，不允许修改（防止误改基准数据）
+  if (grassrootsDialogMode.value === 'edit' && !treeYear.value) {
+    ElMessage.warning('请先选择年份后再修改基层组织')
+    return
+  }
+
+  saving.value = true
+  try {
+    const method = grassrootsDialogMode.value === 'create' ? 'post' : 'put'
+
+    // 构建请求数据：更新时包含年份
+    const requestData = { ...currentGrassrootsOrg.value }
+    if (grassrootsDialogMode.value === 'edit' && treeYear.value) {
+      requestData.year = treeYear.value
+    }
+
+    const response = await request[method]('/api/grassroots-organization', requestData)
+
+    if (response.success) {
+      ElMessage.success(grassrootsDialogMode.value === 'create' ? '创建成功' : '更新成功')
+      grassrootsDialogVisible.value = false
+      // 重新加载右侧面板
+      if (selectedOrganization.value && selectedOrganization.value.level === 3) {
+        await loadGrassrootsTree(selectedOrganization.value.id, selectedOrganization.value.code)
+      } else {
+        await loadOrganizationTree()
+      }
+    } else {
+      ElMessage.error(response.message || '操作失败')
+    }
+  } catch (error: any) {
+    ElMessage.error('操作失败: ' + (error.message || ''))
+  } finally {
+    saving.value = false
   }
 }
 
@@ -719,6 +900,8 @@ watch(
   async (year, oldYear) => {
     if (year === oldYear) return
     selectedNode.value = null
+    selectedOrganization.value = null
+    rightPanelTree.value = []
     await loadOrganizationTree()
   }
 )
@@ -747,9 +930,53 @@ watch(
   font-size: 14px;
 }
 
-.header-card {
+.action-card {
   margin-bottom: 20px;
-  height: 100%;
+}
+
+.action-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.content-container {
+  display: flex;
+  gap: 20px;
+  height: calc(100vh - 240px);
+  min-height: 500px;
+}
+
+.tree-card {
+  flex: 0 0 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-card :deep(.el-card__body) {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-card :deep(.el-card__body) {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .card-header {
@@ -764,14 +991,40 @@ watch(
 }
 
 .org-year-select {
-  width: 120px;
+  width: 140px;
 }
 
 .tree-container {
-  min-height: 400px;
-  max-height: calc(100vh - 280px);
-  padding: 20px;
+  flex: 1;
   overflow-y: auto;
+  padding: 12px;
+}
+
+.grassroots-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #909399;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #c0c4cc;
+}
+
+.grassroots-tree {
+  background: #fafafa;
+  border-radius: 4px;
+  padding: 12px;
 }
 
 .tree-node {
@@ -786,6 +1039,27 @@ watch(
 
 .tree-node:hover {
   background-color: #f5f7fa;
+}
+
+.tree-node.is-county {
+  background-color: #fff7e6;
+}
+
+.tree-node.is-county:hover {
+  background-color: #ffeacc;
+}
+
+.grassroots-node {
+  padding: 6px 8px;
+}
+
+.grassroots-node .node-actions {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.grassroots-node:hover .node-actions {
+  opacity: 1;
 }
 
 .node-info {

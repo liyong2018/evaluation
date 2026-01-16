@@ -17,7 +17,6 @@
               <el-select
                 v-model="searchForm.year"
                 placeholder="选择年份"
-                clearable
                 size="small"
                 style="width: 120px;"
                 @change="handleSearch"
@@ -50,7 +49,7 @@
           <template #default="{ data }">
             <div class="org-tree-node">
               <span class="org-name">{{ data.name }}</span>
-              <span class="org-code">{{ data.code }}</span>
+              <span class="org-code" v-if="data.children && data.children.length > 0">（{{ data.children.length }}）</span>
             </div>
           </template>
         </el-tree>
@@ -252,7 +251,7 @@
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="dataType !== 'medical'" type="primary" size="small" @click="showEditDialog(row)">
+            <el-button type="primary" size="small" @click="showEditDialog(row)">
               <el-icon><Edit /></el-icon>
               编辑
             </el-button>
@@ -293,6 +292,7 @@
         :rules="formRules"
         label-width="100px"
       >
+        <template v-if="dataType !== 'medical'">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="地区代码" prop="regionCode">
@@ -444,6 +444,53 @@
             </el-form-item>
           </el-col>
         </el-row>
+        </template>
+        
+        <template v-if="dataType === 'medical'">
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="机构名称" prop="institutionName">
+                <el-input v-model="formData.institutionName" placeholder="请输入医疗机构名称" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="社会信用代码" prop="unifiedSocialCreditCode">
+                <el-input v-model="formData.unifiedSocialCreditCode" placeholder="请输入统一社会信用代码" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="20">
+            <el-col :span="24">
+              <el-form-item label="机构地址" prop="institutionAddress">
+                <el-input v-model="formData.institutionAddress" placeholder="请输入机构地址" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="机构大类" prop="institutionTypeLarge">
+                <el-input v-model="formData.institutionTypeLarge" placeholder="请输入机构大类" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="医院等级" prop="hospitalLevel">
+                <el-input v-model="formData.hospitalLevel" placeholder="请输入医院等级" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="实有床位" prop="actualHospitalBeds">
+                <el-input-number v-model="formData.actualHospitalBeds" :min="0" placeholder="请输入实有床位" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="职工总数" prop="totalStaff">
+                <el-input-number v-model="formData.totalStaff" :min="0" placeholder="请输入职工总数" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </template>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible.form = false">取消</el-button>
@@ -505,6 +552,9 @@ import {
   Refresh
 } from '@element-plus/icons-vue'
 import { surveyDataApi, communityCapacityApi, organizationApi, medicalInstitutionApi } from '@/api'
+import { useGlobalYearStore } from '@/stores/globalYear'
+import { useUserStore } from '@/stores/user'
+import { useGlobalOrganizationStore } from '@/stores/globalOrganization'
 
 // 修复ResizeObserver错误
 const originalError = console.error
@@ -514,6 +564,13 @@ console.error = (...args: any[]) => {
   }
   originalError(...args)
 }
+
+// 全局年份 store
+const globalYearStore = useGlobalYearStore()
+// 用户 store
+const userStore = useUserStore()
+// 全局组织机构 store
+const globalOrganizationStore = useGlobalOrganizationStore()
 
 // 响应式数据
 const dataType = ref<'township' | 'community' | 'medical'>('medical')  // 数据类型：township(乡镇)、community(社区) 或 medical(医疗机构)
@@ -530,7 +587,7 @@ const orgTreeRef = ref() // 组织机构树引用
 
 const searchForm = reactive({
   keyword: '',
-  year: new Date().getFullYear() as number | null,
+  year: globalYearStore.selectedYear,
   selectedRegion: null as null | { code: string; name: string }
 })
 
@@ -591,7 +648,15 @@ const formData = reactive({
   volunteers: null,
   militiaReserve: null,
   trainingParticipants: null,
-  shelterCapacity: null
+  shelterCapacity: null,
+  // 医疗卫生机构特有字段
+  institutionName: '',
+  unifiedSocialCreditCode: '',
+  institutionAddress: '',
+  institutionTypeLarge: '',
+  hospitalLevel: '',
+  actualHospitalBeds: null,
+  totalStaff: null
 })
 
 const formRules = {
@@ -600,7 +665,10 @@ const formRules = {
   city: [{ required: true, message: '请输入市', trigger: 'blur' }],
   county: [{ required: true, message: '请输入县', trigger: 'blur' }],
   township: [{ required: true, message: '请输入乡镇(街道)', trigger: 'blur' }],
-  population: [{ required: true, message: '请输入人口数量', trigger: 'blur' }]
+  population: [{ required: true, message: '请输入人口数量', trigger: 'blur' }],
+  // 医疗卫生机构校验规则
+  institutionName: [{ required: true, message: '请输入医疗机构名称', trigger: 'blur' }],
+  unifiedSocialCreditCode: [{ required: true, message: '请输入统一社会信用代码', trigger: 'blur' }]
 }
 
 // 加载地区名称映射 (已废弃 - region表已删除)
@@ -619,12 +687,27 @@ const loadRegionNameMap = async () => {
 // 获取组织机构列表（树形结构）
 const defaultExpandedKeys = ref<string[]>([])
 
-// 收集需要展开的节点（展开到3级）
+// 判断是否为admin或省级用户
+const isUserAdminOrProvincial = computed(() => {
+  // 如果是admin，返回true
+  if (userStore.isAdmin) {
+    return true
+  }
+  // 如果选中的组织机构是省级(level=1)，也返回true
+  if (selectedOrg.value && selectedOrg.value.level === 1) {
+    return true
+  }
+  return false
+})
+
+// 收集需要展开的节点
 const collectExpandedKeys = (nodes: any[], level: number = 1, keys: string[] = []) => {
   if (!nodes || nodes.length === 0) return keys
   for (const node of nodes) {
-    // 展开到3级（县级），不展开4级（乡镇/街道）和5级（村/社区）
-    if (level < 3) {
+    // 如果是admin或省级用户，只展开到2级（市级），区县级节点折叠
+    // 否则展开到3级（县级）
+    const maxLevel = isUserAdminOrProvincial.value ? 2 : 3
+    if (level < maxLevel) {
       keys.push(node.code)
     }
     if (node.children && node.children.length > 0) {
@@ -655,14 +738,34 @@ const getOrganizationList = async () => {
       // 收集需要展开的节点key
       defaultExpandedKeys.value = collectExpandedKeys(organizationList.value)
       console.log('组织机构树形数据 (年份:', searchForm.year, '):', organizationList.value)
-      if (selectedOrg.value) {
-        const exists = findOrgNodeByCode(organizationList.value, selectedOrg.value.code)
-        if (!exists) {
-          selectedOrg.value = null
+
+      // 优先从全局 store 恢复选中的组织机构
+      let targetOrg = selectedOrg.value
+
+      // 如果当前没有选中组织机构，尝试从全局 store 恢复
+      if (!targetOrg && globalOrganizationStore.selectedOrganization) {
+        const stored = globalOrganizationStore.selectedOrganization
+        targetOrg = findOrgNodeByCode(organizationList.value, stored.code)
+        if (targetOrg) {
+          console.log('从全局 store 恢复组织机构:', targetOrg)
         }
       }
-      await nextTick()
-      orgTreeRef.value?.setCurrentKey(selectedOrg.value?.code ?? null)
+
+      // 如果还是没有选中的组织机构，或者选中的组织机构不存在，则默认选中第一个
+      if (!targetOrg) {
+        await selectFirstOrganization()
+      } else {
+        selectedOrg.value = targetOrg
+        await nextTick()
+        orgTreeRef.value?.setCurrentKey(targetOrg.code)
+        // 同步到全局 store
+        globalOrganizationStore.setOrganization({
+          code: targetOrg.code,
+          name: targetOrg.name,
+          level: targetOrg.level
+        })
+        getDataList()
+      }
     }
   } catch (error) {
     console.error('获取组织机构列表失败:', error)
@@ -670,6 +773,28 @@ const getOrganizationList = async () => {
   } finally {
     loading.organizations = false
   }
+}
+
+// 选中第一个组织机构
+const selectFirstOrganization = async () => {
+  if (!organizationList.value || organizationList.value.length === 0) {
+    return
+  }
+  // 默认选中第一个省级节点
+  const firstOrg = organizationList.value[0]
+  console.log('🎯 选中第一个组织机构:', firstOrg)
+  selectedOrg.value = firstOrg
+  await nextTick()
+  console.log('🎯 调用 setCurrentKey:', firstOrg.code, orgTreeRef.value)
+  orgTreeRef.value?.setCurrentKey(firstOrg.code)
+  // 保存到全局 store
+  globalOrganizationStore.setOrganization({
+    code: firstOrg.code,
+    name: firstOrg.name,
+    level: firstOrg.level
+  })
+  // 加载数据
+  getDataList()
 }
 
 // 刷新组织机构树
@@ -681,6 +806,17 @@ const refreshOrganizations = () => {
 const handleOrgNodeClick = (data: any) => {
   console.log('选中组织机构:', data)
   selectedOrg.value = data
+  // 保存到全局 store（包含完整信息）
+  globalOrganizationStore.setOrganization({
+    code: data.code,
+    name: data.name,
+    level: data.level,
+    provinceName: data.provinceName,
+    cityName: data.cityName,
+    countyName: data.countyName,
+    townshipName: data.townshipName,
+    communityName: data.communityName
+  })
   // 清空搜索关键字，保留年份过滤
   searchForm.keyword = ''
   getDataList()
@@ -857,6 +993,11 @@ const getDataList = async () => {
 
 // 搜索
 const handleSearch = async () => {
+  // 更新全局年份 store
+  if (searchForm.year) {
+    globalYearStore.setYear(searchForm.year)
+  }
+
   // 当年份改变时，刷新组织机构树
   await getOrganizationList()
 
@@ -965,10 +1106,84 @@ const showAddDialog = () => {
   dialogVisible.form = true
 }
 
+const mapCommunityRowToForm = (row: any) => {
+  return {
+    id: row?.id ?? null,
+    regionCode: row?.regionCode ?? '',
+    province: row?.provinceName ?? '',
+    city: row?.cityName ?? '',
+    county: row?.countyName ?? '',
+    township: row?.townshipName ?? '',
+    population: row?.residentPopulation ?? null,
+    fundingAmount: row?.lastYearFundingAmount ?? null,
+    materialValue: row?.materialsEquipmentValue ?? null,
+    hospitalBeds: row?.medicalServiceCount ?? null,
+    volunteers: row?.registeredVolunteerCount ?? null,
+    militiaReserve: row?.militiaReserveCount ?? null,
+    trainingParticipants: row?.lastYearTrainingParticipants ?? null,
+    shelterCapacity: row?.emergencyShelterCapacity ?? null
+  }
+}
+
+const buildCommunityUpdatePayload = () => {
+  const payload: any = {
+    regionCode: formData.regionCode,
+    provinceName: formData.province,
+    cityName: formData.city,
+    countyName: formData.county,
+    townshipName: formData.township,
+    residentPopulation: formData.population,
+    lastYearFundingAmount: formData.fundingAmount,
+    materialsEquipmentValue: formData.materialValue,
+    medicalServiceCount: formData.hospitalBeds,
+    registeredVolunteerCount: formData.volunteers,
+    militiaReserveCount: formData.militiaReserve,
+    lastYearTrainingParticipants: formData.trainingParticipants,
+    emergencyShelterCapacity: formData.shelterCapacity
+  }
+
+  if (searchForm.year) payload.year = searchForm.year
+
+  return payload
+}
+
+const mapMedicalRowToForm = (row: any) => {
+  return {
+    id: row?.id ?? null,
+    institutionName: row?.institutionName ?? '',
+    unifiedSocialCreditCode: row?.unifiedSocialCreditCode ?? '',
+    institutionAddress: row?.institutionAddress ?? '',
+    institutionTypeLarge: row?.institutionTypeLarge ?? '',
+    hospitalLevel: row?.hospitalLevel ?? '',
+    actualHospitalBeds: row?.actualHospitalBeds ?? null,
+    totalStaff: row?.totalStaff ?? null
+  }
+}
+
+const buildMedicalUpdatePayload = () => {
+  return {
+    id: formData.id,
+    institutionName: formData.institutionName,
+    unifiedSocialCreditCode: formData.unifiedSocialCreditCode,
+    institutionAddress: formData.institutionAddress,
+    institutionTypeLarge: formData.institutionTypeLarge,
+    hospitalLevel: formData.hospitalLevel,
+    actualHospitalBeds: formData.actualHospitalBeds,
+    totalStaff: formData.totalStaff
+  }
+}
+
 // 显示编辑对话框
 const showEditDialog = (row: any) => {
   isEdit.value = true
-  Object.assign(formData, row)
+  resetForm()
+  if (dataType.value === 'community') {
+    Object.assign(formData, mapCommunityRowToForm(row))
+  } else if (dataType.value === 'medical') {
+    Object.assign(formData, mapMedicalRowToForm(row))
+  } else {
+    Object.assign(formData, row)
+  }
   dialogVisible.form = true
 }
 
@@ -991,7 +1206,14 @@ const resetForm = () => {
     volunteers: null,
     militiaReserve: null,
     trainingParticipants: null,
-    shelterCapacity: null
+    shelterCapacity: null,
+    institutionName: '',
+    unifiedSocialCreditCode: '',
+    institutionAddress: '',
+    institutionTypeLarge: '',
+    hospitalLevel: '',
+    actualHospitalBeds: null,
+    totalStaff: null
   })
   formRef.value?.resetFields()
 }
@@ -1003,13 +1225,34 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     
+    if (dataType.value === 'community' && !isEdit.value) {
+      ElMessage.warning('社区数据暂不支持新增，请使用导入')
+      return
+    }
+
     loading.submit = true
     try {
       let response
-      if (isEdit.value) {
-        response = await surveyDataApi.update(formData)
+      if (dataType.value === 'community') {
+        if (!formData.id) {
+          ElMessage.error('缺少ID，无法更新')
+          return
+        }
+        response = await communityCapacityApi.update(Number(formData.id), buildCommunityUpdatePayload())
+      } else if (dataType.value === 'medical') {
+        if (isEdit.value) {
+          response = await medicalInstitutionApi.update(buildMedicalUpdatePayload())
+        } else {
+          ElMessage.warning('医疗卫生机构数据暂不支持新增，请使用导入')
+          loading.submit = false
+          return
+        }
       } else {
-        response = await surveyDataApi.create(formData)
+        if (isEdit.value) {
+          response = await surveyDataApi.update(formData)
+        } else {
+          response = await surveyDataApi.create(formData)
+        }
       }
       
       if (response.success) {
@@ -1133,6 +1376,8 @@ const handleCurrentChange = (page: number) => {
 const showImportDialog = () => {
   dialogVisible.import = true
   uploadFile.value = null
+  // 清空上传组件的文件列表
+  uploadRef.value?.clearFiles()
 }
 
 // 文件选择

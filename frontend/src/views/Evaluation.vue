@@ -69,7 +69,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="数据类型" prop="dataType">
-              <el-radio-group v-model="evaluationForm.dataType" @change="handleDataTypeChange">
+              <el-radio-group v-model="evaluationForm.dataType" disabled>
                 <el-radio label="township">乡镇数据</el-radio>
                 <el-radio label="community">社区数据</el-radio>
               </el-radio-group>
@@ -583,6 +583,8 @@ import {
 import { evaluationApi, surveyDataApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi, communityCapacityApi, regionDataApi } from '@/api'
 import ResultDialog from '@/components/ResultDialog.vue'
 import { useUserStore } from '@/stores/user'
+import { useGlobalYearStore } from '@/stores/globalYear'
+import { useGlobalOrganizationStore } from '@/stores/globalOrganization'
 
 // 处理ResizeObserver警告
 const originalError = console.error
@@ -595,6 +597,8 @@ console.error = (...args) => {
 
 const router = useRouter()
 const userStore = useUserStore()
+const globalYearStore = useGlobalYearStore()
+const globalOrganizationStore = useGlobalOrganizationStore()
 
 // 计算属性
 const selectedAlgorithm = computed(() => {
@@ -697,7 +701,7 @@ const evaluationForm = reactive<any>({
   name: '',
   modelId: null,
   weightConfigId: undefined as number | undefined,
-  year: currentYear,
+  year: globalYearStore.selectedYear,
   algorithmId: null,
   dataType: 'township', // 默认选择乡镇数据
   dataSource: 'REGION',
@@ -963,8 +967,11 @@ const getEvaluationModels = async () => {
 }
 
 // 处理模型变化
-const handleModelChange = (modelId: number) => {
+const handleModelChange = async (modelId: number) => {
   console.log('模型变化:', modelId)
+
+  // 保存当前选择的组织机构信息
+  const storedOrg = globalOrganizationStore.selectedOrganization
 
   // 根据模型ID自动切换数据类型
   if (modelId === 3 || modelId === 11) {
@@ -984,11 +991,59 @@ const handleModelChange = (modelId: number) => {
   evaluationForm.regions = []
   evaluationForm.countyData = []
 
-  // 重新加载地区数据
-  handleDataTypeChange()
+  // 重新加载地区数据（不自动选择）
+  resetRegionSelect()
+  await getProvinces(false)
+
+  // 恢复之前选择的组织机构（如果有）
+  if (storedOrg && (storedOrg.provinceName || storedOrg.name)) {
+    console.log('恢复组织机构选择:', storedOrg)
+    await restoreOrganizationSelection(storedOrg)
+  }
 
   // 如果需要，可以清空算法选择
   // evaluationForm.algorithmId = null
+}
+
+// 恢复组织机构选择
+const restoreOrganizationSelection = async (storedOrg: any) => {
+  try {
+    console.log('尝试恢复组织机构:', storedOrg)
+
+    // 优先使用 provinceName，如果没有则尝试从 name 中推断
+    let targetProvinceName = storedOrg.provinceName
+
+    // 兼容旧数据格式：如果没有 provinceName，尝试通过省份列表匹配
+    if (!targetProvinceName && storedOrg.name) {
+      for (const province of provinces.value) {
+        if (storedOrg.name.includes(province.name)) {
+          targetProvinceName = province.name
+          console.log('从 name 推断出省份:', targetProvinceName)
+          break
+        }
+      }
+    }
+
+    // 如果仍然找不到省份，使用默认省份（四川）
+    if (!targetProvinceName) {
+      const sichuanProvince = provinces.value.find(p => p.name === '四川')
+      if (sichuanProvince) {
+        targetProvinceName = '四川'
+        console.log('使用默认省份: 四川')
+      }
+    }
+
+    if (targetProvinceName) {
+      const matchedProvince = provinces.value.find(p => p.name === targetProvinceName)
+      if (matchedProvince) {
+        await handleProvinceChange(matchedProvince.name)
+      }
+    } else {
+      console.warn('没有可用的省份，无法恢复组织机构')
+    }
+  } catch (error) {
+    console.error('恢复组织机构选择失败:', error)
+  }
 }
 
 const resetRegionSelect = () => {
@@ -1007,23 +1062,45 @@ const resetRegionSelect = () => {
 const handleDataTypeChange = () => {
   console.log('数据类型变化:', evaluationForm.dataType)
   resetRegionSelect()
-  // 重新获取省份数据
-  getProvinces()
+  // 重新获取省份数据，但不自动选择（让 handleModelChange 来恢复）
+  getProvinces(false)
 }
 
 // 获取省份列表
-const getProvinces = async () => {
+const getProvinces = async (autoSelect = true) => {
   try {
     const response = await regionDataApi.getProvinces(evaluationForm.dataType, evaluationForm.year)
     if (response.code === 200) {
       provinces.value = response.data || []
       console.log('获取到省份列表:', provinces.value)
 
-      // 如果省份列表有数据，默认选择第一条
-      if (provinces.value.length > 0) {
-        evaluationForm.selectedProvince = provinces.value[0].name
+      // 只有在需要自动选择时才恢复组织机构
+      if (!autoSelect) {
+        return
+      }
+
+      // 优先从全局 store 恢复组织机构选择
+      const storedOrg = globalOrganizationStore.selectedOrganization
+      let targetProvinceName = null
+
+      if (storedOrg && storedOrg.name) {
+        // 尝试从存储的组织机构名称中找到匹配的省份
+        const matchedProvince = provinces.value.find((p: any) => p.name === storedOrg.name || storedOrg.name.includes(p.name))
+        if (matchedProvince) {
+          targetProvinceName = matchedProvince.name
+          console.log('从全局 store 恢复省份:', targetProvinceName)
+        }
+      }
+
+      // 如果没有找到匹配的省份，使用默认的第一条
+      if (!targetProvinceName && provinces.value.length > 0) {
+        targetProvinceName = provinces.value[0].name
+      }
+
+      if (targetProvinceName) {
+        evaluationForm.selectedProvince = targetProvinceName
         // 触发省份变化事件以加载城市数据
-        await handleProvinceChange(provinces.value[0].name)
+        await handleProvinceChange(targetProvinceName)
       }
     } else {
       ElMessage.error(response.message || '获取省份列表失败')
@@ -1037,6 +1114,8 @@ const getProvinces = async () => {
 // 处理省份变化
 const handleProvinceChange = async (provinceName: string) => {
   console.log('省份变化:', provinceName)
+  // 设置选中的省份
+  evaluationForm.selectedProvince = provinceName
   // 清空城市和区县选择
   evaluationForm.selectedCity = ''
   evaluationForm.selectedCounty = ''
@@ -1054,11 +1133,35 @@ const handleProvinceChange = async (provinceName: string) => {
         cities.value = response.data || []
         console.log('获取到城市列表:', cities.value)
 
-        // 如果城市列表有数据，默认选择第一条
-        if (cities.value.length > 0) {
-          evaluationForm.selectedCity = cities.value[0].name
+        // 优先从全局 store 恢复城市选择
+        const storedOrg = globalOrganizationStore.selectedOrganization
+        let targetCityName = null
+
+        if (storedOrg) {
+          console.log('尝试从全局 store 恢复城市, storedOrg:', storedOrg)
+          // 优先使用 cityName，兼容旧数据格式使用 name
+          const cityToMatch = storedOrg.cityName || storedOrg.name
+          console.log('要匹配的城市名称:', cityToMatch, '可用城市列表:', cities.value.map((c: any) => c.name))
+          if (cityToMatch) {
+            const matchedCity = cities.value.find((c: any) => c.name === cityToMatch || cityToMatch.includes(c.name))
+            if (matchedCity) {
+              targetCityName = matchedCity.name
+              console.log('从全局 store 恢复城市:', targetCityName)
+            } else {
+              console.warn('未找到匹配的城市:', cityToMatch)
+            }
+          }
+        }
+
+        // 如果没有找到匹配的城市，使用默认的第一条
+        if (!targetCityName && cities.value.length > 0) {
+          targetCityName = cities.value[0].name
+        }
+
+        if (targetCityName) {
+          evaluationForm.selectedCity = targetCityName
           // 触发城市变化事件以加载区县数据
-          await handleCityChange(cities.value[0].name)
+          await handleCityChange(targetCityName)
         }
       } else {
         ElMessage.error(response.message || '获取城市列表失败')
@@ -1083,25 +1186,60 @@ const handleCityChange = async (cityName: string) => {
   if (cityName && evaluationForm.selectedProvince) {
     // 获取区县列表
     try {
+      console.log('开始获取区县列表:', {
+        dataType: evaluationForm.dataType,
+        province: evaluationForm.selectedProvince,
+        city: cityName,
+        year: evaluationForm.year
+      })
       const response = await regionDataApi.getCounties(evaluationForm.dataType, evaluationForm.selectedProvince, cityName, evaluationForm.year)
+      console.log('区县列表API响应:', response)
       if (response.code === 200) {
         counties.value = response.data || []
         console.log('获取到区县列表:', counties.value)
 
-        // 如果区县列表有数据，默认选择第一条
-        if (counties.value.length > 0) {
-          evaluationForm.selectedCounty = counties.value[0].code
+        // 优先从全局 store 恢复区县选择
+        const storedOrg = globalOrganizationStore.selectedOrganization
+        let targetCountyCode = null
+
+        if (storedOrg) {
+          console.log('尝试从全局 store 恢复区县, storedOrg:', storedOrg)
+          // 优先使用 countyName，兼容旧数据格式使用 name
+          const countyToMatch = storedOrg.countyName || storedOrg.name
+          console.log('要匹配的区县名称:', countyToMatch, '可用区县列表:', counties.value.map((c: any) => c.name))
+          if (countyToMatch) {
+            const matchedCounty = counties.value.find((c: any) => c.name === countyToMatch || countyToMatch.includes(c.name))
+            if (matchedCounty) {
+              targetCountyCode = matchedCounty.code
+              console.log('从全局 store 恢复区县:', targetCountyCode)
+            } else {
+              console.warn('未找到匹配的区县:', countyToMatch)
+            }
+          }
+        }
+
+        // 如果没有找到匹配的区县，使用默认的第一条
+        if (!targetCountyCode && counties.value.length > 0) {
+          targetCountyCode = counties.value[0].code
+        }
+
+        if (targetCountyCode) {
+          evaluationForm.selectedCounty = targetCountyCode
           // 触发区县变化事件以加载数据
-          await handleCountyChange(counties.value[0].code)
+          await handleCountyChange(targetCountyCode)
         }
       } else {
+        console.error('区县列表API返回错误:', response.code, response.message)
         ElMessage.error(response.message || '获取区县列表失败')
       }
     } catch (error) {
       console.error('获取区县列表失败:', error)
       ElMessage.error('获取区县列表失败')
     }
+  } else {
+    console.warn('handleCityChange 条件不满足:', { cityName, selectedProvince: evaluationForm.selectedProvince })
   }
+  console.log('handleCityChange 完成')
 }
 
 // 处理区县变化
@@ -1152,6 +1290,24 @@ const handleCountyChange = async (countyCode: string) => {
             // 提取前6位作为区县代码
             evaluationForm.orgCode = firstItem.regionCode.substring(0, 6)
             console.log('从 regionCode 提取的区县代码:', evaluationForm.orgCode, '（原始值:', firstItem.regionCode, '）')
+
+            // 保存选中的组织机构到全局 store（保留完整信息）
+            globalOrganizationStore.setOrganization({
+              code: evaluationForm.orgCode,
+              name: countyName,
+              level: 3, // 区县级别
+              provinceName: evaluationForm.selectedProvince,
+              cityName: evaluationForm.selectedCity,
+              countyName: countyName
+            })
+            console.log('保存组织机构到全局 store:', {
+              code: evaluationForm.orgCode,
+              name: countyName,
+              level: 3,
+              provinceName: evaluationForm.selectedProvince,
+              cityName: evaluationForm.selectedCity,
+              countyName: countyName
+            })
           } else {
             // 如果没有 regionCode，使用 county 字段（但这可能是名称）
             console.warn('未找到 regionCode 字段，使用 county 字段作为备选:', firstItem.county)
@@ -1160,6 +1316,16 @@ const handleCountyChange = async (countyCode: string) => {
             } else {
               evaluationForm.orgCode = firstItem.county || countyName
             }
+
+            // 保存选中的组织机构到全局 store（保留完整信息）
+            globalOrganizationStore.setOrganization({
+              code: evaluationForm.orgCode,
+              name: countyName,
+              level: 3, // 区县级别
+              provinceName: evaluationForm.selectedProvince,
+              cityName: evaluationForm.selectedCity,
+              countyName: countyName
+            })
           }
         }
 
@@ -1477,7 +1643,7 @@ const resetEvaluationForm = () => {
     name: '',
     modelId: null,
     weightConfigId: undefined,
-    year: currentYear,
+    year: globalYearStore.selectedYear,
     algorithmId: null,
     dataType: 'township', // 重置为默认乡镇数据
     dataSource: 'REGION',
@@ -2745,7 +2911,7 @@ const setDefaultValues = async () => {
   ])
 
   // 设置默认权重配置为第一项
-  
+
 
   // 设置默认评估模型为第一项
   if (evaluationModels.value.length > 0) {
@@ -2755,14 +2921,56 @@ const setDefaultValues = async () => {
   // 等待省份数据加载完成后再设置默认地区
   await getProvinces()
 
-  // 设置默认地区为四川-眉山-青神县
+  // 优先使用全局 store 中保存的组织机构
+  const storedOrg = globalOrganizationStore.selectedOrganization
+
+  if (storedOrg && (storedOrg.provinceName || storedOrg.name)) {
+    // 从全局 store 中恢复组织机构选择
+    console.log('从全局 store 恢复组织机构:', storedOrg)
+
+    // 优先使用 provinceName，如果没有则尝试从 name 中推断
+    let targetProvinceName = storedOrg.provinceName
+
+    // 兼容旧数据格式：如果没有 provinceName，尝试通过省份列表匹配
+    if (!targetProvinceName && storedOrg.name) {
+      for (const province of provinces.value) {
+        if (storedOrg.name.includes(province.name)) {
+          targetProvinceName = province.name
+          console.log('从 name 推断出省份:', targetProvinceName)
+          break
+        }
+      }
+    }
+
+    // 如果找到了省份，使用它；否则使用默认值
+    if (targetProvinceName) {
+      const matchedProvince = provinces.value.find(p => p.name === targetProvinceName)
+      if (matchedProvince) {
+        console.log('找到匹配的省份:', matchedProvince.name)
+        // 选择该省份，handleProvinceChange 会自动处理城市和区县的恢复
+        await handleProvinceChange(matchedProvince.name)
+        return
+      }
+    }
+
+    // 没找到匹配的省份
+    console.warn('未找到匹配的省份，使用默认值')
+    setDefaultQingshen()
+  } else {
+    // 没有保存的组织机构，使用默认值（四川-眉山-青神县）
+    setDefaultQingshen()
+  }
+}
+
+// 设置默认地区为四川-眉山-青神县
+const setDefaultQingshen = () => {
   if (provinces.value.length > 0) {
     // 查找四川省
     const sichuanProvince = provinces.value.find(p => p.name === '四川')
     if (sichuanProvince) {
       evaluationForm.selectedProvince = sichuanProvince.name
       // 获取四川省下的城市
-      await handleProvinceChange(sichuanProvince.name)
+      handleProvinceChange(sichuanProvince.name)
 
       // 查找眉山市
       setTimeout(async () => {
@@ -2812,6 +3020,9 @@ watch(
 
     // 更新筛选条件中的年份
     if (year && year !== oldYear) {
+      // 更新全局年份 store
+      globalYearStore.setYear(year)
+
       filterForm.year = String(year)
       currentPage.value = 1
       getEvaluationHistory(1, pageSize.value)

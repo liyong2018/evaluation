@@ -20,7 +20,6 @@
                   <el-select
                     v-model="orgYear"
                     size="small"
-                    clearable
                     placeholder="年份"
                     class="org-year-select"
                     @change="refreshOrganizations"
@@ -48,7 +47,7 @@
               <template #default="{ data }">
                 <div class="org-tree-node">
                   <span class="org-name">{{ data.name }}</span>
-                  <span class="org-code">{{ data.code }}</span>
+                  <span class="org-code" v-if="data.children && data.children.length > 0">（{{ data.children.length }}）</span>
                 </div>
               </template>
             </el-tree>
@@ -521,6 +520,16 @@ import {
   User
 } from '@element-plus/icons-vue'
 import { weightConfigApi, indicatorWeightApi, organizationApi, indicatorWeightScoreApi } from '@/api'
+import { useGlobalYearStore } from '@/stores/globalYear'
+import { useUserStore } from '@/stores/user'
+import { useGlobalOrganizationStore } from '@/stores/globalOrganization'
+
+// 全局年份 store
+const globalYearStore = useGlobalYearStore()
+// 用户 store
+const userStore = useUserStore()
+// 全局组织机构 store
+const globalOrganizationStore = useGlobalOrganizationStore()
 
 // 响应式数据
 const activeTab = ref('config')
@@ -532,7 +541,7 @@ const selectedConfigId = ref<number | null>(null)
 const selectedOrg = ref<any>(null) // 当前选中的组织机构
 const organizationList = ref<any[]>([]) // 组织机构列表
 const orgTreeRef = ref() // 组织机构树引用
-const orgYear = ref<number | null>(new Date().getFullYear())
+const orgYear = ref<number | null>(globalYearStore.selectedYear)
 const yearOptions = ref<number[]>([])
 const orgTreeRenderKey = computed(() => `orgTree-${orgYear.value ?? 'all'}`)
 
@@ -785,13 +794,20 @@ const getConfigList = async () => {
 
   loading.configs = true
   try {
-    // 支持按组织机构过滤
-    const orgcode = selectedOrg.value ? selectedOrg.value.code : undefined
-    const response = await weightConfigApi.getAll({ orgcode, year: orgYear.value || undefined })
+    // 获取所有配置（不按组织机构过滤，在前端进行前缀匹配）
+    const response = await weightConfigApi.getAll({ year: orgYear.value || undefined })
     console.log('权重配置API响应:', response)
     if (response.success) {
-      configList.value = response.data || []
-      console.log('权重配置列表:', configList.value)
+      let allConfigs = response.data || []
+      // 如果选中了组织机构，按组织机构代码前缀过滤
+      if (selectedOrg.value && selectedOrg.value.code) {
+        const prefix = selectedOrg.value.code
+        allConfigs = allConfigs.filter((config: any) =>
+          config.orgcode && config.orgcode.startsWith(prefix)
+        )
+      }
+      configList.value = allConfigs
+      console.log('权重配置列表（已过滤）:', configList.value)
     } else {
       ElMessage.error(response.message || '获取配置列表失败')
     }
@@ -806,12 +822,27 @@ const getConfigList = async () => {
 // 获取组织机构列表（树形结构）
 const defaultExpandedKeys = ref<string[]>([])
 
-// 收集需要展开的节点（展开到3级）
+// 判断是否为admin或省级用户
+const isUserAdminOrProvincial = computed(() => {
+  // 如果是admin，返回true
+  if (userStore.isAdmin) {
+    return true
+  }
+  // 如果选中的组织机构是省级(level=1)，也返回true
+  if (selectedOrg.value && selectedOrg.value.level === 1) {
+    return true
+  }
+  return false
+})
+
+// 收集需要展开的节点
 const collectExpandedKeys = (nodes: any[], level: number = 1, keys: string[] = []) => {
   if (!nodes || nodes.length === 0) return keys
   for (const node of nodes) {
-    // 展开到3级（县级），不展开4级（乡镇/街道）和5级（村/社区）
-    if (level < 3) {
+    // 如果是admin或省级用户，只展开到2级（市级），区县级节点折叠
+    // 否则展开到3级（县级）
+    const maxLevel = isUserAdminOrProvincial.value ? 2 : 3
+    if (level < maxLevel) {
       keys.push(node.code)
     }
     if (node.children && node.children.length > 0) {
@@ -851,14 +882,34 @@ const getOrganizationList = async () => {
       // 收集需要展开的节点key
       defaultExpandedKeys.value = collectExpandedKeys(organizationList.value)
       console.log('组织机构树形数据 (年份:', orgYear.value, '):', organizationList.value)
-      if (selectedOrg.value) {
-        const exists = findOrgNodeByCode(organizationList.value, selectedOrg.value.code)
-        if (!exists) {
-          selectedOrg.value = null
+
+      // 优先从全局 store 恢复选中的组织机构
+      let targetOrg = selectedOrg.value
+
+      // 如果当前没有选中组织机构，尝试从全局 store 恢复
+      if (!targetOrg && globalOrganizationStore.selectedOrganization) {
+        const stored = globalOrganizationStore.selectedOrganization
+        targetOrg = findOrgNodeByCode(organizationList.value, stored.code)
+        if (targetOrg) {
+          console.log('从全局 store 恢复组织机构:', targetOrg)
         }
       }
-      await nextTick()
-      orgTreeRef.value?.setCurrentKey(selectedOrg.value?.code ?? null)
+
+      // 如果还是没有选中的组织机构，或者选中的组织机构不存在，则默认选中第一个
+      if (!targetOrg) {
+        await selectFirstOrganization()
+      } else {
+        selectedOrg.value = targetOrg
+        await nextTick()
+        orgTreeRef.value?.setCurrentKey(targetOrg.code)
+        // 同步到全局 store
+        globalOrganizationStore.setOrganization({
+          code: targetOrg.code,
+          name: targetOrg.name,
+          level: targetOrg.level
+        })
+        getConfigList()
+      }
     }
   } catch (error) {
     console.error('获取组织机构列表失败:', error)
@@ -868,8 +919,32 @@ const getOrganizationList = async () => {
   }
 }
 
+// 选中第一个组织机构
+const selectFirstOrganization = async () => {
+  if (!organizationList.value || organizationList.value.length === 0) {
+    return
+  }
+  // 默认选中第一个省级节点
+  const firstOrg = organizationList.value[0]
+  selectedOrg.value = firstOrg
+  await nextTick()
+  orgTreeRef.value?.setCurrentKey(firstOrg.code)
+  // 保存到全局 store
+  globalOrganizationStore.setOrganization({
+    code: firstOrg.code,
+    name: firstOrg.name,
+    level: firstOrg.level
+  })
+  // 加载配置列表
+  getConfigList()
+}
+
 // 刷新组织机构树
 const refreshOrganizations = async () => {
+  // 更新全局年份 store
+  if (orgYear.value) {
+    globalYearStore.setYear(orgYear.value)
+  }
   await getOrganizationList()
   await getConfigList()
 }
@@ -878,6 +953,12 @@ const refreshOrganizations = async () => {
 const handleOrgNodeClick = (data: any) => {
   console.log('选中组织机构:', data)
   selectedOrg.value = data
+  // 保存到全局 store
+  globalOrganizationStore.setOrganization({
+    code: data.code,
+    name: data.name,
+    level: data.level
+  })
   // 加载该组织机构的权重配置
   getConfigList()
 }

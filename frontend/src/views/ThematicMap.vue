@@ -16,7 +16,6 @@
                 <el-select
                   v-model="selectedYear"
                   placeholder="选择年份"
-                  clearable
                   style="width: 120px"
                   @change="handleFilterChange"
                 >
@@ -140,7 +139,14 @@ import CompositeThematicMap from '@/components/CompositeThematicMap.vue'
 import ThematicMapGenerator from '@/components/ThematicMapGenerator.vue'
 import OnlyOfficeEditor from '@/components/OnlyOfficeEditor.vue'
 import { wordTemplateApi, organizationApi, algorithmManagementApi } from '@/api'
+import { useGlobalYearStore } from '@/stores/globalYear'
+import { useGlobalOrganizationStore } from '@/stores/globalOrganization'
 console.log('ThematicMap页面导入完成')
+
+// 全局年份 store
+const globalYearStore = useGlobalYearStore()
+// 全局组织机构 store
+const globalOrganizationStore = useGlobalOrganizationStore()
 
 // 响应式数据
 const loading = ref(false)
@@ -155,9 +161,9 @@ const wordDocumentTitle = ref('青神县减灾能力评估技术报告')
 const wordDocumentKey = ref('')
 const wordTemplatePath = ref('templates/四川省眉山市青神县减灾能力评估技术报告-系统模板.docx') // Word模板路径
 
-const selectedYear = ref<number | null>(2025)
+const selectedYear = ref<number | null>(globalYearStore.selectedYear)
 const yearOptions = ref<number[]>([])
-const selectedOrgCode = ref<string | null>('511425')
+const selectedOrgCode = ref<string | null>(globalOrganizationStore.selectedOrganization?.code || null)
 const organizationList = ref<any[]>([])
 const loadingOrganizations = ref(false)
 const lastLoadedOrgTreeYear = ref<number | null>(null)
@@ -279,6 +285,28 @@ const getOrganizationList = async (year?: number | null) => {
 }
 
 const handleFilterChange = async () => {
+  // 更新全局年份 store
+  if (selectedYear.value) {
+    globalYearStore.setYear(selectedYear.value)
+  }
+
+  // 更新全局组织机构 store（包含完整信息）
+  if (selectedOrgCode.value) {
+    const node = findOrgNodeByCode(organizationList.value, selectedOrgCode.value)
+    if (node) {
+      globalOrganizationStore.setOrganization({
+        code: node.code,
+        name: node.name,
+        level: node.level,
+        provinceName: node.provinceName,
+        cityName: node.cityName,
+        countyName: node.countyName,
+        townshipName: node.townshipName,
+        communityName: node.communityName
+      })
+    }
+  }
+
   if (selectedYear.value !== lastLoadedOrgTreeYear.value) {
     await getOrganizationList(selectedYear.value)
   }
@@ -447,10 +475,10 @@ const openOnlyOfficeEditor = async () => {
     await new Promise(resolve => setTimeout(resolve, 1000))
 
     // 4. 设置OnlyOffice文档URL
-    let baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
+    let baseUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin
     try {
-      const u = new URL(baseUrl)
-      if (u.port === '8088' || u.port === '5173' || u.port === '8087' || u.port === '') {
+      const u = new URL(baseUrl, window.location.origin)
+      if (u.port === '5173') {
         u.port = '8081'
       }
       if (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname.startsWith('192.168.')) {
@@ -458,7 +486,7 @@ const openOnlyOfficeEditor = async () => {
       }
       baseUrl = u.toString().replace(/\/$/, '')
     } catch {
-      baseUrl = 'http://host.docker.internal:8081'
+      baseUrl = window.location.origin
     }
 
     wordDocumentUrl.value = `${baseUrl}/api/word-template/latest-report`

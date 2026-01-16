@@ -212,6 +212,19 @@ const handleLogin = async () => {
 
           // 检查用户是否有关联的组织机构
           try {
+            // 如果是管理员，直接允许登录，无需检查组织机构权限
+            if (res.data.isAdmin || res.data.username === 'admin') {
+              await userStore.login({
+                id: userId,
+                username: res.data.username,
+                isAdmin: true
+              })
+              ElMessage.success('登录成功')
+              const redirect = (route.query.redirect as string) || '/data-management'
+              router.push(redirect)
+              return
+            }
+
             // 1. 获取用户角色
             const rolesRes = await userApi.getUserRoles(userId)
             if (rolesRes.success && rolesRes.data && rolesRes.data.length > 0) {
