@@ -578,7 +578,9 @@ import {
   Download,
   Delete,
   Document,
-  Filter
+  Filter,
+  DataAnalysis,
+  List
 } from '@element-plus/icons-vue'
 import { evaluationApi, surveyDataApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi, communityCapacityApi, regionDataApi } from '@/api'
 import ResultDialog from '@/components/ResultDialog.vue'
@@ -1262,19 +1264,26 @@ const handleCityChange = async (cityName: string) => {
 
           if (!targetCountyCode && countyNameToMatch) {
             console.log('要匹配的区县名称:', countyNameToMatch, '可用区县列表:', counties.value.map((c: any) => c.name))
-            const matchedByName = counties.value.find((c: any) => c.name === countyNameToMatch || String(countyNameToMatch).includes(String(c.name)))
+            // 更健壮的名称匹配逻辑
+            const normalizedMatch = countyNameToMatch.trim()
+            const matchedByName = counties.value.find((c: any) => {
+              const cName = String(c.name || '').trim()
+              return cName === normalizedMatch ||
+                     normalizedMatch.includes(cName) ||
+                     cName.includes(normalizedMatch)
+            })
             if (matchedByName) {
               targetCountyCode = matchedByName.code
-              console.log('从全局 store 恢复区县(按name):', targetCountyCode)
+              console.log('从全局 store 恢复区县(按name):', matchedByName.name, 'code:', targetCountyCode)
             } else {
               console.warn('未找到匹配的区县:', countyNameToMatch)
             }
           }
-        }
 
-        // 如果没有找到匹配的区县，使用默认的第一条
-        if (!targetCountyCode && counties.value.length > 0) {
-          targetCountyCode = counties.value[0].code
+          // 如果还是没有找到匹配的区县，不要使用默认的第一条，而是保持空选择让用户手动选择
+          if (!targetCountyCode) {
+            console.warn('无法从全局 store 恢复区县，需要用户手动选择')
+          }
         }
 
         if (targetCountyCode) {
