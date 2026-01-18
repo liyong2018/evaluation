@@ -1,6 +1,7 @@
 package com.evaluate.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.evaluate.dto.ImportResultDTO;
 import com.evaluate.entity.MedicalInstitution;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,6 +24,8 @@ public interface IMedicalInstitutionService extends IService<MedicalInstitution>
      * @return 导入结果
      */
     boolean importMedicalInstitutionData(MultipartFile file, Integer year);
+
+    ImportResultDTO importMedicalInstitutionDataWithResult(MultipartFile file, Integer year);
 
     /**
      * 根据年份和组织机构代码获取医疗卫生机构数据列表

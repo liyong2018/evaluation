@@ -113,20 +113,30 @@ public class MedicalInstitutionController {
         if (item == null || org == null) {
             return;
         }
-        item.setProvinceName(org.getProvinceName());
-        item.setCityName(org.getCityName());
-        item.setCountyName(org.getCountyName());
-
-        if (StringUtils.hasText(org.getTownshipName())) {
-            item.setTownshipName(org.getTownshipName());
-        } else if (org.getLevel() != null && org.getLevel() == 4) {
-            item.setTownshipName(org.getName());
+        if (!StringUtils.hasText(item.getProvinceName())) {
+            item.setProvinceName(org.getProvinceName());
+        }
+        if (!StringUtils.hasText(item.getCityName())) {
+            item.setCityName(org.getCityName());
+        }
+        if (!StringUtils.hasText(item.getCountyName())) {
+            item.setCountyName(org.getCountyName());
         }
 
-        if (StringUtils.hasText(org.getCommunityName())) {
-            item.setCommunityName(org.getCommunityName());
-        } else if (org.getLevel() != null && org.getLevel() == 5) {
-            item.setCommunityName(org.getName());
+        if (!StringUtils.hasText(item.getTownshipName())) {
+            if (StringUtils.hasText(org.getTownshipName())) {
+                item.setTownshipName(org.getTownshipName());
+            } else if (org.getLevel() != null && org.getLevel() == 4) {
+                item.setTownshipName(org.getName());
+            }
+        }
+
+        if (!StringUtils.hasText(item.getCommunityName())) {
+            if (StringUtils.hasText(org.getCommunityName())) {
+                item.setCommunityName(org.getCommunityName());
+            } else if (org.getLevel() != null && org.getLevel() == 5) {
+                item.setCommunityName(org.getName());
+            }
         }
     }
 
@@ -177,7 +187,7 @@ public class MedicalInstitutionController {
             return new HashMap<>();
         }
 
-        Map<String, String> normalizedVariantToFullName = new HashMap<>();
+        Map<String, String> fullNameToOriginal = new HashMap<>();
         for (GrassrootsOrganization township : townships) {
             if (township == null) {
                 continue;
@@ -189,23 +199,20 @@ public class MedicalInstitutionController {
             if (!StringUtils.hasText(fullName)) {
                 continue;
             }
-            normalizedVariantToFullName.put(normalizeForMatch(fullName), fullName);
-
-            if (fullName.endsWith("街道") && fullName.length() > 2) {
-                normalizedVariantToFullName.putIfAbsent(normalizeForMatch(fullName.substring(0, fullName.length() - 2)), fullName);
-            } else if (fullName.endsWith("镇") && fullName.length() > 1) {
-                normalizedVariantToFullName.putIfAbsent(normalizeForMatch(fullName.substring(0, fullName.length() - 1)), fullName);
-            } else if (fullName.endsWith("乡") && fullName.length() > 1) {
-                normalizedVariantToFullName.putIfAbsent(normalizeForMatch(fullName.substring(0, fullName.length() - 1)), fullName);
-            }
+            fullNameToOriginal.put(normalizeForMatch(fullName), fullName);
         }
 
-        return normalizedVariantToFullName;
+        return fullNameToOriginal;
     }
 
     private void applyTownshipFromAddress(MedicalInstitution item, List<String> townshipVariants, Map<String, String> normalizedVariantToFullName) {
-        if (item == null || StringUtils.hasText(item.getTownshipName())
-                || townshipVariants == null || townshipVariants.isEmpty()
+        if (item == null) {
+            return;
+        }
+        if (StringUtils.hasText(item.getTownshipName())) {
+            return;
+        }
+        if (townshipVariants == null || townshipVariants.isEmpty()
                 || normalizedVariantToFullName == null || normalizedVariantToFullName.isEmpty()) {
             return;
         }
@@ -213,6 +220,7 @@ public class MedicalInstitutionController {
         if (!StringUtils.hasText(address)) {
             return;
         }
+
         for (String variant : townshipVariants) {
             if (!StringUtils.hasText(variant)) {
                 continue;
@@ -221,8 +229,9 @@ public class MedicalInstitutionController {
                 String fullName = normalizedVariantToFullName.get(variant);
                 if (StringUtils.hasText(fullName)) {
                     item.setTownshipName(fullName);
+                    log.debug("精确匹配街道/乡镇: {} -> {}", variant, fullName);
+                    return;
                 }
-                return;
             }
         }
     }
@@ -269,6 +278,81 @@ public class MedicalInstitutionController {
         if (!StringUtils.hasText(item.getCountyName()) && StringUtils.hasText(countyName)) {
             item.setCountyName(countyName);
         }
+    }
+
+    private void applyCommunityFromAddress(MedicalInstitution item) {
+        if (item == null) {
+            return;
+        }
+        if (StringUtils.hasText(item.getCommunityName())) {
+            return;
+        }
+        String address = normalizeForMatch(item.getInstitutionAddress());
+        if (!StringUtils.hasText(address)) {
+            return;
+        }
+
+        String suffixGroup = "(社区居民委员会|社区居委会|居民委员会|居委会|村民委员会|村委会|行政村|社区|村)";
+
+        String base = null;
+        String suffix = null;
+
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("([\\u4e00-\\u9fff]{2,20})" + suffixGroup);
+        java.util.regex.Matcher m = p.matcher(address);
+        while (m.find()) {
+            base = m.group(1);
+            suffix = m.group(2);
+        }
+
+        if (!StringUtils.hasText(base) || !StringUtils.hasText(suffix)) {
+            return;
+        }
+
+        String normalized = normalizeCommunityOrVillageName(base, suffix);
+        if (StringUtils.hasText(normalized)) {
+            item.setCommunityName(normalized);
+        }
+    }
+
+    private String normalizeCommunityOrVillageName(String base, String suffix) {
+        if (!StringUtils.hasText(base) || !StringUtils.hasText(suffix)) {
+            return null;
+        }
+
+        String trimmedBase = base.trim();
+        String[] separators = new String[] { "办事处", "街道", "镇", "乡", "区", "县", "市", "省" };
+        for (String sep : separators) {
+            int idx = trimmedBase.lastIndexOf(sep);
+            if (idx >= 0) {
+                trimmedBase = trimmedBase.substring(idx + sep.length()).trim();
+            }
+        }
+
+        if (!StringUtils.hasText(trimmedBase)) {
+            return null;
+        }
+
+        if ("社区居民委员会".equals(suffix) || "社区居委会".equals(suffix) || "居民委员会".equals(suffix) || "居委会".equals(suffix)) {
+            return trimmedBase.endsWith("社区") ? trimmedBase : trimmedBase + "社区";
+        }
+
+        if ("村民委员会".equals(suffix) || "村委会".equals(suffix)) {
+            return trimmedBase.endsWith("村") ? trimmedBase : trimmedBase + "村";
+        }
+
+        if ("行政村".equals(suffix)) {
+            return trimmedBase.endsWith("村") ? trimmedBase : trimmedBase + "村";
+        }
+
+        if ("社区".equals(suffix)) {
+            return trimmedBase.endsWith("社区") ? trimmedBase : trimmedBase + "社区";
+        }
+
+        if ("村".equals(suffix)) {
+            return trimmedBase.endsWith("村") ? trimmedBase : trimmedBase + "村";
+        }
+
+        return trimmedBase + suffix;
     }
 
     private String resolveAddressKeyword(Organization org) {
@@ -374,15 +458,34 @@ public class MedicalInstitutionController {
                 return result;
             }
 
-            boolean importResult = medicalInstitutionService.importMedicalInstitutionData(file, year);
+            com.evaluate.dto.ImportResultDTO importResult = medicalInstitutionService.importMedicalInstitutionDataWithResult(file, year);
 
-            if (importResult) {
-                result.put("success", true);
-                result.put("message", "医疗卫生机构数据导入成功");
+            result.put("success", importResult.isSuccess());
+            result.put("totalCount", importResult.getTotalCount());
+            result.put("successCount", importResult.getSuccessCount());
+            result.put("insertCount", importResult.getInsertCount());
+            result.put("updateCount", importResult.getUpdateCount());
+
+            StringBuilder message = new StringBuilder();
+            if (importResult.isSuccess()) {
+                message.append("导入成功！共处理").append(importResult.getTotalCount()).append("条数据");
+                if (importResult.getInsertCount() > 0) {
+                    message.append("，新增").append(importResult.getInsertCount()).append("条");
+                }
+                if (importResult.getUpdateCount() > 0) {
+                    message.append("，更新").append(importResult.getUpdateCount()).append("条");
+                }
             } else {
-                result.put("success", false);
-                result.put("message", "导入失败，请检查文件格式和数据");
+                message.append("导入完成，但部分数据处理失败");
             }
+
+            if (importResult.hasWarnings()) {
+                message.append("。");
+                result.put("warnings", importResult.getWarnings());
+                result.put("warningsMessage", importResult.getWarningsMessage());
+            }
+
+            result.put("message", message.toString());
 
         } catch (Exception e) {
             log.error("导入医疗卫生机构数据失败", e);
@@ -432,6 +535,9 @@ public class MedicalInstitutionController {
 
             if (list != null && !list.isEmpty()) {
                 for (MedicalInstitution item : list) {
+                    applyNamesFromAddress(item);
+                    applyCommunityFromAddress(item);
+
                     Organization org = findOrganization(year, item.getOrgCode());
                     if (org != null) {
                         applyOrganizationNames(item, org);
@@ -447,7 +553,6 @@ public class MedicalInstitutionController {
                     } else if (filterOrg != null) {
                         applyOrganizationNames(item, filterOrg);
                     }
-                    applyNamesFromAddress(item);
                     applyTownshipFromAddress(item, townshipVariants, townshipVariantToFullName);
                 }
             }

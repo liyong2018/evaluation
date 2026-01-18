@@ -85,7 +85,6 @@ public class CommunityDisasterReductionCapacityServiceImpl
                         save(entity);
                         log.debug("新增社区减灾能力数据: {} - {} ({}年)", entity.getRegionCode(), entity.getCommunityName(), entity.getYear());
                     }
-                    organizationService.syncFromCommunityData(entity);
                     successCount++;
                 } catch (Exception e) {
                     errorCount++;

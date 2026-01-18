@@ -83,28 +83,37 @@ public class ThematicMapController {
             }
 
             // 根据级别过滤数据
-            List<EvaluationResult> filteredResults = allResults.stream()
+            List<EvaluationResult> levelFilteredResults = allResults.stream()
                 .filter(result -> {
                     String regionName = result.getRegionName();
                     if (regionName == null) return false;
+                    regionName = regionName.trim();
 
                     // 根据级别参数过滤
                     switch (level) {
                         case "township":
                             // 乡镇级：只保留以"街道"、"镇"、"乡"结尾的数据
-                            return regionName.endsWith("街道") ||
+                            return regionName.contains("街道") ||
+                                   regionName.contains("办事处") ||
                                    regionName.endsWith("镇") ||
-                                   regionName.endsWith("乡");
+                                   regionName.endsWith("乡") ||
+                                   regionName.contains("镇") ||
+                                   regionName.contains("乡");
                         case "community_village":
                             // 社区-行政村级：只保留以"社区"、"村"结尾的数据
-                            return regionName.endsWith("社区") ||
-                                   regionName.endsWith("村");
+                            return regionName.contains("社区") ||
+                                   regionName.contains("村") ||
+                                   regionName.contains("居委会") ||
+                                   regionName.contains("居民委员会") ||
+                                   regionName.contains("村委会") ||
+                                   regionName.contains("村民委员会");
                         case "community_township":
                             // 社区-乡镇级：保留以"社区"、"街道"、"镇"、"乡"结尾的数据
-                            return regionName.endsWith("社区") ||
-                                   regionName.endsWith("街道") ||
-                                   regionName.endsWith("镇") ||
-                                   regionName.endsWith("乡");
+                            return regionName.contains("社区") ||
+                                   regionName.contains("街道") ||
+                                   regionName.contains("办事处") ||
+                                   regionName.contains("镇") ||
+                                   regionName.contains("乡");
                         case "comprehensive":
                         default:
                             // 综合：包含所有数据
@@ -112,6 +121,8 @@ public class ThematicMapController {
                     }
                 })
                 .collect(Collectors.toList());
+
+            List<EvaluationResult> filteredResults = levelFilteredResults.isEmpty() ? allResults : levelFilteredResults;
 
             // 按地区名称去重，保留每个地区最新的评估结果
             Map<String, EvaluationResult> latestResults = new LinkedHashMap<>();

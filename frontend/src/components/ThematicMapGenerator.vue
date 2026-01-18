@@ -178,6 +178,13 @@ const villagePointLayer = ref<L.LayerGroup | null>(null)
 const baseTileLayer = ref<any | null>(null)
 const labelTileLayer = ref<any | null>(null)
 
+// 边界文件索引缓存
+const boundaryIndex = ref<{
+  availableYears: number[]
+  cities: string[]
+  yearlyCities: Record<string, string[]>
+} | null>(null)
+
 const mapConfigState = ref({
   title: '四川省雅安市青神县乡镇减灾能力评估结果图',
   mainTitle: '减灾能力分级计算减灾能力评估报告',
@@ -651,6 +658,40 @@ const getCurrentLevel = () => overrideLevel.value || props.level
 
 const isCommunityVillageLevel = computed(() => getCurrentLevel() === 'community_village')
 
+const lastNoEvaluationDataTipKey = ref('')
+
+const getSelectedRegionLabel = () => {
+  const parts = [props.parentName, props.orgName]
+    .map((v) => String(v || '').trim())
+    .filter(Boolean)
+  const label = parts.join('')
+  return label || String(props.orgCode || '').trim() || '当前区域'
+}
+
+const getCurrentLevelLabel = () => {
+  const level = String(getCurrentLevel() || '').trim()
+  if (level === 'township') return '乡镇'
+  if (level === 'community_village') return '社区'
+  if (level === 'community_township') return '社区'
+  if (level === 'comprehensive') return '综合'
+  if (level === 'comprehensive_composite') return '综合'
+  return '综合'
+}
+
+const showNoEvaluationDataTip = () => {
+  const year = props.year || new Date().getFullYear()
+  const regionLabel = getSelectedRegionLabel()
+  const levelLabel = getCurrentLevelLabel()
+  const key = `${year}-${regionLabel}-${levelLabel}`
+  if (lastNoEvaluationDataTipKey.value === key) return
+  lastNoEvaluationDataTipKey.value = key
+  const message =
+    levelLabel === '综合'
+      ? `${year}年${regionLabel}没有找到对应的综合评估数据`
+      : `${year}年${regionLabel}没有找到对应的${levelLabel}评估数据`
+  ElMessage.warning(message)
+}
+
 const scaleText = ref('比例尺 1:--')
 
 const calculateCapabilityLevel = (score: unknown): string => {
@@ -941,13 +982,18 @@ const loadThematicData = async () => {
           thematicData = apiData
           console.log('从API加载专题数据成功:', apiResponse)
         } else {
-          throw new Error('API响应数据为空')
+          const hasRuntimeEvaluationData =
+            evaluationData && Array.isArray(evaluationData.tableData) && evaluationData.tableData.length > 0
+          if (!hasRuntimeEvaluationData) {
+            showNoEvaluationDataTip()
+          }
+          thematicData = []
         }
       } else {
         throw new Error('未选择区划，跳过API请求')
       }
     } catch (apiError) {
-      console.log('从API加载专题数据失败，尝试使用评估数据或模拟数据:', apiError)
+      console.log('从API加载专题数据失败，尝试使用评估数据:', apiError)
 
       if (evaluationData && Array.isArray(evaluationData.tableData)) {
         console.log('找到评估数据，基于真实边界生成专题数据...')
@@ -1126,8 +1172,8 @@ const loadThematicData = async () => {
           mapConfigState.value.title = `${evaluationData.stepInfo.stepName}减灾能力评估结果图`
         }
       } else {
-        console.log('未找到评估数据，基于真实边界生成模拟数据')
-        thematicData = await generateThematicDataFromBoundaries(boundaries)
+        ElMessage.error('获取评估数据失败')
+        thematicData = []
       }
     }
     
@@ -1193,12 +1239,12 @@ const loadThematicData = async () => {
         console.log('基于边界合并后的完整专题数据:', thematicData.length, '条')
       } else {
         console.warn('API响应数据为空')
-        ElMessage.warning('未找到评估数据')
+        showNoEvaluationDataTip()
         thematicData = []
       }
     } catch (apiError) {
       console.error('步骤2失败: API请求异常', apiError)
-      ElMessage.warning('未找到评估数据')
+      ElMessage.error('获取评估数据失败')
       thematicData = []
     }
     
@@ -2168,6 +2214,40 @@ const looksLikeSubregionBoundaries = (fc: any, targetName: string) => {
 
 const emptyFeatureCollection = () => ({ type: 'FeatureCollection', features: [] as any[] })
 
+// 加载边界文件索引
+const loadBoundaryIndex = async () => {
+  if (boundaryIndex.value) {
+    return boundaryIndex.value
+  }
+
+  try {
+    const response = await fetch('/boundaries/index.json?t=' + Date.now())
+    if (response.ok) {
+      const index = await response.json()
+      boundaryIndex.value = index
+      return index
+    }
+  } catch (e) {
+    console.warn('加载边界索引失败，将使用默认降级逻辑', e)
+  }
+
+  // 返回空索引，表示没有可用的边界文件
+  return { availableYears: [], cities: [], yearlyCities: {} }
+}
+
+// 检查指定年份和城市的边界文件是否存在
+const checkBoundaryExists = async (year: number, cityName: string): Promise<boolean> => {
+  const index = await loadBoundaryIndex()
+
+  // 检查是否有该年份的数据
+  if (!index.yearlyCities[String(year)]) {
+    return false
+  }
+
+  // 检查该城市是否在该年份的列表中
+  return index.yearlyCities[String(year)].includes(cityName)
+}
+
 // 加载真实的乡镇边界数据
 const loadRealBoundaryData = async () => {
   try {
@@ -2319,18 +2399,28 @@ const loadRealBoundaryData = async () => {
 
         if (cityName) {
           const requestedYear = props.year || 2025
-          const minCityBoundaryYear = 2022
-          const maxCityBoundaryYear = 2025
-          const startYear = Math.min(requestedYear, maxCityBoundaryYear)
+          const minCityBoundaryYear = 2020
+          const startYear = requestedYear
+
+          // 先加载边界索引，过滤出实际存在的文件
+          const index = await loadBoundaryIndex()
           const yearCandidates: number[] = []
+
+          // 使用索引检查哪些年份的边界文件存在
           for (let y = startYear; y >= minCityBoundaryYear; y--) {
-            yearCandidates.push(y)
+            // 如果索引中有该年份和城市的数据，则添加到候选列表
+            if (index.yearlyCities[String(y)]?.includes(cityName)) {
+              yearCandidates.push(y)
+            }
           }
 
+          // 构建候选列表：先尝试按年份的文件，最后尝试通用文件
           const candidates = [
             ...yearCandidates.map(y => `/boundaries/${y}/city/${cityName}.json`),
             `/boundaries/city/${cityName}.json`
           ].filter((v, i, a) => a.indexOf(v) === i)
+
+          console.log(`边界文件候选列表 (${cityName}, ${requestedYear}年):`, candidates)
 
           let loaded: any = null
           for (const u of candidates) {

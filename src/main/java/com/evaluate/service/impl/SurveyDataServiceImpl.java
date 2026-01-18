@@ -120,12 +120,6 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                         if (updateResult) {
                             updateCount++;
                             successCount++;
-                            // 同步组织机构（省市区县->organization表，乡镇->grassroots_organization表）
-                            try {
-                                organizationService.syncFromSurveyData(data);
-                            } catch (Exception orgEx) {
-                                log.warn("同步组织机构失败（不影响数据导入）: {}", orgEx.getMessage());
-                            }
                         } else {
                             log.error("更新记录失败，ID：{}，地区代码：{}，年份：{}", existingData.getId(), data.getRegionCode(), data.getYear());
                         }
@@ -137,12 +131,6 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                         if (saveResult) {
                             insertCount++;
                             successCount++;
-                            // 同步组织机构（省市区县->organization表，乡镇->grassroots_organization表）
-                            try {
-                                organizationService.syncFromSurveyData(data);
-                            } catch (Exception orgEx) {
-                                log.warn("同步组织机构失败（不影响数据导入）: {}", orgEx.getMessage());
-                            }
                         } else {
                             log.error("插入记录失败，地区代码：{}，年份：{}", data.getRegionCode(), data.getYear());
                         }

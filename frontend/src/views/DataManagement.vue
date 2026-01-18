@@ -159,25 +159,28 @@
           </template>
         </el-table-column>
         <!-- 市 -->
-        <el-table-column label="市" width="100">
+        <el-table-column label="市/州" width="100">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.city : row.cityName }}
           </template>
         </el-table-column>
         <!-- 县 -->
-        <el-table-column label="县" width="100">
+        <el-table-column label="区/县/市" width="100">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.county : row.countyName }}
           </template>
         </el-table-column>
         <!-- 乡镇 -->
-        <el-table-column label="乡镇" width="120">
+        <el-table-column label="街道/乡镇" width="120">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.township : row.townshipName }}
           </template>
         </el-table-column>
 
-        <!-- 社区(行政村) -->
+        <!-- 社区/行政村 (医疗机构数据) -->
+        <el-table-column v-if="dataType === 'medical'" prop="communityName" label="社区/行政村" width="140" show-overflow-tooltip />
+
+        <!-- 社区(行政村) (社区数据) -->
         <el-table-column v-if="dataType === 'community'" prop="communityName" label="社区(行政村)" width="160" />
 
         <!-- 统一社会信用代码 (仅医疗机构数据) -->
@@ -1498,7 +1501,19 @@ const handleImport = async () => {
     }
 
     if (response.success) {
-      ElMessage.success('导入成功')
+      if (response.warnings && response.warnings.length > 0) {
+        const warningTitle = `导入完成！共处理${response.totalCount || 0}条数据，新增${response.insertCount || 0}条，更新${response.updateCount || 0}条。\n\n以下数据的机构地址未能完整解析省市区街道社区信息：`
+        const warningMessage = response.warnings.slice(0, 10).join('\n') +
+          (response.warnings.length > 10 ? `\n... 等 ${response.warnings.length} 条警告` : '')
+
+        ElMessageBox.alert(warningMessage, warningTitle, {
+          confirmButtonText: '确定',
+          type: 'warning',
+          dangerouslyUseHTMLString: false
+        })
+      } else {
+        ElMessage.success(response.message || '导入成功')
+      }
       dialogVisible.import = false
       getDataList()
     } else {

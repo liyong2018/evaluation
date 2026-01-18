@@ -2,12 +2,16 @@ package com.evaluate.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.evaluate.entity.GrassrootsOrganization;
 import com.evaluate.entity.MedicalInstitution;
+import com.evaluate.mapper.GrassrootsOrganizationMapper;
 import com.evaluate.mapper.MedicalInstitutionMapper;
+import com.evaluate.service.IGrassrootsOrganizationService;
 import com.evaluate.service.IMedicalInstitutionService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -21,6 +25,7 @@ import java.net.URLEncoder;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 医疗卫生机构服务实现类
@@ -42,7 +47,6 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
             List<MedicalInstitution> medicalInstitutions = new ArrayList<>();
             DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-            // 跳过前两行（标题行和说明行），从第3行开始读取数据
             for (int i = 2; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
@@ -50,7 +54,6 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                 try {
                     MedicalInstitution medicalInstitution = new MedicalInstitution();
 
-                    // 解析每一列的数据（根据Excel模板的列顺序）
                     medicalInstitution.setUniqueCode(getCellValueAsString(row.getCell(0)));
                     medicalInstitution.setVerificationStatus(getCellValueAsString(row.getCell(1)));
                     medicalInstitution.setUnifiedSocialCreditCode(getCellValueAsString(row.getCell(2)));
@@ -64,7 +67,6 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                     medicalInstitution.setHospitalLevel(getCellValueAsString(row.getCell(10)));
                     medicalInstitution.setInstitutionNature(getCellValueAsString(row.getCell(11)));
 
-                    // 数值类型字段
                     medicalInstitution.setLandArea(getCellValueAsBigDecimal(row.getCell(12)));
                     medicalInstitution.setBuildingArea(getCellValueAsBigDecimal(row.getCell(13)));
                     medicalInstitution.setEquipmentCountAbove10k(getCellValueAsInteger(row.getCell(14)));
@@ -87,7 +89,6 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                     medicalInstitution.setBloodDeliveryVehicleCount(getCellValueAsInteger(row.getCell(31)));
                     medicalInstitution.setSecurityPersonnelCount(getCellValueAsInteger(row.getCell(32)));
 
-                    // 文本类型字段
                     medicalInstitution.setEmergencyPowerSupply(getCellValueAsString(row.getCell(33)));
                     medicalInstitution.setEmergencyPowerSupplyOther(getCellValueAsString(row.getCell(34)));
                     medicalInstitution.setWaterSupplyMode(getCellValueAsString(row.getCell(35)));
@@ -103,7 +104,6 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                     medicalInstitution.setFormFiller(getCellValueAsString(row.getCell(45)));
                     medicalInstitution.setContactPhone(getCellValueAsString(row.getCell(46)));
 
-                    // 日期类型字段
                     String reportDateStr = getCellValueAsString(row.getCell(47));
                     if (reportDateStr != null && !reportDateStr.isEmpty()) {
                         try {
@@ -115,20 +115,17 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
 
                     medicalInstitution.setFillingInstructions(getCellValueAsString(row.getCell(48)));
 
-                    // 设置年份
                     medicalInstitution.setYear(year);
 
                     medicalInstitutions.add(medicalInstitution);
 
                 } catch (Exception e) {
                     log.error("解析第{}行数据失败: {}", i + 1, e.getMessage());
-                    // 可以选择跳过错误行或抛出异常
                 }
             }
 
             workbook.close();
 
-            // 智能批量保存数据
             if (!medicalInstitutions.isEmpty()) {
                 boolean result = smartBatchSave(medicalInstitutions);
                 log.info("成功导入{}条医疗卫生机构数据", medicalInstitutions.size());
@@ -143,10 +140,219 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         return false;
     }
 
-    /**
-     * 智能批量保存数据：根据 unique_code 和 year 判断是否存在，存在则更新，不存在则插入
-     * 这样可以避免不同年份的数据相互覆盖
-     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public com.evaluate.dto.ImportResultDTO importMedicalInstitutionDataWithResult(MultipartFile file, Integer year) {
+        com.evaluate.dto.ImportResultDTO result = new com.evaluate.dto.ImportResultDTO();
+        result.setSuccess(false);
+
+        try (InputStream inputStream = file.getInputStream()) {
+            Workbook workbook = WorkbookFactory.create(inputStream);
+            Sheet sheet = workbook.getSheetAt(0);
+
+            List<MedicalInstitution> medicalInstitutions = new ArrayList<>();
+            DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+            for (int i = 2; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+
+                try {
+                    MedicalInstitution medicalInstitution = new MedicalInstitution();
+
+                    medicalInstitution.setUniqueCode(getCellValueAsString(row.getCell(0)));
+                    medicalInstitution.setVerificationStatus(getCellValueAsString(row.getCell(1)));
+                    medicalInstitution.setUnifiedSocialCreditCode(getCellValueAsString(row.getCell(2)));
+                    medicalInstitution.setCodeType(getCellValueAsString(row.getCell(3)));
+                    medicalInstitution.setInstitutionName(getCellValueAsString(row.getCell(4)));
+                    medicalInstitution.setInstitutionAddress(getCellValueAsString(row.getCell(5)));
+                    medicalInstitution.setInstitutionCategoryCode(getCellValueAsString(row.getCell(6)));
+                    medicalInstitution.setInstitutionTypeLarge(getCellValueAsString(row.getCell(7)));
+                    medicalInstitution.setInstitutionTypeMedium(getCellValueAsString(row.getCell(8)));
+                    medicalInstitution.setInstitutionTypeSpecialized(getCellValueAsString(row.getCell(9)));
+                    medicalInstitution.setHospitalLevel(getCellValueAsString(row.getCell(10)));
+                    medicalInstitution.setInstitutionNature(getCellValueAsString(row.getCell(11)));
+
+                    medicalInstitution.setLandArea(getCellValueAsBigDecimal(row.getCell(12)));
+                    medicalInstitution.setBuildingArea(getCellValueAsBigDecimal(row.getCell(13)));
+                    medicalInstitution.setEquipmentCountAbove10k(getCellValueAsInteger(row.getCell(14)));
+                    medicalInstitution.setTotalStaff(getCellValueAsInteger(row.getCell(15)));
+                    medicalInstitution.setHealthTechnicalPersonnel(getCellValueAsInteger(row.getCell(16)));
+                    medicalInstitution.setRegisteredNurses(getCellValueAsInteger(row.getCell(17)));
+                    medicalInstitution.setLogisticsSkillPersonnel(getCellValueAsInteger(row.getCell(18)));
+                    medicalInstitution.setAnnualTotalVisits(getCellValueAsInteger(row.getCell(19)));
+                    medicalInstitution.setAnnualAdmissionCount(getCellValueAsInteger(row.getCell(20)));
+                    medicalInstitution.setAnnualDischargeCount(getCellValueAsInteger(row.getCell(21)));
+                    medicalInstitution.setActualHospitalBeds(getCellValueAsInteger(row.getCell(22)));
+                    medicalInstitution.setNegativePressureBeds(getCellValueAsInteger(row.getCell(23)));
+                    medicalInstitution.setIcuBeds(getCellValueAsInteger(row.getCell(24)));
+                    medicalInstitution.setPreHospitalEmergencyPersonnel(getCellValueAsInteger(row.getCell(25)));
+                    medicalInstitution.setEmergencyCommandVehicleCount(getCellValueAsInteger(row.getCell(26)));
+                    medicalInstitution.setTransportAmbulanceCount(getCellValueAsInteger(row.getCell(27)));
+                    medicalInstitution.setMonitorAmbulanceCount(getCellValueAsInteger(row.getCell(28)));
+                    medicalInstitution.setNegativePressureAmbulanceCount(getCellValueAsInteger(row.getCell(29)));
+                    medicalInstitution.setBloodCollectionVehicleCount(getCellValueAsInteger(row.getCell(30)));
+                    medicalInstitution.setBloodDeliveryVehicleCount(getCellValueAsInteger(row.getCell(31)));
+                    medicalInstitution.setSecurityPersonnelCount(getCellValueAsInteger(row.getCell(32)));
+
+                    medicalInstitution.setEmergencyPowerSupply(getCellValueAsString(row.getCell(33)));
+                    medicalInstitution.setEmergencyPowerSupplyOther(getCellValueAsString(row.getCell(34)));
+                    medicalInstitution.setWaterSupplyMode(getCellValueAsString(row.getCell(35)));
+                    medicalInstitution.setHeatingMode(getCellValueAsString(row.getCell(36)));
+                    medicalInstitution.setEmergencyCommunicationMode(getCellValueAsString(row.getCell(37)));
+                    medicalInstitution.setEmergencyCommunicationModeOther(getCellValueAsString(row.getCell(38)));
+                    medicalInstitution.setDisasterHistoryType(getCellValueAsString(row.getCell(39)));
+                    medicalInstitution.setDisasterHistoryTypeOther(getCellValueAsString(row.getCell(40)));
+                    medicalInstitution.setEmergencyPlanType(getCellValueAsString(row.getCell(41)));
+                    medicalInstitution.setEmergencyPlanTypeOther(getCellValueAsString(row.getCell(42)));
+                    medicalInstitution.setUnitLeader(getCellValueAsString(row.getCell(43)));
+                    medicalInstitution.setStatisticalLeader(getCellValueAsString(row.getCell(44)));
+                    medicalInstitution.setFormFiller(getCellValueAsString(row.getCell(45)));
+                    medicalInstitution.setContactPhone(getCellValueAsString(row.getCell(46)));
+
+                    String reportDateStr = getCellValueAsString(row.getCell(47));
+                    if (reportDateStr != null && !reportDateStr.isEmpty()) {
+                        try {
+                            medicalInstitution.setReportDate(LocalDate.parse(reportDateStr, dateFormatter));
+                        } catch (Exception e) {
+                            log.warn("解析报出日期失败: {}", reportDateStr);
+                        }
+                    }
+
+                    medicalInstitution.setFillingInstructions(getCellValueAsString(row.getCell(48)));
+
+                    medicalInstitution.setYear(year);
+
+                    checkAddressParsing(medicalInstitution, result, i + 1);
+
+                    medicalInstitutions.add(medicalInstitution);
+
+                } catch (Exception e) {
+                    log.error("解析第{}行数据失败: {}", i + 1, e.getMessage());
+                    result.addWarning("第" + (i + 1) + "行数据解析失败: " + e.getMessage());
+                }
+            }
+
+            workbook.close();
+
+            result.setTotalCount(medicalInstitutions.size());
+
+            if (!medicalInstitutions.isEmpty()) {
+                BatchSaveResult saveResult = smartBatchSaveWithResult(medicalInstitutions);
+                result.setSuccess(saveResult.successCount == medicalInstitutions.size());
+                result.setSuccessCount(saveResult.successCount);
+                result.setInsertCount(saveResult.insertCount);
+                result.setUpdateCount(saveResult.updateCount);
+                log.info("成功导入{}条医疗卫生机构数据", medicalInstitutions.size());
+            }
+
+        } catch (Exception e) {
+            log.error("导入医疗卫生机构数据失败", e);
+            result.setSuccess(false);
+            result.addWarning("导入失败: " + e.getMessage());
+        }
+
+        return result;
+    }
+
+    private void checkAddressParsing(MedicalInstitution institution,
+                                    com.evaluate.dto.ImportResultDTO result, int rowNum) {
+        String address = institution.getInstitutionAddress();
+        if (!StringUtils.hasText(address)) {
+            result.addWarning("第" + rowNum + "行: 机构地址为空");
+            return;
+        }
+
+        List<String> missingFields = new ArrayList<>();
+
+        if (!StringUtils.hasText(institution.getProvinceName())) {
+            missingFields.add("省");
+        }
+        if (!StringUtils.hasText(institution.getCityName())) {
+            missingFields.add("市");
+        }
+        if (!StringUtils.hasText(institution.getCountyName())) {
+            missingFields.add("区/县");
+        }
+
+        boolean hasTownshipInAddress = address.contains("街道") || address.contains("镇") || address.contains("乡");
+        if (!hasTownshipInAddress && !StringUtils.hasText(institution.getTownshipName())) {
+            missingFields.add("街道/乡镇");
+        }
+
+        boolean hasCommunityInAddress = address.contains("社区") || address.contains("行政村") ||
+                                       address.contains("村") || address.contains("居委会");
+        if (!hasCommunityInAddress && !StringUtils.hasText(institution.getCommunityName())) {
+            missingFields.add("社区/行政村");
+        }
+
+        if (!missingFields.isEmpty()) {
+            String institutionName = StringUtils.hasText(institution.getInstitutionName())
+                ? institution.getInstitutionName() : "未知机构";
+            result.addWarning("第" + rowNum + "行 [" + institutionName + "]: 地址\"" + address +
+                            "\"未能完整解析以下信息: " + String.join("、", missingFields));
+        }
+    }
+
+    private static class BatchSaveResult {
+        int successCount = 0;
+        int insertCount = 0;
+        int updateCount = 0;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public BatchSaveResult smartBatchSaveWithResult(List<MedicalInstitution> dataList) {
+        BatchSaveResult result = new BatchSaveResult();
+        if (dataList == null || dataList.isEmpty()) {
+            log.warn("智能批量保存医疗机构数据失败：数据列表为空");
+            return result;
+        }
+
+        log.info("开始智能批量保存医疗机构数据，共{}条记录", dataList.size());
+        try {
+            for (int i = 0; i < dataList.size(); i++) {
+                MedicalInstitution data = dataList.get(i);
+                try {
+                    log.debug("处理第{}条医疗机构数据，唯一码：{}，年份：{}", i+1, data.getUniqueCode(), data.getYear());
+
+                    QueryWrapper<MedicalInstitution> queryWrapper = new QueryWrapper<>();
+                    queryWrapper.eq("unique_code", data.getUniqueCode())
+                               .eq("year", data.getYear());
+
+                    MedicalInstitution existingData = getOne(queryWrapper);
+
+                    if (existingData != null) {
+                        log.debug("更新现有医疗机构记录，ID：{}，唯一码：{}，年份：{}", existingData.getId(), data.getUniqueCode(), data.getYear());
+                        data.setId(existingData.getId());
+                        boolean updateResult = updateById(data);
+                        if (updateResult) {
+                            result.updateCount++;
+                            result.successCount++;
+                        }
+                    } else {
+                        log.debug("插入新医疗机构记录，唯一码：{}，年份：{}", data.getUniqueCode(), data.getYear());
+                        data.setId(null);
+                        boolean saveResult = save(data);
+                        if (saveResult) {
+                            result.insertCount++;
+                            result.successCount++;
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("处理第{}条医疗机构数据失败，唯一码：{}，年份：{}", i+1, data.getUniqueCode(), data.getYear(), e);
+                    throw e;
+                }
+            }
+
+            log.info("智能批量保存医疗机构数据完成，成功{}条，其中插入{}条，更新{}条",
+                    result.successCount, result.insertCount, result.updateCount);
+        } catch (Exception e) {
+            log.error("智能批量保存医疗机构数据失败", e);
+            throw e;
+        }
+        return result;
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public boolean smartBatchSave(List<MedicalInstitution> dataList) {
         if (dataList == null || dataList.isEmpty()) {
@@ -165,7 +371,6 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                 try {
                     log.debug("处理第{}条医疗机构数据，唯一码：{}，年份：{}", i+1, data.getUniqueCode(), data.getYear());
 
-                    // 根据唯一码和年份查找现有记录
                     QueryWrapper<MedicalInstitution> queryWrapper = new QueryWrapper<>();
                     queryWrapper.eq("unique_code", data.getUniqueCode())
                                .eq("year", data.getYear());
@@ -173,9 +378,8 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                     MedicalInstitution existingData = getOne(queryWrapper);
 
                     if (existingData != null) {
-                        // 记录已存在，更新现有记录
                         log.debug("更新现有医疗机构记录，ID：{}，唯一码：{}，年份：{}", existingData.getId(), data.getUniqueCode(), data.getYear());
-                        data.setId(existingData.getId()); // 保持原有的ID
+                        data.setId(existingData.getId());
                         boolean updateResult = updateById(data);
                         if (updateResult) {
                             updateCount++;
@@ -184,7 +388,6 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                             log.error("更新医疗机构记录失败，ID：{}，唯一码：{}，年份：{}", existingData.getId(), data.getUniqueCode(), data.getYear());
                         }
                     } else {
-                        // 记录不存在，插入新记录（ID为null，会自动生成）
                         log.debug("插入新医疗机构记录，唯一码：{}，年份：{}", data.getUniqueCode(), data.getYear());
                         data.setId(null);
                         boolean saveResult = save(data);
@@ -197,7 +400,7 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                     }
                 } catch (Exception e) {
                     log.error("处理第{}条医疗机构数据失败，唯一码：{}，年份：{}", i+1, data.getUniqueCode(), data.getYear(), e);
-                    throw e; // 重新抛出异常以触发事务回滚
+                    throw e;
                 }
             }
 
@@ -212,10 +415,104 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
     @Override
     public List<MedicalInstitution> getMedicalInstitutionByYear(Integer year, String orgCode) {
         String trimmedOrgCode = StringUtils.hasText(orgCode) ? orgCode.trim() : null;
-        return lambdaQuery()
+        List<MedicalInstitution> institutions = lambdaQuery()
                 .eq(MedicalInstitution::getYear, year)
                 .likeRight(trimmedOrgCode != null, MedicalInstitution::getOrgCode, trimmedOrgCode)
                 .list();
+
+        if (!institutions.isEmpty()) {
+            for (MedicalInstitution institution : institutions) {
+                extractCommunityFromAddress(institution);
+            }
+        }
+
+        return institutions;
+    }
+
+    private void extractCommunityFromAddress(MedicalInstitution institution) {
+        if (institution == null || !StringUtils.hasText(institution.getInstitutionAddress())) {
+            return;
+        }
+
+        if (StringUtils.hasText(institution.getCommunityName())) {
+            return;
+        }
+
+        String address = institution.getInstitutionAddress().trim().replaceAll("\\s+", "");
+        if (!StringUtils.hasText(address)) {
+            return;
+        }
+
+        String suffixGroup = "(社区居民委员会|社区居委会|居民委员会|居委会|村民委员会|村委会|行政村|社区|村)";
+
+        String base = null;
+        String suffix = null;
+
+        java.util.regex.Pattern p1 = java.util.regex.Pattern.compile("(?:省|市|县|区|镇|乡|街道|办事处)([\\u4e00-\\u9fff]{2,20})" + suffixGroup);
+        java.util.regex.Matcher m1 = p1.matcher(address);
+        while (m1.find()) {
+            base = m1.group(1);
+            suffix = m1.group(2);
+        }
+
+        if (!StringUtils.hasText(base) || !StringUtils.hasText(suffix)) {
+            java.util.regex.Pattern p2 = java.util.regex.Pattern.compile("([\\u4e00-\\u9fff]{2,20})" + suffixGroup);
+            java.util.regex.Matcher m2 = p2.matcher(address);
+            while (m2.find()) {
+                base = m2.group(1);
+                suffix = m2.group(2);
+            }
+        }
+
+        if (!StringUtils.hasText(base) || !StringUtils.hasText(suffix)) {
+            return;
+        }
+
+        String normalized = normalizeCommunityOrVillageName(base, suffix);
+        if (StringUtils.hasText(normalized)) {
+            institution.setCommunityName(normalized);
+        }
+    }
+
+    private String normalizeCommunityOrVillageName(String base, String suffix) {
+        if (!StringUtils.hasText(base) || !StringUtils.hasText(suffix)) {
+            return null;
+        }
+
+        String trimmedBase = base.trim();
+        String[] separators = new String[] { "办事处", "街道", "镇", "乡", "区", "县", "市", "省" };
+        for (String sep : separators) {
+            int idx = trimmedBase.lastIndexOf(sep);
+            if (idx >= 0) {
+                trimmedBase = trimmedBase.substring(idx + sep.length()).trim();
+            }
+        }
+
+        if (!StringUtils.hasText(trimmedBase)) {
+            return null;
+        }
+
+        if ("社区居民委员会".equals(suffix) || "社区居委会".equals(suffix) || "居民委员会".equals(suffix) || "居委会".equals(suffix)) {
+            return trimmedBase.endsWith("社区") ? trimmedBase : trimmedBase + "社区";
+        }
+
+        if ("村民委员会".equals(suffix) || "村委会".equals(suffix)) {
+            return trimmedBase.endsWith("村") ? trimmedBase : trimmedBase + "村";
+        }
+
+        if ("行政村".equals(suffix)) {
+            return trimmedBase.endsWith("村") ? trimmedBase : trimmedBase + "村";
+        }
+
+        if ("社区".equals(suffix)) {
+            return trimmedBase.endsWith("社区") ? trimmedBase : trimmedBase + "社区";
+        }
+
+        if ("村".equals(suffix)) {
+            return trimmedBase.endsWith("村") ? trimmedBase : trimmedBase + "村";
+        }
+
+        return trimmedBase + suffix;
     }
 
     @Override
