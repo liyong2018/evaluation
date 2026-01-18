@@ -237,12 +237,16 @@ public class OrganizationController {
      */
     @PutMapping
     public Result<Boolean> update(@RequestBody Organization organization) {
-        log.info("更新组织机构，ID: {}", organization.getId());
+        log.info("更新组织机构，ID: {}, code: {}, name: {}, year: {}, level: {}",
+                organization.getId(), organization.getCode(), organization.getName(),
+                organization.getYear(), organization.getLevel());
         try {
             boolean success = organizationService.updateOrganization(organization);
+            log.info("更新组织机构{}，ID: {}", success ? "成功" : "失败", organization.getId());
             return success ? Result.success(true) : Result.error("更新失败");
         } catch (Exception e) {
-            log.error("更新组织机构失败", e);
+            log.error("更新组织机构失败: ID={}, code={}, name={}, year={}",
+                    organization.getId(), organization.getCode(), organization.getName(), organization.getYear(), e);
             return Result.error("更新失败: " + e.getMessage());
         }
     }

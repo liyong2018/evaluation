@@ -1058,7 +1058,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 ));
 
         context.put("surveyDataMap", surveyDataMap);
-        context.put("surveyDataList", surveyDataList);
+        // 注意：不添加 surveyDataList 到上下文，避免大量数据复制导致性能问题
+        // 如需访问所有乡镇数据，请使用 surveyDataMap
 
         log.info("加载乡镇基础数据：{} 条记录，年份：{}", surveyDataList.size(), year);
     }
@@ -1086,7 +1087,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 ));
 
         context.put("communityDataMap", communityDataMap);
-        context.put("communityDataList", communityDataList);
+        // 注意：不添加 communityDataList 到上下文，避免大量数据复制导致性能问题
+        // 如需访问所有社区数据，请使用 communityDataMap
 
         log.info("加载社区基础数据：{} 条记录，年份：{}", communityDataList.size(), year);
     }

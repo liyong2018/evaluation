@@ -25,12 +25,13 @@ public interface IMedicalInstitutionService extends IService<MedicalInstitution>
     boolean importMedicalInstitutionData(MultipartFile file, Integer year);
 
     /**
-     * 根据年份获取医疗卫生机构数据列表
+     * 根据年份和组织机构代码获取医疗卫生机构数据列表
      *
      * @param year 年份
+     * @param orgCode 组织机构代码
      * @return 数据列表
      */
-    List<MedicalInstitution> getMedicalInstitutionByYear(Integer year);
+    List<MedicalInstitution> getMedicalInstitutionByYear(Integer year, String orgCode);
 
     /**
      * 根据机构名称搜索医疗卫生机构数据
@@ -81,10 +82,12 @@ public interface IMedicalInstitutionService extends IService<MedicalInstitution>
     Integer sumActualHospitalBedsByTownship(String townshipAddress, Integer year);
 
     /**
-     * 检查指定年份是否有任何医疗设施数据
+     * 检查指定年份是否存在任何医疗卫生机构数据
      *
-     * @param year 数据年份
-     * @return 如果有数据返回true，否则返回false
+     * @param year 年份
+     * @return 是否存在
      */
     boolean hasAnyDataForYear(Integer year);
+
 }
+

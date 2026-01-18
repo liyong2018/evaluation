@@ -116,7 +116,11 @@
         INNER JOIN model_execution_record mer ON er.execution_record_id = mer.id
         WHERE er.evaluation_model_id = #{modelId}
         AND mer.year = #{year}
-        AND mer.org_code = #{orgCode}
+        AND (
+            (mer.org_code IS NOT NULL AND mer.org_code = #{orgCode})
+            OR (er.org_code IS NOT NULL AND er.org_code = #{orgCode})
+            OR (er.region_code IS NOT NULL AND er.region_code LIKE CONCAT(#{orgCode}, '%'))
+        )
         AND er.is_deleted = 0
         ORDER BY er.create_time DESC
     </select>

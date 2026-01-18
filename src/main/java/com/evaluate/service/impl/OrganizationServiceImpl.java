@@ -144,11 +144,24 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     @Transactional(rollbackFor = Exception.class)
     public void syncFromCommunityData(CommunityDisasterReductionCapacity community) {
         if (community == null || !StringUtils.hasText(community.getRegionCode())) {
+            log.warn("跳过同步：community为null或regionCode为空");
             return;
         }
 
         String regionCode = community.getRegionCode().trim();
         Integer year = community.getYear();
+
+        log.info("开始同步社区组织机构：regionCode={}, communityName={}, year={}, " +
+                "province={}, city={}, county={}, township={}",
+                regionCode, community.getCommunityName(), year,
+                community.getProvinceName(), community.getCityName(),
+                community.getCountyName(), community.getTownshipName());
+
+        // 检查必填字段
+        if (!StringUtils.hasText(community.getCommunityName())) {
+            log.warn("跳过同步：社区名称为空。regionCode={}", regionCode);
+            return;
+        }
 
         try {
             // 省、市、县使用 organization 表
@@ -195,30 +208,41 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             );
 
             if (county == null) {
-                log.warn("无法同步组织机构数据：区县不存在。regionCode={}, countyName={}, year={}",
+                log.error("无法同步组织机构数据：区县创建失败。regionCode={}, countyName={}, year={}",
                     regionCode, community.getCountyName(), year);
                 return;
             }
 
-            // 乡镇和社区使用 grassroots_organization 表
-            GrassrootsOrganization township = ensureGrassrootsOrganization(
-                    extractCode(regionCode, 9),
-                    community.getTownshipName(),
-                    LEVEL_TOWNSHIP,
-                    SOURCE_COMMUNITY,
-                    county.getId(),
-                    null,
-                    community.getProvinceName(),
-                    community.getCityName(),
-                    community.getCountyName(),
-                    community.getTownshipName(),
-                    null,
-                    year
-            );
+            log.info("区县组织机构创建成功：countyId={}, countyName={}, year={}",
+                    county.getId(), county.getName(), year);
 
-            if (township == null) {
-                log.warn("无法同步社区组织机构：乡镇不存在。regionCode={}, townshipName={}, year={}",
-                    regionCode, community.getTownshipName(), year);
+            // 乡镇和社区使用 grassroots_organization 表
+            GrassrootsOrganization township = null;
+            if (StringUtils.hasText(community.getTownshipName())) {
+                township = ensureGrassrootsOrganization(
+                        extractCode(regionCode, 9),
+                        community.getTownshipName(),
+                        LEVEL_TOWNSHIP,
+                        SOURCE_COMMUNITY,
+                        county.getId(),
+                        null,
+                        community.getProvinceName(),
+                        community.getCityName(),
+                        community.getCountyName(),
+                        community.getTownshipName(),
+                        null,
+                        year
+                );
+
+                if (township != null) {
+                    log.info("乡镇组织机构创建成功：townshipId={}, townshipName={}, year={}",
+                            township.getId(), township.getName(), year);
+                } else {
+                    log.warn("乡镇组织机构创建失败：townshipName={}, year={}",
+                            community.getTownshipName(), year);
+                }
+            } else {
+                log.warn("乡镇名称为空，跳过乡镇创建。regionCode={}, year={}", regionCode, year);
             }
 
             GrassrootsOrganization communityOrg = ensureGrassrootsOrganization(
@@ -226,7 +250,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                     community.getCommunityName(),
                     LEVEL_COMMUNITY,
                     SOURCE_COMMUNITY,
-                    null,
+                    county.getId(),
                     township != null ? township.getId() : null,
                     community.getProvinceName(),
                     community.getCityName(),
@@ -237,10 +261,11 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             );
 
             if (communityOrg != null) {
-                log.debug("成功同步社区组织机构：code={}, name={}, township={}, year={}",
-                    regionCode, community.getCommunityName(), community.getTownshipName(), year);
+                log.info("成功同步社区组织机构：communityId={}, code={}, name={}, parentId={}, countyId={}, year={}",
+                        communityOrg.getId(), regionCode, community.getCommunityName(),
+                        communityOrg.getParentId(), communityOrg.getCountyId(), year);
             } else {
-                log.warn("社区组织机构同步失败：code={}, name={}, year={}",
+                log.error("社区组织机构同步失败：code={}, name={}, year={}",
                     regionCode, community.getCommunityName(), year);
             }
         } catch (Exception e) {
@@ -574,10 +599,14 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 existing.setCountyId(countyId);
                 needUpdate = true;
             }
-            // 确保 is_baseline 字段正确设置
-            int expectedIsBaseline = year != null ? 0 : 1;
+            int expectedIsBaseline = (year == null || year == 2020) ? 1 : 0;
             if (existing.getIsBaseline() == null || existing.getIsBaseline() != expectedIsBaseline) {
                 existing.setIsBaseline(expectedIsBaseline);
+                needUpdate = true;
+            }
+            String expectedBaselineCode = normalizedCode;
+            if (!StringUtils.hasText(existing.getBaselineCode()) || !expectedBaselineCode.equals(existing.getBaselineCode())) {
+                existing.setBaselineCode(expectedBaselineCode);
                 needUpdate = true;
             }
             if (needUpdate) {
@@ -596,8 +625,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         org.setDataSource(source);
         org.setCountyId(countyId);
         org.setParentId(parentId);
-        // 设置 is_baseline：有年份则为年度数据(0)，否则为基准数据(1)
-        org.setIsBaseline(year != null ? 0 : 1);
+        org.setIsBaseline((year == null || year == 2020) ? 1 : 0);
+        org.setBaselineCode(normalizedCode);
         org.setProvinceName(StringUtils.hasText(provinceName) ? provinceName.trim() : null);
         org.setCityName(StringUtils.hasText(cityName) ? cityName.trim() : null);
         org.setCountyName(StringUtils.hasText(countyName) ? countyName.trim() : null);
@@ -711,8 +740,18 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     @Override
     public List<Map<String, Object>> getOrganizationTree(Long parentId, Integer maxLevel, Integer year) {
         try {
+            log.info("getOrganizationTree: parentId={}, maxLevel={}, year={}", parentId, maxLevel, year);
             // 增量存储查询逻辑：当年份记录 + 基准记录
             List<Organization> allOrganizations = getOrganizationsWithBaseline(parentId, maxLevel, year);
+
+            log.info("getOrganizationTree: 查询到{}条组织记录", allOrganizations.size());
+
+            // 诊断：打印前几条记录的详情
+            for (int i = 0; i < Math.min(5, allOrganizations.size()); i++) {
+                Organization org = allOrganizations.get(i);
+                log.info("组织记录[{}]: id={}, code={}, name={}, year={}, isBaseline={}",
+                        i, org.getId(), org.getCode(), org.getName(), org.getYear(), org.getIsBaseline());
+            }
 
             // When parentId is null, start building from root (parent_id = 0 or null)
             // When parentId is provided, start building from that parent
@@ -844,9 +883,9 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
         // 检查该年份是否有数据（包括变更记录或基准记录）
         checkWrapper.and(wrapper -> wrapper
-                .and(w -> w.eq("year", year).eq("is_baseline", 0))
+                .eq("year", year).eq("is_baseline", 0)
                 .or()
-                .and(w -> w.eq("year", year).eq("is_baseline", 1))
+                .eq("year", year).eq("is_baseline", 1)
         );
 
         long count = count(checkWrapper);
@@ -1392,9 +1431,39 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
         List<Organization> deduped = deduplicateOrganizationsByCode(organizations);
 
+        // 为了修复parent_id映射问题，需要查询所有基准记录来建立ID映射
+        // 因为子组织的parent_id可能指向基准记录ID，而merged数据中是年份记录ID
+        Map<Long, Long> baselineIdToYearIdMap = new HashMap<>();
+        for (Organization org : deduped) {
+            if (org.getYear() != null && org.getIsBaseline() != null && org.getIsBaseline() == 0) {
+                // 这是一个年份记录，查找对应基准记录的ID
+                // 通过baseline_code查找基准记录
+                if (org.getBaselineCode() != null) {
+                    QueryWrapper<Organization> qw = new QueryWrapper<>();
+                    qw.eq("code", org.getBaselineCode());
+                    qw.eq("is_baseline", 1);
+                    Organization baseline = baseMapper.selectOne(qw);
+                    if (baseline != null && baseline.getId() != null) {
+                        baselineIdToYearIdMap.put(baseline.getId(), org.getId());
+                    }
+                }
+            }
+        }
+
+        log.info("buildTree: 基准ID到年份ID映射数量={}", baselineIdToYearIdMap.size());
+
         Map<Long, List<Organization>> parentMap = deduped.stream()
                 .collect(Collectors.groupingBy(
-                        org -> org.getParentId() != null ? org.getParentId() : 0L
+                        org -> {
+                            Long pid = org.getParentId() != null ? org.getParentId() : 0L;
+                            // 如果parent_id指向基准记录，需要映射到年份记录ID
+                            if (pid != 0 && baselineIdToYearIdMap.containsKey(pid)) {
+                                Long mappedId = baselineIdToYearIdMap.get(pid);
+                                log.debug("parent_id映射: {} -> {}", pid, mappedId);
+                                return mappedId;
+                            }
+                            return pid;
+                        }
                 ));
 
         Set<String> emittedCodes = new HashSet<>();
@@ -1567,18 +1636,35 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     @Transactional(rollbackFor = Exception.class)
     public boolean updateOrganization(Organization organization) {
         try {
+            log.info("updateOrganization 开始: id={}, name={}, code={}, year={}, level={}",
+                    organization.getId(), organization.getName(), organization.getCode(),
+                    organization.getYear(), organization.getLevel());
+
             // 检查是否存在
             Organization existing = getById(organization.getId());
             if (existing == null) {
                 throw new RuntimeException("组织机构不存在: " + organization.getId());
             }
 
+            log.info("existing记录: id={}, name={}, code={}, year={}, isBaseline={}, level={}",
+                    existing.getId(), existing.getName(), existing.getCode(),
+                    existing.getYear(), existing.getIsBaseline(), existing.getLevel());
+
             // 检查是否是基准记录
             boolean isBaseline = existing.getIsBaseline() != null && existing.getIsBaseline() == 1;
             Integer updateYear = organization.getYear();
 
+            log.info("isBaseline={}, updateYear={}, 条件判断: isBaseline={}, updateYear.equals(existing.getYear())={}",
+                    isBaseline, updateYear, isBaseline && (updateYear == null || updateYear.equals(existing.getYear())),
+                    updateYear != null && updateYear.equals(existing.getYear()));
+
+            // 记录名称是否发生变化，用于级联更新
+            boolean nameChanged = organization.getName() != null && !organization.getName().equals(existing.getName());
+
             // 如果更新基准记录（2020年或其他基准年），允许直接更新
             if (updateYear == null || (isBaseline && updateYear.equals(existing.getYear()))) {
+                log.info("执行基准记录更新分支: updateYear={}, isBaseline={}, existing.year={}",
+                        updateYear, isBaseline, existing.getYear());
                 // 如果修改了编码，检查新编码是否已被其他记录使用
                 if (!existing.getCode().equals(organization.getCode())) {
                     QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
@@ -1589,25 +1675,49 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                         throw new RuntimeException("组织机构编码已存在: " + organization.getCode());
                     }
                 }
-                return updateById(organization);
+                boolean result = updateById(organization);
+                log.info("基准记录更新结果: {}", result);
+
+                // 如果名称发生变化，级联更新基层组织的父级名称字段
+                if (result && nameChanged) {
+                    cascadeUpdateGrassrootsOrganizationParentNames(existing, organization.getName(), existing.getLevel(), null);
+                }
+
+                return result;
             }
 
             // 更新非基准年数据：创建或更新年度变更记录，不修改基准记录
             if (updateYear != null && !updateYear.equals(existing.getYear())) {
+                log.info("执行年份记录创建/更新分支: updateYear={}, existing.year={}, existing.code={}",
+                        updateYear, existing.getYear(), existing.getCode());
                 // 检查是否已存在该年度的变更记录
                 QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
                 queryWrapper.eq("code", existing.getCode());
                 queryWrapper.eq("year", updateYear);
                 Organization yearRecord = baseMapper.selectOne(queryWrapper);
 
+                log.info("查询年份记录结果: {}", yearRecord != null ? "找到记录, id=" + yearRecord.getId() : "未找到记录");
+
                 if (yearRecord != null) {
                     // 更新现有年度记录
+                    log.info("更新现有年份记录: id={}, name={}", yearRecord.getId(), yearRecord.getName());
+                    String oldName = yearRecord.getName();
                     organization.setId(yearRecord.getId());
                     organization.setIsBaseline(0);
                     organization.setBaselineCode(existing.getCode());
-                    return updateById(organization);
+                    boolean result = updateById(organization);
+                    log.info("年份记录更新结果: {}", result);
+
+                    // 如果名称发生变化，级联更新该年份基层组织的父级名称字段
+                    if (result && organization.getName() != null && !organization.getName().equals(oldName)) {
+                        cascadeUpdateGrassrootsOrganizationParentNames(yearRecord, organization.getName(), yearRecord.getLevel(), updateYear);
+                    }
+
+                    return result;
                 } else {
                     // 创建新的年度变更记录
+                    log.info("创建新的年份变更记录: code={}, year={}, name={}",
+                            existing.getCode(), updateYear, organization.getName());
                     Organization newYearOrg = new Organization();
                     newYearOrg.setCode(existing.getCode());
                     newYearOrg.setName(organization.getName() != null ? organization.getName() : existing.getName());
@@ -1622,15 +1732,93 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                     newYearOrg.setCountyName(organization.getCountyName() != null ? organization.getCountyName() : existing.getCountyName());
                     newYearOrg.setTownshipName(organization.getTownshipName() != null ? organization.getTownshipName() : existing.getTownshipName());
                     newYearOrg.setCommunityName(organization.getCommunityName() != null ? organization.getCommunityName() : existing.getCommunityName());
-                    return save(newYearOrg);
+                    boolean result = save(newYearOrg);
+                    log.info("新建年份记录结果: {}, id={}", result, newYearOrg.getId());
+                    return result;
                 }
             }
 
             // 如果更新的是同年度记录，直接更新
-            return updateById(organization);
+            log.info("执行同年度记录更新分支");
+            boolean result = updateById(organization);
+            log.info("同年度记录更新结果: {}", result);
+
+            // 如果名称发生变化，级联更新该年份基层组织的父级名称字段
+            if (result && nameChanged) {
+                cascadeUpdateGrassrootsOrganizationParentNames(existing, organization.getName(), existing.getLevel(), existing.getYear());
+            }
+
+            return result;
         } catch (Exception e) {
             log.error("更新组织机构失败: {}", organization.getId(), e);
             throw e;
+        }
+    }
+
+    /**
+     * 级联更新基层组织的父级名称字段
+     * 当组织机构名称发生变化时，更新对应的基层组织记录中的父级名称
+     *
+     * @param oldOrganization 原组织机构（包含旧名称）
+     * @param newName 新名称
+     * @param level 组织级别
+     * @param year 年份（null表示基准记录，只更新基准记录；非null只更新该年度的记录）
+     */
+    private void cascadeUpdateGrassrootsOrganizationParentNames(Organization oldOrganization, String newName, int level, Integer year) {
+        try {
+            String trimmedNewName = newName.trim();
+            if (!StringUtils.hasText(trimmedNewName)) {
+                return;
+            }
+
+            // 只对区县级（level=3）进行级联更新
+            if (level != 3) {
+                log.debug("级别 {} 不需要级联更新基层组织父级名称", level);
+                return;
+            }
+
+            // 查询需要更新的基层组织记录
+            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("county_id", oldOrganization.getId());
+
+            // 根据年份参数决定更新范围
+            if (year != null) {
+                // 只更新指定年份的记录（包括该年份的变更记录和基准记录）
+                queryWrapper.and(wrapper -> wrapper
+                        .and(w -> w.eq("year", year).eq("is_baseline", 0))
+                        .or().eq("is_baseline", 1)
+                );
+            } else {
+                // 只更新基准记录
+                queryWrapper.eq("is_baseline", 1);
+            }
+
+            List<GrassrootsOrganization> grassrootsOrgs = grassrootsOrganizationMapper.selectList(queryWrapper);
+            if (grassrootsOrgs == null || grassrootsOrgs.isEmpty()) {
+                log.debug("没有找到需要更新父级名称的基层组织记录: countyId={}, year={}", oldOrganization.getId(), year);
+                return;
+            }
+
+            // 批量更新
+            int updatedCount = 0;
+            for (GrassrootsOrganization org : grassrootsOrgs) {
+                if (trimmedNewName.equals(org.getCountyName())) {
+                    continue; // 名称相同，跳过
+                }
+
+                GrassrootsOrganization updateOrg = new GrassrootsOrganization();
+                updateOrg.setId(org.getId());
+                updateOrg.setCountyName(trimmedNewName);
+                grassrootsOrganizationMapper.updateById(updateOrg);
+                updatedCount++;
+            }
+
+            log.info("级联更新基层组织父级名称: countyId={}, newName={}, year={}, 更新数量={}",
+                    oldOrganization.getId(), trimmedNewName, year, updatedCount);
+        } catch (Exception e) {
+            log.error("级联更新基层组织父级名称失败: countyId={}, newName={}, year={}",
+                    oldOrganization.getId(), newName, year, e);
+            // 不抛出异常，避免影响主流程
         }
     }
 

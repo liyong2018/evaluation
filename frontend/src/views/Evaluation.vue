@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="evaluation">
     <!-- 页面标题 -->
     <div class="page-header">
@@ -1010,37 +1010,38 @@ const restoreOrganizationSelection = async (storedOrg: any) => {
   try {
     console.log('尝试恢复组织机构:', storedOrg)
 
-    // 优先使用 provinceName，如果没有则尝试从 name 中推断
-    let targetProvinceName = storedOrg.provinceName
-
-    // 兼容旧数据格式：如果没有 provinceName，尝试通过省份列表匹配
-    if (!targetProvinceName && storedOrg.name) {
-      for (const province of provinces.value) {
-        if (storedOrg.name.includes(province.name)) {
-          targetProvinceName = province.name
-          console.log('从 name 推断出省份:', targetProvinceName)
-          break
-        }
-      }
-    }
-
-    // 如果仍然找不到省份，使用默认省份（四川）
-    if (!targetProvinceName) {
-      const sichuanProvince = provinces.value.find(p => p.name === '四川')
-      if (sichuanProvince) {
-        targetProvinceName = '四川'
-        console.log('使用默认省份: 四川')
-      }
-    }
+    let targetProvinceName: string | null = storedOrg?.provinceName ?? null
 
     if (targetProvinceName) {
-      const matchedProvince = provinces.value.find(p => p.name === targetProvinceName)
-      if (matchedProvince) {
-        await handleProvinceChange(matchedProvince.name)
-      }
-    } else {
-      console.warn('没有可用的省份，无法恢复组织机构')
+      const targetNormalized = String(targetProvinceName).replace(/省$/, '')
+      const matchedProvince = provinces.value.find((p: any) => {
+        const pName = String(p?.name ?? '')
+        const pNormalized = pName.replace(/省$/, '')
+        return pName === targetProvinceName || pNormalized === targetNormalized
+      })
+      targetProvinceName = matchedProvince?.name ?? null
     }
+
+    if (!targetProvinceName && storedOrg?.name) {
+      const matchedProvince = provinces.value.find((p: any) => String(storedOrg.name).includes(String(p?.name ?? '')))
+      targetProvinceName = matchedProvince?.name ?? null
+    }
+
+    if (!targetProvinceName) {
+      const sichuan = provinces.value.find((p: any) => String(p?.name ?? '').replace(/省$/, '') === '四川')
+      targetProvinceName = sichuan?.name ?? null
+    }
+
+    if (!targetProvinceName && provinces.value.length > 0) {
+      targetProvinceName = (provinces.value as any[])[0].name
+    }
+
+    if (!targetProvinceName) {
+      console.warn('没有可用的省份，无法恢复组织机构')
+      return
+    }
+
+    await handleProvinceChange(targetProvinceName)
   } catch (error) {
     console.error('恢复组织机构选择失败:', error)
   }
@@ -1079,16 +1080,27 @@ const getProvinces = async (autoSelect = true) => {
         return
       }
 
-      // 优先从全局 store 恢复组织机构选择
       const storedOrg = globalOrganizationStore.selectedOrganization
-      let targetProvinceName = null
+      let targetProvinceName: string | null = null
 
-      if (storedOrg && storedOrg.name) {
-        // 尝试从存储的组织机构名称中找到匹配的省份
-        const matchedProvince = provinces.value.find((p: any) => p.name === storedOrg.name || storedOrg.name.includes(p.name))
+      if (storedOrg?.provinceName) {
+        const storedNormalized = String(storedOrg.provinceName).replace(/省$/, '')
+        const matchedProvince = provinces.value.find((p: any) => {
+          const provinceName = String(p?.name ?? '')
+          const provinceNormalized = provinceName.replace(/省$/, '')
+          return provinceName === storedOrg.provinceName || provinceNormalized === storedNormalized
+        })
         if (matchedProvince) {
           targetProvinceName = matchedProvince.name
           console.log('从全局 store 恢复省份:', targetProvinceName)
+        }
+      }
+
+      if (!targetProvinceName && storedOrg?.name) {
+        const matchedProvince = provinces.value.find((p: any) => String(storedOrg.name).includes(String(p?.name ?? '')))
+        if (matchedProvince) {
+          targetProvinceName = matchedProvince.name
+          console.log('从全局 store 推断省份:', targetProvinceName)
         }
       }
 
@@ -1133,22 +1145,51 @@ const handleProvinceChange = async (provinceName: string) => {
         cities.value = response.data || []
         console.log('获取到城市列表:', cities.value)
 
-        // 优先从全局 store 恢复城市选择
         const storedOrg = globalOrganizationStore.selectedOrganization
-        let targetCityName = null
+        let targetCityName: string | null = null
 
         if (storedOrg) {
           console.log('尝试从全局 store 恢复城市, storedOrg:', storedOrg)
-          // 优先使用 cityName，兼容旧数据格式使用 name
           const cityToMatch = storedOrg.cityName || storedOrg.name
           console.log('要匹配的城市名称:', cityToMatch, '可用城市列表:', cities.value.map((c: any) => c.name))
           if (cityToMatch) {
-            const matchedCity = cities.value.find((c: any) => c.name === cityToMatch || cityToMatch.includes(c.name))
+            const matchedCity = cities.value.find((c: any) => c.name === cityToMatch || String(cityToMatch).includes(String(c.name)))
             if (matchedCity) {
               targetCityName = matchedCity.name
               console.log('从全局 store 恢复城市:', targetCityName)
             } else {
               console.warn('未找到匹配的城市:', cityToMatch)
+            }
+          }
+        }
+
+        if (!targetCityName && storedOrg?.code && cities.value.length > 0) {
+          const raw = String(storedOrg.code)
+          const countyCodeToFind = /^\d{6,}/.test(raw) ? raw.substring(0, 6) : null
+          const countyNameToFind = storedOrg.countyName || storedOrg.name
+          if (countyCodeToFind || countyNameToFind) {
+            for (const city of cities.value as any[]) {
+              try {
+                const countiesResp = await regionDataApi.getCounties(evaluationForm.dataType, provinceName, city.name, evaluationForm.year)
+                if (countiesResp.code === 200) {
+                  const list = countiesResp.data || []
+                  const found = list.find((c: any) => {
+                    const cCode = c?.code != null ? String(c.code) : ''
+                    const cName = c?.name != null ? String(c.name) : ''
+                    const cCode6 = /^\d{6,}/.test(cCode) ? cCode.substring(0, 6) : cCode
+                    if (countyCodeToFind && cCode6 === countyCodeToFind) return true
+                    if (countyNameToFind && (cName === countyNameToFind || String(countyNameToFind).includes(cName))) return true
+                    return false
+                  })
+                  if (found) {
+                    targetCityName = city.name
+                    console.log('通过区县定位到城市:', targetCityName)
+                    break
+                  }
+                }
+              } catch (e) {
+                console.warn('通过区县定位城市失败:', city?.name, e)
+              }
             }
           }
         }
@@ -1198,22 +1239,35 @@ const handleCityChange = async (cityName: string) => {
         counties.value = response.data || []
         console.log('获取到区县列表:', counties.value)
 
-        // 优先从全局 store 恢复区县选择
         const storedOrg = globalOrganizationStore.selectedOrganization
-        let targetCountyCode = null
+        let targetCountyCode: any = null
 
         if (storedOrg) {
           console.log('尝试从全局 store 恢复区县, storedOrg:', storedOrg)
-          // 优先使用 countyName，兼容旧数据格式使用 name
-          const countyToMatch = storedOrg.countyName || storedOrg.name
-          console.log('要匹配的区县名称:', countyToMatch, '可用区县列表:', counties.value.map((c: any) => c.name))
-          if (countyToMatch) {
-            const matchedCounty = counties.value.find((c: any) => c.name === countyToMatch || countyToMatch.includes(c.name))
-            if (matchedCounty) {
-              targetCountyCode = matchedCounty.code
-              console.log('从全局 store 恢复区县:', targetCountyCode)
+          const rawCode = storedOrg.code != null ? String(storedOrg.code) : ''
+          const countyCodeToMatch = /^\d{6,}/.test(rawCode) ? rawCode.substring(0, 6) : rawCode
+          const countyNameToMatch = storedOrg.countyName || storedOrg.name
+
+          if (countyCodeToMatch) {
+            const matchedByCode = counties.value.find((c: any) => {
+              const cCode = c?.code != null ? String(c.code) : ''
+              const cCode6 = /^\d{6,}/.test(cCode) ? cCode.substring(0, 6) : cCode
+              return cCode6 === countyCodeToMatch
+            })
+            if (matchedByCode) {
+              targetCountyCode = matchedByCode.code
+              console.log('从全局 store 恢复区县(按code):', targetCountyCode)
+            }
+          }
+
+          if (!targetCountyCode && countyNameToMatch) {
+            console.log('要匹配的区县名称:', countyNameToMatch, '可用区县列表:', counties.value.map((c: any) => c.name))
+            const matchedByName = counties.value.find((c: any) => c.name === countyNameToMatch || String(countyNameToMatch).includes(String(c.name)))
+            if (matchedByName) {
+              targetCountyCode = matchedByName.code
+              console.log('从全局 store 恢复区县(按name):', targetCountyCode)
             } else {
-              console.warn('未找到匹配的区县:', countyToMatch)
+              console.warn('未找到匹配的区县:', countyNameToMatch)
             }
           }
         }
@@ -2918,91 +2972,24 @@ const setDefaultValues = async () => {
     evaluationForm.modelId = evaluationModels.value[0].id
   }
 
-  // 等待省份数据加载完成后再设置默认地区
-  await getProvinces()
+  await getProvinces(false)
 
-  // 优先使用全局 store 中保存的组织机构
   const storedOrg = globalOrganizationStore.selectedOrganization
-
-  if (storedOrg && (storedOrg.provinceName || storedOrg.name)) {
-    // 从全局 store 中恢复组织机构选择
+  if (storedOrg) {
     console.log('从全局 store 恢复组织机构:', storedOrg)
-
-    // 优先使用 provinceName，如果没有则尝试从 name 中推断
-    let targetProvinceName = storedOrg.provinceName
-
-    // 兼容旧数据格式：如果没有 provinceName，尝试通过省份列表匹配
-    if (!targetProvinceName && storedOrg.name) {
-      for (const province of provinces.value) {
-        if (storedOrg.name.includes(province.name)) {
-          targetProvinceName = province.name
-          console.log('从 name 推断出省份:', targetProvinceName)
-          break
-        }
-      }
-    }
-
-    // 如果找到了省份，使用它；否则使用默认值
-    if (targetProvinceName) {
-      const matchedProvince = provinces.value.find(p => p.name === targetProvinceName)
-      if (matchedProvince) {
-        console.log('找到匹配的省份:', matchedProvince.name)
-        // 选择该省份，handleProvinceChange 会自动处理城市和区县的恢复
-        await handleProvinceChange(matchedProvince.name)
-        return
-      }
-    }
-
-    // 没找到匹配的省份
-    console.warn('未找到匹配的省份，使用默认值')
-    setDefaultQingshen()
-  } else {
-    // 没有保存的组织机构，使用默认值（四川-眉山-青神县）
-    setDefaultQingshen()
+    await restoreOrganizationSelection(storedOrg)
+    return
   }
-}
 
-// 设置默认地区为四川-眉山-青神县
-const setDefaultQingshen = () => {
   if (provinces.value.length > 0) {
-    // 查找四川省
-    const sichuanProvince = provinces.value.find(p => p.name === '四川')
-    if (sichuanProvince) {
-      evaluationForm.selectedProvince = sichuanProvince.name
-      // 获取四川省下的城市
-      handleProvinceChange(sichuanProvince.name)
-
-      // 查找眉山市
-      setTimeout(async () => {
-        const meishanCity = cities.value.find(c => c.name === '眉山')
-        if (meishanCity) {
-          evaluationForm.selectedCity = meishanCity.name
-          // 获取眉山市下的区县
-          await handleCityChange(meishanCity.name)
-
-          // 查找青神县
-          setTimeout(() => {
-            const qingshenCounty = counties.value.find(c => c.name === '青神')
-            if (qingshenCounty) {
-              evaluationForm.selectedCounty = qingshenCounty.name
-              // 自动获取青神县的数据
-              handleCountyChange(qingshenCounty.name)
-            }
-          }, 500)
-        }
-      }, 500)
-    }
+    await handleProvinceChange((provinces.value as any[])[0].name)
   }
 }
 
 // 组件挂载时获取数据
 onMounted(() => {
   getAlgorithmConfigs()
-  getEvaluationModels()
   getEvaluationHistory()
-  // 获取省份数据（替代原来的地区树数据）
-  getProvinces()
-
   // 设置默认值
   setDefaultValues()
 })
@@ -3063,8 +3050,9 @@ watch(
 }
 
 .page-header h1 {
-  color: #1f2937;
-  margin-bottom: 8px;
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  color: #303133;
 }
 
 .page-header p {

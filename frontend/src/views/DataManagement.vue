@@ -140,13 +140,18 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="regionCode" label="地区代码" width="120" />
-        <el-table-column label="区域名称" width="160">
+
+        <!-- 医疗卫生机构名称 (仅医疗机构数据 - 放在最前面) -->
+        <el-table-column v-if="dataType === 'medical'" prop="institutionName" label="医疗机构名称" width="200" show-overflow-tooltip />
+
+        <!-- 区域名称 (仅乡镇数据显示) -->
+        <el-table-column v-if="dataType === 'township'" label="区域名称" width="160">
           <template #default="{ row }">
             {{ getRegionName(row) }}
           </template>
         </el-table-column>
+
+        <!-- ========== 乡镇/社区数据列 ========== -->
         <!-- 省份 -->
         <el-table-column label="省份" width="100">
           <template #default="{ row }">
@@ -165,16 +170,18 @@
             {{ dataType === 'township' ? row.county : row.countyName }}
           </template>
         </el-table-column>
-        <!-- 乡镇(街道) -->
-        <el-table-column label="乡镇(街道)" width="120">
+        <!-- 乡镇 -->
+        <el-table-column label="乡镇" width="120">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.township : row.townshipName }}
           </template>
         </el-table-column>
-        <!-- 医疗卫生机构名称 (仅医疗机构数据) -->
-        <el-table-column v-if="dataType === 'medical'" prop="institutionName" label="医疗机构名称" width="200" show-overflow-tooltip />
+
+        <!-- 社区(行政村) -->
+        <el-table-column v-if="dataType === 'community'" prop="communityName" label="社区(行政村)" width="160" />
+
         <!-- 统一社会信用代码 (仅医疗机构数据) -->
-        <el-table-column v-if="dataType === 'medical'" prop="unifiedSocialCreditCode" label="统一社会信用代码" width="150" />
+        <el-table-column v-if="dataType === 'medical'" prop="unifiedSocialCreditCode" label="统一社会信用代码" width="200" />
         <!-- 医疗机构地址 (仅医疗机构数据) -->
         <el-table-column v-if="dataType === 'medical'" prop="institutionAddress" label="机构地址" width="250" show-overflow-tooltip />
         <!-- 医疗机构类型 (仅医疗机构数据) -->
@@ -184,70 +191,86 @@
         <!-- 实有床位数 (仅医疗机构数据) -->
         <el-table-column v-if="dataType === 'medical'" prop="actualHospitalBeds" label="实有床位数" width="100" />
 
-        <!-- 社区名称 (仅社区数据) -->
-        <el-table-column v-if="dataType === 'community'" prop="communityName" label="社区(行政村)" width="140" />
+        <!-- ========== 乡镇数据列 ========== -->
+        <!-- 管理人员 (仅乡镇数据) -->
+        <el-table-column v-if="dataType === 'township'" prop="managementStaff" label="管理人员" width="160" />
+
+        <!-- ========== 社区数据列 ========== -->
+        <!-- 应急预案 -->
+        <el-table-column v-if="dataType === 'community'" prop="hasEmergencyPlan" label="应急预案" width="100" />
+        <!-- 弱势人群清单 -->
+        <el-table-column v-if="dataType === 'community'" prop="hasVulnerableGroupsList" label="弱势人群清单" width="120" />
+        <!-- 地质灾害隐患点清单 -->
+        <el-table-column v-if="dataType === 'community'" prop="hasDisasterPointsList" label="地质灾害隐患点清单" width="150" />
+        <!-- 灾害类地图 -->
+        <el-table-column v-if="dataType === 'community'" prop="hasDisasterMap" label="灾害类地图" width="100" />
+
+        <!-- ========== 乡镇/社区数据列 ========== -->
         <!-- 人口数量 -->
         <el-table-column label="人口数量" width="100" v-if="dataType !== 'medical'">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.population : row.residentPopulation }}
           </template>
         </el-table-column>
-        <!-- 在岗职工人数 (仅医疗机构数据) -->
-        <el-table-column v-if="dataType === 'medical'" prop="totalStaff" label="在岗职工人数" width="100" />
-        <!-- 管理人员 (仅乡镇数据) -->
-        <el-table-column v-if="dataType === 'township'" prop="managementStaff" label="管理人员" width="100" />
+
         <!-- 风险评估 (仅乡镇数据) -->
-        <el-table-column v-if="dataType === 'township'" prop="riskAssessment" label="风险评估" width="100" />
-        <!-- 应急预案 (仅社区数据) -->
-        <el-table-column v-if="dataType === 'community'" prop="hasEmergencyPlan" label="应急预案" width="100" />
-        <!-- 弱势人群清单 (仅社区数据) -->
-        <el-table-column v-if="dataType === 'community'" prop="hasVulnerableGroupsList" label="弱势人群清单" width="120" />
-        <!-- 资金投入 -->
-        <el-table-column label="资金投入(万元)" width="120">
+        <el-table-column v-if="dataType === 'township'" prop="riskAssessment" label="风险评估" width="140" />
+
+        <!-- 资金投入(万元) -->
+        <el-table-column v-if="dataType !== 'medical'" prop="fundingAmount" label="资金投入(万元)" width="140">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.fundingAmount : row.lastYearFundingAmount }}
           </template>
         </el-table-column>
-        <!-- 物资价值 -->
-        <el-table-column label="物资价值(万元)" width="120">
+        <!-- 物资价值(万元) -->
+        <el-table-column v-if="dataType !== 'medical'" prop="materialValue" label="物资价值(万元)" width="140">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.materialValue : row.materialsEquipmentValue }}
           </template>
         </el-table-column>
-        <!-- 医疗设施 -->
-        <el-table-column label="医疗设施" width="100">
-          <template #default="{ row }">
-            {{ dataType === 'township' ? row.hospitalBeds : row.medicalServiceCount }}
-          </template>
-        </el-table-column>
-        <!-- 消防员 (仅乡镇数据) -->
+
+        <!-- 医疗服务点数 -->
+        <el-table-column v-if="dataType === 'community'" prop="medicalServiceCount" label="医疗服务点数" width="110" />
+
+        <!-- 医院床位 -->
+        <el-table-column v-if="dataType === 'township'" prop="hospitalBeds" label="医院床位" width="100" />
+
+        <!-- 消防员数量 (仅乡镇数据) -->
         <el-table-column v-if="dataType === 'township'" prop="firefighters" label="消防员数量" width="100" />
-        <!-- 志愿者 -->
-        <el-table-column label="志愿者人数" width="100">
+
+        <!-- 志愿者人数 -->
+        <el-table-column v-if="dataType !== 'medical'" label="志愿者人数" width="100">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.volunteers : row.registeredVolunteerCount }}
           </template>
         </el-table-column>
+
         <!-- 民兵预备役 -->
-        <el-table-column label="民兵预备役" width="100">
+        <el-table-column v-if="dataType !== 'medical'" label="民兵预备役" width="100">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.militiaReserve : row.militiaReserveCount }}
           </template>
         </el-table-column>
+
         <!-- 培训参与人次 -->
-        <el-table-column label="培训参与人次" width="120">
+        <el-table-column v-if="dataType !== 'medical'" label="培训参与人次" width="130">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.trainingParticipants : row.lastYearTrainingParticipants }}
           </template>
         </el-table-column>
+
         <!-- 演练参与人次 (仅社区数据) -->
         <el-table-column v-if="dataType === 'community'" prop="lastYearDrillParticipants" label="演练参与人次" width="120" />
+
         <!-- 避难场所容量 -->
-        <el-table-column label="避难场所容量" width="120">
+        <el-table-column v-if="dataType !== 'medical'" label="避难场所容量" width="120">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.shelterCapacity : row.emergencyShelterCapacity }}
           </template>
         </el-table-column>
+
+        <!-- 在岗职工人数 (仅医疗机构数据) -->
+        <el-table-column v-if="dataType === 'medical'" prop="totalStaff" label="在岗职工人数" width="120" />
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
@@ -916,7 +939,7 @@ const getDataList = async () => {
     } else if (dataType.value === 'medical') {
       // 医疗卫生机构数据 - 获取指定年份的数据
       const year = searchForm.year || new Date().getFullYear()
-      response = await medicalInstitutionApi.getList(year)
+      response = await medicalInstitutionApi.getList(year, selectedOrg.value?.code)
       if (response.success) {
         allData = response.data || []
       }
@@ -947,10 +970,15 @@ const getDataList = async () => {
             String(row.communityName || '').includes(selectedOrg.value.name)
           )
         } else if (dataType.value === 'medical') {
-          // 医疗卫生机构数据：按机构地址匹配
-          const address = String(row.institutionAddress || '')
-          // 匹配逻辑：地址包含选中组织机构的名称
-          return address.includes(selectedOrg.value.name)
+          return (
+            String(row.orgCode || '').startsWith(orgCode) ||
+            String(row.provinceName || '').includes(selectedOrg.value.name) ||
+            String(row.cityName || '').includes(selectedOrg.value.name) ||
+            String(row.countyName || '').includes(selectedOrg.value.name) ||
+            String(row.townshipName || '').includes(selectedOrg.value.name) ||
+            String(row.communityName || '').includes(selectedOrg.value.name) ||
+            String(row.institutionAddress || '').includes(selectedOrg.value.name)
+          )
         }
         return true
       })
@@ -1047,7 +1075,7 @@ const handleSearch = async () => {
       } else {
         // 如果只有年份过滤，使用 getList
         const year = searchForm.year || new Date().getFullYear()
-        response = await medicalInstitutionApi.getList(year)
+        response = await medicalInstitutionApi.getList(year, selectedOrg.value?.code)
       }
     }
 
@@ -1079,10 +1107,15 @@ const handleSearch = async () => {
               String(row.communityName || '').includes(selectedOrg.value.name)
             )
           } else if (dataType.value === 'medical') {
-            // 医疗卫生机构数据：按机构地址匹配
-            const address = String(row.institutionAddress || '')
-            // 匹配逻辑：地址包含选中组织机构的名称
-            return address.includes(selectedOrg.value.name)
+            return (
+              String(row.orgCode || '').startsWith(orgCode) ||
+              String(row.provinceName || '').includes(selectedOrg.value.name) ||
+              String(row.cityName || '').includes(selectedOrg.value.name) ||
+              String(row.countyName || '').includes(selectedOrg.value.name) ||
+              String(row.townshipName || '').includes(selectedOrg.value.name) ||
+              String(row.communityName || '').includes(selectedOrg.value.name) ||
+              String(row.institutionAddress || '').includes(selectedOrg.value.name)
+            )
           }
           return true
         })

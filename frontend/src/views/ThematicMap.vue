@@ -220,6 +220,25 @@ const selectedOrgName = computed(() => {
   return node?.name || ''
 })
 
+const selectedOrgLevel = computed(() => {
+  if (!selectedOrgCode.value) return null
+  const node = findOrgNodeByCode(organizationList.value, selectedOrgCode.value)
+  const level = node?.level
+  return typeof level === 'number' ? level : level != null ? Number(level) : null
+})
+
+const selectedOrgProvinceName = computed(() => {
+  if (!selectedOrgCode.value) return globalOrganizationStore.selectedOrganization?.provinceName || ''
+  const node = findOrgNodeByCode(organizationList.value, selectedOrgCode.value)
+  return node?.provinceName || globalOrganizationStore.selectedOrganization?.provinceName || ''
+})
+
+const selectedOrgCityName = computed(() => {
+  if (!selectedOrgCode.value) return globalOrganizationStore.selectedOrganization?.cityName || ''
+  const node = findOrgNodeByCode(organizationList.value, selectedOrgCode.value)
+  return node?.cityName || globalOrganizationStore.selectedOrganization?.cityName || ''
+})
+
 const selectedOrgParentName = computed(() => {
   if (!selectedOrgCode.value) return ''
   const result = findOrgNodeAndParent(organizationList.value, selectedOrgCode.value)
@@ -322,7 +341,17 @@ const handleFilterChange = async () => {
   const levelName = levelNames[selectedLevel.value] || '乡镇级'
   const regionName = selectedOrgName.value || '无区域'
 
-  mapSettings.title = `四川省眉山市${regionName}${levelName}减灾能力评估结果图`
+  const provinceName = selectedOrgProvinceName.value || '四川省'
+  const cityName = selectedOrgCityName.value || ''
+  const orgLevel = selectedOrgLevel.value
+  const titleLocation =
+    orgLevel === 1
+      ? regionName
+      : orgLevel === 2
+        ? `${provinceName}${regionName}`
+        : `${provinceName}${cityName}${regionName}`
+
+  mapSettings.title = `${titleLocation}${levelName}减灾能力评估结果图`
   mapSettings.subtitle = `数据年份：${y}${org} | 级别：${levelName} | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
   showMap.value = Boolean(selectedOrgCode.value)
   refreshMap()
@@ -615,9 +644,12 @@ const loadDataFromSession = () => {
   box-sizing: border-box;
   
   .page-header {
-    margin-bottom: 10px;
-    padding: 0 20px;
     
+    padding: 0 20px;
+    width: 1920px;
+    padding: auto;
+    margin: auto;
+    margin-bottom: 30px;
     h1 {
       margin: 0 0 8px 0;
       color: #333;

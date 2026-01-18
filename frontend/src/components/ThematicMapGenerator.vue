@@ -2294,22 +2294,42 @@ const loadRealBoundaryData = async () => {
     // 4. 执行加载
     let data;
     try {
-        const cacheBuster = () => (Date.now() + Math.random()).toString(36)
+        const cacheBuster = () => String(props.year || 0)
+
+        const isJsonResponse = (response: Response) => {
+          const contentType = (response.headers.get('content-type') || '').toLowerCase()
+          return contentType.includes('json')
+        }
 
         const tryFetchJson = async (url: string) => {
-          const response = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + cacheBuster())
+          const response = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + cacheBuster(), {
+            headers: {
+              Accept: 'application/json'
+            }
+          })
           if (!response.ok) return { ok: false as const, status: response.status }
-          const json = await response.json()
-          return { ok: true as const, json }
+          if (!isJsonResponse(response)) return { ok: false as const, status: response.status }
+          try {
+            const json = await response.json()
+            return { ok: true as const, json }
+          } catch {
+            return { ok: false as const, status: response.status }
+          }
         }
 
         if (cityName) {
-          const year = props.year || 2025
+          const requestedYear = props.year || 2025
+          const minCityBoundaryYear = 2022
+          const maxCityBoundaryYear = 2025
+          const startYear = Math.min(requestedYear, maxCityBoundaryYear)
+          const yearCandidates: number[] = []
+          for (let y = startYear; y >= minCityBoundaryYear; y--) {
+            yearCandidates.push(y)
+          }
+
           const candidates = [
-            `/boundaries/${year}/city/${cityName}.json`,
-            `/boundaries/city/${cityName}.json`,
-            `/boundaries/2025/city/${cityName}.json`,
-            `/boundaries/2024/city/${cityName}.json`
+            ...yearCandidates.map(y => `/boundaries/${y}/city/${cityName}.json`),
+            `/boundaries/city/${cityName}.json`
           ].filter((v, i, a) => a.indexOf(v) === i)
 
           let loaded: any = null
@@ -2329,9 +2349,16 @@ const loadRealBoundaryData = async () => {
 
           data = loaded
         } else {
-          const response = await fetch(fetchUrl + '?t=' + cacheBuster())
+          const response = await fetch(fetchUrl + '?t=' + cacheBuster(), {
+            headers: {
+              Accept: 'application/json'
+            }
+          })
           if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`)
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+          if (!isJsonResponse(response)) {
+            throw new Error(`Unexpected content-type: ${response.headers.get('content-type') || 'unknown'}`)
           }
           data = await response.json()
         }

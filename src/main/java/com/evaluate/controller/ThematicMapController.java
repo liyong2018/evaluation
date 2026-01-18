@@ -111,23 +111,6 @@ public class ThematicMapController {
                             return true;
                     }
                 })
-                .filter(result -> {
-                    // 按年份过滤 (如果结果中有年份字段)
-                    if (year != null && result.getCreateTime() != null) {
-                         if (result.getCreateTime().getYear() != year) {
-                             return false;
-                         }
-                    }
-
-                    // 按组织机构代码过滤（前缀匹配）
-                    if (orgCode != null && !orgCode.isEmpty()) {
-                        if (result.getOrgCode() == null || !result.getOrgCode().startsWith(orgCode)) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                })
                 .collect(Collectors.toList());
 
             // 按地区名称去重，保留每个地区最新的评估结果

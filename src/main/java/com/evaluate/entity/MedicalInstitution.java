@@ -336,6 +336,21 @@ public class MedicalInstitution implements Serializable {
     @TableField("org_code")
     private String orgCode;
 
+    @TableField(exist = false)
+    private String provinceName;
+
+    @TableField(exist = false)
+    private String cityName;
+
+    @TableField(exist = false)
+    private String countyName;
+
+    @TableField(exist = false)
+    private String townshipName;
+
+    @TableField(exist = false)
+    private String communityName;
+
     /**
      * Create Time
      */

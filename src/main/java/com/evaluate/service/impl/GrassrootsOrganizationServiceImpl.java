@@ -31,26 +31,199 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
 
     private static final int LEVEL_TOWNSHIP = 4;
     private static final int LEVEL_COMMUNITY = 5;
+    private static final int BASELINE_YEAR = 2020;
+
+    private boolean isYearChangeRecord(GrassrootsOrganization org) {
+        if (org == null) {
+            return false;
+        }
+        if (org.getYear() == null || org.getYear() <= BASELINE_YEAR) {
+            return false;
+        }
+        return org.getIsBaseline() == null || org.getIsBaseline() == 0;
+    }
+
+    private void applyYearRangeCondition(QueryWrapper<GrassrootsOrganization> queryWrapper, Integer year) {
+        if (year == null || year <= BASELINE_YEAR) {
+            queryWrapper.eq("is_baseline", 1);
+            return;
+        }
+
+        queryWrapper.and(wrapper -> wrapper
+                .eq("is_baseline", 1)
+                .or(w -> w
+                        .ge("year", BASELINE_YEAR + 1)
+                        .le("year", year)
+                        .and(yw -> yw.eq("is_baseline", 0).or().isNull("is_baseline"))
+                )
+        );
+    }
+
+    private List<GrassrootsOrganization> mergeBaselineWithLatestYearData(
+            List<GrassrootsOrganization> organizations,
+            Integer requestedYear
+    ) {
+        if (organizations == null || organizations.isEmpty() || requestedYear == null || requestedYear <= BASELINE_YEAR) {
+            return organizations == null ? new ArrayList<>() : organizations;
+        }
+
+        Map<String, GrassrootsOrganization> baselineByCode = new HashMap<>();
+        Map<String, GrassrootsOrganization> latestYearByCode = new HashMap<>();
+        Map<String, Integer> latestYearValueByCode = new HashMap<>();
+
+        for (GrassrootsOrganization org : organizations) {
+            if (org == null || !StringUtils.hasText(org.getCode())) {
+                continue;
+            }
+            String code = org.getCode();
+            if (org.getIsBaseline() != null && org.getIsBaseline() == 1) {
+                baselineByCode.putIfAbsent(code, org);
+                continue;
+            }
+
+            if (!isYearChangeRecord(org)) {
+                continue;
+            }
+
+            Integer y = org.getYear();
+            if (y == null || y > requestedYear) {
+                continue;
+            }
+
+            Integer existingYear = latestYearValueByCode.get(code);
+            if (existingYear == null || y > existingYear) {
+                latestYearValueByCode.put(code, y);
+                latestYearByCode.put(code, org);
+            }
+        }
+
+        Set<String> deletedCodes = new HashSet<>();
+        for (Map.Entry<String, GrassrootsOrganization> entry : latestYearByCode.entrySet()) {
+            GrassrootsOrganization latest = entry.getValue();
+            if (latest != null && latest.getIsDeleted() != null && latest.getIsDeleted() == 1) {
+                deletedCodes.add(entry.getKey());
+            }
+        }
+
+        Map<String, GrassrootsOrganization> mergedByCode = new HashMap<>();
+        for (Map.Entry<String, GrassrootsOrganization> entry : baselineByCode.entrySet()) {
+            String code = entry.getKey();
+            if (!deletedCodes.contains(code)) {
+                mergedByCode.put(code, entry.getValue());
+            }
+        }
+
+        for (Map.Entry<String, GrassrootsOrganization> entry : latestYearByCode.entrySet()) {
+            String code = entry.getKey();
+            if (deletedCodes.contains(code)) {
+                mergedByCode.remove(code);
+                continue;
+            }
+
+            GrassrootsOrganization latest = entry.getValue();
+            GrassrootsOrganization baseline = baselineByCode.get(code);
+            if (latest == null) {
+                continue;
+            }
+
+            if (baseline != null && baseline.getId() != null) {
+                latest.setId(baseline.getId());
+            }
+            if (baseline != null) {
+                if (latest.getParentId() == null) {
+                    latest.setParentId(baseline.getParentId());
+                }
+                if (latest.getCountyId() == null) {
+                    latest.setCountyId(baseline.getCountyId());
+                }
+                if (latest.getLevel() == null) {
+                    latest.setLevel(baseline.getLevel());
+                }
+            }
+
+            mergedByCode.put(code, latest);
+        }
+
+        List<GrassrootsOrganization> merged = new ArrayList<>(mergedByCode.values());
+        merged.sort((a, b) -> {
+            int levelA = a != null && a.getLevel() != null ? a.getLevel() : 0;
+            int levelB = b != null && b.getLevel() != null ? b.getLevel() : 0;
+            if (levelA != levelB) {
+                return Integer.compare(levelA, levelB);
+            }
+            String codeA = a != null ? a.getCode() : null;
+            String codeB = b != null ? b.getCode() : null;
+            if (codeA == null && codeB == null) {
+                return 0;
+            }
+            if (codeA == null) {
+                return 1;
+            }
+            if (codeB == null) {
+                return -1;
+            }
+            return codeA.compareTo(codeB);
+        });
+        return merged;
+    }
+
+    private Integer findEffectiveYear(Integer requestedYear, Long countyId) {
+        if (requestedYear == null) {
+            return null;
+        }
+        if (requestedYear <= BASELINE_YEAR) {
+            return BASELINE_YEAR;
+        }
+        for (int checkYear = requestedYear; checkYear > BASELINE_YEAR; checkYear--) {
+            if (hasAnyYearChange(checkYear, countyId)) {
+                return checkYear;
+            }
+        }
+        return BASELINE_YEAR;
+    }
+
+    private boolean hasAnyYearChange(Integer year, Long countyId) {
+        if (year == null || countyId == null) {
+            return false;
+        }
+        QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("county_id", countyId);
+        queryWrapper.eq("year", year);
+        queryWrapper.and(w -> w.eq("is_baseline", 0).or().isNull("is_baseline"));
+        queryWrapper.last("LIMIT 1");
+        return baseMapper.selectOne(queryWrapper) != null;
+    }
 
     @Override
     public List<GrassrootsOrganization> getTownshipsByCountyId(Long countyId, Integer year) {
         try {
-            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("county_id", countyId);
-            queryWrapper.eq("level", LEVEL_TOWNSHIP);
-            // 增量存储：查询当年变更 OR 基准记录
-            if (year != null) {
-                queryWrapper.and(wrapper -> wrapper
-                        .and(w -> w.eq("year", year).eq("is_baseline", 0))
-                        .or().eq("is_baseline", 1)
-                );
-            } else {
-                queryWrapper.eq("is_baseline", 1);
+            // 如果传入的countyId对应年份记录，需要找到对应的基准记录ID
+            // 因为街道表中的county_id存储的是基准记录的ID
+            Long effectiveCountyId = countyId;
+            QueryWrapper<Organization> checkOrg = new QueryWrapper<>();
+            checkOrg.eq("id", countyId);
+            Organization county = organizationMapper.selectOne(checkOrg);
+            if (county != null && county.getYear() != null &&
+                (county.getIsBaseline() == null || county.getIsBaseline() == 0)) {
+                // 这是年份记录，需要找到对应的基准记录ID
+                QueryWrapper<Organization> baselineOrg = new QueryWrapper<>();
+                baselineOrg.eq("code", county.getBaselineCode() != null ? county.getBaselineCode() : county.getCode());
+                baselineOrg.eq("is_baseline", 1);
+                Organization baseline = organizationMapper.selectOne(baselineOrg);
+                if (baseline != null && baseline.getId() != null) {
+                    effectiveCountyId = baseline.getId();
+                    log.info("getTownshipsByCountyId 年份记录映射: countyId={} -> baselineId={}", countyId, effectiveCountyId);
+                }
             }
+
+            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("county_id", effectiveCountyId);
+            queryWrapper.eq("level", LEVEL_TOWNSHIP);
+            applyYearRangeCondition(queryWrapper, year);
             queryWrapper.orderByAsc("code");
             List<GrassrootsOrganization> result = list(queryWrapper);
-            if (year != null && !result.isEmpty()) {
-                result = mergeBaselineWithYearData(result, year);
+            if (year != null && year > BASELINE_YEAR && !result.isEmpty()) {
+                result = mergeBaselineWithLatestYearData(result, year);
             }
             return result;
         } catch (Exception e) {
@@ -85,37 +258,32 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
     @Override
     public List<GrassrootsOrganization> getCommunitiesByTownshipId(Long townshipId, Integer year) {
         try {
-            List<GrassrootsOrganization> result = new ArrayList<>();
-
-            if (year != null) {
-                // 递归降级查询：从指定年份开始，逐年往前查，直到查到数据或到达2020年
-                for (int searchYear = year; searchYear >= 2020; searchYear--) {
-                    QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-                    queryWrapper.eq("parent_id", townshipId);
-                    queryWrapper.eq("level", LEVEL_COMMUNITY);
-                    queryWrapper.eq("year", searchYear);
-                    queryWrapper.orderByAsc("code");
-
-                    List<GrassrootsOrganization> yearData = list(queryWrapper);
-                    if (!yearData.isEmpty()) {
-                        log.info("找到{}年的社区数据: {}条", searchYear, yearData.size());
-                        // 使用找到的数据，记录来源年份
-                        for (GrassrootsOrganization org : yearData) {
-                            org.setDataSource(org.getDataSource() + "_FROM_YEAR_" + searchYear);
-                        }
-                        result = yearData;
-                        break;
-                    }
+            GrassrootsOrganization township = (townshipId != null) ? getById(townshipId) : null;
+            Long baselineTownshipId = townshipId;
+            if (township != null && township.getYear() != null && isYearChangeRecord(township)) {
+                QueryWrapper<GrassrootsOrganization> baselineTownshipQuery = new QueryWrapper<>();
+                baselineTownshipQuery.eq("code", StringUtils.hasText(township.getBaselineCode()) ? township.getBaselineCode() : township.getCode());
+                baselineTownshipQuery.eq("is_baseline", 1);
+                GrassrootsOrganization baselineTownship = getOne(baselineTownshipQuery, false);
+                if (baselineTownship != null && baselineTownship.getId() != null) {
+                    baselineTownshipId = baselineTownship.getId();
                 }
-            } else {
-                // 没有指定年份，查询所有数据
-                QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-                queryWrapper.eq("parent_id", townshipId);
-                queryWrapper.eq("level", LEVEL_COMMUNITY);
-                queryWrapper.orderByAsc("year", "code");
-                result = list(queryWrapper);
             }
 
+            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+            if (baselineTownshipId != null && !Objects.equals(baselineTownshipId, townshipId)) {
+                queryWrapper.in("parent_id", Arrays.asList(townshipId, baselineTownshipId));
+            } else {
+                queryWrapper.eq("parent_id", townshipId);
+            }
+            queryWrapper.eq("level", LEVEL_COMMUNITY);
+            applyYearRangeCondition(queryWrapper, year);
+            queryWrapper.orderByAsc("code");
+            List<GrassrootsOrganization> result = list(queryWrapper);
+            if (year != null && year > BASELINE_YEAR && !result.isEmpty()) {
+                result = mergeBaselineWithLatestYearData(result, year);
+            }
+            log.info("根据乡镇ID获取社区列表: townshipId={}, year={}, resultSize={}", townshipId, year, result.size());
             return result;
         } catch (Exception e) {
             log.error("根据乡镇ID获取社区列表失败: townshipId={}, year={}", townshipId, year, e);
@@ -153,24 +321,43 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
     @Override
     public List<Map<String, Object>> getTreeByCountyId(Long countyId, Integer year) {
         try {
-            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("county_id", countyId);
-            // 增量存储：查询当年变更 OR 基准记录
-            if (year != null) {
-                queryWrapper.and(wrapper -> wrapper
-                        .and(w -> w.eq("year", year).eq("is_baseline", 0))
-                        .or().eq("is_baseline", 1)
-                );
-            } else {
-                queryWrapper.eq("is_baseline", 1);
-            }
-            queryWrapper.orderByAsc("level", "code");
-            List<GrassrootsOrganization> all = list(queryWrapper);
-            if (year != null && !all.isEmpty()) {
-                all = mergeBaselineWithYearData(all, year);
+            // 如果传入的countyId对应年份记录，需要找到对应的基准记录ID
+            // 因为街道表中的county_id存储的是基准记录的ID
+            Long effectiveCountyId = countyId;
+            QueryWrapper<Organization> checkOrg = new QueryWrapper<>();
+            checkOrg.eq("id", countyId);
+            Organization county = organizationMapper.selectOne(checkOrg);
+            if (county != null && county.getYear() != null &&
+                (county.getIsBaseline() == null || county.getIsBaseline() == 0)) {
+                // 这是年份记录，需要找到对应的基准记录ID
+                QueryWrapper<Organization> baselineOrg = new QueryWrapper<>();
+                baselineOrg.eq("code", county.getBaselineCode() != null ? county.getBaselineCode() : county.getCode());
+                baselineOrg.eq("is_baseline", 1);
+                Organization baseline = organizationMapper.selectOne(baselineOrg);
+                if (baseline != null && baseline.getId() != null) {
+                    effectiveCountyId = baseline.getId();
+                    log.info("年份记录映射: countyId={} -> baselineId={}", countyId, effectiveCountyId);
+                }
             }
 
-            return buildTree(all, null);
+            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("county_id", effectiveCountyId);
+            applyYearRangeCondition(queryWrapper, year);
+            queryWrapper.orderByAsc("level", "code");
+            List<GrassrootsOrganization> all = list(queryWrapper);
+            if (year != null && year > BASELINE_YEAR && !all.isEmpty()) {
+                all = mergeBaselineWithLatestYearData(all, year);
+            }
+
+            List<Map<String, Object>> tree = buildTree(all, effectiveCountyId);
+            if (!tree.isEmpty()) {
+                return tree;
+            }
+
+            if (!Objects.equals(effectiveCountyId, countyId)) {
+                return buildTree(all, countyId);
+            }
+            return tree;
         } catch (Exception e) {
             log.error("根据区县ID获取树形结构失败: countyId={}, year={}", countyId, year, e);
             return new ArrayList<>();
@@ -813,29 +1000,56 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
      * 如果当年记录是删除标记（is_deleted=1），则不包含该组织
      */
     private List<GrassrootsOrganization> mergeBaselineWithYearData(List<GrassrootsOrganization> organizations, Integer year) {
+        Map<String, GrassrootsOrganization> baselineMap = new HashMap<>();
+        for (GrassrootsOrganization org : organizations) {
+            if (org == null || !StringUtils.hasText(org.getCode())) {
+                continue;
+            }
+            if (org.getIsBaseline() != null && org.getIsBaseline() == 1) {
+                baselineMap.putIfAbsent(org.getCode(), org);
+            }
+        }
+
         Map<String, GrassrootsOrganization> mergedMap = new LinkedHashMap<>();
-        // 记录被删除的code
         Set<String> deletedCodes = new HashSet<>();
 
         for (GrassrootsOrganization org : organizations) {
+            if (org == null || !StringUtils.hasText(org.getCode())) {
+                continue;
+            }
             String code = org.getCode();
-            if (code == null) continue;
 
-            GrassrootsOrganization existing = mergedMap.get(code);
-
-            // 当年变更记录
             if (org.getYear() != null && org.getYear().equals(year) &&
                 (org.getIsBaseline() == null || org.getIsBaseline() == 0)) {
-                // 如果是删除标记，记录该code为已删除
                 if (org.getIsDeleted() != null && org.getIsDeleted() == 1) {
                     deletedCodes.add(code);
-                    // 从结果中移除该code（如果存在）
                     mergedMap.remove(code);
-                } else {
-                    mergedMap.put(code, org);
+                    continue;
                 }
-            } else if (existing == null && !deletedCodes.contains(code)) {
-                // 基准记录，只有当年没有变更且未被删除时才使用
+
+                GrassrootsOrganization baseline = baselineMap.get(code);
+                if (baseline != null) {
+                    if (org.getParentId() == null) {
+                        org.setParentId(baseline.getParentId());
+                    }
+                    if (org.getCountyId() == null) {
+                        org.setCountyId(baseline.getCountyId());
+                    }
+                    if (org.getLevel() == null) {
+                        org.setLevel(baseline.getLevel());
+                    }
+                }
+                mergedMap.put(code, org);
+                continue;
+            }
+
+            if (deletedCodes.contains(code) || mergedMap.containsKey(code)) {
+                continue;
+            }
+            GrassrootsOrganization baseline = baselineMap.get(code);
+            if (baseline != null) {
+                mergedMap.put(code, baseline);
+            } else if (org.getIsBaseline() != null && org.getIsBaseline() == 1) {
                 mergedMap.put(code, org);
             }
         }

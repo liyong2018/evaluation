@@ -645,7 +645,7 @@ export const medicalInstitutionApi = {
   },
 
   // 获取医疗卫生机构数据列表
-  getList: (year: number) => request.get('/api/medical-institution/list', { params: { year } }),
+  getList: (year: number, orgCode?: string) => request.get('/api/medical-institution/list', { params: { year, orgCode } }),
 
   // 搜索医疗卫生机构数据
   search: (institutionName: string) => request.get('/api/medical-institution/search', {
@@ -975,4 +975,64 @@ export const wordTemplateApi = {
       responseType: 'blob'
     })
   }
+}
+
+// 消防员配置相关API
+export const firefighterConfigApi = {
+  // 获取消防员配置列表（分页）
+  getList: (params: {
+    page?: number;
+    size?: number;
+    keyword?: string;
+    provinceName?: string;
+    cityName?: string;
+    countyName?: string;
+    townshipName?: string;
+    status?: number;
+  }) => request.get('/api/firefighter-config/list', { params }),
+
+  // 获取所有消防员配置（不分页）
+  getAll: (regionCode?: string) => request.get('/api/firefighter-config', {
+    params: regionCode ? { regionCode } : undefined
+  }),
+
+  // 根据ID获取消防员配置
+  getById: (id: number) => request.get(`/api/firefighter-config/${id}`),
+
+  // 根据行政区划代码获取
+  getByRegionCode: (regionCode: string) => request.get(`/api/firefighter-config/region/${regionCode}`),
+
+  // 根据地理位置查询
+  getByLocation: (params: {
+    provinceName?: string;
+    cityName?: string;
+    countyName?: string;
+    townshipName?: string;
+  }) => request.get('/api/firefighter-config/location', { params }),
+
+  // 根据县名查询所有乡镇的消防员配置
+  getByCountyName: (countyName: string) => request.get(`/api/firefighter-config/county/${countyName}`),
+
+  // 获取某县的消防员总数
+  sumFirefighterCountByCounty: (countyName: string) => request.get(`/api/firefighter-config/county/${countyName}/sum`),
+
+  // 创建消防员配置
+  create: (data: any) => request.post('/api/firefighter-config', data),
+
+  // 更新消防员配置
+  update: (data: any) => request.put('/api/firefighter-config/update', data),
+
+  // 删除消防员配置
+  delete: (id: number) => request.delete(`/api/firefighter-config/${id}`),
+
+  // 批量删除消防员配置
+  batchDelete: (ids: number[]) => request.delete('/api/firefighter-config/batch', { data: ids }),
+
+  // 更新状态
+  updateStatus: (id: number, status: number) => request.post(`/api/firefighter-config/${id}/status`, null, {
+    params: { status }
+  }),
+
+  // 检查是否有数据
+  hasAnyData: () => request.get('/api/firefighter-config/has-data')
 }

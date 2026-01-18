@@ -1,6 +1,7 @@
 package com.evaluate.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -42,8 +43,8 @@ public class GrassrootsOrganization implements Serializable {
     @TableField("year")
     private Integer year;
 
-    @TableField("data_source")
-    private String dataSource;
+    @TableField(value = "data_source", insertStrategy = FieldStrategy.NOT_NULL, updateStrategy = FieldStrategy.NOT_NULL)
+    private String dataSource = "";  // 设置默认值避免数据库字段无默认值错误
 
     @TableField("province_name")
     private String provinceName;

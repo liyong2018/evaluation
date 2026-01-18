@@ -7,10 +7,12 @@ import com.evaluate.service.ICommunityDisasterReductionCapacityService;
 import com.evaluate.service.IEvaluationService;
 import com.evaluate.service.EvaluationResultService;
 import com.evaluate.entity.EvaluationResult;
+import com.evaluate.entity.Organization;
 import com.evaluate.service.WordDataPreprocessor;
 import com.evaluate.service.WordDataPreprocessor.EvaluationReportData;
 import com.evaluate.service.IIndicatorWeightService;
 import com.evaluate.service.IIndicatorWeightScoreService;
+import com.evaluate.service.IOrganizationService;
 import com.evaluate.service.IWeightConfigService;
 import com.evaluate.entity.IndicatorWeight;
 import com.evaluate.entity.WeightConfig;
@@ -20,6 +22,7 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -76,6 +79,9 @@ public class WordTemplateController {
     @Autowired
     private IWeightConfigService weightConfigService;
 
+    @Autowired
+    private IOrganizationService organizationService;
+
     /**
      * 基于模板生成Word报告
      */
@@ -100,6 +106,8 @@ public class WordTemplateController {
                     variables.put("{{thematic_map_" + entry.getKey() + "}}", entry.getValue());
                 }
             }
+
+            applyOrganizationVariables(variables, year, orgCode);
 
             log.info("生成报告准备数据完成，变量数: {}", variables.size());
             if (variables.containsKey("table6_data")) {
@@ -274,6 +282,80 @@ public class WordTemplateController {
         return sb.toString();
     }
 
+    private Organization findOrganization(Integer year, String orgCode) {
+        if (!StringUtils.hasText(orgCode)) {
+            return null;
+        }
+        String trimmedCode = orgCode.trim();
+        if (year != null) {
+            Organization org = organizationService.lambdaQuery()
+                    .eq(Organization::getCode, trimmedCode)
+                    .eq(Organization::getYear, year)
+                    .one();
+            if (org != null) {
+                return org;
+            }
+        }
+        return organizationService.getByCode(trimmedCode);
+    }
+
+    private Map<String, String> resolveLocation(Integer year, String orgCode) {
+        Organization org = findOrganization(year, orgCode);
+
+        String province = "四川省";
+        String city = "眉山市";
+        String county = "青神县";
+
+        if (org != null) {
+            if (StringUtils.hasText(org.getProvinceName())) {
+                province = org.getProvinceName().trim();
+            }
+            if (StringUtils.hasText(org.getCityName())) {
+                city = org.getCityName().trim();
+            }
+            if (StringUtils.hasText(org.getCountyName())) {
+                county = org.getCountyName().trim();
+            } else if (StringUtils.hasText(org.getName())) {
+                county = org.getName().trim();
+            }
+        }
+
+        String fullAddress = province + city + county;
+
+        Map<String, String> location = new HashMap<>();
+        location.put("province", province);
+        location.put("city", city);
+        location.put("county", county);
+        location.put("full_address", fullAddress);
+        return location;
+    }
+
+    private void applyOrganizationVariables(Map<String, Object> variables, Integer year, String orgCode) {
+        Map<String, String> location = resolveLocation(year, orgCode);
+        String province = location.get("province");
+        String city = location.get("city");
+        String county = location.get("county");
+        String fullAddress = location.get("full_address");
+
+        variables.put("province", province);
+        variables.put("city", city);
+        variables.put("county", county);
+        variables.put("full_address", fullAddress);
+
+        variables.put("{{province}}", province);
+        variables.put("{{city}}", city);
+        variables.put("{{county}}", county);
+        variables.put("{{full_address}}", fullAddress);
+
+        variables.put("四川省", province);
+        variables.put("眉山市", city);
+        variables.put("青神县", county);
+        variables.put("四川省眉山市青神县", fullAddress);
+        variables.put("眉山市青神县", city + county);
+
+        variables.put("青神县应急管理局", county + "应急管理局");
+    }
+
     private EvaluationReportData fetchReportData(Integer year, String orgCode) {
         // Fix: Default to current year (2025) if not provided
         if (year == null) year = 2025;
@@ -348,7 +430,7 @@ public class WordTemplateController {
         List<IndicatorWeight> townshipWeights = townshipConfigId != null ? getWeightsWithAverageScore(townshipConfigId) : new ArrayList<>();
         List<IndicatorWeight> communityWeights = communityConfigId != null ? getWeightsWithAverageScore(communityConfigId) : new ArrayList<>();
 
-        String regionName = "511425".equals(orgCode) ? "青神县" : "青神县";
+        String regionName = resolveLocation(year, orgCode).get("county");
 
         // Build Community to Township Map
         Map<String, String> communityToTownshipMap = new HashMap<>();
@@ -407,8 +489,6 @@ public class WordTemplateController {
             flatMap.put("year", data.getRegionInfo().getYear());
             flatMap.put("county", data.getRegionInfo().getName());
         }
-        flatMap.put("city", "眉山市");
-        flatMap.put("province", "四川省");
 
         // 2. Indicators (Weights)
         // addWeightTablePlaceholders(flatMap, data); // Deprecated as per user request
@@ -484,6 +564,9 @@ public class WordTemplateController {
         
         // Ensure missing params have default
         flatMap.putIfAbsent("township_assessment_level", "中等");
+
+        flatMap.putIfAbsent("province", "四川省");
+        flatMap.putIfAbsent("city", "眉山市");
         
         return flatMap;
     }
@@ -562,7 +645,7 @@ public class WordTemplateController {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("年份", String.valueOf(year));
-        result.put("区县", "511425".equals(orgCode) ? "青神县" : "青神县");
+        result.put("区县", resolveLocation(year, orgCode).get("county"));
 
         // 获取乡镇级数据 (Model ID 3)
         List<EvaluationResult> townshipResults = evaluationResultService.getResultsByModelIdAndYearAndOrgCode(3L, year, orgCode);
@@ -1078,6 +1161,8 @@ public class WordTemplateController {
         try {
             Map<String, Object> previewData = new HashMap<>();
 
+            Map<String, String> location = resolveLocation(year, orgCode);
+
             // 基础变量数据
             previewData.put("variables", prepareReportVariables(year, orgCode));
 
@@ -1087,9 +1172,9 @@ public class WordTemplateController {
 
             // 报告元数据
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("title", "四川省雅安市青神县减灾能力评估技术报告");
+            metadata.put("title", location.get("full_address") + "减灾能力评估技术报告");
             metadata.put("generateTime", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")));
-            metadata.put("organization", "青神县应急管理局");
+            metadata.put("organization", location.get("county") + "应急管理局");
             metadata.put("technicalSupport", "减灾能力评估系统");
             previewData.put("metadata", metadata);
 
@@ -1110,6 +1195,8 @@ public class WordTemplateController {
 
         Map<String, Object> variables = new HashMap<>();
 
+        Map<String, String> location = resolveLocation(year, orgCode);
+
         // 时间相关变量
         LocalDate currentDate = LocalDate.now();
         // 如果查询年份是当前年份，使用当前日期，否则使用查询年份的12月31日或者其他逻辑
@@ -1120,26 +1207,17 @@ public class WordTemplateController {
         variables.put("{{current_date}}", currentDate.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")));
 
         // 地理信息变量
-        variables.put("{{province}}", "四川省");
-        
-        // 根据orgCode设置城市信息
-        if ("511425".equals(orgCode)) {
-            variables.put("{{city}}", "眉山市");
-            variables.put("{{county}}", "青神县");
-            variables.put("{{full_address}}", "四川省眉山市青神县");
-        } else {
-            // 默认值，或者根据其他orgCode逻辑
-            variables.put("{{city}}", "眉山市"); // 默认为眉山市
-            variables.put("{{county}}", "青神县");
-            variables.put("{{full_address}}", "四川省眉山市青神县");
-        }
+        variables.put("{{province}}", location.get("province"));
+        variables.put("{{city}}", location.get("city"));
+        variables.put("{{county}}", location.get("county"));
+        variables.put("{{full_address}}", location.get("full_address"));
 
         // 评估统计数据
         Map<String, Object> stats = getEvaluationStatistics(year, orgCode);
         variables.putAll(stats);
 
         // 单位信息
-        variables.put("{{organization}}", "青神县应急管理局");
+        variables.put("{{organization}}", location.get("county") + "应急管理局");
         variables.put("{{technical_support}}", "减灾能力评估系统");
 
         // ---------------------------------------------------------
@@ -1546,7 +1624,7 @@ public class WordTemplateController {
             formattedStats.put("totalCommunities", Integer.parseInt((String) rawStats.get("{{total_communities}}")));
 
             // 评估结论生成
-            formattedStats.put("conclusion", generateEvaluationConclusion(townshipData));
+            formattedStats.put("conclusion", generateEvaluationConclusion(townshipData, resolveLocation(year, orgCode).get("county")));
 
         } catch (Exception e) {
             log.error("格式化统计数据失败", e);
@@ -1560,7 +1638,7 @@ public class WordTemplateController {
     /**
      * 生成评估结论
      */
-    private String generateEvaluationConclusion(List<Map<String, Object>> townshipData) {
+    private String generateEvaluationConclusion(List<Map<String, Object>> townshipData, String countyName) {
         StringBuilder conclusion = new StringBuilder();
 
         // 找出最多的等级
@@ -1574,7 +1652,8 @@ public class WordTemplateController {
             }
         }
 
-        conclusion.append("根据评估数据，青神县各乡镇的减灾能力以").append(maxLevel).append("为主，");
+        String county = StringUtils.hasText(countyName) ? countyName.trim() : "该区县";
+        conclusion.append("根据评估数据，").append(county).append("各乡镇的减灾能力以").append(maxLevel).append("为主，");
 
         // 分析整体情况
         long strongCount = townshipData.stream()
@@ -1628,7 +1707,7 @@ public class WordTemplateController {
 
         defaultStats.put("communityData", communityData);
         defaultStats.put("totalCommunities", 58);
-        defaultStats.put("conclusion", "根据评估数据，青神县各乡镇的减灾能力以中等为主，建议各乡镇结合自身实际情况，针对薄弱环节采取有效措施，全面提升防灾减灾救灾能力。");
+        defaultStats.put("conclusion", "根据评估数据，各乡镇的减灾能力以中等为主，建议各乡镇结合自身实际情况，针对薄弱环节采取有效措施，全面提升防灾减灾救灾能力。");
 
         return defaultStats;
     }

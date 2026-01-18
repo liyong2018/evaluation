@@ -10,6 +10,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
@@ -209,9 +210,11 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
     }
 
     @Override
-    public List<MedicalInstitution> getMedicalInstitutionByYear(Integer year) {
+    public List<MedicalInstitution> getMedicalInstitutionByYear(Integer year, String orgCode) {
+        String trimmedOrgCode = StringUtils.hasText(orgCode) ? orgCode.trim() : null;
         return lambdaQuery()
                 .eq(MedicalInstitution::getYear, year)
+                .likeRight(trimmedOrgCode != null, MedicalInstitution::getOrgCode, trimmedOrgCode)
                 .list();
     }
 
@@ -240,7 +243,7 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
     @Override
     public void exportMedicalInstitutionData(Integer year, HttpServletResponse response) {
         try {
-            List<MedicalInstitution> medicalInstitutions = getMedicalInstitutionByYear(year);
+            List<MedicalInstitution> medicalInstitutions = getMedicalInstitutionByYear(year, null);
 
             XSSFWorkbook workbook = new XSSFWorkbook();
             Sheet sheet = workbook.createSheet("医疗卫生机构数据");

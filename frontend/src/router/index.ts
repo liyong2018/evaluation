@@ -27,6 +27,12 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/firefighter-config',
+      name: 'FirefighterConfig',
+      component: () => import('@/views/FirefighterConfig.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/evaluation',
       name: 'Evaluation',
       component: () => import('@/views/Evaluation.vue'),

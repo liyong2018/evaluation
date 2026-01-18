@@ -1,13 +1,21 @@
 package com.evaluate.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.evaluate.entity.MedicalInstitution;
+import com.evaluate.entity.Organization;
+import com.evaluate.entity.GrassrootsOrganization;
 import com.evaluate.service.IMedicalInstitutionService;
+import com.evaluate.service.IGrassrootsOrganizationService;
+import com.evaluate.service.IOrganizationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.util.StringUtils;
 
 import javax.servlet.http.HttpServletResponse;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,11 +35,320 @@ public class MedicalInstitutionController {
     @Autowired(required = false)
     private IMedicalInstitutionService medicalInstitutionService;
 
+    @Autowired(required = false)
+    private IOrganizationService organizationService;
+
+    @Autowired(required = false)
+    private IGrassrootsOrganizationService grassrootsOrganizationService;
+
     /**
      * 检查服务是否可用
      */
     private boolean isServiceAvailable() {
         return medicalInstitutionService != null;
+    }
+
+    private Organization findOrganization(Integer year, String orgCode) {
+        if (!StringUtils.hasText(orgCode) || organizationService == null) {
+            return null;
+        }
+        String trimmedCode = orgCode.trim();
+        if (year != null) {
+            Organization org = organizationService.lambdaQuery()
+                    .eq(Organization::getCode, trimmedCode)
+                    .eq(Organization::getYear, year)
+                    .one();
+            if (org != null) {
+                return org;
+            }
+        }
+        return organizationService.getByCode(trimmedCode);
+    }
+
+    private GrassrootsOrganization findGrassrootsOrganization(Integer year, String orgCode) {
+        if (!StringUtils.hasText(orgCode) || grassrootsOrganizationService == null) {
+            return null;
+        }
+        String trimmedCode = orgCode.trim();
+        if (year != null) {
+            GrassrootsOrganization org = grassrootsOrganizationService.lambdaQuery()
+                    .eq(GrassrootsOrganization::getCode, trimmedCode)
+                    .eq(GrassrootsOrganization::getYear, year)
+                    .one();
+            if (org != null) {
+                return org;
+            }
+        }
+        return grassrootsOrganizationService.getByCode(trimmedCode, year);
+    }
+
+    private GrassrootsOrganization findGrassrootsOrganizationByPrefix(Integer year, String orgCodePrefix) {
+        if (!StringUtils.hasText(orgCodePrefix) || grassrootsOrganizationService == null) {
+            return null;
+        }
+        String trimmedCode = orgCodePrefix.trim();
+        return grassrootsOrganizationService.lambdaQuery()
+                .likeRight(GrassrootsOrganization::getCode, trimmedCode)
+                .eq(year != null, GrassrootsOrganization::getYear, year)
+                .orderByAsc(GrassrootsOrganization::getLevel)
+                .last("limit 1")
+                .one();
+    }
+
+    private String resolveAddressKeyword(Integer year, String orgCode) {
+        Organization organization = findOrganization(year, orgCode);
+        String keyword = resolveAddressKeyword(organization);
+        if (StringUtils.hasText(keyword)) {
+            return keyword;
+        }
+
+        GrassrootsOrganization grassrootsOrganization = findGrassrootsOrganization(year, orgCode);
+        if (grassrootsOrganization == null) {
+            grassrootsOrganization = findGrassrootsOrganizationByPrefix(year, orgCode);
+        }
+        return resolveAddressKeyword(grassrootsOrganization);
+    }
+
+    private void applyOrganizationNames(MedicalInstitution item, Organization org) {
+        if (item == null || org == null) {
+            return;
+        }
+        item.setProvinceName(org.getProvinceName());
+        item.setCityName(org.getCityName());
+        item.setCountyName(org.getCountyName());
+
+        if (StringUtils.hasText(org.getTownshipName())) {
+            item.setTownshipName(org.getTownshipName());
+        } else if (org.getLevel() != null && org.getLevel() == 4) {
+            item.setTownshipName(org.getName());
+        }
+
+        if (StringUtils.hasText(org.getCommunityName())) {
+            item.setCommunityName(org.getCommunityName());
+        } else if (org.getLevel() != null && org.getLevel() == 5) {
+            item.setCommunityName(org.getName());
+        }
+    }
+
+    private String normalizeForMatch(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        return text.replaceAll("\\s+", "");
+    }
+
+    private String toCountyPrefix(String orgCode) {
+        if (!StringUtils.hasText(orgCode)) {
+            return null;
+        }
+        String trimmedCode = orgCode.trim();
+        if (trimmedCode.length() >= 6) {
+            return trimmedCode.substring(0, 6);
+        }
+        return trimmedCode;
+    }
+
+    private Map<String, String> loadTownshipVariants(Integer year, String orgCode) {
+        if (!StringUtils.hasText(orgCode) || grassrootsOrganizationService == null) {
+            return new HashMap<>();
+        }
+        String countyPrefix = toCountyPrefix(orgCode);
+        if (!StringUtils.hasText(countyPrefix)) {
+            return new HashMap<>();
+        }
+
+        QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+        queryWrapper.likeRight("code", countyPrefix);
+        queryWrapper.eq("level", 4);
+        if (year != null) {
+            queryWrapper.and(wrapper -> wrapper
+                    .and(w -> w.eq("year", year).ne("is_baseline", 1))
+                    .or().eq("is_baseline", 1)
+            );
+        }
+        queryWrapper.and(wrapper -> wrapper
+                .isNull("is_deleted")
+                .or().eq("is_deleted", 0)
+        );
+        queryWrapper.orderByAsc("code");
+
+        List<GrassrootsOrganization> townships = grassrootsOrganizationService.list(queryWrapper);
+        if (townships == null || townships.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        Map<String, String> normalizedVariantToFullName = new HashMap<>();
+        for (GrassrootsOrganization township : townships) {
+            if (township == null) {
+                continue;
+            }
+            String fullName = StringUtils.hasText(township.getTownshipName()) ? township.getTownshipName().trim() : null;
+            if (!StringUtils.hasText(fullName) && StringUtils.hasText(township.getName())) {
+                fullName = township.getName().trim();
+            }
+            if (!StringUtils.hasText(fullName)) {
+                continue;
+            }
+            normalizedVariantToFullName.put(normalizeForMatch(fullName), fullName);
+
+            if (fullName.endsWith("街道") && fullName.length() > 2) {
+                normalizedVariantToFullName.putIfAbsent(normalizeForMatch(fullName.substring(0, fullName.length() - 2)), fullName);
+            } else if (fullName.endsWith("镇") && fullName.length() > 1) {
+                normalizedVariantToFullName.putIfAbsent(normalizeForMatch(fullName.substring(0, fullName.length() - 1)), fullName);
+            } else if (fullName.endsWith("乡") && fullName.length() > 1) {
+                normalizedVariantToFullName.putIfAbsent(normalizeForMatch(fullName.substring(0, fullName.length() - 1)), fullName);
+            }
+        }
+
+        return normalizedVariantToFullName;
+    }
+
+    private void applyTownshipFromAddress(MedicalInstitution item, List<String> townshipVariants, Map<String, String> normalizedVariantToFullName) {
+        if (item == null || StringUtils.hasText(item.getTownshipName())
+                || townshipVariants == null || townshipVariants.isEmpty()
+                || normalizedVariantToFullName == null || normalizedVariantToFullName.isEmpty()) {
+            return;
+        }
+        String address = normalizeForMatch(item.getInstitutionAddress());
+        if (!StringUtils.hasText(address)) {
+            return;
+        }
+        for (String variant : townshipVariants) {
+            if (!StringUtils.hasText(variant)) {
+                continue;
+            }
+            if (address.contains(variant)) {
+                String fullName = normalizedVariantToFullName.get(variant);
+                if (StringUtils.hasText(fullName)) {
+                    item.setTownshipName(fullName);
+                }
+                return;
+            }
+        }
+    }
+
+    private void applyNamesFromAddress(MedicalInstitution item) {
+        if (item == null) {
+            return;
+        }
+        String address = normalizeForMatch(item.getInstitutionAddress());
+        if (!StringUtils.hasText(address)) {
+            return;
+        }
+
+        String provinceName = null;
+        String cityName = null;
+        String countyName = null;
+
+        int provinceIdx = address.indexOf("省");
+        if (provinceIdx >= 0) {
+            provinceName = address.substring(0, provinceIdx + 1);
+            address = address.substring(provinceIdx + 1);
+        }
+
+        int cityIdx = address.indexOf("市");
+        if (cityIdx >= 0) {
+            cityName = address.substring(0, cityIdx + 1);
+            address = address.substring(cityIdx + 1);
+        }
+
+        int districtIdx = address.indexOf("区");
+        int countyIdx = address.indexOf("县");
+        if (districtIdx >= 0 && (countyIdx < 0 || districtIdx < countyIdx)) {
+            countyName = address.substring(0, districtIdx + 1);
+        } else if (countyIdx >= 0) {
+            countyName = address.substring(0, countyIdx + 1);
+        }
+
+        if (!StringUtils.hasText(item.getProvinceName()) && StringUtils.hasText(provinceName)) {
+            item.setProvinceName(provinceName);
+        }
+        if (!StringUtils.hasText(item.getCityName()) && StringUtils.hasText(cityName)) {
+            item.setCityName(cityName);
+        }
+        if (!StringUtils.hasText(item.getCountyName()) && StringUtils.hasText(countyName)) {
+            item.setCountyName(countyName);
+        }
+    }
+
+    private String resolveAddressKeyword(Organization org) {
+        if (org == null) {
+            return null;
+        }
+        if (StringUtils.hasText(org.getCommunityName())) {
+            return org.getCommunityName().trim();
+        }
+        if (StringUtils.hasText(org.getTownshipName())) {
+            return org.getTownshipName().trim();
+        }
+        if (StringUtils.hasText(org.getCountyName())) {
+            return org.getCountyName().trim();
+        }
+        if (StringUtils.hasText(org.getCityName())) {
+            return org.getCityName().trim();
+        }
+        if (StringUtils.hasText(org.getProvinceName())) {
+            return org.getProvinceName().trim();
+        }
+        return StringUtils.hasText(org.getName()) ? org.getName().trim() : null;
+    }
+
+    private String resolveAddressKeyword(GrassrootsOrganization org) {
+        if (org == null) {
+            return null;
+        }
+        if (StringUtils.hasText(org.getCommunityName())) {
+            return org.getCommunityName().trim();
+        }
+        if (StringUtils.hasText(org.getTownshipName())) {
+            return org.getTownshipName().trim();
+        }
+        if (StringUtils.hasText(org.getCountyName())) {
+            return org.getCountyName().trim();
+        }
+        if (StringUtils.hasText(org.getCityName())) {
+            return org.getCityName().trim();
+        }
+        if (StringUtils.hasText(org.getProvinceName())) {
+            return org.getProvinceName().trim();
+        }
+        return StringUtils.hasText(org.getName()) ? org.getName().trim() : null;
+    }
+
+    private void applyGrassrootsNames(MedicalInstitution item, GrassrootsOrganization org) {
+        if (item == null || org == null) {
+            return;
+        }
+        if (!StringUtils.hasText(item.getProvinceName()) && StringUtils.hasText(org.getProvinceName())) {
+            item.setProvinceName(org.getProvinceName());
+        }
+        if (!StringUtils.hasText(item.getCityName()) && StringUtils.hasText(org.getCityName())) {
+            item.setCityName(org.getCityName());
+        }
+        if (!StringUtils.hasText(item.getCountyName()) && StringUtils.hasText(org.getCountyName())) {
+            item.setCountyName(org.getCountyName());
+        }
+        if (!StringUtils.hasText(item.getTownshipName()) && StringUtils.hasText(org.getTownshipName())) {
+            item.setTownshipName(org.getTownshipName());
+        }
+        if (!StringUtils.hasText(item.getCommunityName()) && StringUtils.hasText(org.getCommunityName())) {
+            item.setCommunityName(org.getCommunityName());
+        }
+    }
+
+    private void applyGrassrootsNamesUpToCounty(MedicalInstitution item, GrassrootsOrganization org) {
+        if (item == null || org == null) {
+            return;
+        }
+        if (!StringUtils.hasText(item.getProvinceName()) && StringUtils.hasText(org.getProvinceName())) {
+            item.setProvinceName(org.getProvinceName());
+        }
+        if (!StringUtils.hasText(item.getCityName()) && StringUtils.hasText(org.getCityName())) {
+            item.setCityName(org.getCityName());
+        }
+        if (!StringUtils.hasText(item.getCountyName()) && StringUtils.hasText(org.getCountyName())) {
+            item.setCountyName(org.getCountyName());
+        }
     }
 
     /**
@@ -77,10 +394,12 @@ public class MedicalInstitutionController {
     }
 
     /**
-     * 根据年份获取医疗卫生机构数据列表
+     * 根据年份和组织机构代码获取医疗卫生机构数据列表
      */
     @GetMapping("/list")
-    public Map<String, Object> getMedicalInstitutionList(@RequestParam Integer year) {
+    public Map<String, Object> getMedicalInstitutionList(
+            @RequestParam Integer year,
+            @RequestParam(required = false) String orgCode) {
         Map<String, Object> result = new HashMap<>();
 
         try {
@@ -91,7 +410,47 @@ public class MedicalInstitutionController {
                 log.warn("医疗卫生机构服务未注入，无法获取数据列表");
                 return result;
             }
-            List<MedicalInstitution> list = medicalInstitutionService.getMedicalInstitutionByYear(year);
+            List<MedicalInstitution> list = medicalInstitutionService.getMedicalInstitutionByYear(year, orgCode);
+            Organization filterOrg = findOrganization(year, orgCode);
+            GrassrootsOrganization filterGrassrootsOrg = findGrassrootsOrganization(year, orgCode);
+            if (filterGrassrootsOrg == null) {
+                filterGrassrootsOrg = findGrassrootsOrganizationByPrefix(year, orgCode);
+            }
+            Map<String, String> townshipVariantToFullName = loadTownshipVariants(year, orgCode);
+            List<String> townshipVariants = new ArrayList<>(townshipVariantToFullName.keySet());
+            townshipVariants.sort(Comparator.comparingInt(String::length).reversed());
+
+            if ((list == null || list.isEmpty()) && StringUtils.hasText(orgCode)) {
+                String keyword = resolveAddressKeyword(year, orgCode);
+                if (StringUtils.hasText(keyword)) {
+                    list = medicalInstitutionService.lambdaQuery()
+                            .eq(MedicalInstitution::getYear, year)
+                            .like(MedicalInstitution::getInstitutionAddress, keyword)
+                            .list();
+                }
+            }
+
+            if (list != null && !list.isEmpty()) {
+                for (MedicalInstitution item : list) {
+                    Organization org = findOrganization(year, item.getOrgCode());
+                    if (org != null) {
+                        applyOrganizationNames(item, org);
+                    } else if (filterGrassrootsOrg != null) {
+                        boolean isExactMatch = StringUtils.hasText(orgCode)
+                                && StringUtils.hasText(filterGrassrootsOrg.getCode())
+                                && filterGrassrootsOrg.getCode().trim().equals(orgCode.trim());
+                        if (isExactMatch) {
+                            applyGrassrootsNames(item, filterGrassrootsOrg);
+                        } else {
+                            applyGrassrootsNamesUpToCounty(item, filterGrassrootsOrg);
+                        }
+                    } else if (filterOrg != null) {
+                        applyOrganizationNames(item, filterOrg);
+                    }
+                    applyNamesFromAddress(item);
+                    applyTownshipFromAddress(item, townshipVariants, townshipVariantToFullName);
+                }
+            }
             result.put("success", true);
             result.put("data", list);
             result.put("message", "获取数据成功");

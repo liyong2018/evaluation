@@ -12,12 +12,34 @@ import java.util.List;
 @Service
 public class OrganizationBoundaryServiceImpl extends ServiceImpl<OrganizationBoundaryMapper, OrganizationBoundary> implements OrganizationBoundaryService {
 
+    private static final int BASELINE_YEAR = 2020;
+
     @Override
     public OrganizationBoundary getBoundaryByOrgIdAndYear(Long orgId, Integer year) {
-        QueryWrapper<OrganizationBoundary> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("organization_id", orgId);
-        queryWrapper.eq("year", year);
-        return this.getOne(queryWrapper);
+        if (orgId == null) {
+            return null;
+        }
+
+        if (year == null) {
+            QueryWrapper<OrganizationBoundary> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("organization_id", orgId);
+            queryWrapper.orderByDesc("year");
+            queryWrapper.last("LIMIT 1");
+            return this.getOne(queryWrapper);
+        }
+
+        for (int checkYear = year; checkYear >= BASELINE_YEAR; checkYear--) {
+            QueryWrapper<OrganizationBoundary> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("organization_id", orgId);
+            queryWrapper.eq("year", checkYear);
+            queryWrapper.last("LIMIT 1");
+            OrganizationBoundary found = this.getOne(queryWrapper);
+            if (found != null) {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     @Override
