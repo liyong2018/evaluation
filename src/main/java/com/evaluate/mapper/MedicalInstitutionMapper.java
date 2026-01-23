@@ -18,13 +18,16 @@ public interface MedicalInstitutionMapper extends BaseMapper<MedicalInstitution>
     /**
      * 根据乡镇地址统计实有住院床位数总和
      *
-     * @param townshipAddress 乡镇地址（支持模糊匹配）
+     * 使用精确的乡镇名称匹配，确保不会错误匹配其他乡镇的医疗机构
+     * 匹配规则：乡镇名称后必须跟特定后缀（社区/村/路/巷/号）或地址结束
+     *
+     * @param townshipAddress 乡镇地址（如：新中镇、天元街道）
      * @param year 数据年份
      * @return 实有住院床位数总和
      */
     @Select("SELECT COALESCE(SUM(actual_hospital_beds), 0) FROM medical_institution " +
-            "WHERE (institution_address LIKE CONCAT('%', #{arg0}, '%') " +
-            "OR institution_name LIKE CONCAT('%', #{arg0}, '%')) " +
+            "WHERE (institution_address REGEXP CONCAT(#{arg0}, '([社区村路巷号]|$)') " +
+            "OR institution_name REGEXP CONCAT(#{arg0}, '([院校所中心站]|$)')) " +
             "AND year = #{arg1}")
     Integer sumActualHospitalBedsByTownship(String townshipAddress, Integer year);
 
