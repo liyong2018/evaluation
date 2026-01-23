@@ -69,25 +69,25 @@ public class MedicalInstitution implements Serializable {
     /**
      * Province (parsed from address, persisted for exact matching)
      */
-    @TableField("province")
+    @TableField(value = "province", insertStrategy = FieldStrategy.ALWAYS)
     private String province;
 
     /**
      * City (parsed from address, persisted for exact matching)
      */
-    @TableField("city")
+    @TableField(value = "city", insertStrategy = FieldStrategy.ALWAYS)
     private String city;
 
     /**
      * County (parsed from address, persisted for exact matching)
      */
-    @TableField("county")
+    @TableField(value = "county", insertStrategy = FieldStrategy.ALWAYS)
     private String county;
 
     /**
      * Township (parsed from address, persisted for exact matching)
      */
-    @TableField("township")
+    @TableField(value = "township", insertStrategy = FieldStrategy.ALWAYS)
     private String township;
 
     /**
