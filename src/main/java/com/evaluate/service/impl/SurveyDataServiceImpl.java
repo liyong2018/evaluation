@@ -912,47 +912,19 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                     log.warn("医疗设施服务未注入，跳过医院床位统计，区域代码: {}, 年份: {}", regionCode, year);
                     data.setHospitalBeds(0);
                 } else {
-                    // 使用多种匹配策略
-                    Integer hospitalBeds = null;
-                    String matchPattern = null;
+                    // 使用乡镇名称进行精确匹配
+                    Integer hospitalBeds = 0;
+                    String townshipName = data.getTownship();
 
-                    // 策略1：使用乡镇地址进行匹配
-                    String townshipAddress = data.getTownshipAddress();
-                    if (townshipAddress != null && !townshipAddress.trim().isEmpty()) {
-                        hospitalBeds = medicalInstitutionService.sumActualHospitalBedsByTownship(townshipAddress, year);
-                        matchPattern = "乡镇地址: " + townshipAddress;
+                    if (townshipName != null && !townshipName.trim().isEmpty()) {
+                        hospitalBeds = medicalInstitutionService.sumActualHospitalBedsByTownship(townshipName, year);
+                        log.info("设置医疗设施实有住院床位数 - 乡镇: {}, 年份: {}, 床位数: {}",
+                                 townshipName, year, hospitalBeds);
+                    } else {
+                        log.info("乡镇名称为空，设置医院床位数为0，区域代码: {}, 年份: {}", regionCode, year);
                     }
 
-                    // 策略2：如果策略1没找到结果，尝试使用乡镇名称匹配
-                    if (hospitalBeds == null || hospitalBeds == 0) {
-                        String townshipName = data.getTownship();
-                        if (townshipName != null && !townshipName.trim().isEmpty()) {
-                            hospitalBeds = medicalInstitutionService.sumActualHospitalBedsByTownship(townshipName, year);
-                            matchPattern = "乡镇名称: " + townshipName;
-                        }
-                    }
-
-                    // 策略3：如果还是没找到，尝试从地址中提取县名+乡镇名进行匹配
-                    if (hospitalBeds == null || hospitalBeds == 0) {
-                        String county = data.getCounty();
-                        String township = data.getTownship();
-                        if (county != null && township != null) {
-                            String searchPattern = county + township;
-                            hospitalBeds = medicalInstitutionService.sumActualHospitalBedsByTownship(searchPattern, year);
-                            matchPattern = "县乡组合: " + searchPattern;
-                        }
-                    }
-
-                if (hospitalBeds != null && hospitalBeds > 0) {
-                    data.setHospitalBeds(hospitalBeds);
-                    log.info("设置医疗设施实有住院床位数成功，匹配方式: {}, 区域: {}, 年份: {}, 数量: {}",
-                             matchPattern, regionCode, year, hospitalBeds);
-                } else {
-                    // 如果没有找到医疗机构数据，设置为0
-                    data.setHospitalBeds(0);
-                    log.info("未找到医疗机构数据，设置医院床位数为0，区域代码: {}, 年份: {}, 尝试的匹配方式: {}",
-                             regionCode, year, matchPattern);
-                }
+                    data.setHospitalBeds(hospitalBeds != null ? hospitalBeds : 0);
                 }
             } catch (Exception e) {
                 log.error("统计医疗设施实有住院床位数失败，区域代码: {}, 年份: {}", regionCode, year, e);

@@ -314,6 +314,17 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         if (!StringUtils.hasText(item.getCountyName()) && StringUtils.hasText(countyName)) {
             item.setCountyName(countyName);
         }
+
+        // 同时保存到数据库列（用于精确查询匹配）
+        if (StringUtils.hasText(provinceName)) {
+            item.setProvince(provinceName);
+        }
+        if (StringUtils.hasText(cityName)) {
+            item.setCity(cityName);
+        }
+        if (StringUtils.hasText(countyName)) {
+            item.setCounty(countyName);
+        }
     }
 
     /**
@@ -350,6 +361,8 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         String townshipName = extractTownshipFromAddress(address);
         if (StringUtils.hasText(townshipName)) {
             institution.setTownshipName(townshipName);
+            // 同时保存到数据库列（用于精确查询匹配）
+            institution.setTownship(townshipName);
             // 验证街道/乡镇是否存在于grassroots_organization表中
             if (!isTownshipExists(townshipName, year)) {
                 result.addError("第" + rowNum + "行 [" + institutionName + "]: 地址\"" + address +

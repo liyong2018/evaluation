@@ -67,6 +67,30 @@ public class MedicalInstitution implements Serializable {
     private String institutionAddress;
 
     /**
+     * Province (parsed from address, persisted for exact matching)
+     */
+    @TableField("province")
+    private String province;
+
+    /**
+     * City (parsed from address, persisted for exact matching)
+     */
+    @TableField("city")
+    private String city;
+
+    /**
+     * County (parsed from address, persisted for exact matching)
+     */
+    @TableField("county")
+    private String county;
+
+    /**
+     * Township (parsed from address, persisted for exact matching)
+     */
+    @TableField("township")
+    private String township;
+
+    /**
      * Institution Category Code
      */
     @TableField("institution_category_code")
