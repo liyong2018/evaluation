@@ -379,8 +379,9 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         String normalizedAddress = address.replaceAll("\\s+", "");
 
         // 尝试匹配 "XX街道"、"XX镇"、"XX乡"、"XX办事处"
+        // 使用正向否定断言确保后缀后面不是镇/乡/街道等字
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-                "([^省市县区]{2,10})(街道|镇|乡|办事处)");
+                "([\\u4e00-\\u9fff]{2,10}?)(街道|镇|乡|办事处)(?![镇乡街办])");
         java.util.regex.Matcher matcher = pattern.matcher(normalizedAddress);
         if (matcher.find()) {
             return matcher.group(1) + matcher.group(2);
