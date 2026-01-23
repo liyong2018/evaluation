@@ -467,7 +467,15 @@ public class MedicalInstitutionController {
             result.put("updateCount", importResult.getUpdateCount());
 
             StringBuilder message = new StringBuilder();
-            if (importResult.isSuccess()) {
+
+            // 优先处理错误信息
+            if (importResult.hasErrors()) {
+                result.put("errors", importResult.getErrors());
+                result.put("errorsMessage", importResult.getErrorsMessage());
+                // message 包含完整的错误详情
+                message.append("导入失败：存在地址验证错误\n\n");
+                message.append(importResult.getErrorsMessage());
+            } else if (importResult.isSuccess()) {
                 message.append("导入成功！共处理").append(importResult.getTotalCount()).append("条数据");
                 if (importResult.getInsertCount() > 0) {
                     message.append("，新增").append(importResult.getInsertCount()).append("条");
@@ -480,7 +488,6 @@ public class MedicalInstitutionController {
             }
 
             if (importResult.hasWarnings()) {
-                message.append("。");
                 result.put("warnings", importResult.getWarnings());
                 result.put("warningsMessage", importResult.getWarningsMessage());
             }

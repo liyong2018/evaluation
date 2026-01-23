@@ -22,6 +22,8 @@ public class ImportResultDTO {
     private int insertCount;
     /** 警告信息列表 */
     private List<String> warnings = new ArrayList<>();
+    /** 错误信息列表 */
+    private List<String> errors = new ArrayList<>();
 
     public void addWarning(String warning) {
         if (this.warnings == null) {
@@ -30,8 +32,19 @@ public class ImportResultDTO {
         this.warnings.add(warning);
     }
 
+    public void addError(String error) {
+        if (this.errors == null) {
+            this.errors = new ArrayList<>();
+        }
+        this.errors.add(error);
+    }
+
     public boolean hasWarnings() {
         return warnings != null && !warnings.isEmpty();
+    }
+
+    public boolean hasErrors() {
+        return errors != null && !errors.isEmpty();
     }
 
     public String getWarningsMessage() {
@@ -43,5 +56,16 @@ public class ImportResultDTO {
         }
         // 最多显示5条警告
         return String.join("; ", warnings.subList(0, 5)) + "; ... 等" + warnings.size() + "条";
+    }
+
+    public String getErrorsMessage() {
+        if (!hasErrors()) {
+            return null;
+        }
+        if (errors.size() <= 5) {
+            return String.join("; ", errors);
+        }
+        // 最多显示5条错误
+        return String.join("; ", errors.subList(0, 5)) + "; ... 等" + errors.size() + "条";
     }
 }

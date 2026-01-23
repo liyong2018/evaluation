@@ -37,6 +37,9 @@ import java.util.stream.Collectors;
 @Service
 public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutionMapper, MedicalInstitution> implements IMedicalInstitutionService {
 
+    @Autowired(required = false)
+    private IGrassrootsOrganizationService grassrootsOrganizationService;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean importMedicalInstitutionData(MultipartFile file, Integer year) {
@@ -223,7 +226,10 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
 
                     medicalInstitution.setYear(year);
 
-                    checkAddressParsing(medicalInstitution, result, i + 1);
+                    // 从地址中解析省市区信息
+                    applyNamesFromAddress(medicalInstitution);
+
+                    checkAddressParsing(medicalInstitution, result, i + 1, year);
 
                     medicalInstitutions.add(medicalInstitution);
 
@@ -236,6 +242,14 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
             workbook.close();
 
             result.setTotalCount(medicalInstitutions.size());
+
+            // 如果有地址验证错误，终止导入
+            if (result.hasErrors()) {
+                result.setSuccess(false);
+                result.addError("导入终止：存在地址解析或匹配错误，请修正后重新导入");
+                log.warn("医疗卫生机构导入终止：存在地址验证错误");
+                return result;
+            }
 
             if (!medicalInstitutions.isEmpty()) {
                 BatchSaveResult saveResult = smartBatchSaveWithResult(medicalInstitutions);
@@ -255,42 +269,234 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         return result;
     }
 
-    private void checkAddressParsing(MedicalInstitution institution,
-                                    com.evaluate.dto.ImportResultDTO result, int rowNum) {
-        String address = institution.getInstitutionAddress();
+    /**
+     * 从地址中解析省市区信息
+     */
+    private void applyNamesFromAddress(MedicalInstitution item) {
+        if (item == null) {
+            return;
+        }
+        String address = normalizeForMatch(item.getInstitutionAddress());
         if (!StringUtils.hasText(address)) {
-            result.addWarning("第" + rowNum + "行: 机构地址为空");
             return;
         }
 
-        List<String> missingFields = new ArrayList<>();
+        String provinceName = null;
+        String cityName = null;
+        String countyName = null;
 
-        if (!StringUtils.hasText(institution.getProvinceName())) {
-            missingFields.add("省");
+        int provinceIdx = address.indexOf("省");
+        if (provinceIdx >= 0) {
+            provinceName = address.substring(0, provinceIdx + 1);
+            address = address.substring(provinceIdx + 1);
         }
-        if (!StringUtils.hasText(institution.getCityName())) {
-            missingFields.add("市");
+
+        int cityIdx = address.indexOf("市");
+        if (cityIdx >= 0) {
+            cityName = address.substring(0, cityIdx + 1);
+            address = address.substring(cityIdx + 1);
         }
+
+        int districtIdx = address.indexOf("区");
+        int countyIdx = address.indexOf("县");
+        if (districtIdx >= 0 && (countyIdx < 0 || districtIdx < countyIdx)) {
+            countyName = address.substring(0, districtIdx + 1);
+        } else if (countyIdx >= 0) {
+            countyName = address.substring(0, countyIdx + 1);
+        }
+
+        if (!StringUtils.hasText(item.getProvinceName()) && StringUtils.hasText(provinceName)) {
+            item.setProvinceName(provinceName);
+        }
+        if (!StringUtils.hasText(item.getCityName()) && StringUtils.hasText(cityName)) {
+            item.setCityName(cityName);
+        }
+        if (!StringUtils.hasText(item.getCountyName()) && StringUtils.hasText(countyName)) {
+            item.setCountyName(countyName);
+        }
+    }
+
+    /**
+     * 标准化地址字符串（去除空格）
+     */
+    private String normalizeForMatch(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        return text.replaceAll("\\s+", "");
+    }
+
+    private void checkAddressParsing(MedicalInstitution institution,
+                                    com.evaluate.dto.ImportResultDTO result, int rowNum, Integer year) {
+        String address = institution.getInstitutionAddress();
+        if (!StringUtils.hasText(address)) {
+            result.addError("第" + rowNum + "行: 机构地址为空");
+            result.setSuccess(false);
+            return;
+        }
+
+        String institutionName = StringUtils.hasText(institution.getInstitutionName())
+            ? institution.getInstitutionName() : "未知机构";
+
+        // 检查区县是否解析
         if (!StringUtils.hasText(institution.getCountyName())) {
-            missingFields.add("区/县");
+            result.addError("第" + rowNum + "行 [" + institutionName + "]: 地址\"" + address +
+                    "\"未能解析出区/县信息");
+            result.setSuccess(false);
+            return;
         }
 
-        boolean hasTownshipInAddress = address.contains("街道") || address.contains("镇") || address.contains("乡");
-        if (!hasTownshipInAddress && !StringUtils.hasText(institution.getTownshipName())) {
-            missingFields.add("街道/乡镇");
+        // 提取并验证街道/乡镇
+        String townshipName = extractTownshipFromAddress(address);
+        if (StringUtils.hasText(townshipName)) {
+            institution.setTownshipName(townshipName);
+            // 验证街道/乡镇是否存在于grassroots_organization表中
+            if (!isTownshipExists(townshipName, year)) {
+                result.addError("第" + rowNum + "行 [" + institutionName + "]: 地址\"" + address +
+                        "\"解析的街道/乡镇【" + townshipName + "】在系统中不存在，请先在组织机构管理中添加");
+                result.setSuccess(false);
+            }
+        } else {
+            result.addError("第" + rowNum + "行 [" + institutionName + "]: 地址\"" + address +
+                    "\"未能解析出街道/乡镇信息");
+            result.setSuccess(false);
         }
 
-        boolean hasCommunityInAddress = address.contains("社区") || address.contains("行政村") ||
-                                       address.contains("村") || address.contains("居委会");
-        if (!hasCommunityInAddress && !StringUtils.hasText(institution.getCommunityName())) {
-            missingFields.add("社区/行政村");
+        // 尝试提取社区/行政村（不验证，仅用于记录）
+        String communityName = extractCommunityFromAddress(address);
+        if (StringUtils.hasText(communityName)) {
+            institution.setCommunityName(communityName);
+        }
+    }
+
+    /**
+     * 从地址中提取街道/乡镇名称
+     */
+    private String extractTownshipFromAddress(String address) {
+        if (!StringUtils.hasText(address)) {
+            return null;
+        }
+        String normalizedAddress = address.replaceAll("\\s+", "");
+
+        // 尝试匹配 "XX街道"、"XX镇"、"XX乡"、"XX办事处"
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "([^省市县区]{2,10})(街道|镇|乡|办事处)");
+        java.util.regex.Matcher matcher = pattern.matcher(normalizedAddress);
+        if (matcher.find()) {
+            return matcher.group(1) + matcher.group(2);
         }
 
-        if (!missingFields.isEmpty()) {
-            String institutionName = StringUtils.hasText(institution.getInstitutionName())
-                ? institution.getInstitutionName() : "未知机构";
-            result.addWarning("第" + rowNum + "行 [" + institutionName + "]: 地址\"" + address +
-                            "\"未能完整解析以下信息: " + String.join("、", missingFields));
+        return null;
+    }
+
+    /**
+     * 从地址中提取社区/行政村名称
+     * 只提取村/社区名称本身，不包含前面的行政区划
+     */
+    private String extractCommunityFromAddress(String address) {
+        if (!StringUtils.hasText(address)) {
+            return null;
+        }
+        String normalizedAddress = address.replaceAll("\\s+", "");
+
+        // 先找到乡镇的位置，在乡镇之后查找社区/村
+        int townshipIdx = -1;
+        String[] townshipMarkers = {"镇", "乡", "街道", "办事处"};
+        for (String marker : townshipMarkers) {
+            int idx = normalizedAddress.indexOf(marker);
+            if (idx >= 0 && idx > townshipIdx) {
+                townshipIdx = idx + marker.length();
+            }
+        }
+
+        // 如果找到乡镇，从乡镇之后开始查找社区/村
+        String searchArea = (townshipIdx > 0) ? normalizedAddress.substring(townshipIdx) : normalizedAddress;
+
+        // 尝试匹配社区/村（在乡镇之后的部分）
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "([\\u4e00-\\u9fff]{2,10})(社区居民委员会|社区居委会|居民委员会|居委会|村民委员会|村委会|行政村|社区|村)");
+        java.util.regex.Matcher matcher = pattern.matcher(searchArea);
+
+        if (matcher.find()) {
+            String base = matcher.group(1);
+            String suffix = matcher.group(2);
+
+            // 标准化后缀
+            if (suffix.contains("社区")) {
+                return base.endsWith("社区") ? base : base + "社区";
+            } else if (suffix.contains("村")) {
+                return base.endsWith("村") ? base : base + "村";
+            }
+            return base + suffix;
+        }
+
+        return null;
+    }
+
+    /**
+     * 检查街道/乡镇是否存在于grassroots_organization表中
+     * 支持匹配当年数据或基准数据(is_baseline=1)
+     */
+    private boolean isTownshipExists(String townshipName, Integer year) {
+        if (grassrootsOrganizationService == null) {
+            return true; // 服务未注入时跳过验证
+        }
+        try {
+            QueryWrapper<GrassrootsOrganization> wrapper = new QueryWrapper<>();
+            wrapper.eq("level", 4); // 街道/乡镇级别
+            wrapper.and(w -> w.eq("name", townshipName).or().eq("township_name", townshipName));
+            // 匹配当年数据或基准数据
+            wrapper.and(w -> w.eq("year", year).or().eq("is_baseline", 1));
+            wrapper.and(w -> w.isNull("is_deleted").or().eq("is_deleted", 0));
+            return grassrootsOrganizationService.count(wrapper) > 0;
+        } catch (Exception e) {
+            log.warn("检查街道/乡镇是否存在时出错: {}", townshipName, e);
+            return false;
+        }
+    }
+
+    /**
+     * 检查社区/行政村是否存在于grassroots_organization表中
+     * 支持匹配当年数据或基准数据(is_baseline=1)
+     * 支持精确匹配和模糊匹配
+     */
+    private boolean isCommunityExists(String communityName, String townshipName, Integer year) {
+        if (grassrootsOrganizationService == null) {
+            return true; // 服务未注入时跳过验证
+        }
+        try {
+            // 先尝试精确匹配
+            QueryWrapper<GrassrootsOrganization> wrapper = new QueryWrapper<>();
+            wrapper.eq("level", 5); // 社区/行政村级别
+            wrapper.and(w -> w.eq("name", communityName).or().eq("community_name", communityName));
+            // 匹配当年数据或基准数据
+            wrapper.and(w -> w.eq("year", year).or().eq("is_baseline", 1));
+            wrapper.and(w -> w.isNull("is_deleted").or().eq("is_deleted", 0));
+            long exactCount = grassrootsOrganizationService.count(wrapper);
+
+            if (exactCount > 0) {
+                log.debug("精确匹配到社区/行政村: {}", communityName);
+                return true;
+            }
+
+            // 精确匹配失败，尝试模糊匹配（社区名称包含解析出的名称）
+            QueryWrapper<GrassrootsOrganization> fuzzyWrapper = new QueryWrapper<>();
+            fuzzyWrapper.eq("level", 5);
+            fuzzyWrapper.and(w -> w.like("name", communityName).or().like("community_name", communityName));
+            fuzzyWrapper.and(w -> w.eq("year", year).or().eq("is_baseline", 1));
+            fuzzyWrapper.and(w -> w.isNull("is_deleted").or().eq("is_deleted", 0));
+            long fuzzyCount = grassrootsOrganizationService.count(fuzzyWrapper);
+
+            if (fuzzyCount > 0) {
+                log.debug("模糊匹配到社区/行政村: {}", communityName);
+                return true;
+            }
+
+            log.debug("未匹配到社区/行政村: {} (乡镇: {})", communityName, townshipName);
+            return false;
+        } catch (Exception e) {
+            log.warn("检查社区/行政村是否存在时出错: {}", communityName, e);
+            return false;
         }
     }
 

@@ -1517,7 +1517,20 @@ const handleImport = async () => {
       dialogVisible.import = false
       getDataList()
     } else {
-      ElMessage.error(response.message || '导入失败')
+      // 导入失败，检查是否有错误详情
+      if (response.errors && response.errors.length > 0) {
+        const errorTitle = '导入失败：地址验证未通过\n\n请确保以下信息在组织机构管理中已维护：'
+        const errorMessage = response.errors.slice(0, 10).join('\n') +
+          (response.errors.length > 10 ? `\n... 等 ${response.errors.length} 条错误` : '')
+
+        ElMessageBox.alert(errorMessage, errorTitle, {
+          confirmButtonText: '确定',
+          type: 'error',
+          dangerouslyUseHTMLString: false
+        })
+      } else {
+        ElMessage.error(response.message || '导入失败')
+      }
     }
   } catch (error) {
     console.error('导入失败:', error)
