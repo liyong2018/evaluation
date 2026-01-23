@@ -553,6 +553,14 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                         data.setId(null);
                         boolean saveResult = save(data);
                         if (saveResult) {
+                            // 保存后立即更新地址字段（province/city/county/township）
+                            try {
+                                baseMapper.updateAddressFields(data.getId(), data.getProvince(),
+                                    data.getCity(), data.getCounty(), data.getTownship());
+                                log.debug("已更新地址字段 - ID: {}, township: {}", data.getId(), data.getTownship());
+                            } catch (Exception updateEx) {
+                                log.warn("更新地址字段失败，ID: {}, township: {}", data.getId(), data.getTownship(), updateEx);
+                            }
                             result.insertCount++;
                             result.successCount++;
                         }
