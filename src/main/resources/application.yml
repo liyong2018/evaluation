@@ -30,6 +30,10 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
     cache-enabled: false
+  global-config:
+    db-config:
+      # 插入策略：IGNORED 表示忽略字段判断，所有字段都参与插入
+      insert-strategy: ignored
 
 # 日志配置
 logging:
