@@ -37,7 +37,10 @@
       "Bash(set JAVA_HOME:*)",
       "Bash(set PATH=\"C:\\\\Program Files\\\\Java\\\\jdk-17\\\\bin;%PATH%\")",
       "Bash(python:*)",
-      "Bash(set:*)"
+      "Bash(set:*)",
+      "Bash(mvn clean package:*)",
+      "Bash(ls:*)",
+      "Bash(mvn compile:*)"
     ],
     "deny": [],
     "ask": []

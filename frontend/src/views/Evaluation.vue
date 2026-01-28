@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="evaluation">
     <!-- 页面标题 -->
     <div class="page-header">
@@ -757,7 +757,10 @@ const getRegionTreeData = async () => {
       dataKey = 'data.data' // 社区数据的嵌套结构
     } else {
       // 乡镇数据：从survey-data API获取数据
-      response = await surveyDataApi.getAll()
+      response = await surveyDataApi.getAll({
+        year: evaluationForm.year || undefined,
+        orgCode: evaluationForm.orgCode || globalOrganizationStore.selectedOrganization?.code
+      })
       dataKey = 'data' // 乡镇数据的直接结构
     }
 

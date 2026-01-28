@@ -122,7 +122,7 @@ public class PrimaryIndicatorResult implements Serializable {
      * 是否删除(0-未删除，1-已删除)
      */
     @TableLogic
-    @TableField("is_deleted")
+    @TableField(value = "is_deleted", fill = FieldFill.INSERT)
     private Integer isDeleted;
 
     public Integer getIsDeleted() {

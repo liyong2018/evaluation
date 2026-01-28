@@ -1,15 +1,22 @@
 package com.evaluate.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.evaluate.common.Result;
+import com.evaluate.dto.GpkgFieldValidationResult;
 import com.evaluate.dto.ImportCheckResult;
 import com.evaluate.entity.SurveyData;
 import com.evaluate.service.ISurveyDataService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.lang.Integer;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 调查数据控制器
@@ -26,10 +33,31 @@ public class SurveyDataController {
     private ISurveyDataService surveyDataService;
 
     @GetMapping
-    public Result<List<SurveyData>> getAllSurveyData() {
+    public Result<Map<String, Object>> getAllSurveyData(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String orgCode,
+            @RequestParam(required = false, defaultValue = "1") Integer page,
+            @RequestParam(required = false, defaultValue = "50") Integer pageSize) {
         try {
-            List<SurveyData> list = surveyDataService.list();
-            return Result.success(list);
+            // 分页参数校验
+            if (page < 1) page = 1;
+            if (pageSize < 1 || pageSize > 500) pageSize = 50;
+
+            // 使用分页查询
+            IPage<SurveyData> pageResult = surveyDataService.getByYearAndOrgCodePage(year, orgCode, page, pageSize);
+
+            // 构造返回结果
+            Map<String, Object> result = new HashMap<>();
+            result.put("records", pageResult.getRecords());
+            result.put("total", pageResult.getTotal());
+            result.put("current", pageResult.getCurrent());
+            result.put("pages", pageResult.getPages());
+            result.put("size", pageResult.getSize());
+
+            log.debug("查询调查数据 - year: {}, orgCode: {}, page: {}, pageSize: {}, total: {}",
+                    year, orgCode, page, pageSize, pageResult.getTotal());
+
+            return Result.success(result);
         } catch (Exception e) {
             log.error("获取调查数据列表失败", e);
             return Result.error("获取调查数据列表失败: " + e.getMessage());
@@ -161,6 +189,29 @@ public class SurveyDataController {
         }
     }
 
+    /**
+     * 根据年份和组织机构删除所有调查数据
+     */
+    @DeleteMapping("/delete-by-year-org")
+    public Result<Long> deleteByYearAndOrg(
+            @RequestParam Integer year,
+            @RequestParam(required = false) String orgCode) {
+        try {
+            log.info("删除调查数据 - year: {}, orgCode: {}", year, orgCode);
+            QueryWrapper<SurveyData> wrapper = new QueryWrapper<>();
+            wrapper.eq("year", year);
+            if (StringUtils.hasText(orgCode)) {
+                wrapper.likeRight("region_code", orgCode.trim());
+            }
+            long count = surveyDataService.count(wrapper);
+            boolean result = surveyDataService.remove(wrapper);
+            return result ? Result.success(count) : Result.error("删除失败");
+        } catch (Exception e) {
+            log.error("删除调查数据失败", e);
+            return Result.error("删除失败: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/import")
     public Result<Boolean> importSurveyData(@RequestParam MultipartFile file, @RequestParam Integer year) {
         try {
@@ -229,6 +280,37 @@ public class SurveyDataController {
         } catch (Exception e) {
             log.error("检查导入前置条件失败", e);
             return Result.error("检查导入前置条件失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 验证GPKG文件字段
+     * 检查GPKG文件是否包含乡镇评估数据所需的必要字段
+     */
+    @PostMapping("/validate-gpkg")
+    public Result<GpkgFieldValidationResult> validateGpkgFile(@RequestParam MultipartFile file) {
+        try {
+            log.info("验证乡镇评估数据GPKG文件: {}", file.getOriginalFilename());
+            GpkgFieldValidationResult result = surveyDataService.validateGpkgFields(file, "township");
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("验证GPKG文件失败", e);
+            return Result.error("验证GPKG文件失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 从GPKG文件导入乡镇评估数据
+     */
+    @PostMapping("/import-gpkg")
+    public Result<Boolean> importFromGpkg(@RequestParam MultipartFile file, @RequestParam Integer year) {
+        try {
+            log.info("从GPKG文件导入{}年乡镇评估数据", year);
+            boolean result = surveyDataService.importFromGpkg(file, year);
+            return result ? Result.success(true) : Result.error("导入GPKG文件失败");
+        } catch (Exception e) {
+            log.error("导入GPKG文件失败", e);
+            return Result.error("导入GPKG文件失败: " + e.getMessage());
         }
     }
 }

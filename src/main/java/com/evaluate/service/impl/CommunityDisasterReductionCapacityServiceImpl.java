@@ -4,15 +4,25 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.evaluate.dto.GpkgFieldValidationResult;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
 import com.evaluate.mapper.CommunityDisasterReductionCapacityMapper;
 import com.evaluate.service.ICommunityDisasterReductionCapacityService;
 import com.evaluate.service.IOrganizationService;
 import com.evaluate.util.ExcelUtil;
+import com.evaluate.util.GpkgUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.NumberToTextConverter;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.geotools.data.DataStore;
+import org.geotools.data.DataStoreFinder;
+import org.geotools.data.FeatureSource;
+import org.geotools.data.Query;
+import org.geotools.feature.FeatureCollection;
+import org.geotools.feature.FeatureIterator;
+import org.opengis.feature.simple.SimpleFeature;
+import org.opengis.feature.simple.SimpleFeatureType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +30,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -121,7 +134,7 @@ public class CommunityDisasterReductionCapacityServiceImpl
             QueryWrapper<CommunityDisasterReductionCapacity> queryWrapper = new QueryWrapper<>();
 
             if (regionCode != null && !regionCode.trim().isEmpty()) {
-                queryWrapper.like("region_code", regionCode);
+                queryWrapper.likeRight("region_code", regionCode.trim());
             }
             if (communityName != null && !communityName.trim().isEmpty()) {
                 queryWrapper.like("community_name", communityName);
@@ -131,12 +144,13 @@ public class CommunityDisasterReductionCapacityServiceImpl
 
             IPage<CommunityDisasterReductionCapacity> pageResult = page(pageParam, queryWrapper);
 
+            // 返回与乡镇数据一致的分页格式
             result.put("success", true);
-            result.put("data", pageResult.getRecords());
+            result.put("records", pageResult.getRecords());
             result.put("total", pageResult.getTotal());
-            result.put("page", page);
-            result.put("size", size);
+            result.put("current", pageResult.getCurrent());
             result.put("pages", pageResult.getPages());
+            result.put("size", pageResult.getSize());
 
         } catch (Exception e) {
             log.error("查询社区行政村减灾能力数据列表失败", e);
@@ -828,6 +842,234 @@ public class CommunityDisasterReductionCapacityServiceImpl
         } catch (Exception e) {
             log.warn("解析BigDecimal值失败: {}", e.getMessage());
             return null;
+        }
+    }
+
+    @Override
+    public GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType) {
+        return GpkgUtil.validateGpkgFields(file, dataType);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> importFromGpkg(MultipartFile file, Integer year) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", false);
+
+        if (file == null || file.isEmpty() || year == null) {
+            result.put("message", "导入参数为空");
+            return result;
+        }
+
+        Path tempFile = null;
+        try {
+            // 创建临时文件
+            tempFile = Files.createTempFile("gpkg_", ".gpkg");
+            Files.copy(file.getInputStream(), tempFile, StandardCopyOption.REPLACE_EXISTING);
+
+            // 创建数据存储
+            Map<String, Object> params = new HashMap<>();
+            params.put("dbtype", "geopkg");
+            params.put("database", tempFile.toAbsolutePath().toString());
+
+            DataStore dataStore = DataStoreFinder.getDataStore(params);
+            if (dataStore == null) {
+                result.put("message", "无法读取GPKG文件");
+                return result;
+            }
+
+            try {
+                // 获取类型名称
+                String[] typeNames = dataStore.getTypeNames();
+                if (typeNames == null || typeNames.length == 0) {
+                    result.put("message", "GPKG文件中没有找到任何图层");
+                    return result;
+                }
+
+                // 使用第一个图层
+                String layerName = typeNames[0];
+                log.info("使用图层: {}", layerName);
+
+                // 获取要素源
+                FeatureSource<SimpleFeatureType, SimpleFeature> featureSource =
+                        dataStore.getFeatureSource(layerName);
+
+                // 获取字段映射
+                Map<String, String> fieldMapping = GpkgUtil.getFieldMapping("community");
+
+                // 读取所有要素
+                Query query = new Query(layerName);
+                FeatureCollection<SimpleFeatureType, SimpleFeature> collection = featureSource.getFeatures(query);
+
+                List<CommunityDisasterReductionCapacity> dataList = new ArrayList<>();
+                try (FeatureIterator<SimpleFeature> features = collection.features()) {
+                    while (features.hasNext()) {
+                        SimpleFeature feature = features.next();
+                        CommunityDisasterReductionCapacity data = parseGpkgFeatureToCommunityCapacity(feature, fieldMapping, year);
+                        if (data != null) {
+                            dataList.add(data);
+                        }
+                    }
+                }
+
+                log.info("从GPKG文件解析到{}条社区减灾能力数据", dataList.size());
+                result.put("totalCount", dataList.size());
+
+                // 批量保存
+                int insertCount = 0;
+                int updateCount = 0;
+
+                for (CommunityDisasterReductionCapacity item : dataList) {
+                    try {
+                        // 检查是否已存在（根据regionCode、year和communityName）
+                        QueryWrapper<CommunityDisasterReductionCapacity> wrapper = new QueryWrapper<>();
+                        wrapper.eq("region_code", item.getRegionCode());
+                        wrapper.eq("year", year);
+                        wrapper.eq("community_name", item.getCommunityName());
+
+                        CommunityDisasterReductionCapacity existing = getOne(wrapper);
+                        if (existing != null) {
+                            item.setId(existing.getId());
+                            updateById(item);
+                            updateCount++;
+                        } else {
+                            item.setYear(year);
+                            save(item);
+                            insertCount++;
+                        }
+                    } catch (Exception e) {
+                        log.warn("保存社区减灾能力数据失败: {}", item.getCommunityName(), e);
+                    }
+                }
+
+                result.put("insertCount", insertCount);
+                result.put("updateCount", updateCount);
+                result.put("successCount", insertCount + updateCount);
+                result.put("success", true);
+                result.put("message", String.format("导入成功！共处理%d条数据，新增%d条，更新%d条",
+                        dataList.size(), insertCount, updateCount));
+
+            } finally {
+                dataStore.dispose();
+            }
+
+        } catch (Exception e) {
+            log.error("导入GPKG文件失败", e);
+            result.put("message", "导入GPKG文件失败: " + e.getMessage());
+        } finally {
+            // 删除临时文件
+            if (tempFile != null) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (Exception e) {
+                    log.warn("删除临时文件失败", e);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 将GPKG要素解析为CommunityDisasterReductionCapacity对象
+     */
+    private CommunityDisasterReductionCapacity parseGpkgFeatureToCommunityCapacity(
+            SimpleFeature feature, Map<String, String> fieldMapping, Integer year) {
+        try {
+            CommunityDisasterReductionCapacity data = new CommunityDisasterReductionCapacity();
+            data.setYear(year);
+
+            // 根据字段映射从GPKG属性中获取值
+            for (Map.Entry<String, String> entry : fieldMapping.entrySet()) {
+                String gpkgField = entry.getKey();
+                String dbField = entry.getValue();
+
+                Object value = feature.getAttribute(gpkgField);
+                if (value != null) {
+                    setCommunityFieldValue(data, dbField, value);
+                }
+            }
+
+            return data;
+        } catch (Exception e) {
+            log.warn("解析GPKG要素失败: {}", feature.getID(), e);
+            return null;
+        }
+    }
+
+    /**
+     * 设置字段值到CommunityDisasterReductionCapacity对象
+     */
+    private void setCommunityFieldValue(CommunityDisasterReductionCapacity data, String fieldName, Object value) {
+        if (value == null) {
+            return;
+        }
+
+        try {
+            switch (fieldName) {
+                case "provinceName":
+                    data.setProvinceName(getStringValue(value));
+                    break;
+                case "cityName":
+                    data.setCityName(getStringValue(value));
+                    break;
+                case "countyName":
+                    data.setCountyName(getStringValue(value));
+                    break;
+                case "townshipName":
+                    data.setTownshipName(getStringValue(value));
+                    break;
+                case "communityName":
+                    data.setCommunityName(getStringValue(value));
+                    break;
+                case "regionCode":
+                    data.setRegionCode(getStringValue(value));
+                    break;
+                case "residentPopulation":
+                    data.setResidentPopulation(getIntegerValue(value));
+                    break;
+                case "hasEmergencyPlan":
+                    data.setHasEmergencyPlan(getStringValue(value));
+                    break;
+                case "hasVulnerableGroupsList":
+                    data.setHasVulnerableGroupsList(getStringValue(value));
+                    break;
+                case "hasDisasterPointsList":
+                    data.setHasDisasterPointsList(getStringValue(value));
+                    break;
+                case "hasDisasterMap":
+                    data.setHasDisasterMap(getStringValue(value));
+                    break;
+                case "lastYearFundingAmount":
+                    data.setLastYearFundingAmount(getDecimalValue(value));
+                    break;
+                case "materialsEquipmentValue":
+                    data.setMaterialsEquipmentValue(getDecimalValue(value));
+                    break;
+                case "medicalServiceCount":
+                    data.setMedicalServiceCount(getIntegerValue(value));
+                    break;
+                case "registeredVolunteerCount":
+                    data.setRegisteredVolunteerCount(getIntegerValue(value));
+                    break;
+                case "militiaReserveCount":
+                    data.setMilitiaReserveCount(getIntegerValue(value));
+                    break;
+                case "lastYearTrainingParticipants":
+                    data.setLastYearTrainingParticipants(getIntegerValue(value));
+                    break;
+                case "lastYearDrillParticipants":
+                    data.setLastYearDrillParticipants(getIntegerValue(value));
+                    break;
+                case "emergencyShelterCapacity":
+                    data.setEmergencyShelterCapacity(getIntegerValue(value));
+                    break;
+                default:
+                    // 忽略未知字段
+                    break;
+            }
+        } catch (Exception e) {
+            log.warn("设置字段值失败: {} = {}", fieldName, value);
         }
     }
 }

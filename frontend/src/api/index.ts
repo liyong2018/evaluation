@@ -11,8 +11,9 @@ export const systemApi = {
 
 // 调查数据相关API
 export const surveyDataApi = {
-  // 获取所有调查数据
-  getAll: () => request.get('/api/survey-data'),
+  // 获取所有调查数据（支持分页）
+  getAll: (params?: { year?: number; orgCode?: string; page?: number; pageSize?: number }) =>
+    request.get('/api/survey-data', { params }),
 
   // 根据ID获取调查数据
   getById: (id: number) => request.get(`/api/survey-data/${id}`),
@@ -45,6 +46,10 @@ export const surveyDataApi = {
   // 批量删除调查数据
   batchDelete: (ids: number[]) => request.delete('/api/survey-data/batch', { data: ids }),
 
+  // 根据年份和组织机构删除所有调查数据
+  deleteAllByYearOrg: (year: number, orgCode?: string) =>
+    request.delete('/api/survey-data/delete-by-year-org', { params: { year, orgCode } }),
+
   // 导入Excel文件
   importData: (file: File, year: number) => {
     const formData = new FormData()
@@ -61,6 +66,26 @@ export const surveyDataApi = {
     url: '/api/survey-data/check-import-prerequisites',
     params: { year }
   }),
+
+  // 验证GPKG文件字段
+  validateGpkg: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post('/api/survey-data/validate-gpkg', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  // 从GPKG文件导入数据
+  importGpkg: (file: File, year: number) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('year', year.toString())
+    return request.post('/api/survey-data/import-gpkg', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000 // 5分钟超时（文件导入可能耗时较长）
+    })
+  },
 
   // 导出Excel文件
   exportData: () => request.get('/api/survey-data/export/all')
@@ -600,6 +625,26 @@ export const communityCapacityApi = {
     })
   },
 
+  // 验证GPKG文件字段
+  validateGpkg: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post('/api/community-capacity/validate-gpkg', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  // 从GPKG文件导入数据
+  importGpkg: (file: File, year: number) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('year', year.toString())
+    return request.post('/api/community-capacity/import-gpkg', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000 // 5分钟超时（文件导入可能耗时较长）
+    })
+  },
+
   // 获取社区行政村减灾能力数据列表
   getList: (params: {
     page?: number;
@@ -628,6 +673,10 @@ export const communityCapacityApi = {
   // 批量删除社区行政村减灾能力数据
   batchDelete: (ids: number[]) => request.delete('/api/community-capacity/batch', { data: ids }),
 
+  // 根据年份和组织机构删除所有社区减灾能力数据
+  deleteAllByYearOrg: (year: number, regionCode?: string) =>
+    request.delete('/api/community-capacity/delete-by-year-org', { params: { year, regionCode } }),
+
   // 下载导入模板
   downloadTemplate: () => request.get('/api/community-capacity/template')
 }
@@ -644,8 +693,33 @@ export const medicalInstitutionApi = {
     })
   },
 
-  // 获取医疗卫生机构数据列表
-  getList: (year: number, orgCode?: string) => request.get('/api/medical-institution/list', { params: { year, orgCode } }),
+  // 验证GPKG文件字段
+  validateGpkg: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post('/api/medical-institution/validate-gpkg', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  // 从GPKG文件导入数据
+  importGpkg: (file: File, year: number) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('year', year.toString())
+    return request.post('/api/medical-institution/import-gpkg', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000 // 5分钟超时（文件导入可能耗时较长）
+    })
+  },
+
+  // 获取医疗卫生机构数据列表（完整数据，包含组织机构信息）
+  getList: (year: number, orgCode?: string) =>
+    request.get('/api/medical-institution/list', { params: { year, orgCode } }),
+
+  // 分页查询（快速，支持按组织机构过滤）
+  getPage: (year: number, page: number = 1, size: number = 20, orgCode?: string, keyword?: string) =>
+    request.get('/api/medical-institution/page', { params: { year, page, size, orgCode, keyword } }),
 
   // 搜索医疗卫生机构数据
   search: (institutionName: string) => request.get('/api/medical-institution/search', {
@@ -666,6 +740,10 @@ export const medicalInstitutionApi = {
 
   // 批量删除医疗卫生机构数据
   batchDelete: (ids: number[]) => request.delete('/api/medical-institution/batch', { data: ids }),
+
+  // 根据年份和组织机构删除所有医疗卫生机构数据
+  deleteAllByYearOrg: (year: number, orgCode?: string) =>
+    request.delete('/api/medical-institution/delete-by-year-org', { params: { year, orgCode } }),
 
   // 导出医疗卫生机构数据
   exportData: (year: number) => request.get('/api/medical-institution/export', {

@@ -1,6 +1,8 @@
 package com.evaluate.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.evaluate.common.Result;
+import com.evaluate.dto.GpkgFieldValidationResult;
 import com.evaluate.entity.MedicalInstitution;
 import com.evaluate.entity.Organization;
 import com.evaluate.entity.GrassrootsOrganization;
@@ -14,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.util.StringUtils;
 
 import javax.servlet.http.HttpServletResponse;
+import java.lang.Integer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -505,6 +508,7 @@ public class MedicalInstitutionController {
 
     /**
      * 根据年份和组织机构代码获取医疗卫生机构数据列表
+     * （已临时简化以提高性能）
      */
     @GetMapping("/list")
     public Map<String, Object> getMedicalInstitutionList(
@@ -521,6 +525,10 @@ public class MedicalInstitutionController {
                 return result;
             }
             List<MedicalInstitution> list = medicalInstitutionService.getMedicalInstitutionByYear(year, orgCode);
+
+            // 临时：禁用循环中的额外处理以提高性能
+            // TODO: 后续需要批量优化这些查询
+            /*
             Organization filterOrg = findOrganization(year, orgCode);
             GrassrootsOrganization filterGrassrootsOrg = findGrassrootsOrganization(year, orgCode);
             if (filterGrassrootsOrg == null) {
@@ -563,6 +571,8 @@ public class MedicalInstitutionController {
                     applyTownshipFromAddress(item, townshipVariants, townshipVariantToFullName);
                 }
             }
+            */
+
             result.put("success", true);
             result.put("data", list);
             result.put("message", "获取数据成功");
@@ -573,6 +583,66 @@ public class MedicalInstitutionController {
         }
 
         return result;
+    }
+
+    /**
+     * 分页查询医疗卫生机构数据（简化版，支持按组织机构过滤）
+     */
+    @GetMapping("/page")
+    public Result<Map<String, Object>> getMedicalInstitutionPage(
+            @RequestParam Integer year,
+            @RequestParam(required = false, defaultValue = "1") Integer page,
+            @RequestParam(required = false, defaultValue = "20") Integer size,
+            @RequestParam(required = false) String orgCode,
+            @RequestParam(required = false) String keyword) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("message", "服务暂时不可用");
+                return Result.error("服务暂时不可用");
+            }
+
+            // 构建分页查询
+            com.baomidou.mybatisplus.extension.plugins.pagination.Page<MedicalInstitution> pageParam =
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(page, size);
+
+            QueryWrapper<MedicalInstitution> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("year", year);
+            queryWrapper.orderByDesc("create_time");
+
+            // 添加组织机构代码过滤
+            if (StringUtils.hasText(orgCode)) {
+                queryWrapper.likeRight("org_code", orgCode.trim());
+            }
+
+            if (StringUtils.hasText(keyword)) {
+                queryWrapper.and(wrapper -> wrapper
+                    .like("institution_name", keyword)
+                    .or().like("institution_address", keyword)
+                    .or().like("province", keyword)
+                    .or().like("city", keyword)
+                    .or().like("county", keyword)
+                    .or().like("township", keyword)
+                );
+            }
+
+            com.baomidou.mybatisplus.extension.plugins.pagination.Page<MedicalInstitution> pageResult =
+                medicalInstitutionService.page(pageParam, queryWrapper);
+
+            // 返回与乡镇数据一致的分页格式
+            result.put("records", pageResult.getRecords());
+            result.put("total", pageResult.getTotal());
+            result.put("current", pageResult.getCurrent());
+            result.put("pages", pageResult.getPages());
+            result.put("size", pageResult.getSize());
+
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("分页查询医疗卫生机构数据失败", e);
+            return Result.error("查询失败：" + e.getMessage());
+        }
     }
 
     /**
@@ -675,6 +745,32 @@ public class MedicalInstitutionController {
         }
 
         return result;
+    }
+
+    /**
+     * 根据年份和组织机构删除所有医疗卫生机构数据
+     */
+    @DeleteMapping("/delete-by-year-org")
+    public Result<Long> deleteByYearAndOrg(
+            @RequestParam Integer year,
+            @RequestParam(required = false) String orgCode) {
+        try {
+            log.info("删除医疗卫生机构数据 - year: {}, orgCode: {}", year, orgCode);
+            if (!isServiceAvailable()) {
+                return Result.error("服务暂时不可用");
+            }
+            QueryWrapper<MedicalInstitution> wrapper = new QueryWrapper<>();
+            wrapper.eq("year", year);
+            if (StringUtils.hasText(orgCode)) {
+                wrapper.likeRight("org_code", orgCode.trim());
+            }
+            long count = medicalInstitutionService.count(wrapper);
+            boolean result = medicalInstitutionService.remove(wrapper);
+            return result ? Result.success(count) : Result.error("删除失败");
+        } catch (Exception e) {
+            log.error("删除医疗卫生机构数据失败", e);
+            return Result.error("删除失败: " + e.getMessage());
+        }
     }
 
     /**
@@ -835,6 +931,102 @@ public class MedicalInstitutionController {
             log.error("修复数据库唯一约束失败", e);
             result.put("success", false);
             result.put("message", "修复失败：" + e.getMessage());
+        }
+
+        return result;
+    }
+
+    /**
+     * 验证GPKG文件字段
+     * 检查GPKG文件是否包含医疗卫生机构数据所需的必要字段
+     */
+    @PostMapping("/validate-gpkg")
+    public Map<String, Object> validateGpkgFile(@RequestParam("file") MultipartFile file) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法验证GPKG文件");
+                return result;
+            }
+
+            GpkgFieldValidationResult validationResult = medicalInstitutionService.validateGpkgFields(file, "medical");
+            result.put("success", true);
+            result.put("data", validationResult);
+            result.put("message", validationResult.getMessage());
+
+        } catch (Exception e) {
+            log.error("验证GPKG文件失败", e);
+            result.put("success", false);
+            result.put("message", "验证失败：" + e.getMessage());
+        }
+
+        return result;
+    }
+
+    /**
+     * 从GPKG文件导入医疗卫生机构数据
+     */
+    @PostMapping("/import-gpkg")
+    public Map<String, Object> importFromGpkg(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("year") Integer year) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            if (file.isEmpty()) {
+                result.put("success", false);
+                result.put("message", "请选择要导入的文件");
+                return result;
+            }
+
+            if (!isServiceAvailable()) {
+                result.put("success", false);
+                result.put("message", "服务暂时不可用，请稍后重试");
+                log.warn("医疗卫生机构服务未注入，无法导入GPKG数据");
+                return result;
+            }
+
+            com.evaluate.dto.ImportResultDTO importResult = medicalInstitutionService.importFromGpkg(file, year);
+
+            result.put("success", importResult.isSuccess());
+            result.put("totalCount", importResult.getTotalCount());
+            result.put("successCount", importResult.getSuccessCount());
+            result.put("insertCount", importResult.getInsertCount());
+            result.put("updateCount", importResult.getUpdateCount());
+
+            StringBuilder message = new StringBuilder();
+
+            if (importResult.hasErrors()) {
+                result.put("errors", importResult.getErrors());
+                result.put("errorsMessage", importResult.getErrorsMessage());
+                message.append("导入失败：存在数据验证错误\n\n");
+                message.append(importResult.getErrorsMessage());
+            } else if (importResult.isSuccess()) {
+                message.append("导入成功！共处理").append(importResult.getTotalCount()).append("条数据");
+                if (importResult.getInsertCount() > 0) {
+                    message.append("，新增").append(importResult.getInsertCount()).append("条");
+                }
+                if (importResult.getUpdateCount() > 0) {
+                    message.append("，更新").append(importResult.getUpdateCount()).append("条");
+                }
+            } else {
+                message.append("导入完成，但部分数据处理失败");
+            }
+
+            if (importResult.hasWarnings()) {
+                result.put("warnings", importResult.getWarnings());
+                result.put("warningsMessage", importResult.getWarningsMessage());
+            }
+
+            result.put("message", message.toString());
+
+        } catch (Exception e) {
+            log.error("导入GPKG文件失败", e);
+            result.put("success", false);
+            result.put("message", "导入失败：" + e.getMessage());
         }
 
         return result;

@@ -68,7 +68,9 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
      * @return 字段值
      */
     private Double loadEvaluationResult(String params, String currentRegionCode, Map<String, Object> regionContext) {
-        log.info("[LOAD_EVAL_RESULT] 加载评估结果: params={}, region={}", params, currentRegionCode);
+        if (log.isDebugEnabled()) {
+            log.debug("[LOAD_EVAL_RESULT] 加载评估结果: params={}, region={}", params, currentRegionCode);
+        }
 
         // 解析参数
         Map<String, String> paramMap = parseParams(params);
@@ -99,8 +101,10 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         // 根据字段名提取值
         Double value = extractFieldValue(result, fieldName);
 
-        log.info("[LOAD_EVAL_RESULT] 加载成功: modelId={}, region={}, field={}, value={}",
-                modelId, currentRegionCode, fieldName, value);
+        if (log.isDebugEnabled()) {
+            log.debug("[LOAD_EVAL_RESULT] 加载成功: modelId={}, region={}, field={}, value={}",
+                    modelId, currentRegionCode, fieldName, value);
+        }
 
         return value;
     }
@@ -163,10 +167,10 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
        
             
             // 特别为 riskAssessment 添加详细调试
-            if ("riskAssessment".equals(indicatorName)) {
-                log.error("[DEBUG-RISK] 地区={}的完整数据keys: {}", entry.getKey(), entry.getValue().keySet());
-                log.error("[DEBUG-RISK] 是否包含riskAssessment: {}", entry.getValue().containsKey("riskAssessment"));
-                log.error("[DEBUG-RISK] riskAssessment值: {}", value);
+            if ("riskAssessment".equals(indicatorName) && log.isDebugEnabled()) {
+                log.debug("[DEBUG-RISK] 地区={}的完整数据keys: {}", entry.getKey(), entry.getValue().keySet());
+                log.debug("[DEBUG-RISK] 是否包含riskAssessment: {}", entry.getValue().containsKey("riskAssessment"));
+                log.debug("[DEBUG-RISK] riskAssessment值: {}", value);
             }
             
             if (value != null) {
@@ -430,52 +434,76 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
 
-        log.info("[@GRADE] 开始分级计算: scoreField={}, currentRegionCode={}, totalRegions={}",
-                scoreField, currentRegionCode, allRegionData.size());
-
-        // 1. 收集所有区域的分数
-        List<Double> allScores = new ArrayList<>();
-        for (Map.Entry<String, Map<String, Object>> entry : allRegionData.entrySet()) {
-            Object value = entry.getValue().get(scoreField);
-            log.info("[@GRADE] 地区 {} 的 {} = {}", entry.getKey(), scoreField, value);
-            if (value != null) {
-                double scoreValue = toDouble(value);
-                allScores.add(scoreValue);
-                log.debug("[分级调试] 地区 {} 的 {} = {}", entry.getKey(), scoreField, scoreValue);
-            } else {
-                log.warn("[@GRADE] 地区 {} 的 {} 为 NULL，可用的键: {}", entry.getKey(), scoreField,
-                        String.join(", ", entry.getValue().keySet().stream().limit(10).collect(java.util.stream.Collectors.toList())));
-            }
+        if (log.isDebugEnabled()) {
+            log.debug("[@GRADE] 开始分级计算: scoreField={}, currentRegionCode={}, totalRegions={}",
+                    scoreField, currentRegionCode, allRegionData.size());
         }
 
-        if (allScores.isEmpty()) {
-            log.error("[@GRADE] 未找到任何分数值: scoreField={}, currentRegionCode={}", scoreField, currentRegionCode);
-            return "中等";
-        }
-        
-        // 2. 计算均值 μ
-        double mean = allScores.stream()
-                .mapToDouble(Double::doubleValue)
-                .average()
-                .orElse(0.0);
-        
-        // 3. 计算标准差 σ (使用样本标准差，与Excel的STDEV.S一致)
-        int n = allScores.size();
-        if (n <= 1) {
-            log.warn("样本数量不足，无法计算标准差: {}", n);
-            return handleSingleRegionGrading(scoreField, currentRegionCode, allRegionData);
-        }
-        double sumSquaredDiff = allScores.stream()
-                .mapToDouble(v -> Math.pow(v - mean, 2))
-                .sum();
-        double stdev = Math.sqrt(sumSquaredDiff / (n - 1));  // 样本标准差：除以(n-1)
-        
-        
-        // 4. 获取当前区域的分数
         Map<String, Object> currentData = allRegionData.get(currentRegionCode);
         if (currentData == null) {
             log.warn("未找到当前区域数据: {}", currentRegionCode);
             return "中等";
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, double[]> gradeStats = (Map<String, double[]>) currentData.get("gradeStats");
+        double mean = 0.0;
+        double stdev = 0.0;
+        int n = 0;
+
+        if (gradeStats != null && gradeStats.containsKey(scoreField)) {
+            double[] stats = gradeStats.get(scoreField);
+            if (stats != null && stats.length >= 3) {
+                mean = stats[0];
+                stdev = stats[1];
+                n = (int) stats[2];
+            }
+        } else {
+            List<Double> allScores = new ArrayList<>();
+            for (Map.Entry<String, Map<String, Object>> entry : allRegionData.entrySet()) {
+                Object value = entry.getValue().get(scoreField);
+                if (log.isDebugEnabled()) {
+                    log.debug("[@GRADE] 地区 {} 的 {} = {}", entry.getKey(), scoreField, value);
+                }
+                if (value != null) {
+                    double scoreValue = toDouble(value);
+                    allScores.add(scoreValue);
+                    log.debug("[分级调试] 地区 {} 的 {} = {}", entry.getKey(), scoreField, scoreValue);
+                } else {
+                    if (log.isDebugEnabled()) {
+                        log.debug("[@GRADE] 地区 {} 的 {} 为 NULL，可用的键: {}", entry.getKey(), scoreField,
+                                String.join(", ", entry.getValue().keySet().stream().limit(10).collect(java.util.stream.Collectors.toList())));
+                    }
+                }
+            }
+
+            if (allScores.isEmpty()) {
+                log.error("[@GRADE] 未找到任何分数值: scoreField={}, currentRegionCode={}", scoreField, currentRegionCode);
+                return "中等";
+            }
+
+            mean = allScores.stream()
+                    .mapToDouble(Double::doubleValue)
+                    .average()
+                    .orElse(0.0);
+
+            n = allScores.size();
+            if (n <= 1) {
+                log.warn("样本数量不足，无法计算标准差: {}", n);
+                return handleSingleRegionGrading(scoreField, currentRegionCode, allRegionData);
+            }
+            double sumSquaredDiff = 0.0;
+            double finalMean = mean;
+            for (Double v : allScores) {
+                double diff = v - finalMean;
+                sumSquaredDiff += diff * diff;
+            }
+            stdev = Math.sqrt(sumSquaredDiff / (n - 1));
+        }
+
+        if (n <= 1) {
+            log.warn("样本数量不足，无法计算标准差: {}", n);
+            return handleSingleRegionGrading(scoreField, currentRegionCode, allRegionData);
         }
         
         Object currentValue = currentData.get(scoreField);
@@ -489,9 +517,11 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         // 5. 根据分级规则计算等级
         String grade = determineGrade(score, mean, stdev);
 
-        log.info("[@GRADE] 分级完成: region={}, scoreField={}, score={}, mean={}, stdev={}, grade={}",
-                currentRegionCode, scoreField, String.format("%.4f", score),
-                String.format("%.4f", mean), String.format("%.4f", stdev), grade);
+        if (log.isDebugEnabled()) {
+            log.debug("[@GRADE] 分级完成: region={}, scoreField={}, score={}, mean={}, stdev={}, grade={}",
+                    currentRegionCode, scoreField, String.format("%.4f", score),
+                    String.format("%.4f", mean), String.format("%.4f", stdev), grade);
+        }
 
         return grade;
     }

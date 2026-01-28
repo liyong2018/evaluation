@@ -441,19 +441,20 @@ const getConfigList = async () => {
     }
 
     if (selectedOrg.value) {
-      // 根据组织机构代码过滤
-      const orgCode = selectedOrg.value.code
+      // 根据组织机构代码前缀过滤（更精确）
+      const orgCode = String(selectedOrg.value.code)
       if (selectedOrg.value.level === 1) {
-        // 省级，不过滤
+        // 省级 - 用6位省级代码前缀匹配
+        params.regionCode = orgCode.substring(0, 6)
       } else if (selectedOrg.value.level === 2) {
-        // 市级
-        params.provinceName = selectedOrg.value.provinceName || selectedOrg.value.parentName
+        // 市级 - 用6位市级代码前缀匹配
+        params.regionCode = orgCode.substring(0, 6)
       } else if (selectedOrg.value.level === 3) {
-        // 县级
-        params.cityName = selectedOrg.value.cityName
+        // 县级 - 用6位县级代码前缀匹配
+        params.regionCode = orgCode.substring(0, 6)
       } else if (selectedOrg.value.level === 4) {
-        // 乡镇级
-        params.townshipName = selectedOrg.value.name
+        // 乡镇级 - 用9位乡镇代码精确匹配或前缀匹配
+        params.regionCode = orgCode.substring(0, 9)
       }
     }
 

@@ -361,16 +361,31 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         log.info("创建执行记录成功, executionRecordId={}, status=RUNNING", executionRecordId);
 
         // 3. 启动异步任务执行评估
-        evaluationTaskExecutor.execute(() ->
-                executeModelAsyncTask(executionRecordId, modelId, model.getModelName(), regionCodes, weightConfigId, year, orgCode, createBy)
-        );
+        evaluationTaskExecutor.execute(() -> {
+            try {
+                executeModelAsyncTask(executionRecordId, modelId, model.getModelName(), regionCodes, weightConfigId, year, orgCode, createBy);
+            } catch (Throwable e) {
+                // 捕获所有异常，防止导致JVM崩溃
+                log.error("评估任务执行异常（已捕获）: executionRecordId={}, error={}", executionRecordId, e.getMessage(), e);
+                try {
+                    // 更新执行记录状态为 FAILED
+                    ModelExecutionRecord record = new ModelExecutionRecord();
+                    record.setId(executionRecordId);
+                    record.setExecutionStatus("FAILED");
+                    record.setErrorMessage(e.getMessage());
+                    modelExecutionRecordMapper.updateById(record);
+                } catch (Exception ex) {
+                    log.error("更新失败状态时出错: executionRecordId={}", executionRecordId, ex);
+                }
+            }
+        });
 
         return executionRecordId;
     }
 
     /**
      * 异步执行评估任务
-     * 使用 @Async 注解使方法在独立线程中执行
+     * 移除 @Async 注解，避免双重异步提交
      *
      * @param executionRecordId 执行记录ID
      * @param modelId 模型ID
@@ -381,7 +396,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      * @param orgCode 机构代码
      * @param createBy 操作人
      */
-    @org.springframework.scheduling.annotation.Async("evaluationTaskExecutor")
     public void executeModelAsyncTask(Long executionRecordId, Long modelId, String modelName,
                                        List<String> regionCodes, Long weightConfigId,
                                        Integer year, String orgCode, String createBy) {
@@ -532,6 +546,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             try { ctxYear = Integer.valueOf(yearObj.toString()); } catch (Exception ignore) {}
         }
 
+        @SuppressWarnings("unchecked")
+        Map<String, CommunityDisasterReductionCapacity> communityDataMap =
+                (Map<String, CommunityDisasterReductionCapacity>) inputData.get("communityDataMap");
+        @SuppressWarnings("unchecked")
+        Map<String, SurveyData> surveyDataMap =
+                (Map<String, SurveyData>) inputData.get("surveyDataMap");
+
         for (String regionCode : regionCodes) {
             Map<String, Object> regionContext = new HashMap<>(inputData);
             regionContext.put("currentRegionCode", regionCode);
@@ -540,34 +561,43 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             if (modelId != null && (modelId == 4 || modelId == 8)) {
                 // 社区模型(modelId=4)和社区-乡镇模型(modelId=8)：从community_disaster_reduction_capacity表加载数据
                 // 使用selectMaps直接返回Map，key为数据库字段名，可直接匹配算法表达式中的变量名
-                QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
-                communityQuery.eq("region_code", regionCode);
-                if (ctxYear != null) {
-                    communityQuery.eq("year", ctxYear);
+                CommunityDisasterReductionCapacity cachedCommunity = communityDataMap != null ? communityDataMap.get(regionCode) : null;
+                if (cachedCommunity != null) {
+                    addCommunityDataToContext(regionContext, cachedCommunity);
                 } else {
-                    communityQuery.orderByDesc("year");
-                }
-                communityQuery.last("LIMIT 1");
-                List<Map<String, Object>> communityDataList = communityDataMapper.selectMaps(communityQuery);
+                    QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+                    communityQuery.eq("region_code", regionCode);
+                    if (ctxYear != null) {
+                        communityQuery.eq("year", ctxYear);
+                    } else {
+                        communityQuery.orderByDesc("year");
+                    }
+                    communityQuery.last("LIMIT 1");
+                    List<Map<String, Object>> communityDataList = communityDataMapper.selectMaps(communityQuery);
 
-                if (communityDataList != null && !communityDataList.isEmpty()) {
-                    Map<String, Object> communityDataMap = communityDataList.get(0);
-                    // 直接将数据库字段添加到上下文，同时处理数值类型转换
-                    addMapDataToContext(regionContext, communityDataMap);
+                    if (communityDataList != null && !communityDataList.isEmpty()) {
+                        Map<String, Object> communityDataRow = communityDataList.get(0);
+                        addMapDataToContext(regionContext, communityDataRow);
+                    }
                 }
             } else {
                 // 乡镇模型(modelId=3)：从survey_data表加载数据
-                QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
-                dataQuery.eq("region_code", regionCode);
-                if (ctxYear != null) {
-                    dataQuery.eq("year", ctxYear);
+                SurveyData cachedSurvey = surveyDataMap != null ? surveyDataMap.get(regionCode) : null;
+                if (cachedSurvey != null) {
+                    addSurveyDataToContext(regionContext, cachedSurvey);
                 } else {
-                    dataQuery.orderByDesc("year").last("LIMIT 1");
-                }
-                SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
+                    QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
+                    dataQuery.eq("region_code", regionCode);
+                    if (ctxYear != null) {
+                        dataQuery.eq("year", ctxYear);
+                    } else {
+                        dataQuery.orderByDesc("year").last("LIMIT 1");
+                    }
+                    SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
 
-                if (surveyData != null) {
-                    addSurveyDataToContext(regionContext, surveyData);
+                    if (surveyData != null) {
+                        addSurveyDataToContext(regionContext, surveyData);
+                    }
                 }
             }
 
@@ -651,6 +681,27 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         
         // 7. 第三遍：为每个地区执行GRADE算法（此时所有地区的分数已计算完成）
         if (!gradeAlgorithms.isEmpty()) {
+            Set<String> gradeScoreFields = new LinkedHashSet<>();
+            for (StepAlgorithm algorithm : gradeAlgorithms) {
+                String qlExpression = algorithm.getQlExpression();
+                if (qlExpression != null) {
+                    String[] parts = qlExpression.substring(1).split(":", 2);
+                    String params = parts.length > 1 ? parts[1] : "";
+                    if (params != null && !params.trim().isEmpty()) {
+                        gradeScoreFields.add(params.trim());
+                    }
+                }
+            }
+
+            if (!gradeScoreFields.isEmpty()) {
+                Map<String, double[]> gradeStats = buildGradeStats(gradeScoreFields, allRegionContexts);
+                if (!gradeStats.isEmpty()) {
+                    for (Map<String, Object> regionContext : allRegionContexts.values()) {
+                        regionContext.put("gradeStats", gradeStats);
+                    }
+                }
+            }
+
             for (String regionCode : regionCodes) {
                 Map<String, Object> regionContext = allRegionContexts.get(regionCode);
                 Map<String, Object> algorithmOutputs = regionResults.get(regionCode);
@@ -1042,6 +1093,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         QueryWrapper<SurveyData> queryWrapper = new QueryWrapper<>();
         if (year != null) {
             queryWrapper.eq("year", year);
+        } else {
+            queryWrapper.orderByDesc("year");
         }
         if (regionCodes != null && !regionCodes.isEmpty()) {
             queryWrapper.in("region_code", regionCodes);
@@ -1071,6 +1124,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         QueryWrapper<CommunityDisasterReductionCapacity> queryWrapper = new QueryWrapper<>();
         if (year != null) {
             queryWrapper.eq("year", year);
+        } else {
+            queryWrapper.orderByDesc("year");
         }
         if (regionCodes != null && !regionCodes.isEmpty()) {
             queryWrapper.in("region_code", regionCodes);
@@ -1162,31 +1217,40 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         context.put("fundingAmount", surveyData.getFundingAmount());
         context.put("funding_amount", surveyData.getFundingAmount());
         
-        // 物资储备（驼峰和下划线两种命名）
-        context.put("materialValue", surveyData.getMaterialValue());
-        context.put("material_value", surveyData.getMaterialValue());
-        
-        // 医院床位（驼峰和下划线两种命名）
-        context.put("hospitalBeds", surveyData.getHospitalBeds());
-        context.put("hospital_beds", surveyData.getHospitalBeds());
-        
-        // 消防员（驼峰和下划线两种命名）
-        context.put("firefighters", surveyData.getFirefighters());
-        
-        // 志愿者（驼峰和下划线两种命名）
-        context.put("volunteers", surveyData.getVolunteers());
-        
-        // 民兵预备役（驼峰和下划线两种命名）
-        context.put("militiaReserve", surveyData.getMilitiaReserve());
-        context.put("militia_reserve", surveyData.getMilitiaReserve());
-        
-        // 培训参与者（驼峰和下划线两种命名）
-        context.put("trainingParticipants", surveyData.getTrainingParticipants());
-        context.put("training_participants", surveyData.getTrainingParticipants());
-        
-        // 避难所容量（驼峰和下划线两种命名）
-        context.put("shelterCapacity", surveyData.getShelterCapacity());
-        context.put("shelter_capacity", surveyData.getShelterCapacity());
+        // 物资储备（驼峰和下划线两种命名）- 处理null值
+        Double materialValue = surveyData.getMaterialValue();
+        context.put("materialValue", materialValue != null ? materialValue : 0.0);
+        context.put("material_value", materialValue != null ? materialValue : 0.0);
+
+        // 医院床位（驼峰和下划线两种命名）- 处理null值
+        Integer hospitalBeds = surveyData.getHospitalBeds();
+        context.put("hospitalBeds", hospitalBeds != null ? hospitalBeds : 0);
+        context.put("hospital_beds", hospitalBeds != null ? hospitalBeds : 0);
+
+        // 消防员（驼峰和下划线两种命名）- 处理null值
+        Integer firefighters = surveyData.getFirefighters();
+        context.put("firefighters", firefighters != null ? firefighters : 0);
+        context.put(" firefighter_count", firefighters != null ? firefighters : 0);
+
+        // 志愿者（驼峰和下划线两种命名）- 处理null值
+        Integer volunteers = surveyData.getVolunteers();
+        context.put("volunteers", volunteers != null ? volunteers : 0);
+        context.put("volunteer_count", volunteers != null ? volunteers : 0);
+
+        // 民兵预备役（驼峰和下划线两种命名）- 处理null值
+        Integer militiaReserve = surveyData.getMilitiaReserve();
+        context.put("militiaReserve", militiaReserve != null ? militiaReserve : 0);
+        context.put("militia_reserve", militiaReserve != null ? militiaReserve : 0);
+
+        // 培训参与者（驼峰和下划线两种命名）- 处理null值
+        Integer trainingParticipants = surveyData.getTrainingParticipants();
+        context.put("trainingParticipants", trainingParticipants != null ? trainingParticipants : 0);
+        context.put("training_participants", trainingParticipants != null ? trainingParticipants : 0);
+
+        // 避难所容量（驼峰和下划线两种命名）- 处理null值
+        Integer shelterCapacity = surveyData.getShelterCapacity();
+        context.put("shelterCapacity", shelterCapacity != null ? shelterCapacity : 0);
+        context.put("shelter_capacity", shelterCapacity != null ? shelterCapacity : 0);
     }
 
     /**
@@ -1553,6 +1617,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 获取modelId以决定使用哪个数据源
         Long modelId = (Long) globalContext.get("modelId");
 
+        @SuppressWarnings("unchecked")
+        Map<String, CommunityDisasterReductionCapacity> communityDataMap =
+                (Map<String, CommunityDisasterReductionCapacity>) globalContext.get("communityDataMap");
+        @SuppressWarnings("unchecked")
+        Map<String, SurveyData> surveyDataMap =
+                (Map<String, SurveyData>) globalContext.get("surveyDataMap");
+
         for (String regionCode : regionCodes) {
             Map<String, Object> regionContext = new HashMap<>(globalContext);
             regionContext.put("currentRegionCode", regionCode);
@@ -1561,22 +1632,32 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             if (modelId != null && modelId == 4) {
                 // 社区模型(modelId=4)：从community_disaster_reduction_capacity表加载数据
                 // 使用selectMaps直接返回Map，key为数据库字段名，可直接匹配算法表达式中的变量名
-                QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
-                communityQuery.eq("region_code", regionCode);
-                List<Map<String, Object>> communityDataList = communityDataMapper.selectMaps(communityQuery);
+                CommunityDisasterReductionCapacity cachedCommunity = communityDataMap != null ? communityDataMap.get(regionCode) : null;
+                if (cachedCommunity != null) {
+                    addCommunityDataToContext(regionContext, cachedCommunity);
+                } else {
+                    QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+                    communityQuery.eq("region_code", regionCode);
+                    List<Map<String, Object>> communityDataList = communityDataMapper.selectMaps(communityQuery);
 
-                if (communityDataList != null && !communityDataList.isEmpty()) {
-                    Map<String, Object> communityDataMap = communityDataList.get(0);
-                    addMapDataToContext(regionContext, communityDataMap);
+                    if (communityDataList != null && !communityDataList.isEmpty()) {
+                        Map<String, Object> communityDataRow = communityDataList.get(0);
+                        addMapDataToContext(regionContext, communityDataRow);
+                    }
                 }
             } else {
                 // 乡镇模型(modelId=3)：从survey_data表加载数据
-                QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
-                dataQuery.eq("region_code", regionCode);
-                SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
+                SurveyData cachedSurvey = surveyDataMap != null ? surveyDataMap.get(regionCode) : null;
+                if (cachedSurvey != null) {
+                    addSurveyDataToContext(regionContext, cachedSurvey);
+                } else {
+                    QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
+                    dataQuery.eq("region_code", regionCode);
+                    SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
 
-                if (surveyData != null) {
-                    addSurveyDataToContext(regionContext, surveyData);
+                    if (surveyData != null) {
+                        addSurveyDataToContext(regionContext, surveyData);
+                    }
                 }
             }
 
@@ -1586,6 +1667,27 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             allRegionContexts.put(regionCode, regionContext);
         }
         
+        Set<String> gradeScoreFields = new LinkedHashSet<>();
+        for (FormulaConfig formula : formulas) {
+            String expression = formula.getFormulaExpression();
+            if (expression != null && expression.startsWith("@GRADE")) {
+                String[] parts = expression.substring(1).split(":", 2);
+                String params = parts.length > 1 ? parts[1] : "";
+                if (params != null && !params.trim().isEmpty()) {
+                    gradeScoreFields.add(params.trim());
+                }
+            }
+        }
+
+        if (!gradeScoreFields.isEmpty()) {
+            Map<String, double[]> gradeStats = buildGradeStats(gradeScoreFields, allRegionContexts);
+            if (!gradeStats.isEmpty()) {
+                for (Map<String, Object> regionContext : allRegionContexts.values()) {
+                    regionContext.put("gradeStats", gradeStats);
+                }
+            }
+        }
+
         // 第二遍：为每个地区执行公式（支持特殊标记）
         Map<String, Map<String, Object>> regionResults = new LinkedHashMap<>();
         Map<String, String> outputToFormulaName = new LinkedHashMap<>();
@@ -2712,6 +2814,44 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
         return 0.0;
+    }
+
+    private Map<String, double[]> buildGradeStats(Set<String> scoreFields, Map<String, Map<String, Object>> allRegionContexts) {
+        Map<String, double[]> stats = new HashMap<>();
+        if (scoreFields == null || scoreFields.isEmpty() || allRegionContexts == null || allRegionContexts.isEmpty()) {
+            return stats;
+        }
+
+        for (String scoreField : scoreFields) {
+            double sum = 0.0;
+            int count = 0;
+            for (Map<String, Object> context : allRegionContexts.values()) {
+                Object value = context.get(scoreField);
+                if (value != null) {
+                    sum += toDouble(value);
+                    count++;
+                }
+            }
+            if (count == 0) {
+                continue;
+            }
+            double mean = sum / count;
+            double sumSquaredDiff = 0.0;
+            if (count > 1) {
+                for (Map<String, Object> context : allRegionContexts.values()) {
+                    Object value = context.get(scoreField);
+                    if (value != null) {
+                        double v = toDouble(value);
+                        double diff = v - mean;
+                        sumSquaredDiff += diff * diff;
+                    }
+                }
+            }
+            double stdev = count > 1 ? Math.sqrt(sumSquaredDiff / (count - 1)) : 0.0;
+            stats.put(scoreField, new double[]{mean, stdev, count});
+        }
+
+        return stats;
     }
 
     /**

@@ -35,7 +35,10 @@ public class QLExpressServiceImpl implements QLExpressService {
 
     @Override
     public Object execute(String expression, Map<String, Object> context) throws Exception {
-        log.debug("执行QLExpress表达式: {}, 上下文: {}", expression, context);
+        if (log.isDebugEnabled()) {
+            int contextSize = context == null ? 0 : context.size();
+            log.debug("执行QLExpress表达式: {}, 上下文大小: {}", expression, contextSize);
+        }
 
         DefaultContext<String, Object> expressContext = new DefaultContext<>();
         if (context != null) {

@@ -100,6 +100,15 @@
               <div class="toolbar-actions">
                 <el-button
                   type="danger"
+                  plain
+                  :loading="loading.deleteAll"
+                  @click="handleDeleteAll"
+                >
+                  <el-icon><Delete /></el-icon>
+                  全部删除
+                </el-button>
+                <el-button
+                  type="danger"
                   :disabled="selectedRows.length === 0"
                   :loading="loading.batchDelete"
                   @click="handleBatchDelete"
@@ -155,25 +164,25 @@
         <!-- 省份 -->
         <el-table-column label="省份" width="100">
           <template #default="{ row }">
-            {{ dataType === 'township' ? row.province : row.provinceName }}
+            {{ getFieldValue(row, 'province') }}
           </template>
         </el-table-column>
         <!-- 市 -->
         <el-table-column label="市/州" width="100">
           <template #default="{ row }">
-            {{ dataType === 'township' ? row.city : row.cityName }}
+            {{ getFieldValue(row, 'city') }}
           </template>
         </el-table-column>
         <!-- 县 -->
         <el-table-column label="区/县/市" width="100">
           <template #default="{ row }">
-            {{ dataType === 'township' ? row.county : row.countyName }}
+            {{ getFieldValue(row, 'county') }}
           </template>
         </el-table-column>
         <!-- 乡镇 -->
         <el-table-column label="街道/乡镇" width="120">
           <template #default="{ row }">
-            {{ dataType === 'township' ? row.township : row.townshipName }}
+            {{ getFieldValue(row, 'township') }}
           </template>
         </el-table-column>
 
@@ -538,7 +547,7 @@
             :auto-upload="false"
             :on-change="handleFileChange"
             :before-upload="beforeUpload"
-            accept=".xlsx,.xls,.csv"
+            :accept="getFileAcceptTypes()"
             drag
             style="width: 100%"
           >
@@ -548,7 +557,7 @@
             </div>
             <template #tip>
               <div class="el-upload__tip">
-                支持 xlsx/xls/csv 格式文件，文件大小不超过 10MB
+                {{ getFileUploadTip() }}
               </div>
             </template>
           </el-upload>
@@ -630,7 +639,8 @@ const loading = reactive({
   submit: false,
   import: false,
   organizations: false,
-  batchDelete: false
+  batchDelete: false,
+  deleteAll: false
 })
 
 const dialogVisible = reactive({
@@ -642,6 +652,14 @@ const isEdit = ref(false)
 const formRef = ref<FormInstance>()
 const uploadRef = ref()
 const uploadFile = ref<File | null>(null)
+
+const normalizeOrgCode = (code?: string | number | null) => {
+  if (code === null || code === undefined) return undefined
+  const raw = String(code).trim()
+  if (!raw) return undefined
+  const trimmed = raw.replace(/0+$/, '')
+  return trimmed || raw
+}
 
 // 年份选项（用于主筛选）
 const yearOptions = ref<number[]>([])
@@ -876,6 +894,18 @@ const getSearchPlaceholder = () => {
   }
 }
 
+// 获取字段值（处理不同数据类型的字段名差异）
+const getFieldValue = (row: any, fieldName: string) => {
+  if (!row) return '-'
+  if (dataType.value === 'township' || dataType.value === 'medical') {
+    // 乡镇和医疗机构数据使用简单字段名
+    return row[fieldName] || '-'
+  } else {
+    // 社区数据使用带 Name 后缀的字段名
+    return row[`${fieldName}Name`] || '-'
+  }
+}
+
 // 根据代码获取地区名称（带鲁棒回退）
 const getRegionName = (row?: any) => {
   const code = row?.regionCode
@@ -910,91 +940,83 @@ const handleDataTypeChange = (newType: 'township' | 'community' | 'medical') => 
 
 // 获取数据列表
 const getDataList = async () => {
-  // 如果选择了年份，但该年份没有组织机构，不查询数据
-  if (searchForm.year && (!organizationList.value || organizationList.value.length === 0)) {
-    console.log('当前年份没有组织机构，清空数据列表')
-    tableData.value = []
-    pagination.total = 0
-    loading.table = false
-    return
-  }
-
   loading.table = true
   try {
     let response
     let allData: any[] = []
 
     if (dataType.value === 'township') {
-      // 乡镇数据 - 直接返回数组
-      response = await surveyDataApi.getAll()
+      // 乡镇数据 - 使用分页查询
+      const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+      response = await surveyDataApi.getAll({
+        year: searchForm.year || undefined,
+        orgCode: normalizedOrgCode,
+        page: pagination.currentPage,
+        pageSize: pagination.pageSize
+      })
       if (response.success) {
-        allData = response.data || []
+        // 新的分页返回格式：{ records: [], total: 0, current: 1, pages: 0, size: 50 }
+        if (response.data && typeof response.data === 'object' && 'records' in response.data) {
+          allData = response.data.records || []
+          pagination.total = response.data.total || 0
+          // 后端返回的分页信息
+          if (response.data.current) pagination.currentPage = response.data.current
+          if (response.data.pages) {
+            (pagination as any).pages = response.data.pages
+          }
+        } else {
+          // 兼容旧格式（直接返回数组）
+          allData = response.data || []
+          pagination.total = allData.length
+        }
       }
     } else if (dataType.value === 'community') {
-      // 社区数据 - 使用 search API 支持年份过滤
-      const searchParams: any = {}
-      if (searchForm.year) searchParams.year = searchForm.year
-
-      response = await communityCapacityApi.search(searchParams)
+      // 社区数据 - 使用分页查询
+      const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+      response = await communityCapacityApi.getList({
+        page: pagination.currentPage,
+        size: pagination.pageSize,
+        regionCode: normalizedOrgCode || undefined
+      })
       if (response.success) {
-        allData = response.data || []
+        // 新的分页返回格式：{ records: [], total: 0, current: 1, pages: 0, size: 50 }
+        if (response.data && typeof response.data === 'object' && 'records' in response.data) {
+          allData = response.data.records || []
+          pagination.total = response.data.total || 0
+          if (response.data.current) pagination.currentPage = response.data.current
+          if (response.data.pages) {
+            (pagination as any).pages = response.data.pages
+          }
+        } else {
+          // 兼容旧格式
+          allData = response.data || []
+          pagination.total = response.data?.total || allData.length
+        }
       }
     } else if (dataType.value === 'medical') {
-      // 医疗卫生机构数据 - 获取指定年份的数据
+      // 医疗卫生机构数据 - 使用分页查询
       const year = searchForm.year || new Date().getFullYear()
-      response = await medicalInstitutionApi.getList(year, selectedOrg.value?.code)
+      const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+      response = await medicalInstitutionApi.getPage(year, pagination.currentPage, pagination.pageSize, normalizedOrgCode || undefined)
       if (response.success) {
-        allData = response.data || []
-      }
-    }
-
-    // 如果选中了组织机构，过滤数据
-    if (selectedOrg.value && allData.length > 0) {
-      const orgCode = selectedOrg.value.code
-      allData = allData.filter((row: any) => {
-        // 根据数据类型过滤
-        if (dataType.value === 'township') {
-          // 乡镇数据：匹配省、市、县、乡镇代码
-          return (
-            String(row.regionCode || '').startsWith(orgCode) ||
-            String(row.province || '').includes(selectedOrg.value.name) ||
-            String(row.city || '').includes(selectedOrg.value.name) ||
-            String(row.county || '').includes(selectedOrg.value.name) ||
-            String(row.township || '').includes(selectedOrg.value.name)
-          )
-        } else if (dataType.value === 'community') {
-          // 社区数据：匹配省、市、县、乡镇、社区名称
-          return (
-            String(row.regionCode || '').startsWith(orgCode) ||
-            String(row.provinceName || '').includes(selectedOrg.value.name) ||
-            String(row.cityName || '').includes(selectedOrg.value.name) ||
-            String(row.countyName || '').includes(selectedOrg.value.name) ||
-            String(row.townshipName || '').includes(selectedOrg.value.name) ||
-            String(row.communityName || '').includes(selectedOrg.value.name)
-          )
-        } else if (dataType.value === 'medical') {
-          return (
-            String(row.orgCode || '').startsWith(orgCode) ||
-            String(row.provinceName || '').includes(selectedOrg.value.name) ||
-            String(row.cityName || '').includes(selectedOrg.value.name) ||
-            String(row.countyName || '').includes(selectedOrg.value.name) ||
-            String(row.townshipName || '').includes(selectedOrg.value.name) ||
-            String(row.communityName || '').includes(selectedOrg.value.name) ||
-            String(row.institutionAddress || '').includes(selectedOrg.value.name)
-          )
+        // 新的分页返回格式：{ records: [], total: 0, current: 1, pages: 0, size: 50 }
+        if (response.data && typeof response.data === 'object' && 'records' in response.data) {
+          allData = response.data.records || []
+          pagination.total = response.data.total || 0
+          if (response.data.current) pagination.currentPage = response.data.current
+          if (response.data.pages) {
+            (pagination as any).pages = response.data.pages
+          }
+        } else {
+          // 兼容旧格式
+          allData = response.data || []
+          pagination.total = response.data?.total || allData.length
         }
-        return true
-      })
-    }
-
-    // 对于乡镇数据，应用年份过滤（如果设置了年份）
-    if (dataType.value === 'township' && searchForm.year && allData.length > 0) {
-      allData = allData.filter((row: any) => row.year === searchForm.year)
+      }
     }
 
     if (response.success) {
       tableData.value = allData
-      pagination.total = tableData.value.length
       // 如果下拉选项还未加载成功，基于现有表格构建一个临时选项集
       if (!regionSelectOptions.value?.length && tableData.value?.length && dataType.value !== 'medical') {
         const uniq = new Map<string, string>()
@@ -1032,14 +1054,6 @@ const handleSearch = async () => {
   // 当年份改变时，刷新组织机构树
   await getOrganizationList()
 
-  // 如果选择了年份，但该年份没有组织机构，清空数据列表
-  if (searchForm.year && (!organizationList.value || organizationList.value.length === 0)) {
-    console.log('当前年份没有组织机构，清空数据列表')
-    tableData.value = []
-    pagination.total = 0
-    return
-  }
-
   if (!searchForm.keyword && !searchForm.selectedRegion && !searchForm.year) {
     getDataList()
     return
@@ -1055,13 +1069,14 @@ const handleSearch = async () => {
       } else if (searchForm.selectedRegion) {
         response = await surveyDataApi.getByRegion(searchForm.selectedRegion.name)
       } else {
-        // 如果只有年份过滤，使用 getAll 然后在客户端过滤
-        response = await surveyDataApi.getAll()
-        if (response.success && searchForm.year) {
-          tableData.value = (response.data || []).filter((item: any) => item.year === searchForm.year)
-          pagination.total = tableData.value.length
-          return
-        }
+        // 使用分页查询
+        const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+        response = await surveyDataApi.getAll({
+          year: searchForm.year || undefined,
+          orgCode: normalizedOrgCode,
+          page: pagination.currentPage,
+          pageSize: pagination.pageSize
+        })
       }
     } else if (dataType.value === 'community') {
       // 社区数据搜索
@@ -1076,24 +1091,45 @@ const handleSearch = async () => {
       if (searchForm.keyword) {
         response = await medicalInstitutionApi.search(searchForm.keyword)
       } else {
-        // 如果只有年份过滤，使用 getList
+        // 如果只有年份过滤，使用 getList（现在调用的是 /page 接口）
         const year = searchForm.year || new Date().getFullYear()
         response = await medicalInstitutionApi.getList(year, selectedOrg.value?.code)
       }
     }
 
     if (response?.success) {
-      let allData = response.data || []
+      let allData: any[] = []
 
-      // 如果选中了组织机构，过滤数据
+      // 处理数据的多种返回格式
+      if (response.data) {
+        if (typeof response.data === 'object' && 'records' in response.data) {
+          // /page 接口格式：{ records: [], total: number, ... }
+          allData = response.data.records || []
+          pagination.total = response.data.total || 0
+          if (response.data.current) pagination.currentPage = response.data.current
+          if (response.data.pages) (pagination as any).pages = response.data.pages
+        } else if (Array.isArray(response.data)) {
+          // 直接数组格式
+          allData = response.data || []
+          pagination.total = allData.length
+        } else {
+          // 对象但不是数组
+          allData = [response.data]
+          pagination.total = 1
+        }
+      }
+
+      // 如果选中了组织机构，过滤数据（搜索时）
       if (selectedOrg.value && allData.length > 0) {
-        const orgCode = selectedOrg.value.code
+        const orgCode = normalizeOrgCode(selectedOrg.value.code)
+        const orgCodeValue = orgCode ?? ''
         allData = allData.filter((row: any) => {
           // 根据数据类型过滤
           if (dataType.value === 'township') {
-            // 乡镇数据：匹配省、市、县、乡镇代码
+            if (orgCode) {
+              return String(row.regionCode || '').startsWith(orgCode)
+            }
             return (
-              String(row.regionCode || '').startsWith(orgCode) ||
               String(row.province || '').includes(selectedOrg.value.name) ||
               String(row.city || '').includes(selectedOrg.value.name) ||
               String(row.county || '').includes(selectedOrg.value.name) ||
@@ -1102,7 +1138,7 @@ const handleSearch = async () => {
           } else if (dataType.value === 'community') {
             // 社区数据：匹配省、市、县、乡镇、社区名称
             return (
-              String(row.regionCode || '').startsWith(orgCode) ||
+              String(row.regionCode || '').startsWith(orgCodeValue) ||
               String(row.provinceName || '').includes(selectedOrg.value.name) ||
               String(row.cityName || '').includes(selectedOrg.value.name) ||
               String(row.countyName || '').includes(selectedOrg.value.name) ||
@@ -1111,7 +1147,7 @@ const handleSearch = async () => {
             )
           } else if (dataType.value === 'medical') {
             return (
-              String(row.orgCode || '').startsWith(orgCode) ||
+              String(row.orgCode || '').startsWith(orgCodeValue) ||
               String(row.provinceName || '').includes(selectedOrg.value.name) ||
               String(row.cityName || '').includes(selectedOrg.value.name) ||
               String(row.countyName || '').includes(selectedOrg.value.name) ||
@@ -1125,7 +1161,10 @@ const handleSearch = async () => {
       }
 
       tableData.value = allData
-      pagination.total = tableData.value.length
+      // 对于非分页的搜索结果，更新 total
+      if (dataType.value !== 'township' || searchForm.keyword || searchForm.selectedRegion) {
+        pagination.total = tableData.value.length
+      }
     }
   } catch (error) {
     console.error('搜索失败:', error)
@@ -1392,6 +1431,65 @@ const handleBatchDelete = async () => {
   }
 }
 
+// 全部删除数据
+const handleDeleteAll = async () => {
+  if (!searchForm.year) {
+    ElMessage.warning('请先选择年份')
+    return
+  }
+
+  const year = searchForm.year
+  const orgCode = selectedOrg.value ? normalizeOrgCode(selectedOrg.value.code) : undefined
+  const dataTypeText = dataType.value === 'township' ? '乡镇评估数据' : dataType.value === 'community' ? '社区减灾能力数据' : '医疗卫生机构数据'
+  const orgText = orgCode ? `和组织机构【${selectedOrg.value?.name}】` : ''
+
+  try {
+    await ElMessageBox.confirm(
+      `<div style="line-height: 1.8;">
+        <p style="color: #E6A23C; font-weight: bold; margin-bottom: 12px;">⚠️ 友情提示</p>
+        <p style="margin-bottom: 8px;">您即将删除 <strong>${year}年</strong> ${orgText} 的<strong>所有${dataTypeText}</strong>！</p>
+        <p style="color: #F56C6C; margin-bottom: 8px;">此操作将永久删除所有符合条件的数据，无法恢复！</p>
+        <p style="color: #909399; font-size: 13px;">建议：删除前请先导出数据作为备份</p>
+      </div>`,
+      '全部删除确认',
+      {
+        confirmButtonText: '我已了解风险，确认删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        dangerouslyUseHTMLString: true,
+        distinguishCancelAndClose: true
+      }
+    )
+
+    loading.deleteAll = true
+    let response
+
+    if (dataType.value === 'township') {
+      response = await surveyDataApi.deleteAllByYearOrg(year, orgCode)
+    } else if (dataType.value === 'community') {
+      response = await communityCapacityApi.deleteAllByYearOrg(year, orgCode)
+    } else if (dataType.value === 'medical') {
+      response = await medicalInstitutionApi.deleteAllByYearOrg(year, orgCode)
+    }
+
+    if (response.success || response.data !== undefined) {
+      const count = response.data || 0
+      ElMessage.success(`成功删除 ${count} 条数据`)
+      selectedRows.value = []
+      getDataList()
+    } else {
+      ElMessage.error(response.message || '全部删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      console.error('全部删除失败:', error)
+      ElMessage.error('全部删除失败')
+    }
+  } finally {
+    loading.deleteAll = false
+  }
+}
+
 // 选择变化
 const handleSelectionChange = (selection: any[]) => {
   selectedRows.value = selection
@@ -1400,6 +1498,7 @@ const handleSelectionChange = (selection: any[]) => {
 // 分页变化
 const handleSizeChange = (size: number) => {
   pagination.pageSize = size
+  pagination.currentPage = 1  // 改变大小时重置到第一页
   getDataList()
 }
 
@@ -1421,13 +1520,50 @@ const handleFileChange = (file: any) => {
   uploadFile.value = file.raw
 }
 
+// 获取接受的文件类型（仅2024年支持.gpkg）
+const getFileAcceptTypes = () => {
+  if (searchForm.year === 2024) {
+    return '.xlsx,.xls,.csv,.gpkg'
+  }
+  return '.xlsx,.xls,.csv'
+}
+
+// 获取文件上传提示
+const getFileUploadTip = () => {
+  if (searchForm.year === 2024) {
+    return '支持 xlsx/xls/csv/gpkg 格式文件，文件大小不超过 10MB（注：.gpkg文件仅2024年可用）'
+  }
+  return '支持 xlsx/xls/csv 格式文件，文件大小不超过 10MB'
+}
+
+// 判断是否为GPKG文件
+const isGpkgFile = (file: File) => {
+  return file.name.toLowerCase().endsWith('.gpkg')
+}
+
 // 上传前验证
 const beforeUpload = (file: File) => {
-  const isValidType = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
-                      'application/vnd.ms-excel', 
-                      'text/csv'].includes(file.type)
   const isLt10M = file.size / 1024 / 1024 < 10
-  
+
+  // 检查是否为GPKG文件
+  if (isGpkgFile(file)) {
+    // GPKG文件仅2024年可用
+    if (searchForm.year !== 2024) {
+      ElMessage.error('.gpkg文件仅支持2024年数据导入')
+      return false
+    }
+    if (!isLt10M) {
+      ElMessage.error('文件大小不能超过 10MB')
+      return false
+    }
+    return true
+  }
+
+  // Excel/CSV文件验证
+  const isValidType = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                      'application/vnd.ms-excel',
+                      'text/csv'].includes(file.type)
+
   if (!isValidType) {
     ElMessage.error('只支持 xlsx/xls/csv 格式文件')
     return false
@@ -1451,6 +1587,115 @@ const handleImport = async () => {
     return
   }
 
+  // 检查是否为GPKG文件
+  if (isGpkgFile(uploadFile.value)) {
+    // GPKG文件导入流程
+    await handleGpkgImport()
+    return
+  }
+
+  // Excel文件导入流程
+  await handleExcelImport()
+}
+
+// 处理GPKG文件导入
+const handleGpkgImport = async () => {
+  loading.import = true
+  try {
+    // 第一步：验证GPKG文件字段
+    ElMessage.info({
+      message: '正在验证GPKG文件字段...',
+      duration: 0
+    })
+
+    let validateResponse
+    if (dataType.value === 'township') {
+      validateResponse = await surveyDataApi.validateGpkg(uploadFile.value)
+    } else if (dataType.value === 'community') {
+      validateResponse = await communityCapacityApi.validateGpkg(uploadFile.value)
+    } else if (dataType.value === 'medical') {
+      validateResponse = await medicalInstitutionApi.validateGpkg(uploadFile.value)
+    }
+
+    ElMessage.closeAll()
+
+    if (validateResponse.success && validateResponse.data) {
+      const validationResult = validateResponse.data
+      if (!validationResult.valid) {
+        // 构造验证失败消息
+        let message = 'GPKG文件验证失败！\n'
+        message += `数据类型: ${getDataTypeName(validationResult.dataType)}\n`
+        message += `图层名称: ${validationResult.layerName || '未知'}\n`
+
+        if (validationResult.missingFields && validationResult.missingFields.length > 0) {
+          message += '\n缺少的必要字段:\n'
+          validationResult.missingFields.forEach((field: string) => {
+            message += `  - ${field}\n`
+          })
+        }
+
+        if (validationResult.errors && validationResult.errors.length > 0) {
+          message += '\n错误信息:\n'
+          validationResult.errors.forEach((error: string) => {
+            message += `  - ${error}\n`
+          })
+        }
+
+        ElMessageBox.alert(
+          message,
+          'GPKG文件验证失败',
+          {
+            confirmButtonText: '确定',
+            type: 'error',
+            dangerouslyUseHTMLString: false
+          }
+        )
+        return
+      }
+    } else {
+      ElMessageBox.alert(
+        validateResponse.message || '验证GPKG文件失败',
+        '验证失败',
+        { type: 'error' }
+      )
+      return
+    }
+
+    // 第二步：导入数据
+    ElMessage.info({
+      message: '正在导入GPKG数据...',
+      duration: 0
+    })
+
+    let response
+    if (dataType.value === 'township') {
+      response = await surveyDataApi.importGpkg(uploadFile.value, searchForm.year)
+    } else if (dataType.value === 'community') {
+      response = await communityCapacityApi.importGpkg(uploadFile.value, searchForm.year)
+    } else if (dataType.value === 'medical') {
+      response = await medicalInstitutionApi.importGpkg(uploadFile.value, searchForm.year)
+    }
+
+    ElMessage.closeAll()
+
+    if (response.success) {
+      ElMessage.success(response.message || '导入成功')
+      dialogVisible.import = false
+      getDataList()
+    } else {
+      ElMessage.error(response.message || '导入失败')
+    }
+  } catch (error) {
+    ElMessage.closeAll()
+    console.error('导入GPKG文件失败:', error)
+    ElMessage.error('导入失败')
+  } finally {
+    loading.import = false
+  }
+}
+
+// 处理Excel文件导入
+const handleExcelImport = async () => {
   // 对于乡镇数据和社区数据，先检查导入前置条件
   if (dataType.value === 'township' || dataType.value === 'community') {
     try {
@@ -1660,6 +1905,20 @@ const exportData = async () => {
   } catch (error) {
     console.error('导出失败:', error)
     ElMessage.error('导出失败: ' + (error as Error).message)
+  }
+}
+
+// 获取数据类型名称
+const getDataTypeName = (dataType: string): string => {
+  switch (dataType) {
+    case 'township':
+      return '乡镇评估数据'
+    case 'community':
+      return '社区减灾能力数据'
+    case 'medical':
+      return '医疗卫生机构数据'
+    default:
+      return '未知数据类型'
   }
 }
 

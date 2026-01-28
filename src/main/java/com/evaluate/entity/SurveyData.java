@@ -351,7 +351,7 @@ public class SurveyData implements Serializable {
      * 是否删除(0-未删除，1-已删除)
      */
     @TableLogic
-    @TableField("is_deleted")
+    @TableField(value = "is_deleted", fill = FieldFill.INSERT)
     private Integer isDeleted;
 
     // ========== 向后兼容方法 - 保持原有字段名以支持现有公式计算 ==========

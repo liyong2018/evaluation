@@ -26,6 +26,9 @@ public class MetaObjectHandlerConfig implements MetaObjectHandler {
         this.strictInsertFill(metaObject, "updateTime", LocalDateTime.class, LocalDateTime.now());
         this.strictInsertFill(metaObject, "updatedTime", LocalDateTime.class, LocalDateTime.now());
 
+        // 自动填充逻辑删除标识
+        this.strictInsertFill(metaObject, "isDeleted", Integer.class, 0);
+
         // 自动填充创建人
         String currentUsername = getCurrentUsername();
         if (currentUsername != null) {

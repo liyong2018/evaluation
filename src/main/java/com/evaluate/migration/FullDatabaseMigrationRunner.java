@@ -5,8 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.sql.*;
 import java.util.HashMap;
@@ -16,9 +16,11 @@ import java.util.Map;
  * 完整数据库迁移程序
  * 迁移所有13个表到 Supabase PostgreSQL
  * 启用: migration.enabled=true 和 migration.full.enabled=true
+ *
+ * 注意：@Conditional注解已移除以避免编译依赖问题
+ * 该类通过run方法中的配置检查来控制是否执行
  */
 @Component
-@Conditional(FullMigrationCondition.class)
 public class FullDatabaseMigrationRunner implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(FullDatabaseMigrationRunner.class);
@@ -32,14 +34,17 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
     @Value("${spring.datasource.password}")
     private String mysqlPassword;
 
-    @Value("${supabase.jdbc.url}")
+    @Value("${supabase.jdbc.url:}")
     private String pgUrl;
 
-    @Value("${supabase.jdbc.user}")
+    @Value("${supabase.jdbc.user:}")
     private String pgUser;
 
-    @Value("${supabase.jdbc.password}")
+    @Value("${supabase.jdbc.password:}")
     private String pgPassword;
+
+    @Value("${migration.full.enabled:false}")
+    private boolean fullMigrationEnabled;
 
     @Value("${migration.truncate:false}")
     private boolean truncate;
@@ -52,6 +57,17 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
+        if (!fullMigrationEnabled) {
+            log.info("完整数据库迁移已禁用 (migration.full.enabled=false)");
+            return;
+        }
+
+        // 检查 Supabase 配置是否存在
+        if (!StringUtils.hasText(pgUrl) || !StringUtils.hasText(pgUser) || !StringUtils.hasText(pgPassword)) {
+            log.info("Supabase 配置未设置，跳过完整数据库迁移");
+            return;
+        }
+
         log.info("========================================");
         log.info("开始完整数据库迁移: MySQL -> Supabase");
         log.info("========================================");

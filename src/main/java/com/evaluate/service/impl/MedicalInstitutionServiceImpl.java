@@ -2,15 +2,26 @@ package com.evaluate.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.evaluate.dto.GpkgFieldValidationResult;
+import com.evaluate.dto.ImportResultDTO;
 import com.evaluate.entity.GrassrootsOrganization;
 import com.evaluate.entity.MedicalInstitution;
 import com.evaluate.mapper.GrassrootsOrganizationMapper;
 import com.evaluate.mapper.MedicalInstitutionMapper;
 import com.evaluate.service.IGrassrootsOrganizationService;
 import com.evaluate.service.IMedicalInstitutionService;
+import com.evaluate.util.GpkgUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.geotools.data.DataStore;
+import org.geotools.data.DataStoreFinder;
+import org.geotools.data.FeatureSource;
+import org.geotools.data.Query;
+import org.geotools.feature.FeatureCollection;
+import org.geotools.feature.FeatureIterator;
+import org.opengis.feature.simple.SimpleFeature;
+import org.opengis.feature.simple.SimpleFeatureType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +33,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URLEncoder;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -358,7 +372,17 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         }
 
         // 提取并验证街道/乡镇
-        String townshipName = extractTownshipFromAddress(address);
+        // 优先通过 org_code 查找乡镇
+        String townshipName = null;
+        if (StringUtils.hasText(institution.getOrgCode())) {
+            townshipName = extractTownshipFromOrgCode(institution.getOrgCode(), year);
+        }
+
+        // 如果通过 org_code 找不到，再通过地址解析
+        if (!StringUtils.hasText(townshipName)) {
+            townshipName = extractTownshipFromAddress(address);
+        }
+
         if (StringUtils.hasText(townshipName)) {
             institution.setTownshipName(townshipName);
             // 同时保存到数据库列（用于精确查询匹配）
@@ -383,6 +407,44 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
     }
 
     /**
+     * 从 org_code 中提取乡镇名称
+     * 通过查询 grassroots_organization 表获取
+     */
+    private String extractTownshipFromOrgCode(String orgCode, Integer year) {
+        if (!StringUtils.hasText(orgCode)) {
+            return null;
+        }
+
+        try {
+            // 首先尝试直接通过 org_code 查找
+            GrassrootsOrganization org = grassrootsOrganizationService.getByCode(orgCode.trim(), year);
+            if (org != null && StringUtils.hasText(org.getName())) {
+                return org.getName();
+            }
+
+            // 如果直接查找失败，尝试通过 likeRight 查找（匹配前缀）
+            // 例如：org_code=510132，查找 code 以 510132 开头的乡镇记录
+            QueryWrapper<GrassrootsOrganization> wrapper = new QueryWrapper<>();
+            wrapper.likeRight("code", orgCode.trim());
+            wrapper.eq("level", 5); // 乡镇级别
+            if (year != null) {
+                wrapper.eq("year", year);
+            }
+            wrapper.last("LIMIT 1");
+
+            GrassrootsOrganization matchedOrg = grassrootsOrganizationService.getOne(wrapper);
+            if (matchedOrg != null && StringUtils.hasText(matchedOrg.getName())) {
+                return matchedOrg.getName();
+            }
+
+        } catch (Exception e) {
+            log.warn("通过 org_code 查找乡镇失败: {}", orgCode, e);
+        }
+
+        return null;
+    }
+
+    /**
      * 从地址中提取街道/乡镇名称
      */
     private String extractTownshipFromAddress(String address) {
@@ -391,12 +453,40 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         }
         String normalizedAddress = address.replaceAll("\\s+", "");
 
-        // 匹配乡镇名称：不包含省/市/区/县等行政区划字符，后跟街道/镇/乡/办事处
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-                "([^省市区县街道办]{2,10}?)(街道|镇|乡|办事处)");
-        java.util.regex.Matcher matcher = pattern.matcher(normalizedAddress);
-        if (matcher.find()) {
-            return matcher.group(1) + matcher.group(2);
+        // 尝试多种模式匹配乡镇名称
+
+        // 模式1: 区/县名后跟乡镇名称+街道/镇/乡/办事处
+        // 例如: "新津区花桥街道" -> "花桥街道"
+        java.util.regex.Pattern pattern1 = java.util.regex.Pattern.compile(
+                "(?:区|县|市|镇)(.{2,8}?)(街道|镇|乡|办事处)");
+        java.util.regex.Matcher matcher1 = pattern1.matcher(normalizedAddress);
+        if (matcher1.find()) {
+            return matcher1.group(1) + matcher1.group(2);
+        }
+
+        // 模式2: 直接匹配 街道/镇/乡/办事处 前面的名称（2-8个字符）
+        // 例如: "花桥街道桩桥街120号" -> "花桥街道"
+        java.util.regex.Pattern pattern2 = java.util.regex.Pattern.compile(
+                "(.{2,8}?)(街道|镇|乡|办事处)");
+        java.util.regex.Matcher matcher2 = pattern2.matcher(normalizedAddress);
+        if (matcher2.find()) {
+            String townshipName = matcher2.group(1) + matcher2.group(2);
+            // 排除只包含数字或特殊字符的情况
+            if (townshipName.matches(".*[\\u4e00-\\u9fa5]+.*")) {
+                return townshipName;
+            }
+        }
+
+        // 模式3: 匹配街道办事处简称（如"XX街道"后面的具体地点）
+        // 例如: "广福桥街道" -> "广福桥街道"（如果没有"办"字）
+        java.util.regex.Pattern pattern3 = java.util.regex.Pattern.compile(
+                "(.{2,8}?)(街道)(?!办事处)");
+        java.util.regex.Matcher matcher3 = pattern3.matcher(normalizedAddress);
+        if (matcher3.find()) {
+            String townshipName = matcher3.group(1) + matcher3.group(2);
+            if (townshipName.matches(".*[\\u4e00-\\u9fa5]+.*")) {
+                return townshipName;
+            }
         }
 
         return null;
@@ -549,17 +639,18 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                             result.successCount++;
                         }
                     } else {
-                        log.debug("插入新医疗机构记录，唯一码：{}，年份：{}", data.getUniqueCode(), data.getYear());
+                        log.info("插入新医疗机构记录，唯一码：{}，年份：{}, township: {}", data.getUniqueCode(), data.getYear(), data.getTownship());
                         data.setId(null);
                         boolean saveResult = save(data);
                         if (saveResult) {
+                            log.info("保存成功，准备更新地址字段 - ID: {}, township: {}", data.getId(), data.getTownship());
                             // 保存后立即更新地址字段（province/city/county/township）
                             try {
-                                baseMapper.updateAddressFields(data.getId(), data.getProvince(),
+                                int updateResult = baseMapper.updateAddressFields(data.getId(), data.getProvince(),
                                     data.getCity(), data.getCounty(), data.getTownship());
-                                log.debug("已更新地址字段 - ID: {}, township: {}", data.getId(), data.getTownship());
+                                log.info("已更新地址字段 - ID: {}, township: {}, updateResult: {}", data.getId(), data.getTownship(), updateResult);
                             } catch (Exception updateEx) {
-                                log.warn("更新地址字段失败，ID: {}, township: {}", data.getId(), data.getTownship(), updateEx);
+                                log.error("更新地址字段失败，ID: {}, township: {}", data.getId(), data.getTownship(), updateEx);
                             }
                             result.insertCount++;
                             result.successCount++;
@@ -1044,6 +1135,628 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         } catch (Exception e) {
             log.error("检查{}年医疗设施数据时出错", year, e);
             return false;
+        }
+    }
+
+    @Override
+    public GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType) {
+        return GpkgUtil.validateGpkgFields(file, dataType);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ImportResultDTO importFromGpkg(MultipartFile file, Integer year) {
+        long startTime = System.currentTimeMillis();
+        ImportResultDTO result = new ImportResultDTO();
+        result.setSuccess(false);
+
+        if (file == null || file.isEmpty() || year == null) {
+            result.addError("导入参数为空");
+            return result;
+        }
+
+        log.info("开始导入医疗卫生机构GPKG文件，年份：{}，文件大小：{} bytes", year, file.getSize());
+
+        Path tempFile = null;
+        try {
+            // 创建临时文件
+            tempFile = Files.createTempFile("gpkg_", ".gpkg");
+            Files.copy(file.getInputStream(), tempFile, StandardCopyOption.REPLACE_EXISTING);
+            log.info("临时文件创建完成：{}", tempFile);
+
+            // 创建数据存储
+            Map<String, Object> params = new HashMap<>();
+            params.put("dbtype", "geopkg");
+            params.put("database", tempFile.toAbsolutePath().toString());
+
+            DataStore dataStore = DataStoreFinder.getDataStore(params);
+            if (dataStore == null) {
+                result.addError("无法读取GPKG文件");
+                return result;
+            }
+
+            try {
+                // 获取类型名称
+                String[] typeNames = dataStore.getTypeNames();
+                if (typeNames == null || typeNames.length == 0) {
+                    result.addError("GPKG文件中没有找到任何图层");
+                    return result;
+                }
+
+                // 使用第一个图层
+                String layerName = typeNames[0];
+                log.info("使用图层: {}", layerName);
+
+                // 获取要素源
+                FeatureSource<SimpleFeatureType, SimpleFeature> featureSource =
+                        dataStore.getFeatureSource(layerName);
+
+                // 获取字段映射
+                Map<String, String> fieldMapping = GpkgUtil.getFieldMapping("medical");
+
+                // 读取所有要素
+                Query query = new Query(layerName);
+                FeatureCollection<SimpleFeatureType, SimpleFeature> collection = featureSource.getFeatures(query);
+
+                List<MedicalInstitution> dataList = new ArrayList<>();
+                List<String> invalidOrgCodeRecords = new ArrayList<>();  // 记录无法识别乡镇的机构
+                int totalFeatureCount = 0;
+                int parsedSuccessCount = 0;
+                int parsedFailCount = 0;
+
+                try (FeatureIterator<SimpleFeature> features = collection.features()) {
+                    while (features.hasNext()) {
+                        totalFeatureCount++;
+                        SimpleFeature feature = features.next();
+                        MedicalInstitution data = parseGpkgFeatureToMedicalInstitution(feature, fieldMapping, year);
+                        if (data != null) {
+                            parsedSuccessCount++;
+                            // 检查 org_code 是否有效
+                            if (!StringUtils.hasText(data.getOrgCode())) {
+                                invalidOrgCodeRecords.add(data.getInstitutionName() != null ?
+                                    data.getInstitutionName() : "未知机构");
+                            }
+                            dataList.add(data);
+                        } else {
+                            parsedFailCount++;
+                            log.warn("解析失败（返回null）: Feature ID={}", feature.getID());
+                        }
+                    }
+                }
+
+                log.info("===== GPKG解析统计 =====");
+                log.info("GPKG文件总要素数: {}", totalFeatureCount);
+                log.info("解析成功: {}", parsedSuccessCount);
+                log.info("解析失败: {}", parsedFailCount);
+                log.info("dataList大小: {}", dataList.size());
+                log.info("======================");
+
+                // 如果有无法识别乡镇的记录，终止导入并返回错误
+                if (!invalidOrgCodeRecords.isEmpty()) {
+                    result.addError("未能识别到以下数据的所属乡镇（code 和 fxpc_xzqhbmd_sjgl 字段都无法识别乡镇）：");
+                    for (String name : invalidOrgCodeRecords) {
+                        result.addError("  - " + name);
+                    }
+                    result.addError("请检查 GPKG 文件中这些记录的 code 和 fxpc_xzqhbmd_sjgl 字段，确保至少有一个字段值长度≥9位。");
+                    return result;
+                }
+
+                log.info("从GPKG文件解析到{}条医疗卫生机构数据", dataList.size());
+                result.setTotalCount(dataList.size());
+
+                // 先批量查询已存在的记录（一次性查询所有uniqueCode）
+                Set<String> uniqueCodes = new HashSet<>();
+                Set<String> creditCodes = new HashSet<>();
+                for (MedicalInstitution item : dataList) {
+                    if (StringUtils.hasText(item.getUniqueCode())) {
+                        uniqueCodes.add(item.getUniqueCode());
+                    }
+                    if (StringUtils.hasText(item.getUnifiedSocialCreditCode())) {
+                        creditCodes.add(item.getUnifiedSocialCreditCode());
+                    }
+                }
+
+                // 批量查询已存在的记录
+                Map<String, MedicalInstitution> existingByUniqueCode = new HashMap<>();
+                Map<String, MedicalInstitution> existingByCreditCode = new HashMap<>();
+
+                if (!uniqueCodes.isEmpty()) {
+                    QueryWrapper<MedicalInstitution> wrapper = new QueryWrapper<>();
+                    wrapper.in("unique_code", uniqueCodes);
+                    wrapper.eq("year", year);
+                    list(wrapper).forEach(item -> {
+                        if (StringUtils.hasText(item.getUniqueCode())) {
+                            existingByUniqueCode.put(item.getUniqueCode(), item);
+                        }
+                    });
+                }
+
+                if (!creditCodes.isEmpty()) {
+                    QueryWrapper<MedicalInstitution> wrapper = new QueryWrapper<>();
+                    wrapper.in("unified_social_credit_code", creditCodes);
+                    wrapper.eq("year", year);
+                    list(wrapper).forEach(item -> {
+                        if (StringUtils.hasText(item.getUnifiedSocialCreditCode())) {
+                            existingByCreditCode.put(item.getUnifiedSocialCreditCode(), item);
+                        }
+                    });
+                }
+
+                log.info("已查询到{}条已存在记录（按唯一码），{}条已存在记录（按信用码）",
+                    existingByUniqueCode.size(), existingByCreditCode.size());
+
+                // 批量保存
+                int insertCount = 0;
+                int updateCount = 0;
+                int processedCount = 0;
+
+                for (MedicalInstitution item : dataList) {
+                    try {
+                        // 检查是否已存在（从内存缓存中查找）
+                        MedicalInstitution existing = null;
+                        if (StringUtils.hasText(item.getUniqueCode())) {
+                            existing = existingByUniqueCode.get(item.getUniqueCode());
+                        }
+                        if (existing == null && StringUtils.hasText(item.getUnifiedSocialCreditCode())) {
+                            existing = existingByCreditCode.get(item.getUnifiedSocialCreditCode());
+                        }
+
+                        if (existing != null) {
+                            log.info("更新现有记录: 机构名称={}, uniqueCode={}, year={}, existingId={}",
+                                item.getInstitutionName(), item.getUniqueCode(), item.getYear(), existing.getId());
+                            item.setId(existing.getId());
+                            updateById(item);
+                            updateCount++;
+                        } else {
+                            log.info("插入新记录: 机构名称={}, uniqueCode={}, year={}",
+                                item.getInstitutionName(), item.getUniqueCode(), item.getYear());
+                            item.setYear(year);
+                            if (save(item)) {
+                                log.info("✓ 插入成功: 机构名称={}, uniqueCode={}, ID={}",
+                                    item.getInstitutionName(), item.getUniqueCode(), item.getId());
+                                insertCount++;
+                            } else {
+                                log.error("✗ 插入失败（save返回false）: 机构名称={}, uniqueCode={}, year={}",
+                                    item.getInstitutionName(), item.getUniqueCode(), item.getYear());
+                                result.addWarning("保存失败: " + item.getInstitutionName() + " (uniqueCode: " + item.getUniqueCode() + ")");
+                            }
+                        }
+
+                        processedCount++;
+                        // 每处理100条记录输出一次进度
+                        if (processedCount % 100 == 0) {
+                            log.info("已处理 {}/{} 条记录，新增{}条，更新{}条",
+                                processedCount, dataList.size(), insertCount, updateCount);
+                        }
+                    } catch (Exception e) {
+                        log.error("✗ 保存医疗卫生机构数据异常: 机构名称={}, uniqueCode={}, year={}",
+                            item.getInstitutionName(), item.getUniqueCode(), item.getYear(), e);
+                        result.addWarning("保存失败: " + item.getInstitutionName() + " - " + e.getMessage());
+                    }
+                }
+
+                log.info("导入完成：共处理{}条，新增{}条，更新{}条", dataList.size(), insertCount, updateCount);
+
+                result.setInsertCount(insertCount);
+                result.setUpdateCount(updateCount);
+                result.setSuccessCount(insertCount + updateCount);
+                result.setSuccess(true);
+
+                long endTime = System.currentTimeMillis();
+                log.info("医疗卫生机构GPKG导入成功！总耗时：{}秒", (endTime - startTime) / 1000.0);
+
+            } finally {
+                dataStore.dispose();
+            }
+
+        } catch (IOException e) {
+            log.error("导入GPKG文件失败", e);
+            result.addError("导入GPKG文件失败: " + e.getMessage());
+        } finally {
+            // 删除临时文件
+            if (tempFile != null) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException e) {
+                    log.warn("删除临时文件失败", e);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 将GPKG要素解析为MedicalInstitution对象
+     */
+    private MedicalInstitution parseGpkgFeatureToMedicalInstitution(SimpleFeature feature, Map<String, String> fieldMapping, Integer year) {
+        try {
+            MedicalInstitution data = new MedicalInstitution();
+            data.setYear(year);
+
+            // 临时存储备用乡镇代码
+            String townshipCodeFromFxpc = null;
+
+            // 根据字段映射从GPKG属性中获取值
+            for (Map.Entry<String, String> entry : fieldMapping.entrySet()) {
+                String gpkgField = entry.getKey();
+                String dbField = entry.getValue();
+
+                Object value = feature.getAttribute(gpkgField);
+                if (value != null) {
+                    // 特殊处理备用乡镇代码
+                    if ("townshipCodeFromFxpc".equals(dbField)) {
+                        townshipCodeFromFxpc = getStringValue(value);
+                    } else {
+                        setMedicalFieldValue(data, dbField, value);
+                    }
+                }
+            }
+
+            // 处理 org_code：优先使用 code，如果识别不出乡镇则使用 fxpc_xzqhbmd_sjgl
+            String finalOrgCode = resolveOrgCode(data.getOrgCode(), townshipCodeFromFxpc,
+                data.getInstitutionName(), data.getProvince(), data.getCity(), data.getCounty());
+            data.setOrgCode(finalOrgCode);
+
+            // 存储备用乡镇代码，用于后续乡镇名称识别
+            if (StringUtils.hasText(townshipCodeFromFxpc)) {
+                data.setTownshipCodeFromFxpc(townshipCodeFromFxpc);
+            }
+
+            // 直接通过备用乡镇代码查找并设置乡镇名称
+            if (StringUtils.hasText(townshipCodeFromFxpc)) {
+                String townshipNameFromFxpc = extractTownshipFromOrgCode(townshipCodeFromFxpc, year);
+                if (StringUtils.hasText(townshipNameFromFxpc)) {
+                    data.setTownshipName(townshipNameFromFxpc);
+                    data.setTownship(townshipNameFromFxpc);
+                }
+            }
+
+            return data;
+        } catch (Exception e) {
+            log.error("解析GPKG要素失败: Feature ID={}, 错误信息: {}", feature.getID(), e.getMessage(), e);
+            // 尝试获取关键字段信息用于诊断
+            try {
+                String name = feature.getAttribute("dwmc") != null ? feature.getAttribute("dwmc").toString() : "未知";
+                String code = feature.getAttribute("code") != null ? feature.getAttribute("code").toString() : "空";
+                log.error("  - 机构名称: {}, code: {}", name, code);
+            } catch (Exception ex) {
+                // 忽略
+            }
+            return null;
+        }
+    }
+
+    /**
+     * 解析 org_code：优先使用 code，如果识别不出乡镇则使用 fxpc_xzqhbmd_sjgl
+     * @return 最终的 org_code，如果都无效则返回 null
+     */
+    private String resolveOrgCode(String primaryCode, String fallbackCode,
+            String institutionName, String province, String city, String county) {
+        String result = null;
+
+        // 优先使用 primaryCode（来自 code 字段）
+        if (StringUtils.hasText(primaryCode)) {
+            String code = primaryCode.trim();
+            // 检查代码长度是否足以识别乡镇（至少9位）
+            if (code.length() >= 9) {
+                result = code;
+                log.debug("使用 code 字段作为 org_code: {} (机构: {})", code, institutionName);
+            } else {
+                log.info("code 字段长度不足9位，无法识别乡镇: {} (机构: {})", code, institutionName);
+            }
+        }
+
+        // 如果 primaryCode 无效，尝试使用 fallbackCode（来自 fxpc_xzqhbmd_sjgl 字段）
+        if (result == null && StringUtils.hasText(fallbackCode)) {
+            String code = fallbackCode.trim();
+            if (code.length() >= 9) {
+                result = code;
+                log.info("使用 fxpc_xzqhbmd_sjgl 字段作为 org_code: {} (机构: {})", code, institutionName);
+            } else {
+                log.warn("fxpc_xzqhbmd_sjgl 字段长度也不足9位: {} (机构: {})", code, institutionName);
+            }
+        }
+
+        // 如果都无效，返回 null（调用方会处理）
+        if (result == null) {
+            log.warn("未能识别到该数据的所属乡镇，机构名称: {}, 省: {}, 市: {}, 县: {}",
+                institutionName, province, city, county);
+        }
+
+        return result;
+    }
+
+    /**
+     * 设置字段值到MedicalInstitution对象
+     */
+    private void setMedicalFieldValue(MedicalInstitution data, String fieldName, Object value) {
+        if (value == null) {
+            return;
+        }
+
+        try {
+            switch (fieldName) {
+                // 基本信息
+                case "institutionName":
+                    data.setInstitutionName(getStringValue(value));
+                    break;
+                case "institutionAddress":
+                    data.setInstitutionAddress(getStringValue(value));
+                    break;
+                case "province":
+                    data.setProvince(getStringValue(value));
+                    break;
+                case "city":
+                    data.setCity(getStringValue(value));
+                    break;
+                case "county":
+                    data.setCounty(getStringValue(value));
+                    break;
+                case "township":
+                    data.setTownship(getStringValue(value));
+                    break;
+                case "villageName":
+                    data.setCommunityName(getStringValue(value));
+                    break;
+                case "contactPhone":
+                    if (StringUtils.hasText(data.getContactPhone())) {
+                        // 已有联系电话，则拼接地址街号（dzjh）
+                        String existing = data.getContactPhone();
+                        data.setContactPhone(existing + " " + getStringValue(value));
+                    } else {
+                        data.setContactPhone(getStringValue(value));
+                    }
+                    break;
+                case "uniqueCode":
+                    data.setUniqueCode(getStringValue(value));
+                    break;
+                case "orgCode":
+                    data.setOrgCode(getStringValue(value));
+                    break;
+                case "codeType":
+                    data.setCodeType(getStringValue(value));
+                    break;
+                case "unifiedSocialCreditCode":
+                    data.setUnifiedSocialCreditCode(getStringValue(value));
+                    break;
+
+                // 机构分类
+                case "institutionCategoryCode":
+                    data.setInstitutionCategoryCode(getStringValue(value));
+                    break;
+                case "institutionTypeLarge":
+                    data.setInstitutionTypeLarge(getStringValue(value));
+                    break;
+                case "institutionTypeMedium":
+                    data.setInstitutionTypeMedium(getStringValue(value));
+                    break;
+                case "institutionTypeSpecialized":
+                    data.setInstitutionTypeSpecialized(getStringValue(value));
+                    break;
+                case "hospitalLevel":
+                    data.setHospitalLevel(getStringValue(value));
+                    break;
+                case "institutionNature":
+                    data.setInstitutionNature(getStringValue(value));
+                    break;
+
+                // 场地与设备
+                case "landArea":
+                    data.setLandArea(getDecimalValue(value));
+                    break;
+                case "buildingArea":
+                    data.setBuildingArea(getDecimalValue(value));
+                    break;
+                case "equipmentCountAbove10k":
+                    data.setEquipmentCountAbove10k(getIntValue(value));
+                    break;
+
+                // 人员统计
+                case "totalStaff":
+                    data.setTotalStaff(getIntValue(value));
+                    break;
+                case "healthTechnicalPersonnel":
+                    data.setHealthTechnicalPersonnel(getIntValue(value));
+                    break;
+                case "registeredNurses":
+                    data.setRegisteredNurses(getIntValue(value));
+                    break;
+                case "logisticsSkillPersonnel":
+                    data.setLogisticsSkillPersonnel(getIntValue(value));
+                    break;
+                case "securityPersonnelCount":
+                    data.setSecurityPersonnelCount(getIntValue(value));
+                    break;
+                case "preHospitalEmergencyPersonnel":
+                    data.setPreHospitalEmergencyPersonnel(getIntValue(value));
+                    break;
+
+                // 诊疗统计
+                case "annualTotalVisits":
+                    data.setAnnualTotalVisits(getIntValue(value));
+                    break;
+                case "annualAdmissionCount":
+                    data.setAnnualAdmissionCount(getIntValue(value));
+                    break;
+                case "annualDischargeCount":
+                    data.setAnnualDischargeCount(getIntValue(value));
+                    break;
+
+                // 床位统计
+                case "actualHospitalBeds":
+                    data.setActualHospitalBeds(getIntValue(value));
+                    break;
+                case "negativePressureBeds":
+                    data.setNegativePressureBeds(getIntValue(value));
+                    break;
+                case "icuBeds":
+                    data.setIcuBeds(getIntValue(value));
+                    break;
+
+                // 车辆统计
+                case "emergencyCommandVehicleCount":
+                    data.setEmergencyCommandVehicleCount(getIntValue(value));
+                    break;
+                case "transportAmbulanceCount":
+                    data.setTransportAmbulanceCount(getIntValue(value));
+                    break;
+                case "monitorAmbulanceCount":
+                    data.setMonitorAmbulanceCount(getIntValue(value));
+                    break;
+                case "negativePressureAmbulanceCount":
+                    data.setNegativePressureAmbulanceCount(getIntValue(value));
+                    break;
+                case "bloodCollectionVehicleCount":
+                    data.setBloodCollectionVehicleCount(getIntValue(value));
+                    break;
+                case "bloodDeliveryVehicleCount":
+                    data.setBloodDeliveryVehicleCount(getIntValue(value));
+                    break;
+
+                // 应急保障
+                case "emergencyPowerSupply":
+                    data.setEmergencyPowerSupply(getStringValue(value));
+                    break;
+                case "emergencyPowerSupplyOther":
+                    data.setEmergencyPowerSupplyOther(getStringValue(value));
+                    break;
+                case "waterSupplyMode":
+                    data.setWaterSupplyMode(getStringValue(value));
+                    break;
+                case "heatingMode":
+                    data.setHeatingMode(getStringValue(value));
+                    break;
+                case "emergencyCommunicationMode":
+                    data.setEmergencyCommunicationMode(getStringValue(value));
+                    break;
+                case "emergencyCommunicationModeOther":
+                    data.setEmergencyCommunicationModeOther(getStringValue(value));
+                    break;
+
+                // 灾害历史与预案
+                case "disasterHistoryType":
+                    data.setDisasterHistoryType(getStringValue(value));
+                    break;
+                case "disasterHistoryTypeOther":
+                    data.setDisasterHistoryTypeOther(getStringValue(value));
+                    break;
+                case "emergencyPlanType":
+                    data.setEmergencyPlanType(getStringValue(value));
+                    break;
+                case "emergencyPlanTypeOther":
+                    data.setEmergencyPlanTypeOther(getStringValue(value));
+                    break;
+
+                // 负责人信息
+                case "unitLeader":
+                    data.setUnitLeader(getStringValue(value));
+                    break;
+                case "statisticalLeader":
+                    data.setStatisticalLeader(getStringValue(value));
+                    break;
+                case "formFiller":
+                    data.setFormFiller(getStringValue(value));
+                    break;
+                case "reportDate":
+                    data.setReportDate(getDateValue(value));
+                    break;
+                case "fillingInstructions":
+                    data.setFillingInstructions(getStringValue(value));
+                    break;
+
+                default:
+                    // 忽略未知字段
+                    break;
+            }
+        } catch (Exception e) {
+            log.warn("设置字段值失败: {} = {}", fieldName, value);
+        }
+    }
+
+    /**
+     * 获取字符串值
+     */
+    private String getStringValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return value.toString().trim();
+    }
+
+    /**
+     * 获取整数值
+     */
+    private Integer getIntValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(str);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 获取小数值（用于 BigDecimal 字段）
+     */
+    private java.math.BigDecimal getDecimalValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return java.math.BigDecimal.valueOf(((Number) value).doubleValue());
+        }
+        String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return null;
+        }
+        try {
+            return new java.math.BigDecimal(str);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 获取日期值
+     */
+    private java.time.LocalDate getDateValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof java.time.LocalDate) {
+            return (java.time.LocalDate) value;
+        }
+        if (value instanceof java.util.Date) {
+            return ((java.util.Date) value).toInstant()
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDate();
+        }
+        if (value instanceof java.sql.Date) {
+            return ((java.sql.Date) value).toLocalDate();
+        }
+        String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return null;
+        }
+        try {
+            // 尝试解析多种日期格式
+            if (str.matches("\\d{4}-\\d{2}-\\d+")) {
+                return java.time.LocalDate.parse(str.split(" ")[0]); // 处理 "2024-01-01 00:00:00" 格式
+            }
+            return java.time.LocalDate.parse(str);
+        } catch (Exception e) {
+            log.warn("日期解析失败: {}", str);
+            return null;
         }
     }
 }

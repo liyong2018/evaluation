@@ -35,7 +35,7 @@ public class Evaluation implements Serializable {
     private LocalDateTime updateTime;
 
     @TableLogic
-    @TableField("is_deleted")
+    @TableField(value = "is_deleted", fill = FieldFill.INSERT)
     private Integer isDeleted;
 
     public Integer getIsDeleted() {

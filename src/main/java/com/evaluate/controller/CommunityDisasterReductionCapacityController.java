@@ -1,13 +1,17 @@
 package com.evaluate.controller;
 
 import com.evaluate.common.Result;
+import com.evaluate.dto.GpkgFieldValidationResult;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
 import com.evaluate.service.ICommunityDisasterReductionCapacityService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.lang.Integer;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -51,14 +55,18 @@ public class CommunityDisasterReductionCapacityController {
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) String regionCode,
             @RequestParam(required = false) String communityName) {
+        Map<String, Object> result = new HashMap<>();
+
         log.info("查询社区行政村减灾能力数据列表，页码: {}, 每页大小: {}, 行政区代码: {}, 社区名称: {}",
                 page, size, regionCode, communityName);
         try {
-            Map<String, Object> result = communityDisasterReductionCapacityService.getCommunityCapacityList(
+            result = communityDisasterReductionCapacityService.getCommunityCapacityList(
                     page, size, regionCode, communityName);
             return Result.success(result);
         } catch (Exception e) {
             log.error("查询社区行政村减灾能力数据列表失败", e);
+            result.put("success", false);
+            result.put("message", "查询失败: " + e.getMessage());
             return Result.error("查询失败: " + e.getMessage());
         }
     }
@@ -165,6 +173,30 @@ public class CommunityDisasterReductionCapacityController {
     }
 
     /**
+     * 根据年份和组织机构删除所有社区减灾能力数据
+     */
+    @DeleteMapping("/delete-by-year-org")
+    public Result<Long> deleteByYearAndOrg(
+            @RequestParam Integer year,
+            @RequestParam(required = false) String regionCode) {
+        try {
+            log.info("删除社区减灾能力数据 - year: {}, regionCode: {}", year, regionCode);
+            com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<CommunityDisasterReductionCapacity> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
+            wrapper.eq("year", year);
+            if (StringUtils.hasText(regionCode)) {
+                wrapper.likeRight("region_code", regionCode.trim());
+            }
+            long count = communityDisasterReductionCapacityService.count(wrapper);
+            boolean result = communityDisasterReductionCapacityService.remove(wrapper);
+            return result ? Result.success(count) : Result.error("删除失败");
+        } catch (Exception e) {
+            log.error("删除社区减灾能力数据失败", e);
+            return Result.error("删除失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 下载社区行政村减灾能力数据导入模板
      */
     @GetMapping("/template")
@@ -177,6 +209,39 @@ public class CommunityDisasterReductionCapacityController {
         } catch (Exception e) {
             log.error("下载社区行政村减灾能力数据导入模板失败", e);
             return Result.error("下载模板失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 验证GPKG文件字段
+     * 检查GPKG文件是否包含社区减灾能力数据所需的必要字段
+     */
+    @PostMapping("/validate-gpkg")
+    public Result<GpkgFieldValidationResult> validateGpkgFile(@RequestParam("file") MultipartFile file) {
+        log.info("验证社区减灾能力数据GPKG文件: {}", file.getOriginalFilename());
+        try {
+            GpkgFieldValidationResult result = communityDisasterReductionCapacityService.validateGpkgFields(file, "community");
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("验证GPKG文件失败", e);
+            return Result.error("验证失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 从GPKG文件导入社区减灾能力数据
+     */
+    @PostMapping("/import-gpkg")
+    public Result<Map<String, Object>> importFromGpkg(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("year") Integer year) {
+        log.info("从GPKG文件导入{}年社区减灾能力数据", year);
+        try {
+            Map<String, Object> result = communityDisasterReductionCapacityService.importFromGpkg(file, year);
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("导入GPKG文件失败", e);
+            return Result.error("导入失败: " + e.getMessage());
         }
     }
 }

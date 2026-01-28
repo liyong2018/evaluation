@@ -27,6 +27,15 @@ public interface FirefighterConfigMapper extends BaseMapper<FirefighterConfig> {
     Integer getFirefighterCountByRegionCode(@Param("regionCode") String regionCode);
 
     /**
+     * 根据乡镇名称查询消防员数量
+     *
+     * @param townshipName 乡镇名称
+     * @return 消防员数量
+     */
+    @Select("SELECT firefighter_count FROM firefighter_config WHERE township_name = #{townshipName} AND status = 1 LIMIT 1")
+    Integer getFirefighterCountByTownshipName(@Param("townshipName") String townshipName);
+
+    /**
      * 根据地理位置查询消防员配置列表
      *
      * @param provinceName 省名称

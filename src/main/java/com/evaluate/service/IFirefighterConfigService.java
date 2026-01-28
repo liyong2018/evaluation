@@ -22,6 +22,14 @@ public interface IFirefighterConfigService extends IService<FirefighterConfig> {
     Integer getFirefighterCountByRegionCode(String regionCode);
 
     /**
+     * 根据乡镇名称获取消防员数量
+     *
+     * @param townshipName 乡镇名称
+     * @return 消防员数量，如果不存在返回0
+     */
+    Integer getFirefighterCountByTownshipName(String townshipName);
+
+    /**
      * 根据地理位置查询消防员配置列表
      *
      * @param provinceName 省名称

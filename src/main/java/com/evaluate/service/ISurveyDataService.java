@@ -1,6 +1,9 @@
 package com.evaluate.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.evaluate.dto.GpkgFieldValidationResult;
 import com.evaluate.dto.ImportCheckResult;
 import com.evaluate.entity.SurveyData;
 import org.springframework.web.multipart.MultipartFile;
@@ -114,6 +117,26 @@ public interface ISurveyDataService extends IService<SurveyData> {
     List<SurveyData> getByConditions(String surveyName, String region, Integer year);
 
     /**
+     * 根据年份与组织机构代码查询调查数据
+     *
+     * @param year 年份（可选）
+     * @param orgCode 组织机构代码（可选）
+     * @return 调查数据列表
+     */
+    List<SurveyData> getByYearAndOrgCode(Integer year, String orgCode);
+
+    /**
+     * 根据年份与组织机构代码分页查询调查数据
+     *
+     * @param year 年份（可选）
+     * @param orgCode 组织机构代码（可选）
+     * @param page 页码（从1开始）
+     * @param pageSize 每页大小
+     * @return 分页结果
+     */
+    IPage<SurveyData> getByYearAndOrgCodePage(Integer year, String orgCode, int page, int pageSize);
+
+    /**
      * 导出所有调查数据到Excel
      *
      * @return Excel文件字节数组
@@ -136,4 +159,23 @@ public interface ISurveyDataService extends IService<SurveyData> {
      * @return 检查结果
      */
     ImportCheckResult checkImportPrerequisites(Integer year);
+
+    /**
+     * 验证GPKG文件字段
+     * 检查GPKG文件是否包含评估数据所需的必要字段
+     *
+     * @param file     GPKG文件
+     * @param dataType 数据类型 (township/community/medical)
+     * @return 验证结果
+     */
+    GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType);
+
+    /**
+     * 从GPKG文件导入评估数据
+     *
+     * @param file GPKG文件
+     * @param year 数据所属年份
+     * @return 导入结果
+     */
+    boolean importFromGpkg(MultipartFile file, Integer year);
 }

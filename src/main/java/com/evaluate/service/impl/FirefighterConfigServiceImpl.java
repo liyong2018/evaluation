@@ -62,6 +62,23 @@ public class FirefighterConfigServiceImpl
     }
 
     @Override
+    public Integer getFirefighterCountByTownshipName(String townshipName) {
+        if (townshipName == null || townshipName.trim().isEmpty()) {
+            return 0;
+        }
+
+        try {
+            log.info("开始通过乡镇名称查询消防员数量，乡镇名称: {}", townshipName);
+            Integer count = baseMapper.getFirefighterCountByTownshipName(townshipName.trim());
+            log.info("按乡镇名称查询结果，乡镇名称: {}, 消防员数量: {}", townshipName, count);
+            return count != null ? count : 0;
+        } catch (Exception e) {
+            log.error("通过乡镇名称查询消防员数量失败，乡镇名称: {}", townshipName, e);
+            return 0;
+        }
+    }
+
+    @Override
     public List<FirefighterConfig> getByLocation(String provinceName, String cityName, String countyName, String townshipName) {
         try {
             return baseMapper.getByLocation(provinceName, cityName, countyName, townshipName);

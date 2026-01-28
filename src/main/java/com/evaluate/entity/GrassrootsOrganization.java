@@ -73,6 +73,7 @@ public class GrassrootsOrganization implements Serializable {
     @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
-    @TableField("is_deleted")
+    @com.baomidou.mybatisplus.annotation.TableLogic
+    @TableField(value = "is_deleted", fill = FieldFill.INSERT)
     private Integer isDeleted;
 }

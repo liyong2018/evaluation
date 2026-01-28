@@ -1,6 +1,7 @@
 package com.evaluate.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.evaluate.dto.GpkgFieldValidationResult;
 import com.evaluate.dto.ImportResultDTO;
 import com.evaluate.entity.MedicalInstitution;
 import org.springframework.web.multipart.MultipartFile;
@@ -91,6 +92,25 @@ public interface IMedicalInstitutionService extends IService<MedicalInstitution>
      * @return 是否存在
      */
     boolean hasAnyDataForYear(Integer year);
+
+    /**
+     * 验证GPKG文件字段
+     * 检查GPKG文件是否包含医疗卫生机构数据所需的必要字段
+     *
+     * @param file     GPKG文件
+     * @param dataType 数据类型 (township/community/medical)
+     * @return 验证结果
+     */
+    GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType);
+
+    /**
+     * 从GPKG文件导入医疗卫生机构数据
+     *
+     * @param file GPKG文件
+     * @param year 数据所属年份
+     * @return 导入结果
+     */
+    ImportResultDTO importFromGpkg(MultipartFile file, Integer year);
 
 }
 

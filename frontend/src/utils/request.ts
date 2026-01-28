@@ -63,7 +63,12 @@ request.interceptors.response.use(
     console.error('请求错误:', error)
     // 专门处理超时错误
     if ((error as any)?.code === 'ECONNABORTED' || /timeout/i.test(String((error as any)?.message))) {
-      ElMessage.error(`请求超时，请稍后重试（当前超时：${DEFAULT_TIMEOUT}ms）`)
+      // 检查是否是GPKG导入请求超时
+      const isGpkgImport = error.config?.url?.includes('/import-gpkg')
+      const msg = isGpkgImport
+        ? '导入请求超时，但数据可能仍在后台处理中。请稍后刷新列表查看导入结果。'
+        : `请求超时，请稍后重试（当前超时：${DEFAULT_TIMEOUT}ms）`
+      ElMessage.warning(msg)
       return Promise.reject(error)
     }
     

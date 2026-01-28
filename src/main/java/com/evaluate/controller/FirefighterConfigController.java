@@ -36,6 +36,7 @@ public class FirefighterConfigController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String regionCode,
             @RequestParam(required = false) String provinceName,
             @RequestParam(required = false) String cityName,
             @RequestParam(required = false) String countyName,
@@ -55,17 +56,23 @@ public class FirefighterConfigController {
                         .or().like("region_code", keyword)
                 );
             }
-            if (StringUtils.hasText(provinceName)) {
-                queryWrapper.eq("province_name", provinceName);
-            }
-            if (StringUtils.hasText(cityName)) {
-                queryWrapper.eq("city_name", cityName);
-            }
-            if (StringUtils.hasText(countyName)) {
-                queryWrapper.eq("county_name", countyName);
-            }
-            if (StringUtils.hasText(townshipName)) {
-                queryWrapper.eq("township_name", townshipName);
+            // regionCode 前缀匹配（优先级高于名称过滤）
+            if (StringUtils.hasText(regionCode)) {
+                queryWrapper.likeRight("region_code", regionCode.trim());
+            } else {
+                // 名称精确过滤（仅在不使用 regionCode 时生效）
+                if (StringUtils.hasText(provinceName)) {
+                    queryWrapper.eq("province_name", provinceName);
+                }
+                if (StringUtils.hasText(cityName)) {
+                    queryWrapper.eq("city_name", cityName);
+                }
+                if (StringUtils.hasText(countyName)) {
+                    queryWrapper.eq("county_name", countyName);
+                }
+                if (StringUtils.hasText(townshipName)) {
+                    queryWrapper.eq("township_name", townshipName);
+                }
             }
             if (status != null) {
                 queryWrapper.eq("status", status);

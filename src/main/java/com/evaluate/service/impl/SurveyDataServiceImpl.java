@@ -1,7 +1,10 @@
 package com.evaluate.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.evaluate.dto.GpkgFieldValidationResult;
 import com.evaluate.entity.SurveyData;
 import com.evaluate.mapper.SurveyDataMapper;
 import com.evaluate.service.IOrganizationService;
@@ -9,24 +12,33 @@ import com.evaluate.service.ISurveyDataService;
 import com.evaluate.service.IFirefighterConfigService;
 import com.evaluate.service.IVolunteerMilitiaService;
 import com.evaluate.service.IMedicalInstitutionService;
+import com.evaluate.util.GpkgUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.NumberToTextConverter;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.geotools.data.DataStore;
+import org.geotools.data.DataStoreFinder;
+import org.geotools.data.FeatureSource;
+import org.geotools.data.Query;
+import org.geotools.feature.FeatureCollection;
+import org.geotools.feature.FeatureIterator;
+import org.opengis.feature.simple.SimpleFeature;
+import org.opengis.feature.simple.SimpleFeatureType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import java.util.Objects;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -75,6 +87,34 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
     }
 
     @Override
+    public List<SurveyData> getByYearAndOrgCode(Integer year, String orgCode) {
+        QueryWrapper<SurveyData> wrapper = new QueryWrapper<>();
+        if (year != null) {
+            wrapper.eq("year", year);
+        }
+        if (StringUtils.hasText(orgCode)) {
+            wrapper.likeRight("region_code", orgCode.trim());
+        }
+        return list(wrapper);
+    }
+
+    @Override
+    public IPage<SurveyData> getByYearAndOrgCodePage(Integer year, String orgCode, int page, int pageSize) {
+        QueryWrapper<SurveyData> wrapper = new QueryWrapper<>();
+        if (year != null) {
+            wrapper.eq("year", year);
+        }
+        if (StringUtils.hasText(orgCode)) {
+            wrapper.likeRight("region_code", orgCode.trim());
+        }
+        // 按创建时间倒序排列，确保最新数据在前
+        wrapper.orderByDesc("create_time");
+
+        Page<SurveyData> pageParam = new Page<>(page, pageSize);
+        return page(pageParam, wrapper);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean batchSave(List<SurveyData> dataList) {
         if (dataList == null || dataList.isEmpty()) {
@@ -118,6 +158,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                         data.setId(existingData.getId()); // 保持原有的ID
                         boolean updateResult = updateById(data);
                         if (updateResult) {
+                            organizationService.syncFromSurveyData(data);
                             updateCount++;
                             successCount++;
                         } else {
@@ -129,6 +170,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                         data.setId(null);
                         boolean saveResult = save(data);
                         if (saveResult) {
+                            organizationService.syncFromSurveyData(data);
                             insertCount++;
                             successCount++;
                         } else {
@@ -872,6 +914,14 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             // 1. 从消防员配置表获取消防员数量
             try {
                 Integer firefighters = firefighterConfigService.getFirefighterCountByRegionCode(regionCode);
+                if (firefighters == null || firefighters == 0) {
+                    // 如果按区域代码找不到，尝试按乡镇名称匹配
+                    String townshipName = data.getTownship();
+                    if (townshipName != null && !townshipName.trim().isEmpty()) {
+                        log.info("按区域代码未找到消防员数据，尝试按乡镇名称匹配，乡镇: {}", townshipName);
+                        firefighters = firefighterConfigService.getFirefighterCountByTownshipName(townshipName);
+                    }
+                }
                 if (firefighters != null) {
                     // 使用向后兼容方法设置消防员数量（包括0）
                     data.setFirefighters(firefighters);
@@ -1215,5 +1265,265 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
         }
 
         return result;
+    }
+
+    @Override
+    public GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType) {
+        return GpkgUtil.validateGpkgFields(file, dataType);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean importFromGpkg(MultipartFile file, Integer year) {
+        if (file == null || file.isEmpty() || year == null) {
+            log.error("导入参数为空");
+            return false;
+        }
+
+        Path tempFile = null;
+        try {
+            // 创建临时文件
+            tempFile = Files.createTempFile("gpkg_", ".gpkg");
+            Files.copy(file.getInputStream(), tempFile, StandardCopyOption.REPLACE_EXISTING);
+
+            // 创建数据存储
+            Map<String, Object> params = new HashMap<>();
+            params.put("dbtype", "geopkg");
+            params.put("database", tempFile.toAbsolutePath().toString());
+
+            DataStore dataStore = DataStoreFinder.getDataStore(params);
+            if (dataStore == null) {
+                log.error("无法读取GPKG文件");
+                return false;
+            }
+
+            try {
+                // 获取类型名称
+                String[] typeNames = dataStore.getTypeNames();
+                if (typeNames == null || typeNames.length == 0) {
+                    log.error("GPKG文件中没有找到任何图层");
+                    return false;
+                }
+
+                // 使用第一个图层
+                String layerName = typeNames[0];
+                log.info("使用图层: {}", layerName);
+
+                // 获取要素源
+                FeatureSource<SimpleFeatureType, SimpleFeature> featureSource =
+                        dataStore.getFeatureSource(layerName);
+
+                // 获取字段映射
+                Map<String, String> fieldMapping = GpkgUtil.getFieldMapping("township");
+
+                // 读取所有要素
+                Query query = new Query(layerName);
+                FeatureCollection<SimpleFeatureType, SimpleFeature> collection = featureSource.getFeatures(query);
+
+                List<SurveyData> dataList = new ArrayList<>();
+                try (FeatureIterator<SimpleFeature> features = collection.features()) {
+                    while (features.hasNext()) {
+                        SimpleFeature feature = features.next();
+                        SurveyData data = parseGpkgFeatureToSurveyData(feature, fieldMapping, year);
+                        if (data != null && validateSurveyData(data)) {
+                            dataList.add(data);
+                        }
+                    }
+                }
+
+                log.info("从GPKG文件解析到{}条数据", dataList.size());
+
+                // 智能批量保存
+                return smartBatchSave(dataList);
+
+            } finally {
+                dataStore.dispose();
+            }
+
+        } catch (IOException e) {
+            log.error("导入GPKG文件失败", e);
+            return false;
+        } finally {
+            // 删除临时文件
+            if (tempFile != null) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException e) {
+                    log.warn("删除临时文件失败", e);
+                }
+            }
+        }
+    }
+
+    /**
+     * 将GPKG要素解析为SurveyData对象
+     */
+    private SurveyData parseGpkgFeatureToSurveyData(SimpleFeature feature, Map<String, String> fieldMapping, Integer year) {
+        try {
+            SurveyData data = new SurveyData();
+            data.setYear(year);
+
+            // 根据字段映射从GPKG属性中获取值
+            for (Map.Entry<String, String> entry : fieldMapping.entrySet()) {
+                String gpkgField = entry.getKey();
+                String dbField = entry.getValue();
+
+                Object value = feature.getAttribute(gpkgField);
+                if (value != null) {
+                    setFieldValue(data, dbField, value);
+                }
+            }
+
+            // 使用配置数据源设置消防员、志愿者、民兵预备役和医院床位数据
+            setEnhancedDataFromConfig(data, year);
+
+            return data;
+        } catch (Exception e) {
+            log.warn("解析GPKG要素失败: {}", feature.getID(), e);
+            return null;
+        }
+    }
+
+    /**
+     * 设置字段值到SurveyData对象
+     */
+    private void setFieldValue(SurveyData data, String fieldName, Object value) {
+        if (value == null) {
+            return;
+        }
+
+        try {
+            switch (fieldName) {
+                case "township":
+                    data.setTownship(getStringValue(value));
+                    break;
+                case "regionCode":
+                    data.setRegionCode(getStringValue(value));
+                    break;
+                case "province":
+                    data.setProvince(getStringValue(value));
+                    break;
+                case "city":
+                    data.setCity(getStringValue(value));
+                    break;
+                case "county":
+                    data.setCounty(getStringValue(value));
+                    break;
+                case "townshipAddress":
+                    data.setTownshipAddress(getStringValue(value));
+                    break;
+                case "population":
+                    data.setPopulation(getLongValue(value));
+                    break;
+                case "managementStaff":
+                    data.setManagementStaff(getIntValue(value));
+                    break;
+                case "riskAssessment":
+                    data.setRiskAssessment(getStringValue(value));
+                    break;
+                case "fundingAmount":
+                    data.setFundingAmount(getDoubleValue(value));
+                    break;
+                case "materialValue":
+                    data.setMaterialValue(getDoubleValue(value));
+                    break;
+                case "hospitalBeds":
+                    data.setHospitalBeds(getIntValue(value));
+                    break;
+                case "firefightersCount":
+                    data.setFirefightersCount(getIntValue(value));
+                    break;
+                case "volunteersCount":
+                    data.setVolunteersCount(getIntValue(value));
+                    break;
+                case "militiaReserveCount":
+                    data.setMilitiaReserveCount(getIntValue(value));
+                    break;
+                case "trainingParticipants":
+                    data.setTrainingParticipants(getIntValue(value));
+                    break;
+                case "shelterCapacity":
+                    data.setShelterCapacity(getIntValue(value));
+                    break;
+                default:
+                    // 忽略未知字段
+                    break;
+            }
+        } catch (Exception e) {
+            log.warn("设置字段值失败: {} = {}", fieldName, value);
+        }
+    }
+
+    /**
+     * 获取字符串值
+     */
+    private String getStringValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return value.toString().trim();
+    }
+
+    /**
+     * 获取整数值
+     */
+    private Integer getIntValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(str);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 获取长整数值
+     */
+    private Long getLongValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(str);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 获取双精度浮点数值
+     */
+    private Double getDoubleValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(str);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.evaluate.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.evaluate.dto.GpkgFieldValidationResult;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -70,4 +71,23 @@ public interface ICommunityDisasterReductionCapacityService extends IService<Com
      * @return 搜索结果列表
      */
     List<CommunityDisasterReductionCapacity> searchCommunityCapacity(String keyword, String regionCode, String communityName, Integer year);
+
+    /**
+     * 验证GPKG文件字段
+     * 检查GPKG文件是否包含社区减灾能力数据所需的必要字段
+     *
+     * @param file     GPKG文件
+     * @param dataType 数据类型 (township/community/medical)
+     * @return 验证结果
+     */
+    GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType);
+
+    /**
+     * 从GPKG文件导入社区减灾能力数据
+     *
+     * @param file GPKG文件
+     * @param year 数据所属年份
+     * @return 导入结果
+     */
+    Map<String, Object> importFromGpkg(MultipartFile file, Integer year);
 }

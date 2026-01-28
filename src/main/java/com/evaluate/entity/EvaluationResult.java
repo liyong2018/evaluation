@@ -65,5 +65,6 @@ public class EvaluationResult implements Serializable {
     private LocalDateTime updateTime;
 
     @TableLogic
+    @TableField(fill = FieldFill.INSERT)
     private Integer isDeleted;
 }

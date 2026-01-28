@@ -376,6 +376,13 @@ public class MedicalInstitution implements Serializable {
     private String communityName;
 
     /**
+     * 备用乡镇代码（来自 fxpc_xzqhbmd_sjgl 字段）
+     * 用于优先识别乡镇名称
+     */
+    @TableField(exist = false)
+    private String townshipCodeFromFxpc;
+
+    /**
      * Create Time
      */
     @TableField(value = "create_time", fill = FieldFill.INSERT)
