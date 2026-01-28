@@ -994,7 +994,11 @@ const loadThematicData = async () => {
   let thematicData: any[] = []
 
   try {
-    if (props.orgCode && props.orgCode.trim()) {
+    if (!props.orgCode || !props.orgCode.trim()) {
+      throw new Error('未选择区划，跳过API请求')
+    }
+
+    try {
       const apiResponse = await thematicMapApi.getThematicData({
         reportId: props.reportId,
         surveyId: 1,
@@ -1015,9 +1019,6 @@ const loadThematicData = async () => {
         }
         thematicData = []
       }
-    } else {
-      throw new Error('未选择区划，跳过API请求')
-    }
     } catch (apiError) {
       console.log('从API加载专题数据失败，尝试使用评估数据:', apiError)
 
@@ -1659,7 +1660,7 @@ const renderThematicLayer = async (data: any) => {
                     if (center?.geometry?.coordinates?.length === 2) {
                       labelLatLng = [center.geometry.coordinates[1], center.geometry.coordinates[0]]
                     }
-                  } catch {}
+                  } catch (_e) {}
                 }
 
                 if (labelLatLng) {
@@ -1684,8 +1685,7 @@ const renderThematicLayer = async (data: any) => {
                   thematicLayer.value.addLayer(labelMarker)
                 }
               }
-            }
-          } catch {}
+          } catch (_e) {}
 
           if (!outlineRendered) {
             const features = data.boundaries.features.filter((f: any) => f && f.geometry)
@@ -2201,8 +2201,8 @@ const checkBoundaryExists = async (year: number, cityName: string): Promise<bool
 }
 
 // 缓存边界数据，避免重复加载API调用
-let cachedBoundaries: any = null
-let boundaryLoadInProgress: Promise<any> | null = null
+let cachedBoundaries: { key: string; value: any } | null = null
+let boundaryLoadInProgress: { key: string; promise: Promise<any> } | null = null
 
 // 加载真实的乡镇边界数据
 const loadRealBoundaryData = async () => {
@@ -2220,20 +2220,24 @@ const loadRealBoundaryData = async () => {
 
     if (props.orgId && props.year) {
       try {
+        const cacheKey = `${props.orgId}-${props.year}`
+
         // 使用缓存或进行中的请求，避免重复调用
-        if (cachedBoundaries) {
+        if (cachedBoundaries && cachedBoundaries.key === cacheKey) {
           console.log('使用缓存的边界数据')
-          return cachedBoundaries
+          return cachedBoundaries.value
         }
 
-        if (boundaryLoadInProgress) {
+        if (boundaryLoadInProgress && boundaryLoadInProgress.key === cacheKey) {
           console.log('等待进行中的边界数据请求')
-          return await boundaryLoadInProgress
+          return await boundaryLoadInProgress.promise
         }
 
         // 创建新的加载Promise
-        boundaryLoadInProgress = (async () => {
-          const boundaryResponse = await organizationBoundaryApi.getBoundary(props.orgId, props.year)
+        boundaryLoadInProgress = {
+          key: cacheKey,
+          promise: (async () => {
+            const boundaryResponse = await organizationBoundaryApi.getBoundary(props.orgId, props.year)
           const boundaryData = (boundaryResponse as any)?.data
 
           const filePath = typeof boundaryData?.filePath === 'string' ? boundaryData.filePath.trim() : ''
@@ -2266,14 +2270,15 @@ const loadRealBoundaryData = async () => {
           // 如果API返回null（没有数据），返回空结果而不是继续尝试其他方法
           console.log('API返回null，组织没有边界数据配置')
           return null
-        })()
+          })()
+        }
 
-        const result = await boundaryLoadInProgress
-        if (result) {
-          cachedBoundaries = result
+        const result = await boundaryLoadInProgress.promise
+        if (result && Array.isArray(result.features) && result.features.length > 0) {
+          cachedBoundaries = { key: cacheKey, value: result }
         }
         boundaryLoadInProgress = null
-        return result || emptyFeatureCollection()
+        if (result) return result
       } catch (apiError) {
         console.warn('API获取边界数据失败，将尝试其他方法:', apiError)
         boundaryLoadInProgress = null
