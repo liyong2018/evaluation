@@ -547,8 +547,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
 
         @SuppressWarnings("unchecked")
-        Map<String, CommunityDisasterReductionCapacity> communityDataMap =
-                (Map<String, CommunityDisasterReductionCapacity>) inputData.get("communityDataMap");
+        Map<String, Map<String, Object>> communityDataMap =
+                (Map<String, Map<String, Object>>) inputData.get("communityDataMap");
         @SuppressWarnings("unchecked")
         Map<String, SurveyData> surveyDataMap =
                 (Map<String, SurveyData>) inputData.get("surveyDataMap");
@@ -561,9 +561,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             if (modelId != null && (modelId == 4 || modelId == 8)) {
                 // 社区模型(modelId=4)和社区-乡镇模型(modelId=8)：从community_disaster_reduction_capacity表加载数据
                 // 使用selectMaps直接返回Map，key为数据库字段名，可直接匹配算法表达式中的变量名
-                CommunityDisasterReductionCapacity cachedCommunity = communityDataMap != null ? communityDataMap.get(regionCode) : null;
+                Map<String, Object> cachedCommunity = communityDataMap != null ? communityDataMap.get(regionCode) : null;
                 if (cachedCommunity != null) {
-                    addCommunityDataToContext(regionContext, cachedCommunity);
+                    addMapDataToContext(regionContext, cachedCommunity);
                 } else {
                     QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
                     communityQuery.eq("region_code", regionCode);
@@ -1131,15 +1131,21 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             queryWrapper.in("region_code", regionCodes);
         }
 
-        List<CommunityDisasterReductionCapacity> communityDataList = communityDataMapper.selectList(queryWrapper);
-
-        // 将数据转换为Map，以region_code为key
-        Map<String, CommunityDisasterReductionCapacity> communityDataMap = communityDataList.stream()
-                .collect(Collectors.toMap(
-                        CommunityDisasterReductionCapacity::getRegionCode,
-                        data -> data,
-                        (existing, replacement) -> existing // 保留第一个
-                ));
+        List<Map<String, Object>> communityDataList = communityDataMapper.selectMaps(queryWrapper);
+        Map<String, Map<String, Object>> communityDataMap = new LinkedHashMap<>();
+        for (Map<String, Object> row : communityDataList) {
+            if (row == null) {
+                continue;
+            }
+            Object regionCodeObj = row.get("region_code");
+            if (regionCodeObj == null) {
+                continue;
+            }
+            String regionCode = regionCodeObj.toString();
+            if (!communityDataMap.containsKey(regionCode)) {
+                communityDataMap.put(regionCode, row);
+            }
+        }
 
         context.put("communityDataMap", communityDataMap);
         // 注意：不添加 communityDataList 到上下文，避免大量数据复制导致性能问题
@@ -1286,10 +1292,35 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 }
             }
 
-            // 直接使用数据库字段名作为上下文变量名
             context.put(key, contextValue);
+            String camelKey = toCamelCase(key);
+            if (camelKey != null && !camelKey.equals(key) && !context.containsKey(camelKey)) {
+                context.put(camelKey, contextValue);
+            }
         }
 
+    }
+    
+    private String toCamelCase(String value) {
+        if (value == null) {
+            return null;
+        }
+        String[] parts = value.split("_");
+        if (parts.length <= 1) {
+            return value;
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append(parts[0]);
+        for (int i = 1; i < parts.length; i++) {
+            if (parts[i].isEmpty()) {
+                continue;
+            }
+            builder.append(Character.toUpperCase(parts[i].charAt(0)));
+            if (parts[i].length() > 1) {
+                builder.append(parts[i].substring(1));
+            }
+        }
+        return builder.toString();
     }
 
     /**
@@ -1618,8 +1649,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         Long modelId = (Long) globalContext.get("modelId");
 
         @SuppressWarnings("unchecked")
-        Map<String, CommunityDisasterReductionCapacity> communityDataMap =
-                (Map<String, CommunityDisasterReductionCapacity>) globalContext.get("communityDataMap");
+        Map<String, Map<String, Object>> communityDataMap =
+                (Map<String, Map<String, Object>>) globalContext.get("communityDataMap");
         @SuppressWarnings("unchecked")
         Map<String, SurveyData> surveyDataMap =
                 (Map<String, SurveyData>) globalContext.get("surveyDataMap");
@@ -1632,9 +1663,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             if (modelId != null && modelId == 4) {
                 // 社区模型(modelId=4)：从community_disaster_reduction_capacity表加载数据
                 // 使用selectMaps直接返回Map，key为数据库字段名，可直接匹配算法表达式中的变量名
-                CommunityDisasterReductionCapacity cachedCommunity = communityDataMap != null ? communityDataMap.get(regionCode) : null;
+                Map<String, Object> cachedCommunity = communityDataMap != null ? communityDataMap.get(regionCode) : null;
                 if (cachedCommunity != null) {
-                    addCommunityDataToContext(regionContext, cachedCommunity);
+                    addMapDataToContext(regionContext, cachedCommunity);
                 } else {
                     QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
                     communityQuery.eq("region_code", regionCode);
@@ -3393,11 +3424,19 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             return (java.math.BigDecimal) value;
         }
         if (value instanceof Number) {
-            return java.math.BigDecimal.valueOf(((Number) value).doubleValue());
+            double doubleValue = ((Number) value).doubleValue();
+            if (Double.isNaN(doubleValue) || Double.isInfinite(doubleValue)) {
+                return null;
+            }
+            return java.math.BigDecimal.valueOf(doubleValue);
         }
         if (value instanceof String) {
+            String stringValue = ((String) value).trim();
+            if (stringValue.isEmpty() || "null".equalsIgnoreCase(stringValue)) {
+                return null;
+            }
             try {
-                return new java.math.BigDecimal((String) value);
+                return new java.math.BigDecimal(stringValue);
             } catch (NumberFormatException e) {
                 return null;
             }

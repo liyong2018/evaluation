@@ -67,7 +67,7 @@
     </select>
 
     <!-- 批量插入评估结果 -->
-    <insert id="insertBatch" parameterType="java.util.List">
+    <insert id="insertBatch" parameterType="java.util.Map">
         INSERT INTO evaluation_result (
             region_code, region_name, management_capability_score, support_capability_score,
             self_rescue_capability_score, comprehensive_capability_score, management_capability_level,

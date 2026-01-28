@@ -12,8 +12,6 @@ import java.util.List;
 @Service
 public class OrganizationBoundaryServiceImpl extends ServiceImpl<OrganizationBoundaryMapper, OrganizationBoundary> implements OrganizationBoundaryService {
 
-    private static final int BASELINE_YEAR = 2020;
-
     @Override
     public OrganizationBoundary getBoundaryByOrgIdAndYear(Long orgId, Integer year) {
         if (orgId == null) {
@@ -28,18 +26,13 @@ public class OrganizationBoundaryServiceImpl extends ServiceImpl<OrganizationBou
             return this.getOne(queryWrapper);
         }
 
-        for (int checkYear = year; checkYear >= BASELINE_YEAR; checkYear--) {
-            QueryWrapper<OrganizationBoundary> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("organization_id", orgId);
-            queryWrapper.eq("year", checkYear);
-            queryWrapper.last("LIMIT 1");
-            OrganizationBoundary found = this.getOne(queryWrapper);
-            if (found != null) {
-                return found;
-            }
-        }
-
-        return null;
+        // Use single query instead of loop - much more efficient
+        QueryWrapper<OrganizationBoundary> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("organization_id", orgId);
+        queryWrapper.le("year", year);
+        queryWrapper.orderByDesc("year");
+        queryWrapper.last("LIMIT 1");
+        return this.getOne(queryWrapper);
     }
 
     @Override

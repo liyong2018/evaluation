@@ -40,7 +40,10 @@
       "Bash(set:*)",
       "Bash(mvn clean package:*)",
       "Bash(ls:*)",
-      "Bash(mvn compile:*)"
+      "Bash(mvn compile:*)",
+      "Bash(mvn:*)",
+      "Bash(\"C:/work/tools/maven/apache-maven-3.6.3/bin/mvn.cmd\":*)",
+      "Bash(\"C:/work/tools/maven/apache-maven-3.6.3/bin/mvn.cmd\" clean package -DskipTests:*)"
     ],
     "deny": [],
     "ask": []

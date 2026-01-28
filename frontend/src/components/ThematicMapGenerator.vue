@@ -129,6 +129,10 @@ import { thematicMapApi, organizationBoundaryApi } from '@/api'
 let villagePointsCache: any | null = null
 let villagePointsCachePromise: Promise<any | null> | null = null
 
+// 缓存大文件数据，避免重复下载
+let regionHierarchyCache: any = null
+let regionHierarchyLoading: Promise<any> | null = null
+
 // 组件属性
 interface Props {
   reportId?: number
@@ -947,51 +951,73 @@ const loadDataFromSession = async () => {
 // 加载专题数据
 const loadThematicData = async () => {
   console.log('=== 开始加载专题数据 ===')
-  
-  // 优先加载真实的GeoJSON边界数据
+
+  // 优先加载真实的GeoJSON边界数据（只加载一次）
+  let boundaries = null
+  let boundaryLoadError = null
+
   try {
     console.log('步骤1: 加载真实边界数据')
-    const boundaries = await loadRealBoundaryData()
-    console.log('边界数据加载完成，类型:', boundaries.type, '特征数量:', boundaries.features?.length)
-    
-    // 检查是否有从评估计算传递的数据
-    const evaluationData = (window as any).evaluationData
-    console.log('从window.evaluationData读取数据:', evaluationData)
+    boundaries = await loadRealBoundaryData()
+    if (boundaries && boundaries.features && boundaries.features.length > 0) {
+      console.log('边界数据加载完成，类型:', boundaries.type, '特征数量:', boundaries.features?.length)
+    } else {
+      console.log('边界数据为空，将使用默认边界')
+      boundaries = null
+    }
+  } catch (error) {
+    console.error('加载真实边界数据失败:', error)
+    boundaryLoadError = error
+  }
 
-    const hasOrgFilter = Boolean(props.orgId || (props.orgCode && props.orgCode.trim()) || (props.orgName && props.orgName.trim()))
-    if (!hasOrgFilter && !(evaluationData && evaluationData.tableData)) {
-      await renderThematicLayer({ boundaries: emptyFeatureCollection(), data: [] })
-      currentThematicData.value = []
+  // 如果边界数据加载失败，使用备用方案
+  if (!boundaries) {
+    if (await loadDataFromSession()) {
+      console.log('使用备用方案：从sessionStorage加载数据成功')
       return
     }
-    
-    let thematicData: any[] = []
+    // 如果sessionStorage也没有，使用空边界
+    boundaries = emptyFeatureCollection()
+  }
 
-    try {
-      if (props.orgCode && props.orgCode.trim()) {
-        const apiResponse = await thematicMapApi.getThematicData({
-          reportId: props.reportId,
-          surveyId: 1,
-          algorithmId: props.algorithmId || 1,
-          year: props.year,
-          orgCode: props.orgCode,
-          level: getCurrentLevel()
-        })
-        const apiData = (apiResponse as any)?.data
-        if (Array.isArray(apiData) && apiData.length > 0) {
-          thematicData = apiData
-          console.log('从API加载专题数据成功:', apiResponse)
-        } else {
-          const hasRuntimeEvaluationData =
-            evaluationData && Array.isArray(evaluationData.tableData) && evaluationData.tableData.length > 0
-          if (!hasRuntimeEvaluationData) {
-            showNoEvaluationDataTip()
-          }
-          thematicData = []
-        }
+  // 检查是否有从评估计算传递的数据
+  const evaluationData = (window as any).evaluationData
+  console.log('从window.evaluationData读取数据:', evaluationData)
+
+  const hasOrgFilter = Boolean(props.orgId || (props.orgCode && props.orgCode.trim()) || (props.orgName && props.orgName.trim()))
+  if (!hasOrgFilter && !(evaluationData && evaluationData.tableData)) {
+    await renderThematicLayer({ boundaries: emptyFeatureCollection(), data: [] })
+    currentThematicData.value = []
+    return
+  }
+
+  let thematicData: any[] = []
+
+  try {
+    if (props.orgCode && props.orgCode.trim()) {
+      const apiResponse = await thematicMapApi.getThematicData({
+        reportId: props.reportId,
+        surveyId: 1,
+        algorithmId: props.algorithmId || 1,
+        year: props.year,
+        orgCode: props.orgCode,
+        level: getCurrentLevel()
+      })
+      const apiData = (apiResponse as any)?.data
+      if (Array.isArray(apiData) && apiData.length > 0) {
+        thematicData = apiData
+        console.log('从API加载专题数据成功:', apiResponse)
       } else {
-        throw new Error('未选择区划，跳过API请求')
+        const hasRuntimeEvaluationData =
+          evaluationData && Array.isArray(evaluationData.tableData) && evaluationData.tableData.length > 0
+        if (!hasRuntimeEvaluationData) {
+          showNoEvaluationDataTip()
+        }
+        thematicData = []
       }
+    } else {
+      throw new Error('未选择区划，跳过API请求')
+    }
     } catch (apiError) {
       console.log('从API加载专题数据失败，尝试使用评估数据:', apiError)
 
@@ -1176,115 +1202,19 @@ const loadThematicData = async () => {
         thematicData = []
       }
     }
-    
+
     const processedData = applyOrgFilter(boundaries, thematicData)
 
     console.log('准备渲染真实边界数据:', processedData)
 
     currentThematicData.value = processedData.data
     console.log('存储专题数据用于统计:', currentThematicData.value.length, '条记录')
-    
+
     await renderThematicLayer(processedData)
     return
-  } catch (error) {
-    console.error('加载真实边界数据失败，尝试备用方案:', error)
-  }
-  
-  // 备用方案：从sessionStorage读取数据
-  if (await loadDataFromSession()) {
-    console.log('使用备用方案：从sessionStorage加载数据成功')
-    return
-  }
-  
-  try {
-    console.log('步骤1: 加载真实边界数据')
-    
-    // 加载真实的边界数据
-    const boundaries = await loadRealBoundaryData()
-    
-    // 检查边界数据是否有效
-    if (!boundaries || !boundaries.features || !Array.isArray(boundaries.features)) {
-      throw new Error('边界数据无效或为空')
-    }
-    
-    console.log('边界数据加载完成，类型:', boundaries.type, '特征数量:', boundaries.features?.length)
-    
-    // 尝试从API获取专题数据
-    let thematicData = []
-    try {
-      console.log('步骤2: 尝试从API获取专题数据')
-      if (!(props.orgCode && props.orgCode.trim())) {
-        await renderThematicLayer({ boundaries: emptyFeatureCollection(), data: [] })
-        currentThematicData.value = []
-        return
-      }
-
-      const response = await thematicMapApi.getThematicData({
-        reportId: props.reportId,
-        surveyId: 1, // 默认调查ID
-        algorithmId: props.algorithmId || 1, // 默认算法ID
-        year: props.year,
-        orgCode: props.orgCode,
-        level: getCurrentLevel()
-      })
-      
-      if (response.data && response.data.length > 0) {
-        // 即使API返回了数据，我们也基于边界数据重新生成，以确保覆盖所有边界区域
-        // 并利用currentThematicData机制将API数据合并进去
-        currentThematicData.value = response.data
-        console.log('从API加载专题数据成功:', response.data.length, '条')
-        
-        // 基于边界数据生成完整的数据集，缺失的部分会使用默认值或regionScores
-        thematicData = await generateThematicDataFromBoundaries(boundaries)
-        console.log('基于边界合并后的完整专题数据:', thematicData.length, '条')
-      } else {
-        console.warn('API响应数据为空')
-        showNoEvaluationDataTip()
-        thematicData = []
-      }
-    } catch (apiError) {
-      console.error('步骤2失败: API请求异常', apiError)
-      ElMessage.error('获取评估数据失败')
-      thematicData = []
-    }
-    
-    const processedData = applyOrgFilter(boundaries, thematicData)
-
-    console.log('步骤3: 准备渲染数据')
-    console.log('边界特征数量:', processedData.boundaries.features?.length)
-    console.log('专题数据数量:', processedData.data?.length)
-
-    // 渲染专题图层
-    await renderThematicLayer(processedData)
-
-    currentThematicData.value = processedData.data
-    console.log('存储专题数据用于统计:', currentThematicData.value.length, '条记录')
-
-    console.log('=== 专题数据加载完成 ===')
   } catch (error) {
     console.error('加载专题数据失败:', error)
     ElMessage.error('加载专题数据失败')
-    
-    // 出错时尝试仅用真实边界生成并渲染
-    try {
-      console.log('使用备用方案')
-      const boundaries = await loadRealBoundaryData()
-      
-      // 检查备用边界数据是否有效
-      if (boundaries && boundaries.features && Array.isArray(boundaries.features)) {
-        const fallbackData = {
-           boundaries: boundaries,
-           data: await generateThematicDataFromBoundaries(boundaries)
-         }
-        console.log('使用备用数据渲染:', fallbackData)
-        await renderThematicLayer(fallbackData)
-      } else {
-        throw new Error('备用边界数据也无效')
-      }
-    } catch (fallbackError) {
-      console.error('加载备用数据也失败:', fallbackError)
-      ElMessage.error('无法加载地图数据')
-    }
   }
 }
 
@@ -1655,10 +1585,28 @@ const renderThematicLayer = async (data: any) => {
           let outlineRendered = false
 
           try {
-            const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now())
-            if (hierarchyResponse.ok) {
-              const hierarchy = await hierarchyResponse.json()
-              const regionInfo = findRegionInHierarchy(hierarchy, currentOrg)
+            // 使用缓存避免重复加载大文件
+            let hierarchy = regionHierarchyCache
+            if (!hierarchy) {
+              if (regionHierarchyLoading) {
+                console.log('等待region_hierarchy加载完成...')
+                hierarchy = await regionHierarchyLoading
+              } else {
+                console.log('首次加载region_hierarchy.json...')
+                regionHierarchyLoading = fetch('/region_hierarchy.json')
+                  .then(res => res.json())
+                  .then(data => {
+                    regionHierarchyCache = data
+                    return data
+                  })
+                hierarchy = await regionHierarchyLoading
+                regionHierarchyLoading = null
+              }
+            } else {
+              console.log('使用缓存的region_hierarchy数据')
+            }
+
+            const regionInfo = findRegionInHierarchy(hierarchy, currentOrg)
 
               if (
                 regionInfo &&
@@ -1837,13 +1785,17 @@ const renderThematicLayer = async (data: any) => {
     if (hasOrgContext) {
       // 调整地图视图到数据范围
       try {
-        // 优先尝试使用 region_hierarchy.json 中的 bbox
+        // 优先尝试使用 region_hierarchy.json 中的 bbox（使用缓存）
         const currentOrg = (props.orgName || '青神县').trim()
-        const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now())
-        if (hierarchyResponse.ok) {
-          const hierarchy = await hierarchyResponse.json()
+
+        let hierarchy = regionHierarchyCache
+        if (!hierarchy && regionHierarchyLoading) {
+          hierarchy = await regionHierarchyLoading
+        }
+
+        if (hierarchy) {
           const regionInfo = findRegionInHierarchy(hierarchy, currentOrg)
-          
+
           if (regionInfo && regionInfo.bbox) {
             // region_hierarchy.json 中的 bbox 格式为 [minX, minY, maxX, maxY]
             // Leaflet fitBounds 需要 [[minY, minX], [maxY, maxX]]
@@ -1853,7 +1805,7 @@ const renderThematicLayer = async (data: any) => {
               [bbox[3], bbox[2]]  // NorthEast: lat, lng
             ]
             map.value.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [20, 20] })
-            console.log(`使用 region_hierarchy.json 调整视图到 ${currentOrg}`, bounds)
+            console.log(`使用缓存的 region_hierarchy.json 调整视图到 ${currentOrg}`, bounds)
             return // 如果成功使用了 hierarchy，直接返回
           }
         }
@@ -2248,6 +2200,10 @@ const checkBoundaryExists = async (year: number, cityName: string): Promise<bool
   return index.yearlyCities[String(year)].includes(cityName)
 }
 
+// 缓存边界数据，避免重复加载API调用
+let cachedBoundaries: any = null
+let boundaryLoadInProgress: Promise<any> | null = null
+
 // 加载真实的乡镇边界数据
 const loadRealBoundaryData = async () => {
   try {
@@ -2261,56 +2217,101 @@ const loadRealBoundaryData = async () => {
     }
 
     const targetName = resolvedOrgName || '青神县'
-    
+
     if (props.orgId && props.year) {
       try {
-        const boundaryResponse = await organizationBoundaryApi.getBoundary(props.orgId, props.year)
-        const boundaryData = (boundaryResponse as any)?.data
+        // 使用缓存或进行中的请求，避免重复调用
+        if (cachedBoundaries) {
+          console.log('使用缓存的边界数据')
+          return cachedBoundaries
+        }
 
-        const filePath = typeof boundaryData?.filePath === 'string' ? boundaryData.filePath.trim() : ''
-        if (filePath) {
-          try {
-            const res = await fetch(filePath + (filePath.includes('?') ? '&' : '?') + 't=' + Date.now())
-            if (res.ok) {
-              const json = await res.json()
-              const normalized = normalizeToFeatureCollection(json, props.orgName || '')
+        if (boundaryLoadInProgress) {
+          console.log('等待进行中的边界数据请求')
+          return await boundaryLoadInProgress
+        }
+
+        // 创建新的加载Promise
+        boundaryLoadInProgress = (async () => {
+          const boundaryResponse = await organizationBoundaryApi.getBoundary(props.orgId, props.year)
+          const boundaryData = (boundaryResponse as any)?.data
+
+          const filePath = typeof boundaryData?.filePath === 'string' ? boundaryData.filePath.trim() : ''
+          if (filePath) {
+            try {
+              const res = await fetch(filePath + (filePath.includes('?') ? '&' : '?') + 't=' + Date.now())
+              if (res.ok) {
+                const json = await res.json()
+                const normalized = normalizeToFeatureCollection(json, props.orgName || '')
+                if (normalized && looksLikeSubregionBoundaries(normalized, targetName)) {
+                  console.log('使用组织边界配置的文件路径加载边界:', filePath)
+                  return normalized
+                }
+              }
+            } catch { }
+          }
+
+          const coordinates = boundaryData?.boundaryCoordinates
+          if (coordinates) {
+            try {
+              const parsed = typeof coordinates === 'string' ? JSON.parse(coordinates) : coordinates
+              const normalized = normalizeToFeatureCollection(parsed, props.orgName || '')
               if (normalized && looksLikeSubregionBoundaries(normalized, targetName)) {
-                console.log('使用组织边界配置的文件路径加载边界:', filePath)
+                console.log('使用组织边界配置的坐标数据加载边界')
                 return normalized
               }
-            }
-          } catch { }
-        }
+            } catch { }
+          }
 
-        const coordinates = boundaryData?.boundaryCoordinates
-        if (coordinates) {
-          try {
-            const parsed = typeof coordinates === 'string' ? JSON.parse(coordinates) : coordinates
-            const normalized = normalizeToFeatureCollection(parsed, props.orgName || '')
-            if (normalized && looksLikeSubregionBoundaries(normalized, targetName)) {
-              console.log('使用组织边界配置的坐标数据加载边界')
-              return normalized
-            }
-          } catch { }
+          // 如果API返回null（没有数据），返回空结果而不是继续尝试其他方法
+          console.log('API返回null，组织没有边界数据配置')
+          return null
+        })()
+
+        const result = await boundaryLoadInProgress
+        if (result) {
+          cachedBoundaries = result
         }
-      } catch { }
+        boundaryLoadInProgress = null
+        return result || emptyFeatureCollection()
+      } catch (apiError) {
+        console.warn('API获取边界数据失败，将尝试其他方法:', apiError)
+        boundaryLoadInProgress = null
+        // 继续尝试其他方法，不抛出错误
+      }
     }
 
     // 1. 获取目标区域名称
     const targetKey = normalizeRegionName(targetName)
     console.log('目标区域:', targetName)
 
-    // 2. 加载区域层级信息，用于判断所属城市以及层级过滤
+    // 2. 加载区域层级信息，用于判断所属城市以及层级过滤（使用缓存）
     let filterLevel = 'county'; // 默认为县级过滤
     let hierarchyData = null;
     let targetRegionNode = null;
     let cityName = null;
 
     try {
-        const hierarchyResponse = await fetch('/region_hierarchy.json?t=' + Date.now());
-        if (hierarchyResponse.ok) {
-            hierarchyData = await hierarchyResponse.json();
+        // 使用缓存避免重复加载大文件
+        if (regionHierarchyCache) {
+            hierarchyData = regionHierarchyCache
+            console.log('使用缓存的 region_hierarchy 数据')
+        } else if (regionHierarchyLoading) {
+            console.log('等待 region_hierarchy 加载...')
+            hierarchyData = await regionHierarchyLoading
+        } else {
+            console.log('首次加载 region_hierarchy.json...')
+            regionHierarchyLoading = fetch('/region_hierarchy.json')
+                .then(res => res.json())
+                .then(data => {
+                    regionHierarchyCache = data
+                    return data
+                })
+            hierarchyData = await regionHierarchyLoading
+            regionHierarchyLoading = null
+        }
 
+        if (hierarchyData) {
             const hierarchyRoot =
               hierarchyData && Array.isArray((hierarchyData as any).children)
                 ? hierarchyData
@@ -2321,7 +2322,7 @@ const loadRealBoundaryData = async () => {
                     const anyNode = (values as any[]).find(v => v && Array.isArray(v.children))
                     return anyNode || null
                   })();
-            
+
             // 查找节点以确定 filterLevel
             targetRegionNode = findRegionInHierarchy(hierarchyData, targetName);
             if (targetRegionNode) {
@@ -2631,11 +2632,19 @@ const generateMockBoundaries = (regionId: number) => {
   return points
 }
 
+// 添加防抖，避免短时间内多次调用API
+let loadDataTimer: any = null
+const loadThematicDataDebounced = () => {
+  if (loadDataTimer) clearTimeout(loadDataTimer)
+  loadDataTimer = setTimeout(() => {
+    if (map.value) loadThematicData()
+  }, 300)
+}
+
 watch(
   () => [props.year, props.orgCode, props.orgName, props.orgId, props.algorithmId, props.reportId],
   () => {
-    if (!map.value) return
-    loadThematicData()
+    loadThematicDataDebounced()
   }
 )
 
