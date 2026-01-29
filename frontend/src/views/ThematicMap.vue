@@ -53,7 +53,15 @@
                 </el-select>
                 <el-button size="small" @click="refreshMap">刷新</el-button>
                 <el-button size="small" type="success" @click="fullscreen">全屏</el-button>
-                <el-button size="small" type="primary" @click="openOnlyOfficeEditor">生成报告</el-button>
+                <el-dropdown split-button type="primary" @click="downloadReport">
+                  <span>生成报告</span>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item @click="downloadReport">直接下载</el-dropdown-item>
+                      <el-dropdown-item @click="openOnlyOfficeEditor">在线预览</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </div>
             </div>
           </template>
@@ -411,7 +419,116 @@ const fullscreen = () => {
   }
 }
 
-// 打开Word预览编辑器
+// 生成并下载Word报告
+const downloadReport = async () => {
+  if (!selectedOrgCode.value) {
+    ElMessage.warning('当前年份无可用区划，无法生成报告')
+    return
+  }
+  let loadingInstance: any = null
+  const showLoading = (msg: string) => {
+    if (loadingInstance) loadingInstance.close()
+    loadingInstance = ElMessage({
+      message: msg,
+      type: 'info',
+      duration: 0
+    })
+  }
+
+  showLoading('正在生成4张专题图，请稍候...')
+
+  try {
+    const year = selectedYear.value || new Date().getFullYear()
+    const orgCode = selectedOrgCode.value || '511425'
+
+    // 定义4个级别的专题图
+    const levels = [
+      { value: 'township', name: '乡镇级' },
+      { value: 'community_village', name: '社区-行政村级' },
+      { value: 'community_township', name: '社区-乡镇级' },
+      { value: 'comprehensive', name: '综合' }
+    ]
+
+    const uploadedImages: string[] = []
+
+    // 1. 循环生成并上传4张不同级别的专题图
+    for (const level of levels) {
+      showLoading(`正在生成${level.name}专题图...`)
+      try {
+        console.log(`正在生成${level.name}专题图，级别: ${level.value}...`)
+
+        // 如果是综合图，使用组合图生成器
+        if (level.value === 'comprehensive') {
+          if (generationCompositeMapRef.value) {
+            const imageUrl = await generationCompositeMapRef.value.exportAndUploadForOnlyOffice()
+            if (imageUrl) {
+              uploadedImages.push(imageUrl)
+              console.log(`${level.name}专题图（组合图）上传成功:`, imageUrl)
+            } else {
+              console.warn(`${level.name}专题图（组合图）上传失败，返回null`)
+            }
+          } else {
+             console.error('generationCompositeMapRef 不存在')
+          }
+        } else {
+          // 其他级别使用通用生成器
+          if (generationMapRef.value && generationMapRef.value.exportAndUploadForOnlyOfficeWithLevel) {
+            const imageUrl = await generationMapRef.value.exportAndUploadForOnlyOfficeWithLevel(level.value)
+            if (imageUrl) {
+              uploadedImages.push(imageUrl)
+              console.log(`${level.name}专题图上传成功:`, imageUrl)
+            } else {
+              console.warn(`${level.name}专题图上传失败，返回null`)
+            }
+          } else {
+            console.error('generationMapRef 或 exportAndUploadForOnlyOfficeWithLevel 方法不存在')
+          }
+        }
+      } catch (e) {
+        console.error(`上传${level.name}专题图失败:`, e)
+      }
+    }
+
+    if (uploadedImages.length > 0) {
+      ElMessage.success(`成功上传${uploadedImages.length}张专题图`)
+    } else {
+      ElMessage.warning('专题图上传失败，将继续生成报告（不含专题图）')
+    }
+
+    // 2. 生成并下载Word文档
+    showLoading('正在生成Word文档，请稍候...')
+    console.log(`正在生成${year}年${orgCode}区域的Word文档...`)
+    try {
+      const response = await wordTemplateApi.generateReport(year, orgCode)
+      console.log('Word文档生成成功')
+
+      // 创建下载链接
+      const blob = new Blob([response], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `青神县减灾能力评估技术报告_${year}.docx`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      ElMessage.success('Word报告下载成功！')
+    } catch (e) {
+      console.error('生成Word文档失败:', e)
+      ElMessage.error('生成Word文档失败，请重试')
+      if (loadingInstance) loadingInstance.close()
+      return
+    }
+  } catch (error) {
+    console.error('生成报告失败:', error)
+    ElMessage.error('生成报告失败')
+  } finally {
+    if (loadingInstance) loadingInstance.close()
+  }
+}
+
+// 打开Word在线预览编辑器
 const openOnlyOfficeEditor = async () => {
   if (!selectedOrgCode.value) {
     ElMessage.warning('当前年份无可用区划，无法生成报告')
