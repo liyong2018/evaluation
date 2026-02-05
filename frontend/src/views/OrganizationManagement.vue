@@ -54,6 +54,13 @@
                   <el-icon v-else-if="data.level === 4" color="#f56c6c"><Position /></el-icon>
                   <el-icon v-else color="#909399"><House /></el-icon>
                   <span class="node-name">{{ data.name }}</span>
+                  <!-- 数据来源年份标识 -->
+                  <el-tag v-if="data.sourceYear !== undefined && data.sourceYear !== null"
+                           size="small"
+                           :type="getSourceYearTagType(data.sourceYear, treeYear)"
+                           class="source-year-tag">
+                    {{ getSourceYearLabel(data.sourceYear, treeYear) }}
+                  </el-tag>
                   <el-tag size="small" :type="getLevelTagType(data.level)" class="level-tag">
                     {{ getLevelName(data.level) }}
                   </el-tag>
@@ -119,6 +126,13 @@
                   <el-icon v-else-if="data.level === 4" color="#f56c6c"><Position /></el-icon>
                   <el-icon v-else color="#909399"><House /></el-icon>
                   <span class="node-name">{{ data.name }}</span>
+                  <!-- 数据来源年份标识 -->
+                  <el-tag v-if="data.sourceYear !== undefined && data.sourceYear !== null"
+                           size="small"
+                           :type="getSourceYearTagType(data.sourceYear, treeYear)"
+                           class="source-year-tag">
+                    {{ getSourceYearLabel(data.sourceYear, treeYear) }}
+                  </el-tag>
                   <el-tag size="small" :type="getLevelTagType(data.level)" class="level-tag">
                     {{ getLevelName(data.level) }}
                   </el-tag>
@@ -588,6 +602,26 @@ const getLevelTagType = (level: number) => {
   return types[level] || ''
 }
 
+// 获取数据来源年份标签文本
+const getSourceYearLabel = (sourceYear: number, currentYear: number | null) => {
+  // 只显示年份的后两位，例如 2026 显示为 "26"
+  return `${sourceYear % 100}`
+}
+
+// 获取数据来源年份标签类型
+const getSourceYearTagType = (sourceYear: number, currentYear: number | null) => {
+  if (!currentYear) {
+    return 'info' // 无年份选择时显示为灰色
+  }
+  if (sourceYear === currentYear) {
+    return 'success' // 本年数据显示为绿色
+  }
+  if (sourceYear < currentYear) {
+    return 'warning' // 顺延数据显示为橙色
+  }
+  return 'info'
+}
+
 const getChildCount = (node: any) => {
   return Array.isArray(node?.children) ? node.children.length : 0
 }
@@ -831,6 +865,11 @@ const deleteNode = (node: any) => {
       if (response.success) {
         const data = response.data
         ElMessage.success(`删除成功！共删除 ${data.totalDeleted || 0} 条记录（组织记录 ${data.organizationDeleted || 0} 条，边界配置 ${data.boundaryDeleted || 0} 条）`)
+        // 如果删除的是当前选中的区县，清空右侧面板
+        if (selectedOrganization.value && selectedOrganization.value.id === node.id) {
+          selectedOrganization.value = null
+          rightPanelTree.value = []
+        }
         await loadOrganizationTree()
       } else {
         ElMessage.error(response.message || '删除失败')
@@ -894,11 +933,11 @@ const deleteGrassrootsNode = (node: any) => {
       })
       if (response.success) {
         ElMessage.success('删除成功')
+        // 重新加载左侧组织树（更新sourceYear显示）
+        await loadOrganizationTree()
         // 重新加载右侧面板
         if (selectedOrganization.value && selectedOrganization.value.level === 3) {
           await loadGrassrootsTree(selectedOrganization.value.id, selectedOrganization.value.code)
-        } else {
-          await loadOrganizationTree()
         }
       } else {
         ElMessage.error(response.message || '删除失败')
@@ -937,11 +976,11 @@ const saveGrassrootsOrg = async () => {
     if (response.success) {
       ElMessage.success(grassrootsDialogMode.value === 'create' ? '创建成功' : '更新成功')
       grassrootsDialogVisible.value = false
+      // 重新加载左侧组织树（更新sourceYear显示）
+      await loadOrganizationTree()
       // 重新加载右侧面板
       if (selectedOrganization.value && selectedOrganization.value.level === 3) {
         await loadGrassrootsTree(selectedOrganization.value.id, selectedOrganization.value.code)
-      } else {
-        await loadOrganizationTree()
       }
     } else {
       ElMessage.error(response.message || '操作失败')
@@ -1011,7 +1050,7 @@ watch(
   display: flex;
   gap: 20px;
   height: calc(100vh - 240px);
-  min-height: 500px;
+  min-height: 400px;
 }
 
 .tree-card {
@@ -1144,6 +1183,10 @@ watch(
 
 .level-tag {
   margin-left: 8px;
+}
+
+.source-year-tag {
+  margin-left: 4px;
 }
 
 .node-code {

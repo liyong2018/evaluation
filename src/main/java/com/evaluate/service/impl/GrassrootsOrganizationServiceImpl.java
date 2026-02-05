@@ -67,6 +67,8 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             return organizations == null ? new ArrayList<>() : organizations;
         }
 
+        log.info("mergeBaselineWithLatestYearData: requestedYear={}, 总记录数={}", requestedYear, organizations.size());
+
         Map<String, GrassrootsOrganization> baselineByCode = new HashMap<>();
         Map<String, GrassrootsOrganization> latestYearByCode = new HashMap<>();
         Map<String, Integer> latestYearValueByCode = new HashMap<>();
@@ -76,17 +78,37 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 continue;
             }
             String code = org.getCode();
+
+            // 调试日志：针对"锦官驿"相关的code
+            boolean isDebugCode = code.contains("032") || code.contains("锦官驿");
+            if (isDebugCode) {
+                log.info("=== DEBUG grassroots code={} ===", code);
+                log.info("  year={}, isBaseline={}, name={}, isDeleted={}",
+                        org.getYear(), org.getIsBaseline(), org.getName(), org.getIsDeleted());
+                log.info("  isYearChangeRecord={}, year check={}",
+                        isYearChangeRecord(org), org.getYear() != null && org.getYear() <= requestedYear);
+            }
+
             if (org.getIsBaseline() != null && org.getIsBaseline() == 1) {
                 baselineByCode.putIfAbsent(code, org);
+                if (isDebugCode) {
+                    log.info("  -> 作为基准记录");
+                }
                 continue;
             }
 
             if (!isYearChangeRecord(org)) {
+                if (isDebugCode) {
+                    log.info("  -> 跳过：不是年份变更记录");
+                }
                 continue;
             }
 
             Integer y = org.getYear();
             if (y == null || y > requestedYear) {
+                if (isDebugCode) {
+                    log.info("  -> 跳过：year={}, requestedYear={}", y, requestedYear);
+                }
                 continue;
             }
 
@@ -94,6 +116,9 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             if (existingYear == null || y > existingYear) {
                 latestYearValueByCode.put(code, y);
                 latestYearByCode.put(code, org);
+                if (isDebugCode) {
+                    log.info("  -> 记录为最新变更：year={}, existingYear={}", y, existingYear);
+                }
             }
         }
 
@@ -106,17 +131,16 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         }
 
         Map<String, GrassrootsOrganization> mergedByCode = new HashMap<>();
+        // 首先添加所有基准记录
         for (Map.Entry<String, GrassrootsOrganization> entry : baselineByCode.entrySet()) {
-            String code = entry.getKey();
-            if (!deletedCodes.contains(code)) {
-                mergedByCode.put(code, entry.getValue());
-            }
+            mergedByCode.put(entry.getKey(), entry.getValue());
         }
 
+        // 然后用年份记录覆盖（排除已删除的记录）
         for (Map.Entry<String, GrassrootsOrganization> entry : latestYearByCode.entrySet()) {
             String code = entry.getKey();
+            // 如果该记录被标记为删除，跳过（保留基准记录）
             if (deletedCodes.contains(code)) {
-                mergedByCode.remove(code);
                 continue;
             }
 
@@ -164,6 +188,45 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             }
             return codeA.compareTo(codeB);
         });
+
+        // 级联更新：对于社区记录，从其父级街道记录中获取最新的townshipName
+        // 因为townshipName是冗余存储的字段，当街道名称变更时，需要同步更新到子社区
+        Map<Long, GrassrootsOrganization> townshipMap = new HashMap<>();
+        for (GrassrootsOrganization org : merged) {
+            if (org != null && org.getLevel() != null && org.getLevel() == LEVEL_TOWNSHIP) {
+                townshipMap.put(org.getId(), org);
+                // 调试日志：打印街道记录信息
+                if (org.getName() != null && org.getName().contains("锦官驿")) {
+                    log.info("DEBUG 街道记录: id={}, code={}, name={}, year={}", org.getId(), org.getCode(), org.getName(), org.getYear());
+                }
+            }
+        }
+
+        int cascadeUpdateCount = 0;
+        for (GrassrootsOrganization org : merged) {
+            if (org != null && org.getLevel() != null && org.getLevel() == LEVEL_COMMUNITY && org.getParentId() != null) {
+                GrassrootsOrganization township = townshipMap.get(org.getParentId());
+                if (township != null && StringUtils.hasText(township.getName())) {
+                    // 如果街道名称与社区中存储的townshipName不一致，更新它
+                    if (!StringUtils.hasText(org.getTownshipName()) || !org.getTownshipName().equals(township.getName())) {
+                        log.info("级联更新社区 {} (id={}, parentId={}) 的 townshipName: {} -> {}",
+                                org.getName(), org.getId(), org.getParentId(), org.getTownshipName(), township.getName());
+                        org.setTownshipName(township.getName());
+                        cascadeUpdateCount++;
+                    }
+                } else {
+                    // 调试日志：找不到街道记录
+                    if (org.getName() != null && org.getName().contains("锦官驿")) {
+                        log.warn("DEBUG 找不到街道记录: community parentId={}, townshipMap keys={}",
+                                org.getParentId(), townshipMap.keySet());
+                    }
+                }
+            }
+        }
+
+        log.info("mergeBaselineWithLatestYearData 完成: requestedYear={}, 总记录数={}, 级联更新数={}",
+                requestedYear, merged.size(), cascadeUpdateCount);
+
         return merged;
     }
 
@@ -216,15 +279,76 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 }
             }
 
-            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("county_id", effectiveCountyId);
-            queryWrapper.eq("level", LEVEL_TOWNSHIP);
-            applyYearRangeCondition(queryWrapper, year);
-            queryWrapper.orderByAsc("code");
-            List<GrassrootsOrganization> result = list(queryWrapper);
-            if (year != null && year > BASELINE_YEAR && !result.isEmpty()) {
-                result = mergeBaselineWithLatestYearData(result, year);
+            List<GrassrootsOrganization> result = null;
+
+            if (year != null && year > BASELINE_YEAR) {
+                // 先尝试查询指定年份的数据
+                QueryWrapper<GrassrootsOrganization> yearQuery = new QueryWrapper<>();
+                yearQuery.eq("county_id", effectiveCountyId);
+                yearQuery.eq("level", LEVEL_TOWNSHIP);
+                yearQuery.eq("year", year);
+                yearQuery.orderByAsc("code");
+                result = list(yearQuery);
+
+                // 如果指定年份没有数据，尝试从 year-1 向下查到 BASELINE_YEAR
+                if (result == null || result.isEmpty()) {
+                    log.info("未找到{}年的街道数据，尝试从{}向下查找到{}", year, year - 1, BASELINE_YEAR);
+                    for (int checkYear = year - 1; checkYear > BASELINE_YEAR; checkYear--) {
+                        QueryWrapper<GrassrootsOrganization> checkQuery = new QueryWrapper<>();
+                        checkQuery.eq("county_id", effectiveCountyId);
+                        checkQuery.eq("level", LEVEL_TOWNSHIP);
+                        checkQuery.eq("year", checkYear);
+                        checkQuery.orderByAsc("code");
+                        List<GrassrootsOrganization> checkResult = list(checkQuery);
+                        if (checkResult != null && !checkResult.isEmpty()) {
+                            result = checkResult;
+                            log.info("找到{}年的街道数据，共{}条", checkYear, result.size());
+                            break;
+                        }
+                    }
+
+                    // 如果还是没找到，使用底表数据
+                    if (result == null || result.isEmpty()) {
+                        log.info("未找到任何年份的街道数据，使用底表数据");
+                        QueryWrapper<GrassrootsOrganization> baselineQuery = new QueryWrapper<>();
+                        baselineQuery.eq("county_id", effectiveCountyId);
+                        baselineQuery.eq("level", LEVEL_TOWNSHIP);
+                        baselineQuery.eq("is_baseline", 1);
+                        baselineQuery.orderByAsc("code");
+                        result = list(baselineQuery);
+                    }
+                }
+
+                // 如果查询到了数据，需要与底表数据合并
+                if (result != null && !result.isEmpty()) {
+                    QueryWrapper<GrassrootsOrganization> baselineQuery = new QueryWrapper<>();
+                    baselineQuery.eq("county_id", effectiveCountyId);
+                    baselineQuery.eq("level", LEVEL_TOWNSHIP);
+                    baselineQuery.eq("is_baseline", 1);
+                    List<GrassrootsOrganization> baseline = list(baselineQuery);
+                    if (baseline != null && !baseline.isEmpty()) {
+                        result.addAll(baseline);
+                        result = mergeBaselineWithLatestYearData(result, year);
+                    }
+                }
+            } else {
+                // 查询底表数据或使用原有逻辑
+                QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+                queryWrapper.eq("county_id", effectiveCountyId);
+                queryWrapper.eq("level", LEVEL_TOWNSHIP);
+                applyYearRangeCondition(queryWrapper, year);
+                queryWrapper.orderByAsc("code");
+                result = list(queryWrapper);
+                if (year != null && year > BASELINE_YEAR && !result.isEmpty()) {
+                    result = mergeBaselineWithLatestYearData(result, year);
+                }
             }
+
+            if (result == null) {
+                result = new ArrayList<>();
+            }
+
+            log.info("getTownshipsByCountyId: countyId={}, year={}, resultSize={}", countyId, year, result.size());
             return result;
         } catch (Exception e) {
             log.error("根据区县ID获取乡镇列表失败: countyId={}, year={}", countyId, year, e);
@@ -236,13 +360,34 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
     public List<GrassrootsOrganization> getTownshipsByCountyCode(String countyCode, Integer year) {
         try {
             // 先通过区县代码找到区县ID
-            QueryWrapper<Organization> orgQuery = new QueryWrapper<>();
-            orgQuery.eq("code", countyCode.trim());
-            orgQuery.eq("level", 3); // 区县级别
+            Organization county = null;
+
             if (year != null) {
+                // 首先尝试查找指定年份的区县记录
+                QueryWrapper<Organization> orgQuery = new QueryWrapper<>();
+                orgQuery.eq("code", countyCode.trim());
+                orgQuery.eq("level", 3); // 区县级别
                 orgQuery.eq("year", year);
+                county = organizationMapper.selectOne(orgQuery);
+
+                // 如果找不到指定年份的记录（可能被删除），使用底表记录
+                if (county == null) {
+                    log.info("未找到{}年的区县记录 {}，回退到使用底表记录", year, countyCode);
+                    QueryWrapper<Organization> baselineQuery = new QueryWrapper<>();
+                    baselineQuery.eq("code", countyCode.trim());
+                    baselineQuery.eq("level", 3);
+                    baselineQuery.eq("is_baseline", 1);
+                    county = organizationMapper.selectOne(baselineQuery);
+                }
+            } else {
+                // 没有指定年份，直接使用底表记录
+                QueryWrapper<Organization> orgQuery = new QueryWrapper<>();
+                orgQuery.eq("code", countyCode.trim());
+                orgQuery.eq("level", 3); // 区县级别
+                orgQuery.eq("is_baseline", 1);
+                county = organizationMapper.selectOne(orgQuery);
             }
-            Organization county = organizationMapper.selectOne(orgQuery);
+
             if (county == null) {
                 log.warn("未找到区县: countyCode={}, year={}", countyCode, year);
                 return new ArrayList<>();
@@ -340,23 +485,77 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 }
             }
 
-            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("county_id", effectiveCountyId);
-            applyYearRangeCondition(queryWrapper, year);
-            queryWrapper.orderByAsc("level", "code");
-            List<GrassrootsOrganization> all = list(queryWrapper);
-            if (year != null && year > BASELINE_YEAR && !all.isEmpty()) {
-                all = mergeBaselineWithLatestYearData(all, year);
+            // 查询 grassroots 组织
+            List<GrassrootsOrganization> all = null;
+
+            if (year != null && year > BASELINE_YEAR) {
+                // 先尝试查询指定年份的数据
+                QueryWrapper<GrassrootsOrganization> yearQuery = new QueryWrapper<>();
+                yearQuery.eq("county_id", effectiveCountyId);
+                yearQuery.eq("year", year);
+                yearQuery.orderByAsc("level", "code");
+                all = list(yearQuery);
+
+                // 如果指定年份没有数据，尝试从 year-1 向下查到 BASELINE_YEAR
+                if (all == null || all.isEmpty()) {
+                    log.info("未找到{}年的数据，尝试从{}向下查找到{}", year, year - 1, BASELINE_YEAR);
+                    for (int checkYear = year - 1; checkYear > BASELINE_YEAR; checkYear--) {
+                        QueryWrapper<GrassrootsOrganization> checkQuery = new QueryWrapper<>();
+                        checkQuery.eq("county_id", effectiveCountyId);
+                        checkQuery.eq("year", checkYear);
+                        checkQuery.orderByAsc("level", "code");
+                        List<GrassrootsOrganization> checkResult = list(checkQuery);
+                        if (checkResult != null && !checkResult.isEmpty()) {
+                            all = checkResult;
+                            log.info("找到{}年的数据，共{}条", checkYear, all.size());
+                            break;
+                        }
+                    }
+
+                    // 如果还是没找到，使用底表数据
+                    if (all == null || all.isEmpty()) {
+                        log.info("未找到任何年份数据，使用底表数据");
+                        QueryWrapper<GrassrootsOrganization> baselineQuery = new QueryWrapper<>();
+                        baselineQuery.eq("county_id", effectiveCountyId);
+                        baselineQuery.eq("is_baseline", 1);
+                        baselineQuery.orderByAsc("level", "code");
+                        all = list(baselineQuery);
+                    }
+                }
+
+                // 如果查询到了数据，需要与底表数据合并
+                if (all != null && !all.isEmpty()) {
+                    // 查询底表数据进行合并
+                    QueryWrapper<GrassrootsOrganization> baselineQuery = new QueryWrapper<>();
+                    baselineQuery.eq("county_id", effectiveCountyId);
+                    baselineQuery.eq("is_baseline", 1);
+                    List<GrassrootsOrganization> baseline = list(baselineQuery);
+                    if (baseline != null && !baseline.isEmpty()) {
+                        all.addAll(baseline);
+                        all = mergeBaselineWithLatestYearData(all, year);
+                    }
+                }
+            } else {
+                // 查询底表数据
+                QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
+                queryWrapper.eq("county_id", effectiveCountyId);
+                applyYearRangeCondition(queryWrapper, year);
+                queryWrapper.orderByAsc("level", "code");
+                all = list(queryWrapper);
+                if (year != null && year > BASELINE_YEAR && !all.isEmpty()) {
+                    all = mergeBaselineWithLatestYearData(all, year);
+                }
             }
 
-            List<Map<String, Object>> tree = buildTree(all, effectiveCountyId);
-            if (!tree.isEmpty()) {
-                return tree;
+            if (all == null) {
+                all = new ArrayList<>();
             }
 
-            if (!Objects.equals(effectiveCountyId, countyId)) {
-                return buildTree(all, countyId);
-            }
+            log.info("getTreeByCountyId: countyId={}, year={}, 查询结果数={}", countyId, year, all.size());
+
+            // 构建完整的树形结构，不需要传递parentId（null表示构建整棵树）
+            // countyId已经用于过滤数据，不需要再传递给buildTree
+            List<Map<String, Object>> tree = buildTree(all, null);
             return tree;
         } catch (Exception e) {
             log.error("根据区县ID获取树形结构失败: countyId={}, year={}", countyId, year, e);
@@ -367,18 +566,34 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
     @Override
     public List<Map<String, Object>> getTreeByCountyCode(String countyCode, Integer year) {
         try {
-            QueryWrapper<Organization> orgQuery = new QueryWrapper<>();
-            orgQuery.eq("code", countyCode.trim());
-            orgQuery.eq("level", 3);
+            Organization county = null;
+
             if (year != null) {
-                orgQuery.and(wrapper -> wrapper
-                        .and(w -> w.eq("year", year).eq("is_baseline", 0))
-                        .or().eq("is_baseline", 1)
-                );
+                // 首先尝试查找指定年份的区县记录
+                QueryWrapper<Organization> orgQuery = new QueryWrapper<>();
+                orgQuery.eq("code", countyCode.trim());
+                orgQuery.eq("level", 3);
+                orgQuery.eq("year", year);
+                county = organizationMapper.selectOne(orgQuery);
+
+                // 如果找不到指定年份的记录（可能被删除），使用底表记录
+                if (county == null) {
+                    log.info("未找到{}年的区县记录 {}，回退到使用底表记录", year, countyCode);
+                    QueryWrapper<Organization> baselineQuery = new QueryWrapper<>();
+                    baselineQuery.eq("code", countyCode.trim());
+                    baselineQuery.eq("level", 3);
+                    baselineQuery.eq("is_baseline", 1);
+                    county = organizationMapper.selectOne(baselineQuery);
+                }
             } else {
+                // 没有指定年份，直接使用底表记录
+                QueryWrapper<Organization> orgQuery = new QueryWrapper<>();
+                orgQuery.eq("code", countyCode.trim());
+                orgQuery.eq("level", 3);
                 orgQuery.eq("is_baseline", 1);
+                county = organizationMapper.selectOne(orgQuery);
             }
-            Organization county = organizationMapper.selectOne(orgQuery);
+
             if (county == null) {
                 log.warn("未找到区县: countyCode={}, year={}", countyCode, year);
                 return new ArrayList<>();
@@ -478,20 +693,62 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
 
             // 更新非基准年数据：创建或更新年度变更记录，不修改基准记录
             if (updateYear != null && !updateYear.equals(existing.getYear())) {
-                // 检查是否已存在该年度的变更记录
-                QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-                queryWrapper.eq("code", existing.getCode());
-                queryWrapper.eq("year", updateYear);
-                GrassrootsOrganization yearRecord = getOne(queryWrapper, false);
+                // 使用自定义SQL查询年度记录（绕过 @TableLogic，可以找到已删除的记录）
+                GrassrootsOrganization yearRecord = baseMapper.selectByCodeAndYearIncludeDeleted(existing.getCode(), updateYear);
 
                 if (yearRecord != null) {
-                    // 更新现有年度记录
-                    organization.setId(yearRecord.getId());
-                    organization.setIsBaseline(0);
-                    organization.setBaselineCode(existing.getCode());
-                    return updateById(organization);
+                    // 找到年度记录，检查是否已删除
+                    if (yearRecord.getIsDeleted() != null && yearRecord.getIsDeleted() == 1) {
+                        // 记录已删除，需要更新：取消删除标记并更新内容
+                        yearRecord.setName(organization.getName() != null ? organization.getName() : yearRecord.getName());
+                        yearRecord.setLevel(organization.getLevel() != null ? organization.getLevel() : yearRecord.getLevel());
+                        if (organization.getCountyId() != null) {
+                            yearRecord.setCountyId(organization.getCountyId());
+                        }
+                        if (organization.getParentId() != null) {
+                            yearRecord.setParentId(organization.getParentId());
+                        }
+                        if (organization.getProvinceName() != null) {
+                            yearRecord.setProvinceName(organization.getProvinceName());
+                        }
+                        if (organization.getCityName() != null) {
+                            yearRecord.setCityName(organization.getCityName());
+                        }
+                        if (organization.getCountyName() != null) {
+                            yearRecord.setCountyName(organization.getCountyName());
+                        }
+                        if (organization.getTownshipName() != null) {
+                            yearRecord.setTownshipName(organization.getTownshipName());
+                        }
+                        if (organization.getCommunityName() != null) {
+                            yearRecord.setCommunityName(organization.getCommunityName());
+                        }
+                        // 先取消删除标记，然后更新其他字段
+                        // 使用自定义方法更新（绕过 @TableLogic）
+                        // 注意：需要先更新 is_deleted=0，然后才能用 updateById 更新其他字段
+                        // 但由于 @TableLogic 限制，我们直接用一条SQL完成所有更新
+                        return baseMapper.restoreAndUpdateYearRecord(
+                                yearRecord.getCode(),
+                                yearRecord.getYear(),
+                                yearRecord.getName(),
+                                yearRecord.getLevel(),
+                                yearRecord.getCountyId(),
+                                yearRecord.getParentId(),
+                                yearRecord.getProvinceName(),
+                                yearRecord.getCityName(),
+                                yearRecord.getCountyName(),
+                                yearRecord.getTownshipName(),
+                                yearRecord.getCommunityName()
+                        ) > 0;
+                    } else {
+                        // 记录存在且未删除，直接更新
+                        organization.setId(yearRecord.getId());
+                        organization.setIsBaseline(yearRecord.getIsBaseline());
+                        organization.setBaselineCode(yearRecord.getBaselineCode());
+                        return updateById(organization);
+                    }
                 } else {
-                    // 创建新的年度变更记录
+                    // 没有找到该年度的记录，创建新的年度变更记录
                     GrassrootsOrganization newYearOrg = new GrassrootsOrganization();
                     newYearOrg.setCode(existing.getCode());
                     newYearOrg.setName(organization.getName() != null ? organization.getName() : existing.getName());
@@ -544,16 +801,12 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 throw new IllegalArgumentException("基层组织机构不存在: " + id);
             }
 
-            // 查找该年度的记录
-            QueryWrapper<GrassrootsOrganization> yearRecordQuery = new QueryWrapper<>();
-            yearRecordQuery.eq("code", org.getCode());
-            yearRecordQuery.eq("year", year);
-            GrassrootsOrganization yearRecord = getOne(yearRecordQuery, false);
+            // 使用自定义方法标记记录为已删除（绕过 @TableLogic 限制）
+            int affected = baseMapper.markAsDeletedByCodeAndYear(org.getCode(), year);
 
-            if (yearRecord != null) {
-                // 如果该年度有记录，标记为已删除
-                yearRecord.setIsDeleted(1);
-                return updateById(yearRecord);
+            if (affected > 0) {
+                log.info("成功标记{}年的记录 {} 为已删除", year, org.getCode());
+                return true;
             } else {
                 // 如果该年度没有记录，创建删除标记记录
                 GrassrootsOrganization deleteMarker = new GrassrootsOrganization();
@@ -1065,41 +1318,66 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             return new ArrayList<>();
         }
 
-        Map<Long, List<GrassrootsOrganization>> parentMap = organizations.stream()
-                .collect(Collectors.groupingBy(
-                        org -> org.getParentId() != null ? org.getParentId() : 0L
-                ));
+        // 使用基于代码的父子关系映射，而不是基于ID的映射
+        // 乡镇代码(9位) -> 社区代码(12位)
+        // 例如：510104001 (某某街道) -> 510104001001 (某某社区)
+        Map<String, List<GrassrootsOrganization>> codeParentMap = new HashMap<>();
+        Map<String, GrassrootsOrganization> codeToOrgMap = new HashMap<>();
+
+        // 首先建立code到organization的映射
+        for (GrassrootsOrganization org : organizations) {
+            if (org.getCode() != null) {
+                codeToOrgMap.put(org.getCode(), org);
+            }
+        }
+
+        // 然后根据层级和代码前缀建立父子关系
+        for (GrassrootsOrganization org : organizations) {
+            String parentCode = findParentCodeForGrassroots(org.getCode(), org.getLevel(), codeToOrgMap);
+            if (parentCode == null) {
+                parentCode = ""; // 根节点（乡镇）使用空字符串作为key
+            }
+            codeParentMap.computeIfAbsent(parentCode, k -> new ArrayList<>()).add(org);
+        }
+
+        log.info("buildTree (grassroots): 基于代码的父子关系映射，根节点数量={}, 总组织数={}",
+                codeParentMap.getOrDefault("", Collections.emptyList()).size(), organizations.size());
 
         if (parentId != null) {
-            return buildTreeRecursive(parentId, parentMap);
+            // 如果指定了parentId，需要找到该组织的code，然后基于code构建子树
+            GrassrootsOrganization parentOrg = codeToOrgMap.values().stream()
+                    .filter(o -> o.getId().equals(parentId))
+                    .findFirst().orElse(null);
+            if (parentOrg != null) {
+                return buildTreeRecursiveByCode(parentOrg.getCode(), codeParentMap, codeToOrgMap);
+            }
+            return new ArrayList<>();
         } else {
-            // 找到所有根节点（乡镇，parentId为0或null）
+            // 构建完整的树，根节点是那些没有父节点的组织（乡镇）
             List<Map<String, Object>> result = new ArrayList<>();
-            List<GrassrootsOrganization> roots = parentMap.getOrDefault(0L, new ArrayList<>());
+            List<GrassrootsOrganization> roots = codeParentMap.getOrDefault("", Collections.emptyList());
+
+            // 按代码数值大小排序
+            roots.sort((a, b) -> {
+                String codeA = a.getCode();
+                String codeB = b.getCode();
+                if (codeA == null && codeB == null) return 0;
+                if (codeA == null) return 1;
+                if (codeB == null) return -1;
+                try {
+                    Long numA = Long.parseLong(codeA);
+                    Long numB = Long.parseLong(codeB);
+                    return numA.compareTo(numB);
+                } catch (NumberFormatException e) {
+                    return codeA.compareTo(codeB);
+                }
+            });
 
             for (GrassrootsOrganization root : roots) {
                 if (root == null || root.getId() == null) {
                     continue;
                 }
-                Map<String, Object> node = new HashMap<>();
-                node.put("id", root.getId());
-                node.put("parentId", root.getParentId());
-                node.put("countyId", root.getCountyId());
-                node.put("code", root.getCode());
-                node.put("name", root.getName());
-                node.put("level", root.getLevel());
-                node.put("dataSource", root.getDataSource());
-                node.put("provinceName", root.getProvinceName());
-                node.put("cityName", root.getCityName());
-                node.put("countyName", root.getCountyName());
-                node.put("townshipName", root.getTownshipName());
-                node.put("communityName", root.getCommunityName());
-                node.put("year", root.getYear());
-
-                List<Map<String, Object>> childNodes = buildTreeRecursive(root.getId(), parentMap);
-                if (!childNodes.isEmpty()) {
-                    node.put("children", childNodes);
-                }
+                Map<String, Object> node = buildNodeForGrassroots(root, codeParentMap, codeToOrgMap);
                 result.add(node);
             }
 
@@ -1107,6 +1385,127 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         }
     }
 
+    /**
+     * 根据代码和层级找到父组织的代码（基层组织版本）
+     * 乡镇(level=4, 9位代码) 没有父节点（在这个方法中作为根节点）
+     * 社区(level=5, 12位代码) 的父代码是乡镇代码(前9位)
+     */
+    private String findParentCodeForGrassroots(String code, Integer level, Map<String, GrassrootsOrganization> codeToOrgMap) {
+        if (code == null || level == null) {
+            return null;
+        }
+
+        if (level == LEVEL_TOWNSHIP) {
+            return null; // 乡镇作为根节点，没有父节点
+        }
+
+        if (level == LEVEL_COMMUNITY && code.length() >= 9) {
+            String parentCode = code.substring(0, 9);
+            // 验证父代码是否存在
+            if (codeToOrgMap.containsKey(parentCode)) {
+                return parentCode;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 构建单个节点（基层组织版本）
+     */
+    private Map<String, Object> buildNodeForGrassroots(GrassrootsOrganization org,
+                                                       Map<String, List<GrassrootsOrganization>> codeParentMap,
+                                                       Map<String, GrassrootsOrganization> codeToOrgMap) {
+        Map<String, Object> node = new HashMap<>();
+        node.put("id", org.getId());
+        node.put("parentId", org.getParentId());
+        node.put("countyId", org.getCountyId());
+        node.put("code", org.getCode());
+        node.put("name", org.getName());
+        node.put("level", org.getLevel());
+        node.put("dataSource", org.getDataSource());
+        node.put("provinceName", org.getProvinceName());
+        node.put("cityName", org.getCityName());
+        node.put("countyName", org.getCountyName());
+
+        // 对于街道记录（level=4），使用name字段作为townshipName的显示值
+        Integer level = org.getLevel();
+        String townshipName = org.getTownshipName();
+        if (level != null && level == LEVEL_TOWNSHIP && StringUtils.hasText(org.getName())) {
+            townshipName = org.getName();
+        }
+        node.put("townshipName", townshipName);
+        node.put("communityName", org.getCommunityName());
+        node.put("year", org.getYear());
+
+        // 添加数据来源年份标识
+        Integer sourceYear = org.getYear();
+        if (sourceYear == null) {
+            sourceYear = 2020; // 底表数据默认为2020年
+        }
+
+        // 递归构建子节点
+        List<Map<String, Object>> childNodes = buildTreeRecursiveByCode(org.getCode(), codeParentMap, codeToOrgMap);
+        if (!childNodes.isEmpty()) {
+            node.put("children", childNodes);
+
+            // 更新sourceYear为子节点中最大的年份
+            // 这样父节点会跟随子节点显示最新的数据年份
+            for (Map<String, Object> child : childNodes) {
+                Object childSourceYearObj = child.get("sourceYear");
+                if (childSourceYearObj instanceof Number) {
+                    int childSourceYear = ((Number) childSourceYearObj).intValue();
+                    if (childSourceYear > sourceYear) {
+                        sourceYear = childSourceYear;
+                    }
+                }
+            }
+        }
+        node.put("sourceYear", sourceYear);
+
+        return node;
+    }
+
+    /**
+     * 递归构建树形结构（基于代码的版本，基层组织）
+     */
+    private List<Map<String, Object>> buildTreeRecursiveByCode(
+            String parentCode,
+            Map<String, List<GrassrootsOrganization>> codeParentMap,
+            Map<String, GrassrootsOrganization> codeToOrgMap
+    ) {
+        if (parentCode == null) {
+            return new ArrayList<>();
+        }
+
+        List<GrassrootsOrganization> children = codeParentMap.get(parentCode);
+        if (children == null || children.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return children.stream().map(org -> {
+            Map<String, Object> node = buildNodeForGrassroots(org, codeParentMap, codeToOrgMap);
+            return node;
+        }).sorted((a, b) -> {
+            // 按code数值大小排序
+            String codeA = (String) a.get("code");
+            String codeB = (String) b.get("code");
+            if (codeA == null && codeB == null) return 0;
+            if (codeA == null) return 1;
+            if (codeB == null) return -1;
+            try {
+                Long numA = Long.parseLong(codeA);
+                Long numB = Long.parseLong(codeB);
+                return numA.compareTo(numB);
+            } catch (NumberFormatException e) {
+                return codeA.compareTo(codeB);
+            }
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * 递归构建树形结构（基于ID的版本，保留用于兼容）
+     */
     private List<Map<String, Object>> buildTreeRecursive(
             Long parentId,
             Map<Long, List<GrassrootsOrganization>> parentMap
@@ -1131,9 +1530,22 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             node.put("provinceName", org.getProvinceName());
             node.put("cityName", org.getCityName());
             node.put("countyName", org.getCountyName());
-            node.put("townshipName", org.getTownshipName());
+            // 对于街道记录（level=4），使用name字段作为townshipName的显示值
+            // 因为townshipName字段在更新时可能没有同步修改
+            Integer level = org.getLevel();
+            String townshipName = org.getTownshipName();
+            if (level != null && level == LEVEL_TOWNSHIP && StringUtils.hasText(org.getName())) {
+                townshipName = org.getName();
+            }
+            node.put("townshipName", townshipName);
             node.put("communityName", org.getCommunityName());
             node.put("year", org.getYear());
+            // 添加数据来源年份标识：表示这条数据实际来自哪一年的记录
+            Integer sourceYear = org.getYear();
+            if (sourceYear == null) {
+                sourceYear = 2020; // 底表数据默认为2020年
+            }
+            node.put("sourceYear", sourceYear);
 
             List<Map<String, Object>> childNodes = buildTreeRecursive(org.getId(), parentMap);
             if (!childNodes.isEmpty()) {
@@ -1141,6 +1553,20 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             }
 
             return node;
+        }).sorted((a, b) -> {
+            // 按code数值大小排序（行政区划代码是数字，应该按数值排序）
+            String codeA = (String) a.get("code");
+            String codeB = (String) b.get("code");
+            if (codeA == null && codeB == null) return 0;
+            if (codeA == null) return 1;
+            if (codeB == null) return -1;
+            try {
+                Long numA = Long.parseLong(codeA);
+                Long numB = Long.parseLong(codeB);
+                return numA.compareTo(numB);
+            } catch (NumberFormatException e) {
+                return codeA.compareTo(codeB);
+            }
         }).collect(Collectors.toList());
     }
 

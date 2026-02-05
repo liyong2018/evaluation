@@ -2,9 +2,56 @@ package com.evaluate.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.evaluate.entity.GrassrootsOrganization;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 /**
  * 基层组织机构 Mapper
  */
 public interface GrassrootsOrganizationMapper extends BaseMapper<GrassrootsOrganization> {
+
+    /**
+     * 标记记录为已删除（绕过 @TableLogic）
+     * 用于增量存储中按年份删除的场景
+     */
+    @Update("UPDATE grassroots_organization SET is_deleted = 1 WHERE id = #{id}")
+    int markAsDeleted(@Param("id") Long id);
+
+    /**
+     * 根据code和year标记记录为已删除（绕过 @TableLogic）
+     * 用于增量存储中按年份删除的场景
+     */
+    @Update("UPDATE grassroots_organization SET is_deleted = 1 WHERE code = #{code} AND year = #{year}")
+    int markAsDeletedByCodeAndYear(@Param("code") String code, @Param("year") Integer year);
+
+    /**
+     * 根据code和year查询记录（包含已删除记录，绕过 @TableLogic）
+     * 用于更新时查找年份记录
+     */
+    @Select("SELECT * FROM grassroots_organization WHERE code = #{code} AND year = #{year} LIMIT 1")
+    GrassrootsOrganization selectByCodeAndYearIncludeDeleted(@Param("code") String code, @Param("year") Integer year);
+
+    /**
+     * 根据code和year取消删除标记（绕过 @TableLogic）
+     * 用于恢复已删除的记录
+     */
+    @Update("UPDATE grassroots_organization SET is_deleted = 0 WHERE code = #{code} AND year = #{year}")
+    int markAsUndeletedByCodeAndYear(@Param("code") String code, @Param("year") Integer year);
+
+    /**
+     * 综合更新：取消删除标记并更新所有字段（绕过 @TableLogic）
+     * 用于恢复已删除记录并同时更新其内容
+     */
+    @Update("UPDATE grassroots_organization SET is_deleted = 0, name = #{name}, level = #{level}, " +
+            "county_id = #{countyId}, parent_id = #{parentId}, " +
+            "province_name = #{provinceName}, city_name = #{cityName}, county_name = #{countyName}, " +
+            "township_name = #{townshipName}, community_name = #{communityName} " +
+            "WHERE code = #{code} AND year = #{year}")
+    int restoreAndUpdateYearRecord(@Param("code") String code, @Param("year") Integer year,
+                                   @Param("name") String name, @Param("level") Integer level,
+                                   @Param("countyId") Long countyId, @Param("parentId") Long parentId,
+                                   @Param("provinceName") String provinceName, @Param("cityName") String cityName,
+                                   @Param("countyName") String countyName, @Param("townshipName") String townshipName,
+                                   @Param("communityName") String communityName);
 }

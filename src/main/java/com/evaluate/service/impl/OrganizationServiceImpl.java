@@ -755,7 +755,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
             // When parentId is null, start building from root (parent_id = 0 or null)
             // When parentId is provided, start building from that parent
-            return buildTree(allOrganizations, parentId);
+            return buildTree(allOrganizations, parentId, year);
         } catch (Exception e) {
             log.error("获取组织机构树形结构失败", e);
             return new ArrayList<>();
@@ -766,16 +766,10 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
      * 获取组织机构（含增量存储逻辑）
      * 查询策略：
      * 1. 如果指定了年份，从该年份开始逐级向下查找（2026->2025->2024...->2020）
-     * 2. 直到找到有数据的年份或到达基准年2020
-     * 3. 合并基准数据和找到的年份数据
+     * 2. 查询所有年份范围内的变更记录和基准记录
+     * 3. 合并基准数据和历史变更记录（最近年份优先）
      */
     private List<Organization> getOrganizationsWithBaseline(Long parentId, Integer maxLevel, Integer year) {
-        // 查找有效的数据年份（逐级回退）
-        final Integer effectiveYear = (year != null) ? findEffectiveYear(year, parentId, maxLevel) : null;
-        if (year != null) {
-            log.info("查询年份: {}, 实际使用数据年份: {}", year, effectiveYear);
-        }
-
         QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
 
         // 权限过滤
@@ -804,26 +798,37 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             queryWrapper.le("level", maxLevel);
         }
 
+        // 过滤已删除的记录
+        queryWrapper.eq("is_deleted", 0);
+
         // 年份/基准过滤逻辑
-        if (effectiveYear != null) {
-            // 查询找到的年份的变更记录 OR 基准记录
+        if (year != null) {
+            // 查询从目标年份向下所有年份的变更记录 + 基准记录
+            // 这样可以确保中间年份的变更（如2023年的修改）也能被查询出来
             queryWrapper.and(wrapper -> wrapper
-                    .and(w -> w.eq("year", effectiveYear).eq("is_baseline", 0))
-                    .or()
+                    // 基准记录
                     .eq("is_baseline", 1)
+                    // 或者：年份在目标年份和基准年之间的变更记录
+                    .or(w -> w
+                            .ge("year", 2020)
+                            .le("year", year)
+                            .eq("is_baseline", 0)
+                    )
             );
+            log.info("查询年份: {}, 查询范围: 2020-{}", year, year);
         } else {
             // 没有指定年份，只返回基准记录
             queryWrapper.eq("is_baseline", 1);
         }
 
-        queryWrapper.orderByAsc("level", "code");
+        queryWrapper.orderByDesc("year").orderByAsc("level", "code");
 
         List<Organization> organizations = list(queryWrapper);
+        log.info("查询到{}条组织记录（包含基准和变更记录）", organizations.size());
 
-        // 如果有年份参数，需要合并数据（年份数据记录覆盖基准记录）
-        if (effectiveYear != null && !organizations.isEmpty()) {
-            organizations = mergeBaselineWithYearData(organizations, effectiveYear);
+        // 如果有年份参数，需要合并数据（按年份顺序合并，最近年份优先）
+        if (year != null && !organizations.isEmpty()) {
+            organizations = mergeOrganizationDataByYear(organizations, year);
         }
 
         return organizations;
@@ -890,6 +895,78 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
         long count = count(checkWrapper);
         return count > 0;
+    }
+
+    /**
+     * 按年份顺序合并组织机构数据（时间回溯逻辑）
+     * 合并策略：
+     * 1. 对于每个code，从目标年份向下找第一个有变更记录的年份
+     * 2. 例如：查询2026年，找2026年的变更，没有则找2025年，没有则找2024年...
+     * 3. 如果所有年份都没有变更记录，使用基准记录
+     * 4. 删除标记（is_deleted=1）会移除该组织
+     *
+     * @param organizations 查询到的所有组织记录（包含基准和多个年份的变更记录）
+     * @param targetYear 目标查询年份
+     * @return 合并后的组织列表
+     */
+    private List<Organization> mergeOrganizationDataByYear(List<Organization> organizations, Integer targetYear) {
+        // 按code分组
+        Map<String, List<Organization>> groupedByCode = organizations.stream()
+                .filter(org -> org.getCode() != null)
+                .collect(java.util.stream.Collectors.groupingBy(Organization::getCode));
+
+        log.info("mergeOrganizationDataByYear: 目标年份={}, 总记录数={}, 唯一code数={}",
+                targetYear, organizations.size(), groupedByCode.size());
+
+        Map<String, Organization> mergedMap = new LinkedHashMap<>();
+
+        for (Map.Entry<String, List<Organization>> entry : groupedByCode.entrySet()) {
+            String code = entry.getKey();
+            List<Organization> orgList = entry.getValue();
+
+            // 按年份降序排序（基准记录year为null，排在最后）
+            orgList.sort((a, b) -> {
+                if (a.getYear() == null && b.getYear() == null) return 0;
+                if (a.getYear() == null) return 1;  // 基准记录放后面
+                if (b.getYear() == null) return -1; // 基准记录放后面
+                return b.getYear().compareTo(a.getYear()); // 年份降序
+            });
+
+            // 打印该code的所有记录（用于调试）
+            boolean isDebugCode = code.contains("032") || code.contains("锦官驿");
+            if (isDebugCode) {
+                log.info("=== DEBUG code={} ===", code);
+                for (Organization org : orgList) {
+                    log.info("  记录: year={}, isBaseline={}, name={}, isDeleted={}",
+                            org.getYear(), org.getIsBaseline(), org.getName(), org.getIsDeleted());
+                }
+            }
+
+            // 从最近年份开始找第一个有效记录
+            Organization selectedOrg = null;
+            for (Organization org : orgList) {
+                // 如果是删除标记，记录该code为已删除
+                if (org.getIsDeleted() != null && org.getIsDeleted() == 1) {
+                    log.warn("组织机构 {} 在年份 {} 被标记为删除", code, org.getYear());
+                    selectedOrg = null;
+                    break; // 找到删除标记后，不再查找
+                }
+
+                // 找到第一个有效记录（最近年份的变更记录或基准记录）
+                selectedOrg = org;
+                if (isDebugCode) {
+                    log.info("  选择使用年份 {} 的数据, name={}", org.getYear(), org.getName());
+                }
+                break; // 只保留最近年份的记录
+            }
+
+            if (selectedOrg != null) {
+                mergedMap.put(code, selectedOrg);
+            }
+        }
+
+        log.info("mergeOrganizationDataByYear: 合并后剩余 {} 条组织记录（目标年份: {}）", mergedMap.size(), targetYear);
+        return new ArrayList<>(mergedMap.values());
     }
 
     /**
@@ -1424,131 +1501,248 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
     /**
      * 构建树形结构
      */
-    private List<Map<String, Object>> buildTree(List<Organization> organizations, Long parentId) {
+    private List<Map<String, Object>> buildTree(List<Organization> organizations, Long parentId, Integer year) {
         if (organizations == null || organizations.isEmpty()) {
             return new ArrayList<>();
         }
 
         List<Organization> deduped = deduplicateOrganizationsByCode(organizations);
 
-        // 为了修复parent_id映射问题，需要查询所有基准记录来建立ID映射
-        // 因为子组织的parent_id可能指向基准记录ID，而merged数据中是年份记录ID
-        Map<Long, Long> baselineIdToYearIdMap = new HashMap<>();
+        // 使用基于代码的父子关系映射，而不是基于ID的映射
+        // 行政区划代码具有层级结构：省(2位) -> 市(4位) -> 县(6位) -> 乡镇(9位) -> 社区(12位)
+        // 例如：51 (四川省) -> 5101 (成都市) -> 510104 (锦江区) -> 510104001 (某某街道) -> 510104001001 (某某社区)
+        Map<String, List<Organization>> codeParentMap = new HashMap<>();
+        Map<String, Organization> codeToOrgMap = new HashMap<>();
+
+        // 首先建立code到organization的映射
         for (Organization org : deduped) {
-            if (org.getYear() != null && org.getIsBaseline() != null && org.getIsBaseline() == 0) {
-                // 这是一个年份记录，查找对应基准记录的ID
-                // 通过baseline_code查找基准记录
-                if (org.getBaselineCode() != null) {
-                    QueryWrapper<Organization> qw = new QueryWrapper<>();
-                    qw.eq("code", org.getBaselineCode());
-                    qw.eq("is_baseline", 1);
-                    Organization baseline = baseMapper.selectOne(qw);
-                    if (baseline != null && baseline.getId() != null) {
-                        baselineIdToYearIdMap.put(baseline.getId(), org.getId());
-                    }
-                }
+            if (org.getCode() != null) {
+                codeToOrgMap.put(org.getCode(), org);
             }
         }
 
-        log.info("buildTree: 基准ID到年份ID映射数量={}", baselineIdToYearIdMap.size());
+        // 然后根据层级和代码前缀建立父子关系
+        for (Organization org : deduped) {
+            String parentCode = findParentCode(org.getCode(), org.getLevel(), codeToOrgMap);
+            if (parentCode == null) {
+                parentCode = ""; // 根节点使用空字符串作为key
+            }
+            codeParentMap.computeIfAbsent(parentCode, k -> new ArrayList<>()).add(org);
+        }
 
-        Map<Long, List<Organization>> parentMap = deduped.stream()
-                .collect(Collectors.groupingBy(
-                        org -> {
-                            Long pid = org.getParentId() != null ? org.getParentId() : 0L;
-                            // 如果parent_id指向基准记录，需要映射到年份记录ID
-                            if (pid != 0 && baselineIdToYearIdMap.containsKey(pid)) {
-                                Long mappedId = baselineIdToYearIdMap.get(pid);
-                                log.debug("parent_id映射: {} -> {}", pid, mappedId);
-                                return mappedId;
-                            }
-                            return pid;
-                        }
-                ));
+        log.info("buildTree: 基于代码的父子关系映射，根节点数量={}, 总组织数={}",
+                codeParentMap.getOrDefault("", Collections.emptyList()).size(), deduped.size());
 
         Set<String> emittedCodes = new HashSet<>();
-        Set<Long> stack = new HashSet<>();
+        Set<String> stack = new HashSet<>();
 
         if (parentId != null) {
-            return buildTreeRecursive(parentId, parentMap, emittedCodes, stack);
+            // 如果指定了parentId，需要找到该组织的code，然后基于code构建子树
+            Organization parentOrg = codeToOrgMap.values().stream()
+                    .filter(o -> o.getId().equals(parentId))
+                    .findFirst().orElse(null);
+            if (parentOrg != null) {
+                return buildTreeRecursiveByCode(parentOrg.getCode(), codeParentMap, emittedCodes, stack, codeToOrgMap, year);
+            }
+            return new ArrayList<>();
         } else {
-            // 如果 parentId 为 null，说明需要构建完整的树（或者当前可见范围的树）
-            // 我们需要找到所有的"根"节点
-            // 根节点是那些：1. parentId 为 0 或 null 的节点
-            //              2. 或者 parentId 指向的节点不在 organizations 列表中的节点（孤儿节点）
-            
-            Set<Long> allIds = deduped.stream().map(Organization::getId).filter(Objects::nonNull).collect(Collectors.toSet());
+            // 构建完整的树，根节点是那些没有父节点的组织
             List<Map<String, Object>> result = new ArrayList<>();
-            Set<Long> addedRootIds = new HashSet<>();
-            
-            // 1. 标准根节点
-            if (parentMap.containsKey(0L)) {
-                List<Organization> roots = parentMap.get(0L);
-                if (roots != null) {
-                    for (Organization root : roots) {
-                        if (root != null && root.getId() != null) {
-                            addedRootIds.add(root.getId());
-                        }
-                    }
+            List<Organization> roots = codeParentMap.getOrDefault("", Collections.emptyList());
+
+            for (Organization root : roots) {
+                String normalizedCode = normalizeText(root.getCode());
+                if (!StringUtils.hasText(normalizedCode) || emittedCodes.contains(normalizedCode)) {
+                    continue;
                 }
-                result.addAll(buildTreeRecursive(0L, parentMap, emittedCodes, stack));
+                emittedCodes.add(normalizedCode);
+
+                Map<String, Object> node = buildNode(root, codeParentMap, emittedCodes, stack, codeToOrgMap, year);
+                result.add(node);
             }
-            
-            // 2. 查找孤儿节点作为根节点
-            for (Map.Entry<Long, List<Organization>> entry : parentMap.entrySet()) {
-                Long pid = entry.getKey();
-                if (pid != 0L && !allIds.contains(pid)) {
-                    // 这些节点的父节点不在列表中，所以它们是当前视图的根节点
-                    // 我们不能直接调用 buildTreeRecursive(pid, parentMap)，因为它是找 pid 的子节点
-                    // 这里 entry.getValue() 就是我们要找的根节点列表
-                    List<Organization> roots = entry.getValue();
-                    for (Organization root : roots) {
-                        if (root == null || root.getId() == null) {
-                            continue;
-                        }
-                        if (addedRootIds.contains(root.getId())) {
-                            continue;
-                        }
-                        String normalizedCode = normalizeText(root.getCode());
-                        if (!StringUtils.hasText(normalizedCode) || emittedCodes.contains(normalizedCode)) {
-                            continue;
-                        }
-                        emittedCodes.add(normalizedCode);
-                        addedRootIds.add(root.getId());
-                        Map<String, Object> node = new HashMap<>();
-                        node.put("id", root.getId());
-                        node.put("parentId", root.getParentId());
-                        node.put("code", normalizedCode);
-                        node.put("name", normalizeText(root.getName()));
-                        node.put("level", root.getLevel());
-                        node.put("dataSource", normalizeText(root.getDataSource()));
-                        node.put("provinceName", normalizeText(root.getProvinceName()));
-                        node.put("cityName", normalizeText(root.getCityName()));
-                        node.put("countyName", normalizeText(root.getCountyName()));
-                        node.put("townshipName", normalizeText(root.getTownshipName()));
-                        node.put("communityName", normalizeText(root.getCommunityName()));
-                        
-                        List<Map<String, Object>> childNodes = buildTreeRecursive(root.getId(), parentMap, emittedCodes, stack);
-                        if (!childNodes.isEmpty()) {
-                            node.put("children", childNodes);
-                        }
-                        result.add(node);
-                    }
-                }
-            }
-            
-            // 排序
+
+            // 排序：先按层级，再按代码数值大小排序
             Comparator<Integer> levelComparator = Comparator.nullsLast(Integer::compareTo);
-            Comparator<String> codeComparator = Comparator.nullsLast(String::compareTo);
             result.sort(Comparator.comparing((Map<String, Object> m) -> (Integer) m.get("level"), levelComparator)
-                    .thenComparing(m -> (String) m.get("code"), codeComparator));
-            
+                    .thenComparing(m -> {
+                        String code = (String) m.get("code");
+                        if (code == null) return Long.MAX_VALUE;
+                        try {
+                            return Long.parseLong(code);
+                        } catch (NumberFormatException e) {
+                            return Long.MAX_VALUE;
+                        }
+                    }));
+
             return result;
         }
     }
 
     /**
-     * 递归构建树形结构
+     * 根据代码和层级找到父组织的代码
+     * 例如：510104 (level=3) 的父代码是 5101 (level=2)
+     */
+    private String findParentCode(String code, Integer level, Map<String, Organization> codeToOrgMap) {
+        if (code == null || level == null || level <= 1) {
+            return null; // 省级(level=1)没有父节点
+        }
+
+        // 根据层级确定父代码的长度
+        int parentLength;
+        switch (level) {
+            case 2: parentLength = 2; break;  // 市 -> 省 (2位)
+            case 3: parentLength = 4; break;  // 县 -> 市 (4位)
+            case 4: parentLength = 6; break;  // 乡镇 -> 县 (6位)
+            case 5: parentLength = 9; break;  // 社区 -> 乡镇 (9位)
+            default: parentLength = 0;
+        }
+
+        if (code.length() < parentLength) {
+            return null;
+        }
+
+        String parentCode = code.substring(0, parentLength);
+        // 验证父代码是否存在
+        if (codeToOrgMap.containsKey(parentCode)) {
+            return parentCode;
+        }
+
+        return null;
+    }
+
+    /**
+     * 构建单个节点
+     */
+    private Map<String, Object> buildNode(Organization org,
+                                          Map<String, List<Organization>> codeParentMap,
+                                          Set<String> emittedCodes,
+                                          Set<String> stack,
+                                          Map<String, Organization> codeToOrgMap,
+                                          Integer year) {
+        Map<String, Object> node = new HashMap<>();
+        node.put("id", org.getId());
+        node.put("parentId", org.getParentId());
+        node.put("code", normalizeText(org.getCode()));
+        node.put("name", normalizeText(org.getName()));
+        node.put("level", org.getLevel());
+        node.put("dataSource", normalizeText(org.getDataSource()));
+        node.put("provinceName", normalizeText(org.getProvinceName()));
+        node.put("cityName", normalizeText(org.getCityName()));
+        node.put("countyName", normalizeText(org.getCountyName()));
+        node.put("townshipName", normalizeText(org.getTownshipName()));
+        node.put("communityName", normalizeText(org.getCommunityName()));
+
+        // 添加数据来源年份标识
+        Integer sourceYear = org.getYear();
+        if (sourceYear == null) {
+            sourceYear = 2020; // 底表数据默认为2020年
+        }
+
+        // 递归构建子节点
+        List<Map<String, Object>> childNodes = buildTreeRecursiveByCode(
+                org.getCode(), codeParentMap, emittedCodes, stack, codeToOrgMap, year);
+        if (!childNodes.isEmpty()) {
+            node.put("children", childNodes);
+
+            // 更新sourceYear为子节点中最大的年份
+            // 这样父节点会跟随子节点显示最新的数据年份
+            for (Map<String, Object> child : childNodes) {
+                Object childSourceYearObj = child.get("sourceYear");
+                if (childSourceYearObj instanceof Number) {
+                    int childSourceYear = ((Number) childSourceYearObj).intValue();
+                    if (childSourceYear > sourceYear) {
+                        sourceYear = childSourceYear;
+                    }
+                }
+            }
+        }
+
+        // 对于区县节点（level=3），检查其下基层组织的最新年份
+        if (org.getLevel() != null && org.getLevel() == LEVEL_COUNTY) {
+            try {
+                List<GrassrootsOrganization> grassrootsList = grassrootsOrganizationMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<GrassrootsOrganization>()
+                        .eq("county_id", org.getId())
+                        .ge("year", 2021)
+                        .le("year", year != null ? year : 2026)
+                );
+                for (GrassrootsOrganization grassroots : grassrootsList) {
+                    if (grassroots.getYear() != null && grassroots.getYear() > sourceYear) {
+                        sourceYear = grassroots.getYear();
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("查询区县{}下的基层组织年份失败: {}", org.getCode(), e.getMessage());
+            }
+        }
+
+        node.put("sourceYear", sourceYear);
+
+        return node;
+    }
+
+    /**
+     * 递归构建树形结构（基于代码的版本）
+     */
+    private List<Map<String, Object>> buildTreeRecursiveByCode(
+            String parentCode,
+            Map<String, List<Organization>> codeParentMap,
+            Set<String> emittedCodes,
+            Set<String> stack,
+            Map<String, Organization> codeToOrgMap,
+            Integer year
+    ) {
+        if (parentCode == null) {
+            return new ArrayList<>();
+        }
+        if (!stack.add(parentCode)) {
+            log.warn("检测到循环依赖: {}", parentCode);
+            return new ArrayList<>();
+        }
+
+        try {
+            List<Organization> children = codeParentMap.get(parentCode);
+            if (children == null || children.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            List<Map<String, Object>> result = new ArrayList<>();
+
+            // 排序：按代码数值大小排序
+            children.sort((a, b) -> {
+                String codeA = a.getCode();
+                String codeB = b.getCode();
+                if (codeA == null && codeB == null) return 0;
+                if (codeA == null) return 1;
+                if (codeB == null) return -1;
+                try {
+                    Long numA = Long.parseLong(codeA);
+                    Long numB = Long.parseLong(codeB);
+                    return numA.compareTo(numB);
+                } catch (NumberFormatException e) {
+                    return codeA.compareTo(codeB);
+                }
+            });
+
+            for (Organization org : children) {
+                String normalizedCode = normalizeText(org.getCode());
+                if (!StringUtils.hasText(normalizedCode) || emittedCodes.contains(normalizedCode)) {
+                    continue;
+                }
+                emittedCodes.add(normalizedCode);
+
+                Map<String, Object> node = buildNode(org, codeParentMap, emittedCodes, stack, codeToOrgMap, year);
+                result.add(node);
+            }
+
+            return result;
+        } finally {
+            stack.remove(parentCode);
+        }
+    }
+
+    /**
+     * 递归构建树形结构（基于ID的版本，保留用于兼容）
      */
     private List<Map<String, Object>> buildTreeRecursive(
             Long parentId,
@@ -1560,44 +1754,72 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             return new ArrayList<>();
         }
         if (!stack.add(parentId)) {
+            log.warn("检测到循环依赖: parentId={}", parentId);
             return new ArrayList<>();
         }
-        List<Organization> children = parentMap.get(parentId);
-        if (children == null || children.isEmpty()) {
+
+        try {
+            List<Organization> children = parentMap.get(parentId);
+            if (children == null || children.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            List<Map<String, Object>> result = new ArrayList<>();
+
+            // 排序：按代码数值大小排序
+            children.sort((a, b) -> {
+                String codeA = a.getCode();
+                String codeB = b.getCode();
+                if (codeA == null && codeB == null) return 0;
+                if (codeA == null) return 1;
+                if (codeB == null) return -1;
+                try {
+                    Long numA = Long.parseLong(codeA);
+                    Long numB = Long.parseLong(codeB);
+                    return numA.compareTo(numB);
+                } catch (NumberFormatException e) {
+                    return codeA.compareTo(codeB);
+                }
+            });
+
+            for (Organization org : children) {
+                String normalizedCode = normalizeText(org.getCode());
+                if (!StringUtils.hasText(normalizedCode) || emittedCodes.contains(normalizedCode)) {
+                    continue;
+                }
+                emittedCodes.add(normalizedCode);
+
+                Map<String, Object> node = new HashMap<>();
+                node.put("id", org.getId());
+                node.put("parentId", org.getParentId());
+                node.put("code", normalizedCode);
+                node.put("name", normalizeText(org.getName()));
+                node.put("level", org.getLevel());
+                node.put("dataSource", normalizeText(org.getDataSource()));
+                node.put("provinceName", normalizeText(org.getProvinceName()));
+                node.put("cityName", normalizeText(org.getCityName()));
+                node.put("countyName", normalizeText(org.getCountyName()));
+                node.put("townshipName", normalizeText(org.getTownshipName()));
+                node.put("communityName", normalizeText(org.getCommunityName()));
+
+                // 添加数据来源年份标识
+                Integer sourceYear = org.getYear();
+                if (sourceYear == null) {
+                    sourceYear = 2020;
+                }
+                node.put("sourceYear", sourceYear);
+
+                List<Map<String, Object>> childNodes = buildTreeRecursive(org.getId(), parentMap, emittedCodes, stack);
+                if (!childNodes.isEmpty()) {
+                    node.put("children", childNodes);
+                }
+                result.add(node);
+            }
+
+            return result;
+        } finally {
             stack.remove(parentId);
-            return new ArrayList<>();
         }
-
-        List<Map<String, Object>> result = children.stream().map(org -> {
-            String normalizedCode = normalizeText(org.getCode());
-            if (!StringUtils.hasText(normalizedCode) || emittedCodes.contains(normalizedCode)) {
-                return null;
-            }
-            emittedCodes.add(normalizedCode);
-
-            Map<String, Object> node = new HashMap<>();
-            node.put("id", org.getId());
-            node.put("parentId", org.getParentId());
-            node.put("code", normalizedCode);
-            node.put("name", normalizeText(org.getName()));
-            node.put("level", org.getLevel());
-            node.put("dataSource", normalizeText(org.getDataSource()));
-            node.put("provinceName", normalizeText(org.getProvinceName()));
-            node.put("cityName", normalizeText(org.getCityName()));
-            node.put("countyName", normalizeText(org.getCountyName()));
-            node.put("townshipName", normalizeText(org.getTownshipName()));
-            node.put("communityName", normalizeText(org.getCommunityName()));
-
-            List<Map<String, Object>> childNodes = buildTreeRecursive(org.getId(), parentMap, emittedCodes, stack);
-            if (!childNodes.isEmpty()) {
-                node.put("children", childNodes);
-            }
-
-            return node;
-        }).filter(Objects::nonNull).collect(Collectors.toList());
-
-        stack.remove(parentId);
-        return result;
     }
 
     private String normalizeText(String value) {
@@ -2503,32 +2725,40 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
         Set<Long> yearOrgIds = new HashSet<>();
 
-        // 处理每个组织：创建删除标记或删除年度记录
+        // 处理每个组织：标记为已删除或创建删除标记
         int organizationDeleted = 0;
         for (Organization targetOrg : orgsToDelete) {
-            // 查找该年度的记录
-            QueryWrapper<Organization> yearRecordQuery = new QueryWrapper<>();
-            yearRecordQuery.eq("code", targetOrg.getCode());
-            yearRecordQuery.eq("year", year);
-            Organization yearRecord = baseMapper.selectOne(yearRecordQuery);
+            String code = targetOrg.getCode();
 
-            if (yearRecord != null) {
-                // 如果该年度有记录，标记为已删除
-                yearRecord.setIsDeleted(1);
-                updateById(yearRecord);
-                yearOrgIds.add(yearRecord.getId());
-                organizationDeleted++;
+            // 使用自定义 SQL 方法查询，包含已删除记录
+            // 此方法绕过 @TableLogic 的自动过滤
+            Organization existingRecord = baseMapper.selectByCodeAndYearIncludeDeleted(code, year);
+
+            if (existingRecord != null) {
+                // 找到记录了
+                if (existingRecord.getIsDeleted() != null && existingRecord.getIsDeleted() == 1) {
+                    // 已经是删除标记了，直接使用
+                    yearOrgIds.add(existingRecord.getId());
+                    organizationDeleted++;
+                    log.info("删除标记已存在: code={}, year={}, id={}", code, year, existingRecord.getId());
+                } else {
+                    // 是正常记录，使用自定义方法标记为已删除（绕过 @TableLogic）
+                    baseMapper.markAsDeleted(existingRecord.getId());
+                    yearOrgIds.add(existingRecord.getId());
+                    organizationDeleted++;
+                    log.info("标记年度记录为已删除: code={}, year={}, id={}", code, year, existingRecord.getId());
+                }
             } else {
-                // 如果该年度没有记录，创建删除标记记录
+                // 该年度没有任何记录，创建删除标记记录
                 Organization deleteMarker = new Organization();
-                deleteMarker.setCode(targetOrg.getCode());
+                deleteMarker.setCode(code);
                 deleteMarker.setName(targetOrg.getName());
                 deleteMarker.setLevel(targetOrg.getLevel());
                 deleteMarker.setParentId(targetOrg.getParentId());
                 deleteMarker.setYear(year);
                 deleteMarker.setIsBaseline(0);
-                deleteMarker.setBaselineCode(targetOrg.getCode());
-                deleteMarker.setIsDeleted(1); // 标记为已删除
+                deleteMarker.setBaselineCode(code);
+                deleteMarker.setIsDeleted(1);
                 deleteMarker.setDataSource(targetOrg.getDataSource());
                 deleteMarker.setProvinceName(targetOrg.getProvinceName());
                 deleteMarker.setCityName(targetOrg.getCityName());
@@ -2538,6 +2768,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 save(deleteMarker);
                 yearOrgIds.add(deleteMarker.getId());
                 organizationDeleted++;
+                log.info("创建删除标记: code={}, year={}, id={}", code, year, deleteMarker.getId());
             }
         }
         totalDeleted += organizationDeleted;
