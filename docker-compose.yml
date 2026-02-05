@@ -25,6 +25,15 @@ services:
     networks:
       - evaluation-network
 
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: evaluation-onlyoffice
+    environment:
+      - JWT_ENABLED=false
+    restart: unless-stopped
+    networks:
+      - evaluation-network
+
   mysql:
     image: mysql:8.0
     container_name: evaluation-mysql
@@ -50,6 +59,7 @@ services:
       - "8088:80"
     depends_on:
       - backend
+      - onlyoffice
     restart: unless-stopped
     networks:
       - evaluation-network

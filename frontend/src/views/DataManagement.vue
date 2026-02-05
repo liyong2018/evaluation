@@ -1600,6 +1600,12 @@ const handleImport = async () => {
 
 // 处理GPKG文件导入
 const handleGpkgImport = async () => {
+  const file = uploadFile.value
+  if (!file) {
+    ElMessage.warning('请选择要导入的文件')
+    return
+  }
+
   loading.import = true
   try {
     // 第一步：验证GPKG文件字段
@@ -1610,11 +1616,11 @@ const handleGpkgImport = async () => {
 
     let validateResponse
     if (dataType.value === 'township') {
-      validateResponse = await surveyDataApi.validateGpkg(uploadFile.value)
+      validateResponse = await surveyDataApi.validateGpkg(file)
     } else if (dataType.value === 'community') {
-      validateResponse = await communityCapacityApi.validateGpkg(uploadFile.value)
+      validateResponse = await communityCapacityApi.validateGpkg(file)
     } else if (dataType.value === 'medical') {
-      validateResponse = await medicalInstitutionApi.validateGpkg(uploadFile.value)
+      validateResponse = await medicalInstitutionApi.validateGpkg(file)
     }
 
     ElMessage.closeAll()
@@ -1669,11 +1675,11 @@ const handleGpkgImport = async () => {
 
     let response
     if (dataType.value === 'township') {
-      response = await surveyDataApi.importGpkg(uploadFile.value, searchForm.year)
+      response = await surveyDataApi.importGpkg(file, searchForm.year)
     } else if (dataType.value === 'community') {
-      response = await communityCapacityApi.importGpkg(uploadFile.value, searchForm.year)
+      response = await communityCapacityApi.importGpkg(file, searchForm.year)
     } else if (dataType.value === 'medical') {
-      response = await medicalInstitutionApi.importGpkg(uploadFile.value, searchForm.year)
+      response = await medicalInstitutionApi.importGpkg(file, searchForm.year)
     }
 
     ElMessage.closeAll()
@@ -1696,6 +1702,12 @@ const handleGpkgImport = async () => {
 
 // 处理Excel文件导入
 const handleExcelImport = async () => {
+  const file = uploadFile.value
+  if (!file) {
+    ElMessage.warning('请选择要导入的文件')
+    return
+  }
+
   // 对于乡镇数据和社区数据，先检查导入前置条件
   if (dataType.value === 'township' || dataType.value === 'community') {
     try {
@@ -1736,13 +1748,13 @@ const handleExcelImport = async () => {
     let response
     if (dataType.value === 'township') {
       // 导入乡镇数据
-      response = await surveyDataApi.importData(uploadFile.value, searchForm.year)
+      response = await surveyDataApi.importData(file, searchForm.year)
     } else if (dataType.value === 'community') {
       // 导入社区数据
-      response = await communityCapacityApi.importData(uploadFile.value, searchForm.year)
+      response = await communityCapacityApi.importData(file, searchForm.year)
     } else if (dataType.value === 'medical') {
       // 导入医疗卫生机构数据
-      response = await medicalInstitutionApi.importData(uploadFile.value, searchForm.year)
+      response = await medicalInstitutionApi.importData(file, searchForm.year)
     }
 
     if (response.success) {

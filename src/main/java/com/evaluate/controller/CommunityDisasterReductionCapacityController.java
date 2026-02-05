@@ -178,14 +178,14 @@ public class CommunityDisasterReductionCapacityController {
     @DeleteMapping("/delete-by-year-org")
     public Result<Long> deleteByYearAndOrg(
             @RequestParam Integer year,
-            @RequestParam(required = false) String regionCode) {
+            @RequestParam(required = false) String orgCode) {
         try {
-            log.info("删除社区减灾能力数据 - year: {}, regionCode: {}", year, regionCode);
+            log.info("删除社区减灾能力数据 - year: {}, orgCode: {}", year, orgCode);
             com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<CommunityDisasterReductionCapacity> wrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
             wrapper.eq("year", year);
-            if (StringUtils.hasText(regionCode)) {
-                wrapper.likeRight("region_code", regionCode.trim());
+            if (StringUtils.hasText(orgCode)) {
+                wrapper.likeRight("region_code", orgCode.trim());
             }
             long count = communityDisasterReductionCapacityService.count(wrapper);
             boolean result = communityDisasterReductionCapacityService.remove(wrapper);

@@ -43,7 +43,17 @@
       "Bash(mvn compile:*)",
       "Bash(mvn:*)",
       "Bash(\"C:/work/tools/maven/apache-maven-3.6.3/bin/mvn.cmd\":*)",
-      "Bash(\"C:/work/tools/maven/apache-maven-3.6.3/bin/mvn.cmd\" clean package -DskipTests:*)"
+      "Bash(\"C:/work/tools/maven/apache-maven-3.6.3/bin/mvn.cmd\" clean package -DskipTests:*)",
+      "Bash(openclaw --help)",
+      "Bash(openclaw config)",
+      "Bash(dir:*)",
+      "Bash(dir \"%USERPROFILE%\\\\AppData\\\\Local\\\\openclaw\" /s)",
+      "Bash(dir \"%USERPROFILE%\\\\AppData\\\\Roaming\\\\openclaw\" /s)",
+      "Bash(reg query:*)",
+      "Bash(nc:*)",
+      "Bash(nslookup:*)",
+      "Bash(openclaw gateway stop)",
+      "Bash(docker exec:*)"
     ],
     "deny": [],
     "ask": []

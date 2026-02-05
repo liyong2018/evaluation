@@ -133,6 +133,231 @@ let villagePointsCachePromise: Promise<any | null> | null = null
 let regionHierarchyCache: any = null
 let regionHierarchyLoading: Promise<any> | null = null
 
+type CacheEntry = {
+  key: string
+  value: string
+  updatedAt: number
+  expiresAt: number
+}
+
+let cacheDbPromise: Promise<IDBDatabase> | null = null
+
+const openCacheDb = () => {
+  if (cacheDbPromise) return cacheDbPromise
+  if (typeof indexedDB === 'undefined') {
+    cacheDbPromise = Promise.reject(new Error('indexedDB not available'))
+    return cacheDbPromise
+  }
+  cacheDbPromise = new Promise((resolve, reject) => {
+    const fail = (err: unknown) => {
+      cacheDbPromise = null
+      reject(err instanceof Error ? err : new Error(String(err || 'indexedDB open failed')))
+    }
+
+    const req = indexedDB.open('evaluation-cache', 2)
+    req.onupgradeneeded = () => {
+      const db = req.result
+      if (db.objectStoreNames.contains('kv')) {
+        db.deleteObjectStore('kv')
+      }
+      db.createObjectStore('kv', { keyPath: 'key' })
+    }
+    req.onsuccess = () => {
+      const db = req.result
+      db.onversionchange = () => {
+        try {
+          db.close()
+        } catch {
+        }
+      }
+      resolve(db)
+    }
+    req.onerror = () => fail(req.error || new Error('indexedDB open failed'))
+    req.onblocked = () => fail(new Error('indexedDB open blocked'))
+  })
+  return cacheDbPromise
+}
+
+const cacheGet = async (key: string): Promise<CacheEntry | null> => {
+  try {
+    const db = await openCacheDb()
+    const entry = await new Promise<CacheEntry | null>((resolve, reject) => {
+      const tx = db.transaction('kv', 'readonly')
+      const store = tx.objectStore('kv')
+      const req = store.get(key)
+      req.onsuccess = () => resolve((req.result as CacheEntry) || null)
+      req.onerror = () => reject(req.error)
+    })
+    if (!entry) return null
+    if (typeof entry.expiresAt === 'number' && entry.expiresAt > Date.now()) return entry
+    return null
+  } catch {
+    return null
+  }
+}
+
+const cacheSet = async (key: string, value: string, ttlMs: number) => {
+  try {
+    const db = await openCacheDb()
+    const now = Date.now()
+    const entry: CacheEntry = { key, value, updatedAt: now, expiresAt: now + ttlMs }
+
+    const putEntry = async () => {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('kv', 'readwrite')
+        tx.oncomplete = () => resolve()
+        tx.onabort = () => reject(tx.error || new Error('indexedDB transaction aborted'))
+        tx.onerror = () => reject(tx.error || new Error('indexedDB transaction error'))
+
+        const store = tx.objectStore('kv')
+        store.put(entry)
+      })
+    }
+
+    const cleanupExpired = async (maxDeletes: number) => {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('kv', 'readwrite')
+        tx.oncomplete = () => resolve()
+        tx.onabort = () => reject(tx.error || new Error('indexedDB transaction aborted'))
+        tx.onerror = () => reject(tx.error || new Error('indexedDB transaction error'))
+
+        const store = tx.objectStore('kv')
+        const req = store.openCursor()
+        const cutoff = Date.now()
+        let deleted = 0
+
+        req.onsuccess = () => {
+          const cursor = req.result
+          if (!cursor) return
+          if (deleted >= maxDeletes) return
+
+          const v = cursor.value as CacheEntry
+          if (typeof v?.expiresAt === 'number' && v.expiresAt <= cutoff) {
+            deleted += 1
+            try {
+              cursor.delete()
+            } catch {
+            }
+          }
+          cursor.continue()
+        }
+        req.onerror = () => reject(req.error || new Error('indexedDB cursor error'))
+      })
+    }
+
+    const clearAll = async () => {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('kv', 'readwrite')
+        tx.oncomplete = () => resolve()
+        tx.onabort = () => reject(tx.error || new Error('indexedDB transaction aborted'))
+        tx.onerror = () => reject(tx.error || new Error('indexedDB transaction error'))
+
+        const store = tx.objectStore('kv')
+        store.clear()
+      })
+    }
+
+    try {
+      await putEntry()
+    } catch (e: any) {
+      const isQuota =
+        (typeof DOMException !== 'undefined' && e instanceof DOMException && e.name === 'QuotaExceededError') ||
+        e?.name === 'QuotaExceededError'
+
+      if (!isQuota) throw e
+
+      try {
+        await cleanupExpired(500)
+      } catch {
+      }
+
+      try {
+        await putEntry()
+        return
+      } catch {
+      }
+
+      try {
+        await clearAll()
+      } catch {
+      }
+
+      try {
+        await putEntry()
+      } catch {
+      }
+    }
+  } catch {
+  }
+}
+
+const cacheGetJson = async <T = any>(key: string): Promise<T | null> => {
+  const cached = await cacheGet(key)
+  if (!cached) return null
+  try {
+    return JSON.parse(cached.value) as T
+  } catch {
+    return null
+  }
+}
+
+const fetchJsonCached = async <T = any>(
+  url: string,
+  cacheKey: string,
+  ttlMs: number
+): Promise<T> => {
+  const globalCache = globalThis as any
+  const mem: Map<string, { value: string; expiresAt: number }> =
+    globalCache.__evaluationMemCache || (globalCache.__evaluationMemCache = new Map())
+  const inflight: Map<string, Promise<string>> =
+    globalCache.__evaluationInflight || (globalCache.__evaluationInflight = new Map())
+
+  const memEntry = mem.get(cacheKey)
+  if (memEntry && memEntry.expiresAt > Date.now()) {
+    try {
+      return JSON.parse(memEntry.value) as T
+    } catch {
+      mem.delete(cacheKey)
+    }
+  }
+
+  const cached = await cacheGet(cacheKey)
+  if (cached) {
+    try {
+      mem.set(cacheKey, { value: cached.value, expiresAt: cached.expiresAt })
+      return JSON.parse(cached.value) as T
+    } catch {
+    }
+  }
+
+  const existing = inflight.get(cacheKey)
+  if (existing) {
+    const text = await existing
+    return JSON.parse(text) as T
+  }
+
+  const fetchPromise = (async () => {
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' }
+    })
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    const text = await response.text()
+    await cacheSet(cacheKey, text, ttlMs)
+    mem.set(cacheKey, { value: text, expiresAt: Date.now() + ttlMs })
+    return text
+  })()
+
+  inflight.set(cacheKey, fetchPromise)
+  try {
+    const text = await fetchPromise
+    return JSON.parse(text) as T
+  } finally {
+    inflight.delete(cacheKey)
+  }
+}
+
 // 组件属性
 interface Props {
   reportId?: number
@@ -381,10 +606,11 @@ const loadVillagePointsGeoJSON = async (): Promise<any | null> => {
 
   villagePointsCachePromise = (async () => {
     try {
-      const response = await fetch('/village_points/village_points.geojson?t=' + Date.now())
-      if (!response.ok) return null
-
-      const geo = await response.json()
+      const geo = await fetchJsonCached<any>(
+        '/village_points/village_points.geojson',
+        'villagePoints:v1',
+        30 * 24 * 60 * 60 * 1000
+      )
       if (!geo || geo.type !== 'FeatureCollection' || !Array.isArray(geo.features)) return null
 
       villagePointsCache = geo
@@ -1594,12 +1820,14 @@ const renderThematicLayer = async (data: any) => {
                 hierarchy = await regionHierarchyLoading
               } else {
                 console.log('首次加载region_hierarchy.json...')
-                regionHierarchyLoading = fetch('/region_hierarchy.json')
-                  .then(res => res.json())
-                  .then(data => {
-                    regionHierarchyCache = data
-                    return data
-                  })
+                regionHierarchyLoading = fetchJsonCached(
+                  '/region_hierarchy.json',
+                  'regionHierarchy:v1',
+                  30 * 24 * 60 * 60 * 1000
+                ).then(data => {
+                  regionHierarchyCache = data
+                  return data
+                })
                 hierarchy = await regionHierarchyLoading
                 regionHierarchyLoading = null
               }
@@ -2173,12 +2401,13 @@ const loadBoundaryIndex = async () => {
   }
 
   try {
-    const response = await fetch('/boundaries/index.json?t=' + Date.now())
-    if (response.ok) {
-      const index = await response.json()
-      boundaryIndex.value = index
-      return index
-    }
+    const index = await fetchJsonCached(
+      '/boundaries/index.json',
+      'boundaryIndex:v1',
+      24 * 60 * 60 * 1000
+    )
+    boundaryIndex.value = index
+    return index
   } catch (e) {
     console.warn('加载边界索引失败，将使用默认降级逻辑', e)
   }
@@ -2218,9 +2447,12 @@ const loadRealBoundaryData = async () => {
 
     const targetName = resolvedOrgName || '青神县'
 
-    if (props.orgId && props.year) {
+    const orgId = props.orgId
+    const year = props.year
+    if (orgId && typeof year === 'number') {
       try {
-        const cacheKey = `${props.orgId}-${props.year}`
+        const cacheKey = `${orgId}-${year}`
+        const persistentKey = `orgBoundaryFc:${cacheKey}`
 
         // 使用缓存或进行中的请求，避免重复调用
         if (cachedBoundaries && cachedBoundaries.key === cacheKey) {
@@ -2233,24 +2465,34 @@ const loadRealBoundaryData = async () => {
           return await boundaryLoadInProgress.promise
         }
 
+        try {
+          const cachedFc = await cacheGetJson<any>(persistentKey)
+          if (cachedFc && Array.isArray(cachedFc.features) && cachedFc.features.length > 0) {
+            cachedBoundaries = { key: cacheKey, value: cachedFc }
+            return cachedFc
+          }
+        } catch {
+        }
+
         // 创建新的加载Promise
         boundaryLoadInProgress = {
           key: cacheKey,
           promise: (async () => {
-            const boundaryResponse = await organizationBoundaryApi.getBoundary(props.orgId, props.year)
+            const boundaryResponse = await organizationBoundaryApi.getBoundary(orgId, year)
           const boundaryData = (boundaryResponse as any)?.data
 
           const filePath = typeof boundaryData?.filePath === 'string' ? boundaryData.filePath.trim() : ''
           if (filePath) {
             try {
-              const res = await fetch(filePath + (filePath.includes('?') ? '&' : '?') + 't=' + Date.now())
-              if (res.ok) {
-                const json = await res.json()
-                const normalized = normalizeToFeatureCollection(json, props.orgName || '')
-                if (normalized && looksLikeSubregionBoundaries(normalized, targetName)) {
-                  console.log('使用组织边界配置的文件路径加载边界:', filePath)
-                  return normalized
-                }
+              const json = await fetchJsonCached<any>(
+                filePath,
+                `boundaryFile:${filePath}`,
+                30 * 24 * 60 * 60 * 1000
+              )
+              const normalized = normalizeToFeatureCollection(json, props.orgName || '')
+              if (normalized && looksLikeSubregionBoundaries(normalized, targetName)) {
+                console.log('使用组织边界配置的文件路径加载边界:', filePath)
+                return normalized
               }
             } catch { }
           }
@@ -2276,6 +2518,10 @@ const loadRealBoundaryData = async () => {
         const result = await boundaryLoadInProgress.promise
         if (result && Array.isArray(result.features) && result.features.length > 0) {
           cachedBoundaries = { key: cacheKey, value: result }
+          try {
+            await cacheSet(persistentKey, JSON.stringify(result), 30 * 24 * 60 * 60 * 1000)
+          } catch {
+          }
         }
         boundaryLoadInProgress = null
         if (result) return result
@@ -2306,12 +2552,14 @@ const loadRealBoundaryData = async () => {
             hierarchyData = await regionHierarchyLoading
         } else {
             console.log('首次加载 region_hierarchy.json...')
-            regionHierarchyLoading = fetch('/region_hierarchy.json')
-                .then(res => res.json())
-                .then(data => {
-                    regionHierarchyCache = data
-                    return data
-                })
+            regionHierarchyLoading = fetchJsonCached(
+              '/region_hierarchy.json',
+              'regionHierarchy:v1',
+              30 * 24 * 60 * 60 * 1000
+            ).then(data => {
+              regionHierarchyCache = data
+              return data
+            })
             hierarchyData = await regionHierarchyLoading
             regionHierarchyLoading = null
         }
@@ -2380,25 +2628,23 @@ const loadRealBoundaryData = async () => {
     // 4. 执行加载
     let data;
     try {
-        const cacheBuster = () => String(props.year || 0)
-
         const isJsonResponse = (response: Response) => {
           const contentType = (response.headers.get('content-type') || '').toLowerCase()
           return contentType.includes('json')
         }
 
         const tryFetchJson = async (url: string) => {
-          const response = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + cacheBuster(), {
-            headers: {
-              Accept: 'application/json'
-            }
-          })
-          if (!response.ok) return { ok: false as const, status: response.status }
-          if (!isJsonResponse(response)) return { ok: false as const, status: response.status }
           try {
-            const json = await response.json()
+            const json = await fetchJsonCached<any>(
+              url,
+              `cityBoundary:${url}`,
+              30 * 24 * 60 * 60 * 1000
+            )
             return { ok: true as const, json }
           } catch {
+            const response = await fetch(url, {
+              headers: { Accept: 'application/json' }
+            })
             return { ok: false as const, status: response.status }
           }
         }
@@ -2445,7 +2691,7 @@ const loadRealBoundaryData = async () => {
 
           data = loaded
         } else {
-          const response = await fetch(fetchUrl + '?t=' + cacheBuster(), {
+          const response = await fetch(fetchUrl, {
             headers: {
               Accept: 'application/json'
             }

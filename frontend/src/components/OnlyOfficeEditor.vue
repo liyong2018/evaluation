@@ -1,5 +1,12 @@
 <template>
-  <div id="onlyoffice-editor-container" ref="editorContainer"></div>
+  <div v-if="loadError" class="onlyoffice-fallback">
+    <div class="onlyoffice-fallback-title">在线预览不可用</div>
+    <div class="onlyoffice-fallback-desc">{{ loadError }}</div>
+    <div class="onlyoffice-fallback-actions">
+      <a :href="documentUrl" target="_blank" rel="noopener noreferrer">下载/打开报告文件</a>
+    </div>
+  </div>
+  <div v-else id="onlyoffice-editor-container" ref="editorContainer"></div>
 </template>
 
 <script setup lang="ts">
@@ -14,6 +21,7 @@ const props = defineProps<{
 
 const editorContainer = ref<HTMLElement | null>(null)
 let docEditor: any = null
+const loadError = ref<string | null>(null)
 
 const isLocalhostLike = (hostname: string) => {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
@@ -32,8 +40,7 @@ const getOnlyOfficeApiUrl = (): string => {
       return envUrl
     }
   }
-  const { protocol, hostname } = window.location
-  return `${protocol}//${hostname}:8080/web-apps/apps/api/documents/api.js`
+  return new URL('/documentserver/web-apps/apps/api/documents/api.js', window.location.origin).toString()
 }
 
 const loadScript = (src: string): Promise<void> => {
@@ -55,6 +62,7 @@ const initEditor = async () => {
   if (!props.documentUrl) return
 
   try {
+    loadError.value = null
     await loadScript(getOnlyOfficeApiUrl())
 
     if (docEditor) {
@@ -119,10 +127,13 @@ const initEditor = async () => {
         docEditor = new DocsAPI.DocEditor("onlyoffice-editor-container", config)
     } else {
         console.error('DocsAPI is not defined after script load')
+        loadError.value = 'OnlyOffice API 加载完成但未注入 DocsAPI'
     }
 
   } catch (error) {
     console.error('Failed to load OnlyOffice API:', error)
+    const apiUrl = getOnlyOfficeApiUrl()
+    loadError.value = `OnlyOffice DocumentServer 不可达或未配置：${apiUrl}`
   }
 }
 
@@ -148,5 +159,42 @@ watch(() => props.documentUrl, () => {
   height: 100%;
   min-height: 600px; /* 确保有最小高度 */
   background: #f4f4f4;
+}
+
+.onlyoffice-fallback {
+  width: 100%;
+  min-height: 600px;
+  background: #f4f4f4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.onlyoffice-fallback-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.onlyoffice-fallback-desc {
+  max-width: 860px;
+  word-break: break-all;
+  text-align: center;
+  color: #606266;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.onlyoffice-fallback-actions a {
+  color: #409eff;
+  text-decoration: none;
+}
+
+.onlyoffice-fallback-actions a:hover {
+  text-decoration: underline;
 }
 </style>

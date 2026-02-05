@@ -17,6 +17,7 @@ SERVER_USER="${SERVER_USER:-root}"
 SERVER="${SERVER_USER}@${SERVER_HOST}"
 SSH_KEY="${SSH_KEY:-}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/evaluation}"
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 
 SSH_OPTS="-o ConnectTimeout=10"
 SCP_OPTS=""
@@ -32,10 +33,14 @@ echo ""
 
 # 检查本地文件
 echo -e "${GREEN}1. 检查本地部署文件...${NC}"
-if [ ! -f "docker-compose.yml" ]; then
-    echo -e "${RED}错误: docker-compose.yml 文件不存在${NC}"
+if [ ! -f "${COMPOSE_FILE}" ]; then
+    COMPOSE_FILE="docker-compose.yml"
+fi
+if [ ! -f "${COMPOSE_FILE}" ]; then
+    echo -e "${RED}错误: docker-compose.prod.yml 或 docker-compose.yml 文件不存在${NC}"
     exit 1
 fi
+echo -e "${YELLOW}使用编排文件: ${COMPOSE_FILE}${NC}"
 
 if [ ! -f "Dockerfile" ]; then
     echo -e "${RED}错误: Dockerfile 文件不存在${NC}"
@@ -59,7 +64,7 @@ echo -e "${GREEN}✓ SSH连接正常${NC}"
 
 # 在服务器上创建部署目录
 echo -e "${GREEN}3. 在服务器上创建部署目录...${NC}"
-ssh ${SSH_OPTS} ${SERVER} "mkdir -p ${REMOTE_DIR}/{logs,uploads,backups}"
+ssh ${SSH_OPTS} ${SERVER} "mkdir -p ${REMOTE_DIR}/{logs,uploads/thematic-maps,backups} && chown -R 999:999 ${REMOTE_DIR}/logs ${REMOTE_DIR}/uploads || true"
 echo -e "${GREEN}✓ 部署目录创建完成${NC}"
 
 # 检查Docker环境
@@ -96,8 +101,8 @@ echo -e "${GREEN}✓ 数据备份完成${NC}"
 echo -e "${GREEN}6. 停止现有服务...${NC}"
 ssh ${SSH_OPTS} ${SERVER} "
 cd ${REMOTE_DIR} && \
-if [ -f 'docker-compose.yml' ]; then
-    docker-compose down --remove-orphans || true
+if [ -f '${COMPOSE_FILE}' ]; then
+    docker-compose -f ${COMPOSE_FILE} down --remove-orphans || true
 fi
 "
 echo -e "${GREEN}✓ 现有服务已停止${NC}"
@@ -136,8 +141,13 @@ echo -e "${GREEN}✓ 文件上传完成${NC}"
 echo -e "${GREEN}8. 构建和启动服务...${NC}"
 ssh ${SSH_OPTS} ${SERVER} "
 cd ${REMOTE_DIR} && \
-docker-compose build --no-cache && \
-docker-compose up -d
+if [ '${COMPOSE_FILE}' = 'docker-compose.prod.yml' ]; then
+    docker-compose -f ${COMPOSE_FILE} pull || true && \
+    docker-compose -f ${COMPOSE_FILE} up -d --remove-orphans
+else
+    docker-compose -f ${COMPOSE_FILE} build --no-cache && \
+    docker-compose -f ${COMPOSE_FILE} up -d --remove-orphans
+fi
 "
 echo -e "${GREEN}✓ 服务启动完成${NC}"
 
@@ -150,17 +160,18 @@ echo -e "${GREEN}10. 检查服务状态...${NC}"
 ssh ${SSH_OPTS} ${SERVER} "
 cd ${REMOTE_DIR} && \
 echo '=== Docker容器状态 ===' && \
-docker-compose ps && \
+docker-compose -f ${COMPOSE_FILE} ps && \
 echo '' && \
 echo '=== 服务健康检查 ===' && \
 for i in {1..10}; do
-    if curl -f http://localhost:8087/actuator/health >/dev/null 2>&1; then
+    if curl -f http://localhost:8081/actuator/health >/dev/null 2>&1 || \
+       curl -f http://localhost:8082/actuator/health >/dev/null 2>&1 || \
+       curl -f http://localhost:8087/actuator/health >/dev/null 2>&1; then
         echo '应用服务正常 ✓'
         break
-    else
-        echo -n '.'
-        sleep 5
     fi
+    echo -n '.'
+    sleep 5
     if [ \$i -eq 10 ]; then
         echo ''
         echo '应用服务可能未正常启动，请检查日志'
@@ -171,15 +182,18 @@ done
 # 显示部署信息
 echo ""
 echo -e "${GREEN}=== 部署完成 ===${NC}"
-echo -e "${YELLOW}应用访问地址: http://${SERVER_HOST}:8087${NC}"
-echo -e "${YELLOW}Nginx访问地址: http://${SERVER_HOST}:8088${NC}"
-echo -e "${YELLOW}数据库地址: ${SERVER_HOST}:3306${NC}"
-echo -e "${YELLOW}Redis地址: ${SERVER_HOST}:6379${NC}"
+if [ "${COMPOSE_FILE}" = "docker-compose.prod.yml" ]; then
+    echo -e "${YELLOW}前端访问地址: http://${SERVER_HOST}${NC}"
+    echo -e "${YELLOW}后端访问地址: http://${SERVER_HOST}:8081${NC}"
+else
+    echo -e "${YELLOW}前端访问地址: http://${SERVER_HOST}:8088${NC}"
+    echo -e "${YELLOW}后端访问地址: http://${SERVER_HOST}:8082${NC}"
+fi
 echo ""
 echo -e "${GREEN}常用命令:${NC}"
-echo -e "查看日志: ssh ${SSH_OPTS} ${SERVER} 'cd ${REMOTE_DIR} && docker-compose logs -f'"
-echo -e "重启服务: ssh ${SSH_OPTS} ${SERVER} 'cd ${REMOTE_DIR} && docker-compose restart'"
-echo -e "停止服务: ssh ${SSH_OPTS} ${SERVER} 'cd ${REMOTE_DIR} && docker-compose down'"
-echo -e "更新服务: ssh ${SSH_OPTS} ${SERVER} 'cd ${REMOTE_DIR} && docker-compose pull && docker-compose up -d'"
+echo -e "查看日志: ssh ${SSH_OPTS} ${SERVER} 'cd ${REMOTE_DIR} && docker-compose -f ${COMPOSE_FILE} logs -f'"
+echo -e "重启服务: ssh ${SSH_OPTS} ${SERVER} 'cd ${REMOTE_DIR} && docker-compose -f ${COMPOSE_FILE} restart'"
+echo -e "停止服务: ssh ${SSH_OPTS} ${SERVER} 'cd ${REMOTE_DIR} && docker-compose -f ${COMPOSE_FILE} down'"
+echo -e "更新服务: ssh ${SSH_OPTS} ${SERVER} 'cd ${REMOTE_DIR} && docker-compose -f ${COMPOSE_FILE} pull && docker-compose -f ${COMPOSE_FILE} up -d'"
 echo ""
 echo -e "${GREEN}部署成功！${NC}"

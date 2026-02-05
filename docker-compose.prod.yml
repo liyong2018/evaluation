@@ -21,13 +21,26 @@ services:
     networks:
       - evaluation-network
 
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: evaluation-onlyoffice
+    environment:
+      - JWT_ENABLED=false
+    restart: unless-stopped
+    networks:
+      - evaluation-network
+
   frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     image: evaluation-frontend:latest
     container_name: evaluation-frontend
     ports:
-      - "80:80"
+      - "8080:80"
     depends_on:
       - backend
+      - onlyoffice
     restart: unless-stopped
     networks:
       - evaluation-network

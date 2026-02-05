@@ -674,8 +674,8 @@ export const communityCapacityApi = {
   batchDelete: (ids: number[]) => request.delete('/api/community-capacity/batch', { data: ids }),
 
   // 根据年份和组织机构删除所有社区减灾能力数据
-  deleteAllByYearOrg: (year: number, regionCode?: string) =>
-    request.delete('/api/community-capacity/delete-by-year-org', { params: { year, regionCode } }),
+  deleteAllByYearOrg: (year: number, orgCode?: string) =>
+    request.delete('/api/community-capacity/delete-by-year-org', { params: { year, orgCode } }),
 
   // 下载导入模板
   downloadTemplate: () => request.get('/api/community-capacity/template')
