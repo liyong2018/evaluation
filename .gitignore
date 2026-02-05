@@ -56,3 +56,7 @@ frontend/public/organizations_import.xlsx
 frontend/public/sichuan_county_township_community_relation.txt
 frontend/public/sichuan_province_city_county.txt
 frontend/public/zzjg.txt
+src/main/java/com/evaluate/service/impl/AlgorithmManagementServiceImpl.java.tmp
+ngrok.zip
+frontend-dist.tgz
+.gitignore
