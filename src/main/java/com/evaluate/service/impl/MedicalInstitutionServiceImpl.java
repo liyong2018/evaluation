@@ -392,6 +392,11 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                 result.addError("第" + rowNum + "行 [" + institutionName + "]: 地址\"" + address +
                         "\"解析的街道/乡镇【" + townshipName + "】在系统中不存在，请先在组织机构管理中添加");
                 result.setSuccess(false);
+            } else if (!StringUtils.hasText(institution.getOrgCode())) {
+                String resolvedOrgCode = resolveTownshipOrgCode(townshipName, institution.getCountyName(), year);
+                if (StringUtils.hasText(resolvedOrgCode)) {
+                    institution.setOrgCode(resolvedOrgCode);
+                }
             }
         } else {
             result.addError("第" + rowNum + "行 [" + institutionName + "]: 地址\"" + address +
@@ -426,7 +431,7 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
             // 例如：org_code=510132，查找 code 以 510132 开头的乡镇记录
             QueryWrapper<GrassrootsOrganization> wrapper = new QueryWrapper<>();
             wrapper.likeRight("code", orgCode.trim());
-            wrapper.eq("level", 5); // 乡镇级别
+            wrapper.eq("level", 4);
             if (year != null) {
                 wrapper.eq("year", year);
             }
@@ -453,43 +458,33 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         }
         String normalizedAddress = address.replaceAll("\\s+", "");
 
-        // 尝试多种模式匹配乡镇名称
-
-        // 模式1: 区/县名后跟乡镇名称+街道/镇/乡/办事处
-        // 例如: "新津区花桥街道" -> "花桥街道"
-        java.util.regex.Pattern pattern1 = java.util.regex.Pattern.compile(
-                "(?:区|县|市|镇)(.{2,8}?)(街道|镇|乡|办事处)");
-        java.util.regex.Matcher matcher1 = pattern1.matcher(normalizedAddress);
-        if (matcher1.find()) {
-            return matcher1.group(1) + matcher1.group(2);
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "([\\u4e00-\\u9fff]{2,20})(街道|镇|乡|办事处)");
+        java.util.regex.Matcher matcher = pattern.matcher(normalizedAddress);
+        String lastMatch = null;
+        while (matcher.find()) {
+            lastMatch = matcher.group(1) + matcher.group(2);
         }
+        return normalizeTownshipCandidate(lastMatch);
+    }
 
-        // 模式2: 直接匹配 街道/镇/乡/办事处 前面的名称（2-8个字符）
-        // 例如: "花桥街道桩桥街120号" -> "花桥街道"
-        java.util.regex.Pattern pattern2 = java.util.regex.Pattern.compile(
-                "(.{2,8}?)(街道|镇|乡|办事处)");
-        java.util.regex.Matcher matcher2 = pattern2.matcher(normalizedAddress);
-        if (matcher2.find()) {
-            String townshipName = matcher2.group(1) + matcher2.group(2);
-            // 排除只包含数字或特殊字符的情况
-            if (townshipName.matches(".*[\\u4e00-\\u9fa5]+.*")) {
-                return townshipName;
-            }
+    private String normalizeTownshipCandidate(String townshipName) {
+        if (!StringUtils.hasText(townshipName)) {
+            return null;
         }
-
-        // 模式3: 匹配街道办事处简称（如"XX街道"后面的具体地点）
-        // 例如: "广福桥街道" -> "广福桥街道"（如果没有"办"字）
-        java.util.regex.Pattern pattern3 = java.util.regex.Pattern.compile(
-                "(.{2,8}?)(街道)(?!办事处)");
-        java.util.regex.Matcher matcher3 = pattern3.matcher(normalizedAddress);
-        if (matcher3.find()) {
-            String townshipName = matcher3.group(1) + matcher3.group(2);
-            if (townshipName.matches(".*[\\u4e00-\\u9fa5]+.*")) {
-                return townshipName;
-            }
+        String candidate = townshipName.trim();
+        if (!candidate.matches(".*[\\u4e00-\\u9fa5]+.*")) {
+            return null;
         }
-
-        return null;
+        int idx = candidate.lastIndexOf('县');
+        if (idx >= 0 && idx + 1 < candidate.length()) {
+            return candidate.substring(idx + 1);
+        }
+        idx = candidate.lastIndexOf('区');
+        if (idx >= 0 && idx + 1 < candidate.length()) {
+            return candidate.substring(idx + 1);
+        }
+        return candidate;
     }
 
     /**
@@ -555,6 +550,31 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         } catch (Exception e) {
             log.warn("检查街道/乡镇是否存在时出错: {}", townshipName, e);
             return false;
+        }
+    }
+
+    private String resolveTownshipOrgCode(String townshipName, String countyName, Integer year) {
+        if (grassrootsOrganizationService == null || !StringUtils.hasText(townshipName)) {
+            return null;
+        }
+        try {
+            QueryWrapper<GrassrootsOrganization> wrapper = new QueryWrapper<>();
+            wrapper.select("code");
+            wrapper.eq("level", 4);
+            wrapper.and(w -> w.eq("name", townshipName).or().eq("township_name", townshipName));
+            if (StringUtils.hasText(countyName)) {
+                wrapper.eq("county_name", countyName.trim());
+            }
+            wrapper.and(w -> w.eq("year", year).or().eq("is_baseline", 1));
+            wrapper.and(w -> w.isNull("is_deleted").or().eq("is_deleted", 0));
+            wrapper.orderByDesc("year");
+            wrapper.orderByAsc("is_baseline");
+            wrapper.last("LIMIT 1");
+            GrassrootsOrganization org = grassrootsOrganizationService.getOne(wrapper);
+            return org == null ? null : org.getCode();
+        } catch (Exception e) {
+            log.warn("解析乡镇org_code失败: {}", townshipName, e);
+            return null;
         }
     }
 

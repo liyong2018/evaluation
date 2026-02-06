@@ -54,14 +54,15 @@ public class CommunityDisasterReductionCapacityController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) String regionCode,
-            @RequestParam(required = false) String communityName) {
+            @RequestParam(required = false) String communityName,
+            @RequestParam(required = false) Integer year) {
         Map<String, Object> result = new HashMap<>();
 
-        log.info("查询社区行政村减灾能力数据列表，页码: {}, 每页大小: {}, 行政区代码: {}, 社区名称: {}",
-                page, size, regionCode, communityName);
+        log.info("查询社区行政村减灾能力数据列表，页码: {}, 每页大小: {}, 行政区代码: {}, 社区名称: {}, 年份: {}",
+                page, size, regionCode, communityName, year);
         try {
             result = communityDisasterReductionCapacityService.getCommunityCapacityList(
-                    page, size, regionCode, communityName);
+                    page, size, regionCode, communityName, year);
             return Result.success(result);
         } catch (Exception e) {
             log.error("查询社区行政村减灾能力数据列表失败", e);
@@ -188,6 +189,9 @@ public class CommunityDisasterReductionCapacityController {
                 wrapper.likeRight("region_code", orgCode.trim());
             }
             long count = communityDisasterReductionCapacityService.count(wrapper);
+            if (count == 0) {
+                return Result.success(0L);
+            }
             boolean result = communityDisasterReductionCapacityService.remove(wrapper);
             return result ? Result.success(count) : Result.error("删除失败");
         } catch (Exception e) {

@@ -111,27 +111,23 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="createTime" label="创建时间" width="300" />
-                <el-table-column label="操作" width="570" fixed="right">
+                <el-table-column label="操作" width="460" fixed="right">
                   <template #default="{ row }">
-                    <el-button type="primary" size="small" @click="editConfig(row)">
+                    <el-button type="primary" size="small" @click="editConfig(row)" :disabled="row?._temp">
                       <el-icon><Edit /></el-icon>
-                      编辑
+                      编辑配置
                     </el-button>
-                    <el-button type="warning" size="small" @click="openScoreDialog(row)">
+                    <el-button type="primary" size="small" @click="openWeightEditor(row)">
+                      <el-icon><Edit /></el-icon>
+                      编辑权重
+                    </el-button>
+                    <el-button type="warning" size="small" @click="openScoreDialog(row)" :disabled="row?._temp">
                       <el-icon><DocumentAdd /></el-icon>
                       打分
                     </el-button>
-                    <el-button type="info" size="small" @click="openStatisticsDialog(row)">
+                    <el-button type="info" size="small" @click="openStatisticsDialog(row)" :disabled="row?._temp">
                       <el-icon><DataLine /></el-icon>
                       详情
-                    </el-button>
-                    <el-button type="info" size="small" @click="copyConfig(row)">
-                      <el-icon><CopyDocument /></el-icon>
-                      复制
-                    </el-button>
-                    <el-button type="danger" size="small" @click="deleteConfig(row)">
-                      <el-icon><Delete /></el-icon>
-                      删除
                     </el-button>
                   </template>
                 </el-table-column>
@@ -193,6 +189,75 @@
         <el-button @click="dialogVisible.config = false">取消</el-button>
         <el-button type="primary" @click="submitConfig" :loading="loading.submit">
           确定
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 指标权重编辑对话框 -->
+    <el-dialog
+      v-model="dialogVisible.weightEditor"
+      :title="`编辑权重 - ${currentWeightConfig?.configName || ''}`"
+      width="1100px"
+      :close-on-click-modal="false"
+    >
+      <el-card class="weight-editor-card" shadow="never">
+        <template #header>
+          <div class="card-header-with-tip">
+            <span>指标权重编辑</span>
+            <el-tag :type="totalWeight === 1 ? 'success' : 'danger'" size="small">
+              {{ totalWeight === 1 ? '同层级权重和正常' : '同层级权重和需为1' }}
+            </el-tag>
+          </div>
+        </template>
+        <div v-loading="loading.weights" class="tree-container">
+          <el-scrollbar height="560px">
+            <el-tree
+              :data="treeData"
+              :props="{ label: 'indicatorName', children: 'children' }"
+              node-key="id"
+              default-expand-all
+              :expand-on-click-node="false"
+              class="weight-tree"
+            >
+              <template #default="{ data }">
+                <div class="tree-node">
+                  <div class="node-content">
+                    <div class="node-info">
+                      <span class="node-code">{{ data.indicatorCode }}</span>
+                      <el-tooltip :content="data.indicatorName" placement="top" :show-after="300">
+                        <span class="node-name">{{ data.indicatorName }}</span>
+                      </el-tooltip>
+                      <el-tag
+                        :type="data.indicatorLevel === 1 ? 'primary' : 'success'"
+                        size="small"
+                        class="level-tag"
+                      >
+                        {{ data.indicatorLevel === 1 ? '一级' : '二级' }}
+                      </el-tag>
+                    </div>
+                    <div class="node-weight">
+                      <span class="weight-label">权重:</span>
+                      <el-input-number
+                        v-model="data.weight"
+                        :min="0"
+                        :max="1"
+                        :precision="3"
+                        :step="0.01"
+                        size="small"
+                        class="weight-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </el-tree>
+          </el-scrollbar>
+        </div>
+      </el-card>
+      <template #footer>
+        <el-button @click="dialogVisible.weightEditor = false">取消</el-button>
+        <el-button type="primary" @click="saveWeightEditor" :loading="loading.submit">
+          保存
         </el-button>
       </template>
     </el-dialog>
@@ -509,9 +574,7 @@ import {
   Plus,
   Refresh,
   Edit,
-  Delete,
   Switch,
-  CopyDocument,
   Upload,
   Check,
   DocumentAdd,
@@ -551,6 +614,52 @@ const treeProps = {
   label: 'indicatorName'
 }
 
+const modelDefinitions = [
+  { modelId: 3, modelName: '乡镇减灾能力评估模型' },
+  { modelId: 4, modelName: '社区-行政村能力评估模型' },
+  { modelId: 8, modelName: '社区-乡镇能力评估模型' },
+  { modelId: 11, modelName: '综合减灾能力评估模型' }
+]
+
+const tempWeightCache = reactive<Record<string, any[]>>({})
+
+const buildDefaultWeightTemplate = () => {
+  return [
+    { id: 'L1_DISASTER_MANAGEMENT', indicatorCode: 'L1_DISASTER_MANAGEMENT', indicatorName: '灾害管理能力', indicatorLevel: 1, parentId: null, weight: 0 },
+    { id: 'L1_DISASTER_PREPAREDNESS', indicatorCode: 'L1_DISASTER_PREPAREDNESS', indicatorName: '灾害备灾能力', indicatorLevel: 1, parentId: null, weight: 0 },
+    { id: 'L1_SELF_RESCUE_TRANSFER', indicatorCode: 'L1_SELF_RESCUE_TRANSFER', indicatorName: '自救转移能力', indicatorLevel: 1, parentId: null, weight: 0 },
+    { id: 'L2_MANAGEMENT_CAPABILITY', indicatorCode: 'L2_MANAGEMENT_CAPABILITY', indicatorName: '队伍管理能力', indicatorLevel: 2, parentId: 'L1_DISASTER_MANAGEMENT', weight: 0 },
+    { id: 'L2_RISK_ASSESSMENT', indicatorCode: 'L2_RISK_ASSESSMENT', indicatorName: '风险评估能力', indicatorLevel: 2, parentId: 'L1_DISASTER_MANAGEMENT', weight: 0 },
+    { id: 'L2_FUNDING', indicatorCode: 'L2_FUNDING', indicatorName: '财政投入能力', indicatorLevel: 2, parentId: 'L1_DISASTER_MANAGEMENT', weight: 0 },
+    { id: 'L2_MATERIAL', indicatorCode: 'L2_MATERIAL', indicatorName: '物资储备能力', indicatorLevel: 2, parentId: 'L1_DISASTER_PREPAREDNESS', weight: 0 },
+    { id: 'L2_MEDICAL', indicatorCode: 'L2_MEDICAL', indicatorName: '医疗保障能力', indicatorLevel: 2, parentId: 'L1_DISASTER_PREPAREDNESS', weight: 0 },
+    { id: 'L2_SELF_RESCUE', indicatorCode: 'L2_SELF_RESCUE', indicatorName: '自救互救能力', indicatorLevel: 2, parentId: 'L1_SELF_RESCUE_TRANSFER', weight: 0 },
+    { id: 'L2_PUBLIC_AVOIDANCE', indicatorCode: 'L2_PUBLIC_AVOIDANCE', indicatorName: '公众避险能力', indicatorLevel: 2, parentId: 'L1_SELF_RESCUE_TRANSFER', weight: 0 },
+    { id: 'L2_RELOCATION', indicatorCode: 'L2_RELOCATION', indicatorName: '转移安置能力', indicatorLevel: 2, parentId: 'L1_SELF_RESCUE_TRANSFER', weight: 0 }
+  ]
+}
+
+const buildTempConfigList = (orgcode: string, year: number) => {
+  const createTime = `${year}-01-01T00:00:00`
+  return modelDefinitions.map(def => ({
+    id: null,
+    configName: def.modelName,
+    description: `${def.modelName}权重配置`,
+    orgcode,
+    createTime,
+    _temp: true,
+    _tempKey: `${orgcode}-${year}-${def.modelId}`,
+    _modelId: def.modelId
+  }))
+}
+
+const getOrInitTempWeights = (tempKey: string) => {
+  if (!tempWeightCache[tempKey]) {
+    tempWeightCache[tempKey] = buildDefaultWeightTemplate()
+  }
+  return JSON.parse(JSON.stringify(tempWeightCache[tempKey]))
+}
+
 const loading = reactive({
   configs: false,
   weights: false,
@@ -561,6 +670,7 @@ const loading = reactive({
 const dialogVisible = reactive({
   config: false,
   weight: false,
+  weightEditor: false,
   score: false,      // 打分对话框
   statistics: false  // 详情对话框
 })
@@ -574,7 +684,8 @@ const configForm = reactive({
   id: null,
   configName: '',
   description: '',
-  orgcode: '' // 组织机构编码
+  orgcode: '', // 组织机构编码
+  createTime: null as string | null
 })
 
 const weightForm = reactive({
@@ -600,6 +711,7 @@ const scoreForm = reactive({
 // 统计信息数据
 const statisticsData = ref<any>(null)
 const currentScoreConfig = ref<any>(null)  // 当前正在打分/查看的配置
+const currentWeightConfig = ref<any>(null) // 当前正在编辑权重的配置
 const selectedExpert = ref<any>(null)  // 选中的专家
 
 const configRules = {
@@ -726,31 +838,24 @@ const selectedExpertScoreTree = computed(() => {
 const treeData = computed(() => {
   if (!weightList.value.length) return []
   
-  // 创建节点映射
-  const nodeMap = new Map()
+  const nodeMap = new Map<any, any>()
   const rootNodes: any[] = []
-  
-  // 先创建所有节点
+
   weightList.value.forEach(item => {
-    nodeMap.set(item.id, {
-      ...item,
-      children: []
-    })
+    item.children = []
+    nodeMap.set(item.id, item)
   })
-  
-  // 构建树形结构
+
   weightList.value.forEach(item => {
     const node = nodeMap.get(item.id)
-    if (item.parentId && nodeMap.has(item.parentId)) {
-      // 有父节点，添加到父节点的children中
+    if (item.parentId !== null && item.parentId !== undefined && nodeMap.has(item.parentId)) {
       const parentNode = nodeMap.get(item.parentId)
       parentNode.children.push(node)
     } else {
-      // 没有父节点或父节点不存在，作为根节点
       rootNodes.push(node)
     }
   })
-  
+
   return rootNodes
 })
 
@@ -794,19 +899,20 @@ const getConfigList = async () => {
 
   loading.configs = true
   try {
-    // 获取所有配置（不按组织机构过滤，在前端进行前缀匹配）
-    const response = await weightConfigApi.getAll({ year: orgYear.value || undefined })
+    const orgcode = selectedOrg.value?.code
+    if (!orgcode || !orgYear.value) {
+      configList.value = []
+      return
+    }
+
+    const response = await weightConfigApi.getAll({
+      orgcode,
+      year: orgYear.value
+    })
     console.log('权重配置API响应:', response)
     if (response.success) {
-      let allConfigs = response.data || []
-      // 如果选中了组织机构，按组织机构代码前缀过滤
-      if (selectedOrg.value && selectedOrg.value.code) {
-        const prefix = selectedOrg.value.code
-        allConfigs = allConfigs.filter((config: any) =>
-          config.orgcode && config.orgcode.startsWith(prefix)
-        )
-      }
-      configList.value = allConfigs
+      const list = response.data || []
+      configList.value = list.length ? list : buildTempConfigList(orgcode, orgYear.value)
       console.log('权重配置列表（已过滤）:', configList.value)
     } else {
       ElMessage.error(response.message || '获取配置列表失败')
@@ -816,6 +922,83 @@ const getConfigList = async () => {
     ElMessage.error('获取配置列表失败')
   } finally {
     loading.configs = false
+  }
+}
+
+const openWeightEditor = async (row: any) => {
+  currentWeightConfig.value = row
+  if (row?._temp) {
+    selectedConfigId.value = null
+    weightList.value = getOrInitTempWeights(row._tempKey)
+  } else {
+    selectedConfigId.value = row.id
+    await loadIndicatorWeights()
+  }
+  dialogVisible.weightEditor = true
+}
+
+const saveWeightEditor = async () => {
+  loading.submit = true
+  try {
+    if (currentWeightConfig.value?._temp) {
+      const createResp = await weightConfigApi.create({
+        configName: currentWeightConfig.value.configName,
+        description: currentWeightConfig.value.description,
+        orgcode: currentWeightConfig.value.orgcode,
+        createTime: currentWeightConfig.value.createTime
+      })
+      if (!createResp.success || !createResp.data?.id) {
+        ElMessage.error(createResp.message || '保存失败')
+        return
+      }
+
+      const newConfigId = createResp.data.id as number
+      const initResp = await indicatorWeightApi.initDefaultWeights(newConfigId)
+      if (!initResp.success) {
+        ElMessage.error(initResp.message || '保存失败')
+        return
+      }
+
+      const weightsResp = await indicatorWeightApi.getByConfigId(newConfigId)
+      if (!weightsResp.success) {
+        ElMessage.error(weightsResp.message || '保存失败')
+        return
+      }
+
+      const tempByCode = new Map<string, any>()
+      ;(weightList.value || []).forEach((w: any) => tempByCode.set(w.indicatorCode, w))
+      const payload = (weightsResp.data || []).map((w: any) => ({
+        id: w.id,
+        weight: tempByCode.get(w.indicatorCode)?.weight ?? 0
+      }))
+      const updateResp = await indicatorWeightApi.batchUpdate(payload)
+      if (!updateResp.success) {
+        ElMessage.error(updateResp.message || '保存失败')
+        return
+      }
+
+      ElMessage.success('保存成功')
+      dialogVisible.weightEditor = false
+      delete tempWeightCache[currentWeightConfig.value._tempKey]
+      await getConfigList()
+      return
+    }
+
+    if (!selectedConfigId.value) return
+    const payload = (weightList.value || []).map((w: any) => ({ id: w.id, weight: w.weight }))
+    const response = await indicatorWeightApi.batchUpdate(payload)
+    if (response.success) {
+      ElMessage.success('保存成功')
+      dialogVisible.weightEditor = false
+      await loadIndicatorWeights()
+    } else {
+      ElMessage.error(response.message || '保存失败')
+    }
+  } catch (error) {
+    console.error('保存权重失败:', error)
+    ElMessage.error('保存失败')
+  } finally {
+    loading.submit = false
   }
 }
 
@@ -994,6 +1177,9 @@ const refreshConfigs = () => {
 const showConfigDialog = () => {
   isEditConfig.value = false
   resetConfigForm()
+  if (selectedOrg.value?.code) {
+    configForm.orgcode = selectedOrg.value.code
+  }
   dialogVisible.config = true
 }
 
@@ -1010,7 +1196,8 @@ const resetConfigForm = () => {
     id: null,
     configName: '',
     description: '',
-    orgcode: '' // 重置组织机构编码
+    orgcode: '',
+    createTime: null
   })
   configFormRef.value?.resetFields()
 }
@@ -1028,6 +1215,9 @@ const submitConfig = async () => {
       if (isEditConfig.value) {
         response = await weightConfigApi.update(configForm)
       } else {
+        if (orgYear.value) {
+          configForm.createTime = `${orgYear.value}-01-01T00:00:00`
+        }
         response = await weightConfigApi.create(configForm)
       }
       
@@ -1068,47 +1258,6 @@ const activateConfig = async (row: any) => {
     if (error !== 'cancel') {
       console.error('激活失败:', error)
       ElMessage.error('操作失败')
-    }
-  }
-}
-
-// 复制配置
-const copyConfig = async (row: any) => {
-  try {
-    const newConfigName = `${row.configName}_副本_${Date.now()}`
-    const response = await weightConfigApi.copy(row.id, newConfigName)
-    if (response.success) {
-      ElMessage.success('复制成功')
-      getConfigList()
-    } else {
-      ElMessage.error(response.message || '复制失败')
-    }
-  } catch (error) {
-    console.error('复制配置失败:', error)
-    ElMessage.error('复制失败')
-  }
-}
-
-// 删除配置
-const deleteConfig = async (row: any) => {
-  try {
-    await ElMessageBox.confirm('确定要删除这个配置吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    
-    const response = await weightConfigApi.delete(row.id)
-    if (response.success) {
-      ElMessage.success('删除成功')
-      getConfigList()
-    } else {
-      ElMessage.error(response.message || '删除失败')
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除配置失败:', error)
-      ElMessage.error('删除失败')
     }
   }
 }
@@ -1320,21 +1469,37 @@ const submitScore = async () => {
     return
   }
 
-  // 验证权重和是否为1（按层级分组验证）
-  const groups = new Map()
-  scoreForm.scores.forEach(item => {
-    const key = `${item.indicatorLevel}-${item.parentId || 'root'}`
-    if (!groups.has(key)) {
-      groups.set(key, [])
-    }
-    groups.get(key).push(item)
-  })
+  const eps = 0.001
+  const level1Items = scoreForm.scores.filter((s: any) => s.indicatorLevel === 1)
+  const level2Items = scoreForm.scores.filter((s: any) => s.indicatorLevel === 2)
 
-  for (const [key, items] of groups) {
-    const sum = items.reduce((s: number, item: any) => s + (item.weight || 0), 0)
-    if (Math.abs(sum - 1) > 0.001) {
-      ElMessage.warning(`同层级指标权重总和必须为1，当前为 ${sum.toFixed(3)}`)
-      return
+  const level1Sum = level1Items.reduce((sum: number, item: any) => sum + (item.weight || 0), 0)
+  if (Math.abs(level1Sum - 1) > eps) {
+    ElMessage.warning(`一级指标权重总和必须为1，当前为 ${level1Sum.toFixed(3)}`)
+    return
+  }
+
+  const byId = new Map<any, any>()
+  scoreForm.scores.forEach((s: any) => byId.set(s.id, s))
+
+  for (const parent of level1Items) {
+    const children = level2Items.filter((c: any) => c.parentId === parent.id)
+    if (!children.length) continue
+
+    const childSum = children.reduce((sum: number, item: any) => sum + (item.weight || 0), 0)
+    const parentWeight = parent.weight || 0
+    const hasAnyChildWeight = children.some((c: any) => (c.weight || 0) > eps)
+
+    if (parentWeight > eps || hasAnyChildWeight) {
+      if (Math.abs(childSum - 1) > eps) {
+        ElMessage.warning(`${parent.indicatorName} 下二级指标权重总和必须为1，当前为 ${childSum.toFixed(3)}`)
+        return
+      }
+    } else {
+      if (childSum > eps) {
+        ElMessage.warning(`${parent.indicatorName} 权重为0时，其二级指标权重应全部为0`)
+        return
+      }
     }
   }
 

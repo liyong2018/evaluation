@@ -59,6 +59,13 @@ public class QLExpressServiceImpl implements QLExpressService {
         }
 
         Object result = runner.execute(expression, expressContext, null, true, false);
+        if (result instanceof Number) {
+            double v = ((Number) result).doubleValue();
+            if (Double.isNaN(v) || Double.isInfinite(v)) {
+                log.warn("表达式执行结果为非有限数值，已置为0: expression={}, result={}", expression, result);
+                result = 0.0;
+            }
+        }
         log.debug("表达式执行结果: {}", result);
 
         return result;

@@ -383,45 +383,39 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
         // 增量存储逻辑
         if (year != null && year != 2020) {
-            // 非基准年：先查询当年变更记录
-            QueryWrapper<Organization> yearQuery = new QueryWrapper<>();
-            yearQuery.eq("code", normalizedCode);
-            yearQuery.eq("year", year);
-            yearQuery.eq("is_baseline", 0);
-            Organization yearOrg = getOne(yearQuery, false);
+            Organization existingOrg = baseMapper.selectByCodeAndYearIncludeDeleted(normalizedCode, year);
 
-            // 查询基准记录
-            QueryWrapper<Organization> baselineQuery = new QueryWrapper<>();
-            baselineQuery.eq("code", normalizedCode);
-            baselineQuery.eq("is_baseline", 1);
-            Organization baselineOrg = getOne(baselineQuery, false);
-
-            if (yearOrg != null) {
-                // 当年变更记录已存在，更新它
-                updateOrganizationFields(yearOrg, normalizedName, parentId, source,
+            if (existingOrg != null) {
+                if (existingOrg.getIsDeleted() != null && existingOrg.getIsDeleted() == 1) {
+                    baseMapper.markAsUndeletedByCodeAndYear(normalizedCode, year);
+                    existingOrg.setIsDeleted(0);
+                }
+                updateOrganizationFields(existingOrg, normalizedName, parentId, source,
                         provinceName, cityName, countyName, townshipName, communityName);
-                updateById(yearOrg);
-                return yearOrg;
-            } else {
-                // 当年变更记录不存在，需要创建
-                Organization newYearOrg = new Organization();
-                newYearOrg.setCode(normalizedCode);
-                newYearOrg.setName(normalizedName);
-                newYearOrg.setLevel(level);
-                newYearOrg.setYear(year);
-                newYearOrg.setIsBaseline(0);
-                newYearOrg.setBaselineCode(normalizedCode);
-                newYearOrg.setParentId(parentId);
-                newYearOrg.setDataSource(source);
-                newYearOrg.setProvinceName(StringUtils.hasText(provinceName) ? provinceName.trim() : null);
-                newYearOrg.setCityName(StringUtils.hasText(cityName) ? cityName.trim() : null);
-                newYearOrg.setCountyName(StringUtils.hasText(countyName) ? countyName.trim() : null);
-                newYearOrg.setTownshipName(StringUtils.hasText(townshipName) ? townshipName.trim() : null);
-                newYearOrg.setCommunityName(StringUtils.hasText(communityName) ? communityName.trim() : null);
-                save(newYearOrg);
-                log.info("新增年度变更记录: code={}, name={}, year={}", normalizedCode, normalizedName, year);
-                return newYearOrg;
+                existingOrg.setLevel(level);
+                existingOrg.setIsBaseline(0);
+                existingOrg.setBaselineCode(normalizedCode);
+                updateById(existingOrg);
+                return existingOrg;
             }
+
+            Organization newYearOrg = new Organization();
+            newYearOrg.setCode(normalizedCode);
+            newYearOrg.setName(normalizedName);
+            newYearOrg.setLevel(level);
+            newYearOrg.setYear(year);
+            newYearOrg.setIsBaseline(0);
+            newYearOrg.setBaselineCode(normalizedCode);
+            newYearOrg.setParentId(parentId);
+            newYearOrg.setDataSource(source);
+            newYearOrg.setProvinceName(StringUtils.hasText(provinceName) ? provinceName.trim() : null);
+            newYearOrg.setCityName(StringUtils.hasText(cityName) ? cityName.trim() : null);
+            newYearOrg.setCountyName(StringUtils.hasText(countyName) ? countyName.trim() : null);
+            newYearOrg.setTownshipName(StringUtils.hasText(townshipName) ? townshipName.trim() : null);
+            newYearOrg.setCommunityName(StringUtils.hasText(communityName) ? communityName.trim() : null);
+            save(newYearOrg);
+            log.info("新增年度变更记录: code={}, name={}, year={}", normalizedCode, normalizedName, year);
+            return newYearOrg;
         }
 
         // 基准年（2020年）或无年份参数：创建/更新基准记录

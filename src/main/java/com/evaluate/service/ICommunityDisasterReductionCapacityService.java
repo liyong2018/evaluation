@@ -32,9 +32,10 @@ public interface ICommunityDisasterReductionCapacityService extends IService<Com
      * @param size 每页大小
      * @param regionCode 行政区代码
      * @param communityName 社区名称
+     * @param year 数据年份
      * @return 查询结果
      */
-    Map<String, Object> getCommunityCapacityList(Integer page, Integer size, String regionCode, String communityName);
+    Map<String, Object> getCommunityCapacityList(Integer page, Integer size, String regionCode, String communityName, Integer year);
 
     /**
      * 根据ID删除社区行政村减灾能力数据

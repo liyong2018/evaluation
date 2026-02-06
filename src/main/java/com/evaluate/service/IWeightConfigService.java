@@ -109,4 +109,23 @@ public interface IWeightConfigService extends IService<WeightConfig> {
      * @return 权重配置列表
      */
     List<WeightConfig> getByOrgcode(String orgcode);
+
+    /**
+     * 获取某组织机构某年度的默认模型权重配置列表（不存在则自动创建）
+     *
+     * @param orgcode 组织机构编码
+     * @param year 年度
+     * @return 权重配置列表（按模型顺序）
+     */
+    List<WeightConfig> getOrCreateModelYearConfigs(String orgcode, Integer year);
+
+    /**
+     * 获取某组织机构某年度的有效模型权重配置列表（不创建数据）
+     * 当存在多套配置时，按“专家打分记录数优先，其次创建时间最新”选择一套返回。
+     *
+     * @param orgcode 组织机构编码
+     * @param year 年度
+     * @return 权重配置列表（按模型顺序）
+     */
+    List<WeightConfig> getEffectiveModelYearConfigs(String orgcode, Integer year);
 }

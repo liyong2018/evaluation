@@ -126,13 +126,16 @@ public class CommunityDisasterReductionCapacityServiceImpl
     }
 
     @Override
-    public Map<String, Object> getCommunityCapacityList(Integer page, Integer size, String regionCode, String communityName) {
+    public Map<String, Object> getCommunityCapacityList(Integer page, Integer size, String regionCode, String communityName, Integer year) {
         Map<String, Object> result = new HashMap<>();
 
         try {
             Page<CommunityDisasterReductionCapacity> pageParam = new Page<>(page, size);
             QueryWrapper<CommunityDisasterReductionCapacity> queryWrapper = new QueryWrapper<>();
 
+            if (year != null) {
+                queryWrapper.eq("year", year);
+            }
             if (regionCode != null && !regionCode.trim().isEmpty()) {
                 queryWrapper.likeRight("region_code", regionCode.trim());
             }

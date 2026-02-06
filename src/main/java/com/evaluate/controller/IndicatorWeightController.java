@@ -137,6 +137,28 @@ public class IndicatorWeightController {
         }
     }
 
+    @PutMapping("/batch")
+    public Result<Boolean> batchUpdateIndicatorWeights(@RequestBody List<IndicatorWeight> indicatorWeights) {
+        try {
+            boolean result = indicatorWeightService.batchUpdateWeight(indicatorWeights);
+            return result ? Result.success(true) : Result.error("批量更新指标权重失败");
+        } catch (Exception e) {
+            log.error("批量更新指标权重失败", e);
+            return Result.error("批量更新指标权重失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/config/{configId}/init-default")
+    public Result<Boolean> initDefaultWeights(@PathVariable Long configId) {
+        try {
+            boolean result = indicatorWeightService.initDefaultWeights(configId);
+            return result ? Result.success(true) : Result.error("初始化默认权重失败");
+        } catch (Exception e) {
+            log.error("初始化默认权重失败", e);
+            return Result.error("初始化默认权重失败: " + e.getMessage());
+        }
+    }
+
     @DeleteMapping("/{id}")
     public Result<Boolean> deleteIndicatorWeight(@PathVariable Long id) {
         try {

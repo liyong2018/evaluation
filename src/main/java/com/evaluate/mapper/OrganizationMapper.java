@@ -31,4 +31,11 @@ public interface OrganizationMapper extends BaseMapper<Organization> {
      */
     @Update("UPDATE organization SET is_deleted = 1 WHERE id = #{id}")
     int markAsDeleted(@Param("id") Long id);
+
+    /**
+     * 取消删除标记（绕过 @TableLogic）
+     * 用于恢复已删除但受唯一键约束影响的记录
+     */
+    @Update("UPDATE organization SET is_deleted = 0 WHERE code = #{code} AND year = #{year}")
+    int markAsUndeletedByCodeAndYear(@Param("code") String code, @Param("year") Integer year);
 }

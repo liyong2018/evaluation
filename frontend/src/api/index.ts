@@ -51,10 +51,13 @@ export const surveyDataApi = {
     request.delete('/api/survey-data/delete-by-year-org', { params: { year, orgCode } }),
 
   // 导入Excel文件
-  importData: (file: File, year: number) => {
+  importData: (file: File, year: number, orgCode?: string) => {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('year', year.toString())
+    if (orgCode) {
+      formData.append('orgCode', orgCode)
+    }
     return request.post('/api/survey-data/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
@@ -94,7 +97,7 @@ export const surveyDataApi = {
 // 权重配置相关API
 export const weightConfigApi = {
   // 获取所有权重配置（支持按组织机构过滤）
-  getAll: (params?: { orgcode?: string; year?: number } | string) => {
+  getAll: (params?: { orgcode?: string; year?: number; ensureDefaults?: boolean } | string) => {
     if (typeof params === 'string') {
       return request.get('/api/weight-config', { params: { orgcode: params } })
     }
@@ -156,6 +159,12 @@ export const indicatorWeightApi = {
 
   // 更新指标权重
   update: (data: any) => request.put('/api/indicator-weight', data),
+
+  // 批量更新指标权重
+  batchUpdate: (dataList: any[]) => request.put('/api/indicator-weight/batch', dataList),
+
+  // 初始化指定配置的默认权重（会覆盖原有权重项）
+  initDefaultWeights: (configId: number) => request.post(`/api/indicator-weight/config/${configId}/init-default`),
 
   // 删除指标权重
   delete: (id: number) => request.delete(`/api/indicator-weight/${id}`),
@@ -280,15 +289,15 @@ export const evaluationApi = {
   finalize: (evaluationId: number) => request.post(`/api/evaluation/finalize/${evaluationId}`),
 
   // 执行评估模型（基于模型配置，异步执行）
-  executeModel: (modelId: number, regionCodes: string[], weightConfigId: number, year?: number, orgCode?: string, createBy?: string) => {
-    const requestBody = {
+  executeModel: (modelId: number, regionCodes: string[], weightConfigId?: number | null, year?: number, orgCode?: string, createBy?: string) => {
+    const requestBody: any = {
       modelId,
       regionCodes,
-      weightConfigId,
       year,
       orgCode,
-      createBy
-    };
+      createBy,
+      ...(weightConfigId != null ? { weightConfigId } : {})
+    }
     // 异步执行，立即返回执行记录ID，无需设置超时
     return request.post('/api/evaluation/execute-model', requestBody);
   },
@@ -651,6 +660,7 @@ export const communityCapacityApi = {
     size?: number;
     regionCode?: string;
     communityName?: string;
+    year?: number;
   }) => request.get('/api/community-capacity/list', { params }),
 
   // 搜索社区行政村减灾能力数据

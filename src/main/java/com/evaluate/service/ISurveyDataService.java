@@ -60,6 +60,16 @@ public interface ISurveyDataService extends IService<SurveyData> {
     boolean importFromExcel(MultipartFile file, Integer year);
 
     /**
+     * 从Excel文件导入调查数据（带组织机构过滤条件校验）
+     *
+     * @param file Excel文件
+     * @param year 数据所属年份
+     * @param orgCode 组织机构代码（可选，用于校验医疗卫生机构数据是否已导入）
+     * @return 导入结果
+     */
+    boolean importFromExcel(MultipartFile file, Integer year, String orgCode);
+
+    /**
      * 导出调查数据到Excel
      * 
      * @param surveyName 调查名称

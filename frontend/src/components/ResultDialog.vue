@@ -284,6 +284,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import * as XLSX from 'xlsx'
 import { modelManagementApi } from '@/api'
 
 interface StepInfo {
@@ -331,6 +332,7 @@ interface Props {
   stepInfo?: StepInfo
   formula?: string
   resultData?: ResultData
+  evaluationName?: string
   modelId?: number
   algorithmId?: number
 }
@@ -344,7 +346,8 @@ const props = withDefaults(defineProps<Props>(), {
   modelValue: false,
   stepInfo: undefined,
   formula: '',
-  resultData: undefined
+  resultData: undefined,
+  evaluationName: ''
 })
 
 const emit = defineEmits<Emits>()
@@ -1049,31 +1052,113 @@ const exportResults = () => {
   }
 
   try {
-    // 构建CSV内容
-    const csvContent = buildCSVContent()
-    
-    // 创建下载链接
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const rawName = (props.evaluationName || '').trim()
+    const baseName = rawName || (props.resultData?.isMultiStep ? '算法步骤执行结果' : (props.stepInfo?.stepName || '计算结果'))
+    const fileName = `${sanitizeFileName(baseName)}_${dateStr}.xlsx`
+
+    const wb = XLSX.utils.book_new()
+
+    if (props.resultData.isMultiStep) {
+      const steps = Array.isArray(props.resultData.stepResults) ? props.resultData.stepResults : []
+      steps.forEach((step, idx) => {
+        const sheetName = sanitizeSheetName(step.stepName || `步骤${step.stepOrder ?? idx + 1}`)
+        const tableData = Array.isArray(step.tableData) ? step.tableData : []
+        const columns = Array.isArray(step.columns) && step.columns.length > 0
+          ? step.columns.map((c: any) => ({ prop: c.prop, label: c.label ?? c.prop }))
+          : buildColumnsFromTableData(tableData)
+        appendTableSheet(wb, sheetName, columns, tableData)
+      })
+    } else if (props.resultData.isDualTable) {
+      const t1Cols = Array.isArray(props.resultData.table1Columns) ? props.resultData.table1Columns.map((c: any) => ({ prop: c.prop, label: c.label ?? c.prop })) : []
+      const t1Data = Array.isArray(props.resultData.table1Data) ? props.resultData.table1Data : []
+      appendTableSheet(wb, sanitizeSheetName('一级指标权重计算'), t1Cols.length ? t1Cols : buildColumnsFromTableData(t1Data), t1Data)
+
+      const t2Cols = Array.isArray(props.resultData.table2Columns) ? props.resultData.table2Columns.map((c: any) => ({ prop: c.prop, label: c.label ?? c.prop })) : []
+      const t2Data = Array.isArray(props.resultData.table2Data) ? props.resultData.table2Data : []
+      appendTableSheet(wb, sanitizeSheetName('乡镇减灾能力权重计算'), t2Cols.length ? t2Cols : buildColumnsFromTableData(t2Data), t2Data)
+    } else {
+      const tableData = Array.isArray(props.resultData.tableData) ? props.resultData.tableData : []
+      const columns = Array.isArray(props.resultData.columns) && props.resultData.columns.length > 0
+        ? props.resultData.columns.map((c: any) => ({ prop: c.prop, label: c.label ?? c.prop }))
+        : buildColumnsFromTableData(tableData)
+      appendTableSheet(wb, sanitizeSheetName(props.stepInfo?.stepName || '计算结果'), columns, tableData)
+    }
+
+    if (wb.SheetNames.length === 0) {
+      ElMessage.warning('暂无数据可导出')
+      return
+    }
+
+    const arrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
-    
-    // 生成文件名
-    const fileName = `${props.stepInfo?.stepName || '计算结果'}_${new Date().toISOString().slice(0, 10)}.csv`
     link.setAttribute('download', fileName)
-    
-    // 触发下载
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     
     ElMessage.success('导出成功')
-    emit('export', props.resultData)
   } catch (error) {
     console.error('导出失败:', error)
     ElMessage.error('导出失败')
   }
+}
+
+const sanitizeSheetName = (name: string): string => {
+  const cleaned = String(name || '')
+    .replace(/[:\\/?*\[\]]/g, '_')
+    .trim()
+  const sliced = cleaned.slice(0, 31)
+  return sliced || 'Sheet1'
+}
+
+const sanitizeFileName = (name: string): string => {
+  const cleaned = String(name || '')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .trim()
+  return cleaned || '导出结果'
+}
+
+const getUniqueSheetName = (wb: XLSX.WorkBook, desired: string): string => {
+  const existing = new Set(wb.SheetNames)
+  if (!existing.has(desired)) return desired
+  for (let i = 2; i < 1000; i++) {
+    const candidate = sanitizeSheetName(`${desired}_${i}`)
+    if (!existing.has(candidate)) return candidate
+  }
+  return sanitizeSheetName(`${desired}_${Date.now()}`)
+}
+
+const appendTableSheet = (
+  wb: XLSX.WorkBook,
+  desiredName: string,
+  columns: Array<{ prop: string; label: string }>,
+  tableData: any[]
+) => {
+  const sheetName = getUniqueSheetName(wb, desiredName)
+  if (!Array.isArray(columns) || columns.length === 0) {
+    const ws = XLSX.utils.aoa_to_sheet([['无可导出的表格数据']])
+    XLSX.utils.book_append_sheet(wb, ws, sheetName)
+    return
+  }
+  const aoa: any[][] = []
+  aoa.push(columns.map(c => c.label))
+  ;(Array.isArray(tableData) ? tableData : []).forEach((row: any) => {
+    aoa.push(columns.map(c => row?.[c.prop] ?? ''))
+  })
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+}
+
+const buildColumnsFromTableData = (tableData?: any[]): Array<{ prop: string; label: string }> => {
+  if (!Array.isArray(tableData) || tableData.length === 0) return []
+  const firstRow = tableData[0]
+  if (!firstRow || typeof firstRow !== 'object') return []
+  return Object.keys(firstRow).map((key) => ({ prop: key, label: getColumnLabel(key) }))
 }
 
 // 生成专题图
@@ -1117,117 +1202,6 @@ const generateThematicMap = () => {
     console.error('生成专题图失败:', error)
     ElMessage.error('生成专题图失败')
   }
-}
-
-// 构建CSV内容
-const buildCSVContent = (): string => {
-  if (!props.resultData) return ''
-  
-  const lines: string[] = []
-  
-  // 添加步骤信息
-  if (props.stepInfo) {
-    lines.push(`步骤名称,${props.stepInfo.stepName}`)
-    lines.push(`步骤描述,${props.stepInfo.description}`)
-    lines.push('')
-  }
-  
-  // 添加公式
-  if (props.formula) {
-    lines.push(`计算公式,${props.formula}`)
-    lines.push('')
-  }
-  
-  if (props.resultData.isDualTable) {
-    // 双表格数据导出
-    const { table1Data, table1Columns, table1Summary, table2Data, table2Columns, table2Summary } = props.resultData
-    
-    // 表格1
-    if (table1Data && table1Columns) {
-      lines.push('一级指标权重计算')
-      
-      // 表格1表头
-      const headers1 = table1Columns.map(col => col.label).join(',')
-      lines.push(headers1)
-      
-      // 表格1数据行
-      table1Data.forEach(row => {
-        const values = table1Columns.map(col => {
-          const value = row[col.prop]
-          return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
-        })
-        lines.push(values.join(','))
-      })
-      
-      // 表格1统计信息
-      if (table1Summary) {
-        lines.push('')
-        lines.push('表格1统计信息')
-        Object.entries(table1Summary).forEach(([key, value]) => {
-          lines.push(`${key},${value}`)
-        })
-      }
-      
-      lines.push('')
-      lines.push('')
-    }
-    
-    // 表格2
-    if (table2Data && table2Columns) {
-      lines.push('乡镇减灾能力权重计算')
-      
-      // 表格2表头
-      const headers2 = table2Columns.map(col => col.label).join(',')
-      lines.push(headers2)
-      
-      // 表格2数据行
-      table2Data.forEach(row => {
-        const values = table2Columns.map(col => {
-          const value = row[col.prop]
-          return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
-        })
-        lines.push(values.join(','))
-      })
-      
-      // 表格2统计信息
-      if (table2Summary) {
-        lines.push('')
-        lines.push('表格2统计信息')
-        Object.entries(table2Summary).forEach(([key, value]) => {
-          lines.push(`${key},${value}`)
-        })
-      }
-    }
-  } else {
-    // 单表格数据导出（原有逻辑）
-    const { tableData, columns, summary } = props.resultData
-    
-    if (tableData && columns) {
-      // 添加表头
-      const headers = columns.map(col => col.label).join(',')
-      lines.push(headers)
-      
-      // 添加数据行
-      tableData.forEach(row => {
-        const values = columns.map(col => {
-          const value = row[col.prop]
-          return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
-        })
-        lines.push(values.join(','))
-      })
-      
-      // 添加统计信息
-      if (summary) {
-        lines.push('')
-        lines.push('统计信息')
-        Object.entries(summary).forEach(([key, value]) => {
-          lines.push(`${key},${value}`)
-        })
-      }
-    }
-  }
-  
-  return lines.join('\n')
 }
 </script>
 

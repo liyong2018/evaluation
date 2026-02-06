@@ -4,11 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.evaluate.entity.*;
 import com.evaluate.mapper.*;
+import com.evaluate.service.IWeightConfigService;
 import com.evaluate.service.ModelExecutionService;
 import com.evaluate.service.QLExpressService;
 import com.evaluate.service.SpecialAlgorithmService;
 import com.evaluate.service.ISurveyDataService;
 import com.evaluate.service.EvaluationResultService;
+import com.evaluate.service.IIndicatorWeightScoreService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -16,11 +18,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 模型执行服务实现类
@@ -61,6 +68,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     private ISurveyDataService surveyDataService;
 
     @Autowired
+    private IWeightConfigService weightConfigService;
+
+    @Autowired
     private ModelExecutionRecordMapper modelExecutionRecordMapper;
 
     @Autowired
@@ -69,11 +79,56 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     @Autowired
     private EvaluationResultService evaluationResultService;
 
+    @Autowired(required = false)
+    private IIndicatorWeightScoreService indicatorWeightScoreService;
+
     @Autowired
     @Qualifier("evaluationTaskExecutor")
     private Executor evaluationTaskExecutor;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final Pattern TRAILING_NUMERIC_MULTIPLIER = Pattern.compile("(?s)^(.*)\\*\\s*([0-9]+(?:\\.[0-9]+)?)\\s*$");
+    private static final Pattern WEIGHT_VAR_PATTERN = Pattern.compile("\\bweight_[A-Z0-9_]+\\b");
+    private static final Pattern NORM_VAR_PATTERN = Pattern.compile("\\b[A-Za-z_][A-Za-z0-9_]*(?:Norm|Normalized)\\b");
+    private static final String[] DEFAULT_WEIGHT_CODES = new String[] {
+            "L1_DISASTER_MANAGEMENT",
+            "L1_DISASTER_PREPAREDNESS",
+            "L1_SELF_RESCUE_TRANSFER",
+            "L1_MANAGEMENT",
+            "L1_PREPARATION",
+            "L1_SELF_RESCUE",
+            "L2_MANAGEMENT_CAPABILITY",
+            "L2_RISK_ASSESSMENT",
+            "L2_FUNDING",
+            "L2_MATERIAL",
+            "L2_MEDICAL",
+            "L2_SELF_RESCUE",
+            "L2_PUBLIC_AVOIDANCE",
+            "L2_RELOCATION"
+    };
+
+    private static final Duration WEIGHT_CACHE_TTL = Duration.ofMinutes(15);
+    private static final int RESOLVED_WEIGHT_CONFIG_CACHE_MAX = 500;
+    private static final int WEIGHT_MAP_CACHE_MAX = 500;
+
+    private final Object resolvedWeightConfigCacheLock = new Object();
+    private final LinkedHashMap<String, TimedValue<Long>> resolvedWeightConfigIdCache =
+            new LinkedHashMap<String, TimedValue<Long>>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, TimedValue<Long>> eldest) {
+                    return size() > RESOLVED_WEIGHT_CONFIG_CACHE_MAX;
+                }
+            };
+
+    private final Object weightMapCacheLock = new Object();
+    private final LinkedHashMap<Long, TimedValue<Map<String, Double>>> weightMapCache =
+            new LinkedHashMap<Long, TimedValue<Map<String, Double>>>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Long, TimedValue<Map<String, Double>>> eldest) {
+                    return size() > WEIGHT_MAP_CACHE_MAX;
+                }
+            };
 
     /**
      * 执行评估模型
@@ -91,6 +146,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     public Map<String, Object> executeModel(Long modelId, List<String> regionCodes, Long weightConfigId, Integer year, String orgCode, String createBy) {
         // 执行评估模型（核心逻辑）
         Map<String, Object> result = executeModelInternal(modelId, regionCodes, weightConfigId, year, orgCode, createBy);
+        Long resolvedWeightConfigId = result.get("weightConfigId") instanceof Number
+                ? ((Number) result.get("weightConfigId")).longValue()
+                : weightConfigId;
+        String resolvedOrgCode = result.get("orgCode") instanceof String ? (String) result.get("orgCode") : orgCode;
 
         // 保存执行记录和评估结果
         @SuppressWarnings("unchecked")
@@ -103,10 +162,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 modelId,
                 (String) result.get("modelName"),
                 currentRegionCodes,
-                weightConfigId,
+                resolvedWeightConfigId,
                 stepResults,
                 tableData,
-                year, orgCode, createBy);
+                year, resolvedOrgCode, createBy);
 
         result.put("executionRecordId", executionRecordId);
         return result;
@@ -131,6 +190,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             throw new RuntimeException("评估模型不存在或已禁用");
         }
 
+        String resolvedOrgCode = normalizeOrgCode(orgCode, regionCodes);
+        Long resolvedWeightConfigId = resolveWeightConfigIdIfNeeded(modelId, weightConfigId, year, resolvedOrgCode);
+
         // 2. 获取模型的所有步骤并按顺序排序
         QueryWrapper<ModelStep> stepQuery = new QueryWrapper<>();
         stepQuery.eq("model_id", modelId)
@@ -147,7 +209,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         globalContext.put("modelId", modelId);
         globalContext.put("modelName", model.getModelName());
         globalContext.put("regionCodes", regionCodes);
-        globalContext.put("weightConfigId", weightConfigId);
+        globalContext.put("weightConfigId", resolvedWeightConfigId);
         if (year != null) {
             globalContext.put("year", year);
         }
@@ -171,7 +233,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 } else if (modelId == 11) {
                     // 综合减灾能力评估模型：需要检查评估历史表中是否存在Model 3和Model 8的评估结果
                     // 检查是否存在乡镇减灾能力评估结果（Model 3）
-                    List<EvaluationResult> townshipEvalResults = evaluationResultMapper.selectByModelIdAndYearAndOrgCode(3L, year, orgCode != null ? orgCode : "511425");
+                    String queryOrgCode = StringUtils.hasText(resolvedOrgCode) ? resolvedOrgCode : "511425";
+                    List<EvaluationResult> townshipEvalResults = evaluationResultMapper.selectByModelIdAndYearAndOrgCode(3L, year, queryOrgCode);
                     boolean hasTownshipResult = townshipEvalResults != null && townshipEvalResults.stream()
                             .anyMatch(r -> regionCode.equals(r.getRegionCode()));
                     if (!hasTownshipResult) {
@@ -179,7 +242,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     }
 
                     // 检查是否存在社区-乡镇减灾能力评估结果（Model 8）
-                    List<EvaluationResult> communityEvalResults = evaluationResultMapper.selectByModelIdAndYearAndOrgCode(8L, year, orgCode != null ? orgCode : "511425");
+                    List<EvaluationResult> communityEvalResults = evaluationResultMapper.selectByModelIdAndYearAndOrgCode(8L, year, queryOrgCode);
                     boolean hasCommunityResult = communityEvalResults != null && communityEvalResults.stream()
                             .anyMatch(r -> regionCode.equals(r.getRegionCode()));
                     if (!hasCommunityResult) {
@@ -198,7 +261,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
 
         // 4. 加载基础数据到上下文
-        loadBaseDataToContext(globalContext, regionCodes, weightConfigId);
+        loadBaseDataToContext(globalContext, regionCodes, resolvedWeightConfigId);
 
         // 5. 按顺序执行每个步骤
         Map<String, Object> stepResults = new HashMap<>();
@@ -310,6 +373,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         result.put("columns", columns);
         result.put("success", true);
         result.put("currentRegionCodes", currentRegionCodes);  // 添加当前地区代码列表
+        result.put("weightConfigId", resolvedWeightConfigId);
+        if (resolvedOrgCode != null) {
+            result.put("orgCode", resolvedOrgCode);
+        }
 
         return result;
     }
@@ -336,19 +403,22 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             throw new RuntimeException("评估模型不存在或已禁用");
         }
 
+        String resolvedOrgCode = normalizeOrgCode(orgCode, regionCodes);
+        Long resolvedWeightConfigId = resolveWeightConfigIdIfNeeded(modelId, weightConfigId, year, resolvedOrgCode);
+
         // 2. 创建执行记录，状态为 RUNNING
         ModelExecutionRecord executionRecord = new ModelExecutionRecord();
         executionRecord.setModelId(modelId);
         executionRecord.setExecutionCode("EXEC_" + System.currentTimeMillis());
         executionRecord.setRegionIds(String.join(",", regionCodes));
-        executionRecord.setWeightConfigId(weightConfigId);
+        executionRecord.setWeightConfigId(resolvedWeightConfigId);
         executionRecord.setExecutionStatus(com.evaluate.enums.ExecutionStatus.RUNNING.getCode());
         executionRecord.setStartTime(java.time.LocalDateTime.now());
         if (year != null) {
             executionRecord.setYear(year);
         }
-        if (orgCode != null && !orgCode.trim().isEmpty()) {
-            executionRecord.setOrgCode(orgCode.trim());
+        if (resolvedOrgCode != null && !resolvedOrgCode.trim().isEmpty()) {
+            executionRecord.setOrgCode(resolvedOrgCode.trim());
         }
         if (createBy != null && !createBy.trim().isEmpty()) {
             executionRecord.setCreateBy(createBy.trim());
@@ -363,7 +433,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 3. 启动异步任务执行评估
         evaluationTaskExecutor.execute(() -> {
             try {
-                executeModelAsyncTask(executionRecordId, modelId, model.getModelName(), regionCodes, weightConfigId, year, orgCode, createBy);
+                executeModelAsyncTask(executionRecordId, modelId, model.getModelName(), regionCodes, resolvedWeightConfigId, year, resolvedOrgCode, createBy);
             } catch (Throwable e) {
                 // 捕获所有异常，防止导致JVM崩溃
                 log.error("评估任务执行异常（已捕获）: executionRecordId={}, error={}", executionRecordId, e.getMessage(), e);
@@ -489,6 +559,15 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         summary.append("评估结果数: ").append(tableData.size());
                         executionRecord.setResultSummary(summary.toString());
                     }
+
+                    Map<String, Object> resultDetail = new LinkedHashMap<>();
+                    resultDetail.put("modelId", result.get("modelId"));
+                    resultDetail.put("modelName", result.get("modelName"));
+                    resultDetail.put("isMultiStep", result.get("isMultiStep"));
+                    resultDetail.put("stepResultsList", result.get("stepResultsList"));
+                    resultDetail.put("columns", result.get("columns"));
+                    resultDetail.put("tableData", result.get("tableData"));
+                    executionRecord.setResultDetail(objectMapper.writeValueAsString(resultDetail));
                 }
 
                 modelExecutionRecordMapper.updateById(executionRecord);
@@ -651,8 +730,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                             result = Double.parseDouble(String.format("%.8f", doubleValue));
                         }
                     } else {
-                        // 执行标准QLExpress表达式
-                        result = qlExpressService.execute(qlExpression, regionContext);
+                        String rewrittenExpression = rewriteLegacyWeightExpressionIfNeeded(algorithm, qlExpression);
+                        String normalizedExpression = normalizeWeightVarCodes(rewrittenExpression);
+                        prepareNullVariablesForExpression(normalizedExpression, regionContext);
+                        result = qlExpressService.execute(normalizedExpression, regionContext);
                         
                         // 确保数值类型的结果转换为Double并格式化为8位小数
                         if (result != null && result instanceof Number) {
@@ -1046,27 +1127,17 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     private void loadBaseDataToContext(Map<String, Object> context, List<String> regionCodes, Long weightConfigId) {
         // 加载权重配置
         if (weightConfigId != null) {
-            QueryWrapper<IndicatorWeight> weightQuery = new QueryWrapper<>();
-            weightQuery.eq("config_id", weightConfigId);
-            List<IndicatorWeight> weights = indicatorWeightMapper.selectList(weightQuery);
-
-            // 将权重转换为Map便于查找
-            Map<String, Double> weightMap = weights.stream()
-                    .collect(Collectors.toMap(
-                            IndicatorWeight::getIndicatorCode,
-                            IndicatorWeight::getWeight,
-                            (v1, v2) -> v1
-                    ));
+            Map<String, Double> weightMap = getWeightMapCached(weightConfigId);
             context.put("weights", weightMap);
 
             // 同时将每个权重作为独立变量存储（便于表达式直接引用）
-            for (IndicatorWeight weight : weights) {
-                // 确保权重值为Double类型
-                Double weightValue = weight.getWeight();
-                if (weightValue == null) {
-                    weightValue = 0.0;
-                }
-                context.put("weight_" + weight.getIndicatorCode(), weightValue);
+            for (Map.Entry<String, Double> entry : weightMap.entrySet()) {
+                String code = entry.getKey();
+                Double weightValue = entry.getValue();
+                context.put("weight_" + code, weightValue == null ? 0.0 : weightValue);
+            }
+            for (String code : DEFAULT_WEIGHT_CODES) {
+                context.putIfAbsent("weight_" + code, 0.0);
             }
         }
 
@@ -1084,6 +1155,412 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 loadTownshipBaseData(context, regionCodes, year);
             }
         }
+    }
+
+    private Long resolveWeightConfigIdIfNeeded(Long modelId, Long weightConfigId, Integer year, String orgCode) {
+        if (weightConfigId != null) {
+            return weightConfigId;
+        }
+        if (!isModelUsingYearlyWeights(modelId)) {
+            return null;
+        }
+        if (modelId == null) {
+            return null;
+        }
+        if (year == null) {
+            throw new RuntimeException("缺少评估年份，无法解析权重配置");
+        }
+        if (!StringUtils.hasText(orgCode)) {
+            throw new RuntimeException("缺少机构代码(orgCode)，无法解析权重配置");
+        }
+
+        String trimmedOrgCode = orgCode.trim();
+        String cacheKey = trimmedOrgCode + ":" + year + ":" + modelId;
+        Long cached = getResolvedWeightConfigIdFromCache(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        String desiredConfigName = resolveModelNameForWeightConfig(modelId);
+        List<WeightConfig> configs = weightConfigService.getEffectiveModelYearConfigs(trimmedOrgCode, year);
+        WeightConfig matched = findWeightConfigByName(configs, desiredConfigName);
+
+        if (matched == null) {
+            configs = weightConfigService.getOrCreateModelYearConfigs(trimmedOrgCode, year);
+            matched = findWeightConfigByName(configs, desiredConfigName);
+        }
+
+        if (matched == null || matched.getId() == null) {
+            throw new RuntimeException("未找到该模型对应的权重配置: orgCode=" + trimmedOrgCode + ", year=" + year + ", modelId=" + modelId);
+        }
+
+        putResolvedWeightConfigIdToCache(cacheKey, matched.getId());
+        return matched.getId();
+    }
+
+    private boolean isModelUsingYearlyWeights(Long modelId) {
+        return Objects.equals(modelId, 3L) || Objects.equals(modelId, 4L) || Objects.equals(modelId, 8L) || Objects.equals(modelId, 11L);
+    }
+
+    private String resolveModelNameForWeightConfig(Long modelId) {
+        EvaluationModel model = evaluationModelMapper.selectById(modelId);
+        if (model != null && StringUtils.hasText(model.getModelName())) {
+            return model.getModelName().trim();
+        }
+        if (Objects.equals(modelId, 3L)) return "乡镇减灾能力评估模型";
+        if (Objects.equals(modelId, 4L)) return "社区-行政村能力评估模型";
+        if (Objects.equals(modelId, 8L)) return "社区-乡镇能力评估模型";
+        if (Objects.equals(modelId, 11L)) return "综合减灾能力评估模型";
+        return String.valueOf(modelId);
+    }
+
+    private WeightConfig findWeightConfigByName(List<WeightConfig> configs, String desiredConfigName) {
+        if (configs == null || configs.isEmpty() || !StringUtils.hasText(desiredConfigName)) {
+            return null;
+        }
+        String desired = desiredConfigName.trim();
+        for (WeightConfig cfg : configs) {
+            if (cfg == null || !StringUtils.hasText(cfg.getConfigName())) {
+                continue;
+            }
+            if (cfg.getConfigName().trim().equals(desired)) {
+                return cfg;
+            }
+        }
+        return null;
+    }
+
+    private Long getResolvedWeightConfigIdFromCache(String key) {
+        Instant now = Instant.now();
+        synchronized (resolvedWeightConfigCacheLock) {
+            TimedValue<Long> tv = resolvedWeightConfigIdCache.get(key);
+            if (tv == null) {
+                return null;
+            }
+            if (tv.isExpired(now, WEIGHT_CACHE_TTL)) {
+                resolvedWeightConfigIdCache.remove(key);
+                return null;
+            }
+            return tv.value;
+        }
+    }
+
+    private void putResolvedWeightConfigIdToCache(String key, Long value) {
+        synchronized (resolvedWeightConfigCacheLock) {
+            resolvedWeightConfigIdCache.put(key, new TimedValue<>(value, Instant.now()));
+        }
+    }
+
+    private Map<String, Double> getWeightMapCached(Long weightConfigId) {
+        Instant now = Instant.now();
+        synchronized (weightMapCacheLock) {
+            TimedValue<Map<String, Double>> tv = weightMapCache.get(weightConfigId);
+            if (tv != null && !tv.isExpired(now, WEIGHT_CACHE_TTL)) {
+                return tv.value;
+            }
+            if (tv != null) {
+                weightMapCache.remove(weightConfigId);
+            }
+        }
+
+        Map<String, Double> weightMap = new HashMap<>();
+        QueryWrapper<IndicatorWeight> weightQuery = new QueryWrapper<>();
+        weightQuery.eq("config_id", weightConfigId);
+        List<IndicatorWeight> weights = indicatorWeightMapper.selectList(weightQuery);
+        for (IndicatorWeight w : weights) {
+            if (w == null || w.getIndicatorCode() == null) {
+                continue;
+            }
+            String code = w.getIndicatorCode().trim();
+            if (code.isEmpty()) {
+                continue;
+            }
+            Double v = w.getWeight();
+            weightMap.put(code, v == null ? 0.0 : v);
+        }
+
+        if (indicatorWeightScoreService != null) {
+            Map<String, Double> averageWeights = indicatorWeightScoreService.calculateAverageWeights(weightConfigId);
+            if (averageWeights != null && !averageWeights.isEmpty()) {
+                for (Map.Entry<String, Double> entry : averageWeights.entrySet()) {
+                    if (entry.getKey() != null && entry.getValue() != null) {
+                        String code = entry.getKey().trim();
+                        if (!code.isEmpty()) {
+                            weightMap.put(code, entry.getValue());
+                        }
+                    }
+                }
+            }
+        }
+
+        Double legacyL1Management = weightMap.get("L1_MANAGEMENT");
+        Double legacyL1Preparation = weightMap.get("L1_PREPARATION");
+        Double legacyL1SelfRescue = weightMap.get("L1_SELF_RESCUE");
+        if (legacyL1Management != null && legacyL1Management != 0.0) {
+            weightMap.putIfAbsent("L1_DISASTER_MANAGEMENT", legacyL1Management);
+            weightMap.putIfAbsent("L1_MANAGEMENT", legacyL1Management);
+        }
+        if (legacyL1Preparation != null && legacyL1Preparation != 0.0) {
+            weightMap.putIfAbsent("L1_DISASTER_PREPAREDNESS", legacyL1Preparation);
+            weightMap.putIfAbsent("L1_PREPARATION", legacyL1Preparation);
+        }
+        if (legacyL1SelfRescue != null && legacyL1SelfRescue != 0.0) {
+            weightMap.putIfAbsent("L1_SELF_RESCUE_TRANSFER", legacyL1SelfRescue);
+            weightMap.putIfAbsent("L1_SELF_RESCUE", legacyL1SelfRescue);
+        }
+
+        Double newL1Management = weightMap.get("L1_DISASTER_MANAGEMENT");
+        Double newL1Preparation = weightMap.get("L1_DISASTER_PREPAREDNESS");
+        Double newL1SelfRescue = weightMap.get("L1_SELF_RESCUE_TRANSFER");
+        if (newL1Management != null && newL1Management != 0.0) {
+            weightMap.putIfAbsent("L1_MANAGEMENT", newL1Management);
+        }
+        if (newL1Preparation != null && newL1Preparation != 0.0) {
+            weightMap.putIfAbsent("L1_PREPARATION", newL1Preparation);
+        }
+        if (newL1SelfRescue != null && newL1SelfRescue != 0.0) {
+            weightMap.putIfAbsent("L1_SELF_RESCUE", newL1SelfRescue);
+        }
+
+        double l1m = weightMap.getOrDefault("L1_DISASTER_MANAGEMENT", 0.0);
+        double l1p = weightMap.getOrDefault("L1_DISASTER_PREPAREDNESS", 0.0);
+        double l1s = weightMap.getOrDefault("L1_SELF_RESCUE_TRANSFER", 0.0);
+        if (l1m == 0.0 && l1p == 0.0 && l1s == 0.0) {
+            double s1 = weightMap.getOrDefault("L2_MANAGEMENT_CAPABILITY", 0.0)
+                    + weightMap.getOrDefault("L2_RISK_ASSESSMENT", 0.0)
+                    + weightMap.getOrDefault("L2_FUNDING", 0.0);
+            double s2 = weightMap.getOrDefault("L2_MATERIAL", 0.0)
+                    + weightMap.getOrDefault("L2_MEDICAL", 0.0);
+            double s3 = weightMap.getOrDefault("L2_SELF_RESCUE", 0.0)
+                    + weightMap.getOrDefault("L2_PUBLIC_AVOIDANCE", 0.0)
+                    + weightMap.getOrDefault("L2_RELOCATION", 0.0);
+            double total = s1 + s2 + s3;
+            if (total > 0.0) {
+                weightMap.put("L1_DISASTER_MANAGEMENT", s1 / total);
+                weightMap.put("L1_DISASTER_PREPAREDNESS", s2 / total);
+                weightMap.put("L1_SELF_RESCUE_TRANSFER", s3 / total);
+                weightMap.putIfAbsent("L1_MANAGEMENT", weightMap.get("L1_DISASTER_MANAGEMENT"));
+                weightMap.putIfAbsent("L1_PREPARATION", weightMap.get("L1_DISASTER_PREPAREDNESS"));
+                weightMap.putIfAbsent("L1_SELF_RESCUE", weightMap.get("L1_SELF_RESCUE_TRANSFER"));
+            } else {
+                weightMap.put("L1_DISASTER_MANAGEMENT", 0.33);
+                weightMap.put("L1_DISASTER_PREPAREDNESS", 0.32);
+                weightMap.put("L1_SELF_RESCUE_TRANSFER", 0.35);
+                weightMap.putIfAbsent("L1_MANAGEMENT", 0.33);
+                weightMap.putIfAbsent("L1_PREPARATION", 0.32);
+                weightMap.putIfAbsent("L1_SELF_RESCUE", 0.35);
+            }
+        }
+
+        double g1 = weightMap.getOrDefault("L2_MANAGEMENT_CAPABILITY", 0.0)
+                + weightMap.getOrDefault("L2_RISK_ASSESSMENT", 0.0)
+                + weightMap.getOrDefault("L2_FUNDING", 0.0);
+        if (g1 == 0.0) {
+            weightMap.put("L2_MANAGEMENT_CAPABILITY", 0.37);
+            weightMap.put("L2_RISK_ASSESSMENT", 0.31);
+            weightMap.put("L2_FUNDING", 0.32);
+        }
+        double g2 = weightMap.getOrDefault("L2_MATERIAL", 0.0)
+                + weightMap.getOrDefault("L2_MEDICAL", 0.0);
+        if (g2 == 0.0) {
+            weightMap.put("L2_MATERIAL", 0.51);
+            weightMap.put("L2_MEDICAL", 0.49);
+        }
+        double g3 = weightMap.getOrDefault("L2_SELF_RESCUE", 0.0)
+                + weightMap.getOrDefault("L2_PUBLIC_AVOIDANCE", 0.0)
+                + weightMap.getOrDefault("L2_RELOCATION", 0.0);
+        if (g3 == 0.0) {
+            weightMap.put("L2_SELF_RESCUE", 0.33);
+            weightMap.put("L2_PUBLIC_AVOIDANCE", 0.33);
+            weightMap.put("L2_RELOCATION", 0.34);
+        }
+
+        Map<String, Double> immutable = Collections.unmodifiableMap(weightMap);
+        synchronized (weightMapCacheLock) {
+            weightMapCache.put(weightConfigId, new TimedValue<>(immutable, Instant.now()));
+        }
+        return immutable;
+    }
+
+    private static final class TimedValue<T> {
+        private final T value;
+        private final Instant createdAt;
+
+        private TimedValue(T value, Instant createdAt) {
+            this.value = value;
+            this.createdAt = createdAt;
+        }
+
+        private boolean isExpired(Instant now, Duration ttl) {
+            if (ttl == null) {
+                return false;
+            }
+            return createdAt.plus(ttl).isBefore(now);
+        }
+    }
+
+    private String normalizeOrgCode(String orgCode, List<String> regionCodes) {
+        if (StringUtils.hasText(orgCode)) {
+            String trimmed = orgCode.trim();
+            if (trimmed.length() >= 6) {
+                return trimmed.substring(0, 6);
+            }
+            return trimmed;
+        }
+        if (regionCodes == null || regionCodes.isEmpty()) {
+            return null;
+        }
+        String first = regionCodes.get(0);
+        if (!StringUtils.hasText(first)) {
+            return null;
+        }
+        String code = first.trim();
+        if (code.length() >= 6) {
+            return code.substring(0, 6);
+        }
+        return code;
+    }
+
+    private void prepareNullVariablesForExpression(String expression, Map<String, Object> context) {
+        if (expression == null || expression.trim().isEmpty() || context == null) {
+            return;
+        }
+        Matcher weightMatcher = WEIGHT_VAR_PATTERN.matcher(expression);
+        while (weightMatcher.find()) {
+            String var = weightMatcher.group();
+            Object v = context.get(var);
+            if (v == null) {
+                context.put(var, 0.0);
+            }
+        }
+        Matcher normMatcher = NORM_VAR_PATTERN.matcher(expression);
+        while (normMatcher.find()) {
+            String var = normMatcher.group();
+            Object v = context.get(var);
+            if (v == null) {
+                context.put(var, 0.0);
+            }
+        }
+    }
+
+    private String normalizeWeightVarCodes(String expression) {
+        if (expression == null || expression.trim().isEmpty()) {
+            return expression;
+        }
+        String normalized = expression;
+        normalized = normalized.replace("weight_L1_MANAGEMENT", "weight_L1_DISASTER_MANAGEMENT");
+        normalized = normalized.replace("weight_L1_PREPARATION", "weight_L1_DISASTER_PREPAREDNESS");
+        normalized = normalized.replace("weight_L1_SELF_RESCUE", "weight_L1_SELF_RESCUE_TRANSFER");
+        return normalized;
+    }
+
+    private String rewriteLegacyWeightExpressionIfNeeded(StepAlgorithm algorithm, String expression) {
+        if (expression == null || expression.trim().isEmpty()) {
+            return expression;
+        }
+        if (expression.contains("weight_")) {
+            return expression;
+        }
+        String algorithmCode = algorithm == null ? null : algorithm.getAlgorithmCode();
+        if (algorithmCode == null) {
+            return expression;
+        }
+        String code = algorithmCode.trim();
+        if (code.isEmpty()) {
+            return expression;
+        }
+
+        boolean isWeighted = code.endsWith("_WEIGHTED");
+        boolean isSecondary = code.endsWith("_SECONDARY");
+        if (!isWeighted && !isSecondary) {
+            return expression;
+        }
+
+        String baseCode = isWeighted ? code.substring(0, code.length() - "_WEIGHTED".length())
+                : code.substring(0, code.length() - "_SECONDARY".length());
+        String[] codes = resolveWeightIndicatorCodes(baseCode);
+        if (codes == null) {
+            return expression;
+        }
+
+        String stripped = stripTrailingNumericMultipliers(expression, isWeighted ? 2 : 1);
+        if (stripped == null || stripped.trim().isEmpty()) {
+            return expression;
+        }
+
+        if (isWeighted) {
+            return stripped.trim() + " * weight_" + codes[0] + " * weight_" + codes[1];
+        }
+        return stripped.trim() + " * weight_" + codes[1];
+    }
+
+    private String stripTrailingNumericMultipliers(String expression, int count) {
+        String current = expression == null ? null : expression.trim();
+        if (current == null || current.isEmpty()) {
+            return current;
+        }
+        for (int i = 0; i < count; i++) {
+            Matcher m = TRAILING_NUMERIC_MULTIPLIER.matcher(current);
+            if (!m.matches()) {
+                return null;
+            }
+            current = m.group(1);
+            if (current == null) {
+                return null;
+            }
+            current = current.trim();
+        }
+        return current;
+    }
+
+    private String[] resolveWeightIndicatorCodes(String baseAlgorithmCode) {
+        if (baseAlgorithmCode == null) {
+            return null;
+        }
+        String base = baseAlgorithmCode.trim().toUpperCase(Locale.ROOT);
+        if (base.isEmpty()) {
+            return null;
+        }
+
+        String l2;
+        switch (base) {
+            case "MANAGEMENT":
+                l2 = "L2_MANAGEMENT_CAPABILITY";
+                break;
+            case "RISK_ASSESSMENT":
+                l2 = "L2_RISK_ASSESSMENT";
+                break;
+            case "FUNDING":
+                l2 = "L2_FUNDING";
+                break;
+            case "MATERIAL_RESERVE":
+                l2 = "L2_MATERIAL";
+                break;
+            case "MEDICAL_SUPPORT":
+                l2 = "L2_MEDICAL";
+                break;
+            case "SELF_RESCUE":
+                l2 = "L2_SELF_RESCUE";
+                break;
+            case "PUBLIC_AVOIDANCE":
+                l2 = "L2_PUBLIC_AVOIDANCE";
+                break;
+            case "RELOCATION":
+                l2 = "L2_RELOCATION";
+                break;
+            default:
+                return null;
+        }
+
+        String l1;
+        if ("L2_MATERIAL".equals(l2) || "L2_MEDICAL".equals(l2)) {
+            l1 = "L1_DISASTER_PREPAREDNESS";
+        } else if ("L2_SELF_RESCUE".equals(l2) || "L2_PUBLIC_AVOIDANCE".equals(l2) || "L2_RELOCATION".equals(l2)) {
+            l1 = "L1_SELF_RESCUE_TRANSFER";
+        } else {
+            l1 = "L1_DISASTER_MANAGEMENT";
+        }
+        return new String[]{l1, l2};
     }
 
     /**
@@ -1471,6 +1948,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
     }
 
+    private Double formatAndSanitizeNumber(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return 0.0;
+        }
+        return Double.parseDouble(String.format("%.8f", value));
+    }
+
     /**
      * 获取算法所有步骤的基本信息
      *
@@ -1749,7 +2233,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         // 确保数值类型转换并格式化为8位小数
                         if (result != null && result instanceof Number) {
                             double doubleValue = ((Number) result).doubleValue();
-                            result = Double.parseDouble(String.format("%.8f", doubleValue));
+                            result = formatAndSanitizeNumber(doubleValue);
                         }
                     } else {
                         // 执行标准QLExpress表达式
@@ -1758,7 +2242,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         // 确保数值类型的结果转换为Double并格式化为8位小数
                         if (result != null && result instanceof Number) {
                             double doubleValue = ((Number) result).doubleValue();
-                            result = Double.parseDouble(String.format("%.8f", doubleValue));
+                            result = formatAndSanitizeNumber(doubleValue);
                         }
                     }
                     
@@ -3586,6 +4070,16 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             result.put("executionRecord", executionRecord);
             result.put("evaluationResults", evaluationResults);
             result.put("totalResults", evaluationResults.size());
+
+            String resultDetailJson = executionRecord.getResultDetail();
+            if (resultDetailJson != null && !resultDetailJson.trim().isEmpty()) {
+                try {
+                    Map<String, Object> executionResult = objectMapper.readValue(
+                            resultDetailJson, new TypeReference<Map<String, Object>>() {});
+                    result.put("executionResult", executionResult);
+                } catch (Exception ignore) {
+                }
+            }
 
             return result;
         } catch (Exception e) {

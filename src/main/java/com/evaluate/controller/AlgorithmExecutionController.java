@@ -235,6 +235,13 @@ public class AlgorithmExecutionController {
             
             @SuppressWarnings("unchecked")
             Map<String, Object> parameters = (Map<String, Object>) request.get("parameters");
+            Object weightConfigIdObj = request.get("weightConfigId");
+            if (weightConfigIdObj != null) {
+                if (parameters == null) {
+                    parameters = new HashMap<>();
+                }
+                parameters.put("weightConfigId", weightConfigIdObj);
+            }
             
             // 获取算法配置
             AlgorithmConfig algorithmConfig = algorithmConfigService.getById(algorithmId);

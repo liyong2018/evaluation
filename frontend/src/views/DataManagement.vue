@@ -976,7 +976,8 @@ const getDataList = async () => {
       response = await communityCapacityApi.getList({
         page: pagination.currentPage,
         size: pagination.pageSize,
-        regionCode: normalizedOrgCode || undefined
+        regionCode: normalizedOrgCode || undefined,
+        year: searchForm.year || undefined
       })
       if (response.success) {
         // 新的分页返回格式：{ records: [], total: 0, current: 1, pages: 0, size: 50 }
@@ -1054,7 +1055,7 @@ const handleSearch = async () => {
   // 当年份改变时，刷新组织机构树
   await getOrganizationList()
 
-  if (!searchForm.keyword && !searchForm.selectedRegion && !searchForm.year) {
+  if (!searchForm.keyword && !searchForm.selectedRegion) {
     getDataList()
     return
   }
@@ -1483,7 +1484,7 @@ const handleDeleteAll = async () => {
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
       console.error('全部删除失败:', error)
-      ElMessage.error('全部删除失败')
+      ElMessage.error('全部删除失败: ' + ((error as any)?.message || ''))
     }
   } finally {
     loading.deleteAll = false
@@ -1748,7 +1749,8 @@ const handleExcelImport = async () => {
     let response
     if (dataType.value === 'township') {
       // 导入乡镇数据
-      response = await surveyDataApi.importData(file, searchForm.year)
+      const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+      response = await surveyDataApi.importData(file, searchForm.year, normalizedOrgCode || undefined)
     } else if (dataType.value === 'community') {
       // 导入社区数据
       response = await communityCapacityApi.importData(file, searchForm.year)

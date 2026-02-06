@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -28,9 +29,15 @@ public class WeightConfigController {
     @GetMapping
     public Result<List<WeightConfig>> getAllWeightConfigs(
             @RequestParam(required = false) String orgcode,
-            @RequestParam(required = false) Integer year
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Boolean ensureDefaults
     ) {
         try {
+            if (StringUtils.hasText(orgcode) && year != null) {
+                List<WeightConfig> list = weightConfigService.getEffectiveModelYearConfigs(orgcode.trim(), year);
+                return Result.success(list);
+            }
+
             QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
             if (StringUtils.hasText(orgcode)) {
                 queryWrapper.eq("orgcode", orgcode.trim());
@@ -110,10 +117,16 @@ public class WeightConfigController {
     }
 
     @PostMapping
-    public Result<Boolean> createWeightConfig(@RequestBody WeightConfig weightConfig) {
+    public Result<WeightConfig> createWeightConfig(
+            @RequestBody WeightConfig weightConfig,
+            @RequestParam(required = false) Integer year
+    ) {
         try {
+            if (weightConfig != null && weightConfig.getCreateTime() == null && year != null) {
+                weightConfig.setCreateTime(LocalDateTime.of(year, 1, 1, 0, 0));
+            }
             boolean result = weightConfigService.save(weightConfig);
-            return result ? Result.success(true) : Result.error("创建权重配置失败");
+            return result ? Result.success(weightConfig) : Result.error("创建权重配置失败");
         } catch (Exception e) {
             log.error("创建权重配置失败", e);
             return Result.error("创建权重配置失败: " + e.getMessage());

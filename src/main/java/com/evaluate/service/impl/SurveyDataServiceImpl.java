@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.evaluate.dto.GpkgFieldValidationResult;
+import com.evaluate.entity.MedicalInstitution;
 import com.evaluate.entity.SurveyData;
 import com.evaluate.mapper.SurveyDataMapper;
 import com.evaluate.service.IOrganizationService;
@@ -194,6 +195,12 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean importFromExcel(MultipartFile file, Integer year) {
+        return importFromExcel(file, year, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean importFromExcel(MultipartFile file, Integer year, String orgCode) {
         if (file == null || file.isEmpty()) {
             log.error("Excel文件为空");
             return false;
@@ -204,7 +211,13 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             return false;
         }
 
-        log.info("开始导入调查数据，文件名：{}，年份：{}", file.getOriginalFilename(), year);
+        try {
+            assertMedicalInstitutionDataExists(year, orgCode);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage(), e);
+        }
+
+        log.info("开始导入调查数据，文件名：{}，年份：{}，orgCode：{}", file.getOriginalFilename(), year, orgCode);
 
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
@@ -247,6 +260,24 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
         } catch (Exception e) {
             log.error("导入调查数据失败，文件名：{}，年份：{}", file.getOriginalFilename(), year, e);
             throw new RuntimeException("导入调查数据失败: " + e.getMessage(), e);
+        }
+    }
+
+    private void assertMedicalInstitutionDataExists(Integer year, String orgCode) {
+        if (medicalInstitutionService == null) {
+            throw new IllegalStateException("医疗卫生机构服务不可用，无法校验导入前置条件");
+        }
+        QueryWrapper<MedicalInstitution> wrapper = new QueryWrapper<>();
+        wrapper.eq("year", year);
+        if (StringUtils.hasText(orgCode)) {
+            wrapper.likeRight("org_code", orgCode.trim());
+        }
+        long count = medicalInstitutionService.count(wrapper);
+        if (count <= 0) {
+            if (StringUtils.hasText(orgCode)) {
+                throw new IllegalStateException("导入乡镇数据前，请先导入该组织机构在" + year + "年的医疗卫生机构数据（用于统计医院床位）");
+            }
+            throw new IllegalStateException("导入乡镇数据前，请先导入" + year + "年的医疗卫生机构数据（用于统计医院床位）");
         }
     }
 

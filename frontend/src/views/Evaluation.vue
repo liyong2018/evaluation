@@ -557,6 +557,7 @@
       :step-info="currentStepInfo"
       :result-data="currentCalculationResult"
       :formula="currentStepInfo?.formula"
+      :evaluation-name="evaluationForm.name"
       :model-id="evaluationForm.modelId"
       :algorithm-id="evaluationForm.algorithmId"
       @export="handleExportResult"
@@ -1619,8 +1620,12 @@ const viewExecutionDetail = async (row: any) => {
         // 设置当前执行记录和评估结果
         currentExecutionRecord.value = result.data.executionRecord
         evaluationResults.value = result.data.evaluationResults || []
-        // 显示对话框
-        dialogVisible.evaluationDetail = true
+        const executionResult = result.data.executionResult
+        if (executionResult && (executionResult.isMultiStep || executionResult.tableData)) {
+          displayModelResults(executionResult)
+        } else {
+          dialogVisible.evaluationDetail = true
+        }
         console.log('获取评估结果详情成功:', {
           executionRecord: result.data.executionRecord,
           evaluationResultsCount: result.data.evaluationResults?.length
@@ -1938,7 +1943,12 @@ const pollAsyncModelExecution = async (executionRecordId: number) => {
 
         currentExecutionRecord.value = record
         evaluationResults.value = detail?.evaluationResults || []
-        dialogVisible.evaluationDetail = true
+        const executionResult = detail?.executionResult
+        if (executionResult && (executionResult.isMultiStep || executionResult.tableData)) {
+          displayModelResults(executionResult)
+        } else {
+          dialogVisible.evaluationDetail = true
+        }
 
         await getEvaluationHistory(1, pageSize.value)
         loading.evaluation = false
@@ -1991,9 +2001,9 @@ const submitModelEvaluationTask = async () => {
   const response = await evaluationApi.executeModel(
     evaluationForm.modelId,
     regionCodes,
-    evaluationForm.weightConfigId,
+    evaluationForm.weightConfigId ?? null,
     evaluationForm.year,
-    evaluationForm.orgCode || '',
+    evaluationForm.orgCode || globalOrganizationStore.selectedOrganization?.code || '',
     userStore.username || ''
   )
 

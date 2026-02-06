@@ -53,7 +53,9 @@
       "Bash(nc:*)",
       "Bash(nslookup:*)",
       "Bash(openclaw gateway stop)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__take_snapshot"
     ],
     "deny": [],
     "ask": []

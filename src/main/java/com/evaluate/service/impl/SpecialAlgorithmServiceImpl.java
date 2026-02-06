@@ -703,11 +703,13 @@ private String determineGrade(double value, double mean, double stdev) {
             return 0.0;
         }
         if (value instanceof Number) {
-            return ((Number) value).doubleValue();
+            double v = ((Number) value).doubleValue();
+            return (Double.isNaN(v) || Double.isInfinite(v)) ? 0.0 : v;
         }
         if (value instanceof String) {
             try {
-                return Double.parseDouble((String) value);
+                double v = Double.parseDouble((String) value);
+                return (Double.isNaN(v) || Double.isInfinite(v)) ? 0.0 : v;
             } catch (NumberFormatException e) {
                 log.warn("无法将字符串转换为数字: {}", value);
                 return 0.0;

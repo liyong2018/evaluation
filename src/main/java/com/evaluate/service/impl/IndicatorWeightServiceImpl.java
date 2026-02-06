@@ -130,11 +130,83 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean initDefaultWeights(Long configId) {
-        // 删除现有权重配置
+        if (configId == null) {
+            return false;
+        }
+
         deleteByConfigId(configId);
-        
-        List<IndicatorWeight> defaultWeights = createDefaultWeights(configId);
-        return batchSave(defaultWeights);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        List<IndicatorWeight> primaryWeights = new ArrayList<>();
+
+        IndicatorWeight p1 = new IndicatorWeight();
+        p1.setConfigId(configId);
+        p1.setIndicatorCode("L1_DISASTER_MANAGEMENT");
+        p1.setIndicatorName("灾害管理能力");
+        p1.setIndicatorLevel(1);
+        p1.setWeight(0.33);
+        p1.setSortOrder(1);
+        p1.setCreateTime(now);
+        primaryWeights.add(p1);
+
+        IndicatorWeight p2 = new IndicatorWeight();
+        p2.setConfigId(configId);
+        p2.setIndicatorCode("L1_DISASTER_PREPAREDNESS");
+        p2.setIndicatorName("灾害备灾能力");
+        p2.setIndicatorLevel(1);
+        p2.setWeight(0.32);
+        p2.setSortOrder(2);
+        p2.setCreateTime(now);
+        primaryWeights.add(p2);
+
+        IndicatorWeight p3 = new IndicatorWeight();
+        p3.setConfigId(configId);
+        p3.setIndicatorCode("L1_SELF_RESCUE_TRANSFER");
+        p3.setIndicatorName("自救转移能力");
+        p3.setIndicatorLevel(1);
+        p3.setWeight(0.35);
+        p3.setSortOrder(3);
+        p3.setCreateTime(now);
+        primaryWeights.add(p3);
+
+        boolean primarySaved = saveBatch(primaryWeights);
+        if (!primarySaved) {
+            return false;
+        }
+
+        Map<String, Long> parentIdMap = new HashMap<>();
+        parentIdMap.put(p1.getIndicatorCode(), p1.getId());
+        parentIdMap.put(p2.getIndicatorCode(), p2.getId());
+        parentIdMap.put(p3.getIndicatorCode(), p3.getId());
+
+        List<IndicatorWeight> secondaryWeights = new ArrayList<>();
+
+        secondaryWeights.add(buildSecondary(configId, "L2_MANAGEMENT_CAPABILITY", "队伍管理能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.37, 1, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_RISK_ASSESSMENT", "风险评估能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.31, 2, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_FUNDING", "财政投入能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.32, 3, now));
+
+        secondaryWeights.add(buildSecondary(configId, "L2_MATERIAL", "物资储备能力", parentIdMap.get("L1_DISASTER_PREPAREDNESS"), 0.51, 4, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_MEDICAL", "医疗保障能力", parentIdMap.get("L1_DISASTER_PREPAREDNESS"), 0.49, 5, now));
+
+        secondaryWeights.add(buildSecondary(configId, "L2_SELF_RESCUE", "自救互救能力", parentIdMap.get("L1_SELF_RESCUE_TRANSFER"), 0.33, 6, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_PUBLIC_AVOIDANCE", "公众避险能力", parentIdMap.get("L1_SELF_RESCUE_TRANSFER"), 0.33, 7, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_RELOCATION", "转移安置能力", parentIdMap.get("L1_SELF_RESCUE_TRANSFER"), 0.34, 8, now));
+
+        return saveBatch(secondaryWeights);
+    }
+
+    private IndicatorWeight buildSecondary(Long configId, String code, String name, Long parentId, Double weight, Integer sortOrder, LocalDateTime now) {
+        IndicatorWeight w = new IndicatorWeight();
+        w.setConfigId(configId);
+        w.setIndicatorCode(code);
+        w.setIndicatorName(name);
+        w.setIndicatorLevel(2);
+        w.setWeight(weight == null ? 0.0 : weight);
+        w.setParentId(parentId);
+        w.setSortOrder(sortOrder);
+        w.setCreateTime(now);
+        return w;
     }
 
     @Override
@@ -278,44 +350,4 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         return list(wrapper);
     }
 
-    /**
-     * 创建默认权重配置
-     */
-    private List<IndicatorWeight> createDefaultWeights(Long configId) {
-        List<IndicatorWeight> weights = new ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
-        
-        // 创建一级指标
-        IndicatorWeight primary1 = new IndicatorWeight();
-        primary1.setConfigId(configId);
-        primary1.setIndicatorCode("A");
-        primary1.setIndicatorName("防灾减灾能力");
-        primary1.setIndicatorLevel(1);
-        primary1.setWeight(0.4);
-        primary1.setSortOrder(1);
-        primary1.setCreateTime(now);
-        weights.add(primary1);
-        
-        IndicatorWeight primary2 = new IndicatorWeight();
-        primary2.setConfigId(configId);
-        primary2.setIndicatorCode("B");
-        primary2.setIndicatorName("应急响应能力");
-        primary2.setIndicatorLevel(1);
-        primary2.setWeight(0.35);
-        primary2.setSortOrder(2);
-        primary2.setCreateTime(now);
-        weights.add(primary2);
-        
-        IndicatorWeight primary3 = new IndicatorWeight();
-        primary3.setConfigId(configId);
-        primary3.setIndicatorCode("C");
-        primary3.setIndicatorName("恢复重建能力");
-        primary3.setIndicatorLevel(1);
-        primary3.setWeight(0.25);
-        primary3.setSortOrder(3);
-        primary3.setCreateTime(now);
-        weights.add(primary3);
-        
-        return weights;
-    }
 }

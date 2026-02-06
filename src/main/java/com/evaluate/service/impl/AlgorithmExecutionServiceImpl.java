@@ -472,6 +472,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             Map<String, Object> parameters) {
         
         Map<String, Object> result = new HashMap<>();
+        Long weightConfigId = resolveWeightConfigId(parameters);
         
         // 如果是步骤4，清理缓存以确保重新计算
         if (stepIndex == 3) {
@@ -481,11 +482,11 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         try {
             if (stepIndex == 2) {
                 // 步骤2：二级指标定权 - 返回两个表格的数据结构
-                Map<String, Object> dualTableResult = calculateDualTableStepData(stepIndex, regionIds, formula);
+                Map<String, Object> dualTableResult = calculateDualTableStepData(stepIndex, regionIds, formula, weightConfigId);
                 result.putAll(dualTableResult);
             } else {
                 // 其他步骤：返回单表格数据结构
-                List<Map<String, Object>> tableData = calculateRealStepData(stepIndex, regionIds, formula);
+                List<Map<String, Object>> tableData = calculateRealStepData(stepIndex, regionIds, formula, weightConfigId);
                 List<Map<String, Object>> columns = generateStepColumns(stepIndex);
                 // 统计信息已移除
                 
@@ -521,11 +522,32 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         
         return result;
     }
+
+    private Long resolveWeightConfigId(Map<String, Object> parameters) {
+        if (parameters == null) {
+            return 1L;
+        }
+        Object weightConfigIdObj = parameters.get("weightConfigId");
+        if (weightConfigIdObj == null) {
+            weightConfigIdObj = parameters.get("weight_config_id");
+        }
+        if (weightConfigIdObj == null) {
+            return 1L;
+        }
+        try {
+            if (weightConfigIdObj instanceof Number) {
+                return ((Number) weightConfigIdObj).longValue();
+            }
+            return Long.valueOf(weightConfigIdObj.toString());
+        } catch (Exception e) {
+            return 1L;
+        }
+    }
     
     /**
      * 计算双表格步骤数据（步骤2专用）
      */
-    private Map<String, Object> calculateDualTableStepData(Integer stepIndex, List<String> regionIds, String formula) {
+    private Map<String, Object> calculateDualTableStepData(Integer stepIndex, List<String> regionIds, String formula, Long weightConfigId) {
         Map<String, Object> result = new HashMap<>();
         
         // 表格1：一级指标权重计算（8个指标的定权值）
@@ -537,8 +559,8 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
         List<Map<String, Object>> table2Columns = generateTable2Columns();
         
         // 获取权重配置
-        Map<String, Double> primaryWeights = getPrimaryIndicatorWeights(1L);
-        Map<String, Double> secondaryWeights = getSecondaryIndicatorWeights(1L);
+        Map<String, Double> primaryWeights = getPrimaryIndicatorWeights(weightConfigId);
+        Map<String, Double> secondaryWeights = getSecondaryIndicatorWeights(weightConfigId);
         
         log.info("calculateDualTableStepData - 开始计算双表格数据");
         log.info("calculateDualTableStepData - 一级权重配置: {}", primaryWeights);
@@ -785,7 +807,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
     /**
      * 计算真实的步骤数据
      */
-    private List<Map<String, Object>> calculateRealStepData(Integer stepIndex, List<String> regionIds, String formula) {
+    private List<Map<String, Object>> calculateRealStepData(Integer stepIndex, List<String> regionIds, String formula, Long weightConfigId) {
         List<Map<String, Object>> tableData = new ArrayList<>();
         
         // 直接处理字符串格式的地区ID
@@ -889,7 +911,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                     row.put("relocationCapacity", String.format("%.8f", relocationCapacityNorm));
                 } else if (stepIndex == 2) { // 二级指标定权
                     // 使用与TOPSIS算法相同的计算逻辑
-                    Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds);
+                    Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds, weightConfigId);
 
                     // 设置8个指标的定权值（与TOPSIS算法保持一致）
                     row.put("teamManagement", String.format("%.8f", currentWeightedValues.get("teamManagement")));
@@ -910,13 +932,13 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                         List<SurveyData> regionSurveyDataList = surveyDataService.getBySurveyRegion(cacheRegionName);
                         if (!regionSurveyDataList.isEmpty()) {
                             SurveyData regionSurveyData = regionSurveyDataList.get(0);
-                            Map<String, Double> regionWeightedValues = calculateCurrentWeightedValues(regionSurveyData, regionIds);
+                            Map<String, Double> regionWeightedValues = calculateCurrentWeightedValues(regionSurveyData, regionIds, weightConfigId);
                             allWeightedValues.put(cacheRegionName, regionWeightedValues);
                         }
                     }
 
                     // 计算当前地区的定权值
-                    Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds);
+                    Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds, weightConfigId);
                     
                     // 使用TOPSIS算法计算3个一级指标
                     Map<String, Double> topsisResults = calculateTOPSIS(currentWeightedValues, allWeightedValues);
@@ -949,10 +971,10 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                     // 如果缓存中没有数据，则先执行步骤4的计算
                     if (step4Data == null) {
                         // 获取所有地区的定权结果（步骤3表2的数据）
-                        Map<String, Map<String, Double>> allWeightedValues = collectAllWeightedValues(regionIds);
+                        Map<String, Map<String, Double>> allWeightedValues = collectAllWeightedValues(regionIds, weightConfigId);
                         
                         // 计算当前地区的定权值
-                        Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds);
+                        Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds, weightConfigId);
                         
                         // 使用TOPSIS算法计算3个一级指标
                         Map<String, Double> topsisResults = calculateTOPSIS(currentWeightedValues, allWeightedValues);
@@ -1239,6 +1261,10 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
      * 收集所有地区的一级指标值
      */
     private Map<String, List<Double>> collectAllPrimaryIndicators(List<String> regionIds) {
+        return collectAllPrimaryIndicators(regionIds, 1L);
+    }
+
+    private Map<String, List<Double>> collectAllPrimaryIndicators(List<String> regionIds, Long weightConfigId) {
         Map<String, List<Double>> allValues = new HashMap<>();
         allValues.put("disasterManagement", new ArrayList<>());
         allValues.put("disasterPreparedness", new ArrayList<>());
@@ -1252,7 +1278,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                 SurveyData surveyData = surveyDataList.get(0);
                 
                 // 计算当前地区的一级指标值
-                Map<String, Double> primaryIndicators = calculateCurrentPrimaryIndicators(surveyData, regionIds);
+                Map<String, Double> primaryIndicators = calculateCurrentPrimaryIndicators(surveyData, regionIds, weightConfigId);
                 
                 allValues.get("disasterManagement").add(primaryIndicators.get("disasterManagement"));
                 allValues.get("disasterPreparedness").add(primaryIndicators.get("disasterPreparedness"));
@@ -1272,11 +1298,15 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
      * 计算当前地区的一级指标值
      */
     private Map<String, Double> calculateCurrentPrimaryIndicators(SurveyData surveyData, List<String> regionIds) {
+        return calculateCurrentPrimaryIndicators(surveyData, regionIds, 1L);
+    }
+
+    private Map<String, Double> calculateCurrentPrimaryIndicators(SurveyData surveyData, List<String> regionIds, Long weightConfigId) {
         // 获取所有地区的定权结果
-        Map<String, Map<String, Double>> allWeightedValues = collectAllWeightedValues(regionIds);
+        Map<String, Map<String, Double>> allWeightedValues = collectAllWeightedValues(regionIds, weightConfigId);
         
         // 计算当前地区的定权值
-        Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds);
+        Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds, weightConfigId);
         
         // 使用TOPSIS算法计算3个一级指标
         return calculateTOPSIS(currentWeightedValues, allWeightedValues);
@@ -1286,11 +1316,15 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
      * 获取步骤4的原始数据（不重新计算）
      */
     private Map<String, Double> getStep4DataForRegion(SurveyData surveyData, List<String> regionIds) {
+        return getStep4DataForRegion(surveyData, regionIds, 1L);
+    }
+
+    private Map<String, Double> getStep4DataForRegion(SurveyData surveyData, List<String> regionIds, Long weightConfigId) {
         // 获取所有地区的定权结果（步骤3表2的数据）
-        Map<String, Map<String, Double>> allWeightedValues = collectAllWeightedValues(regionIds);
+        Map<String, Map<String, Double>> allWeightedValues = collectAllWeightedValues(regionIds, weightConfigId);
         
         // 计算当前地区的定权值
-        Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds);
+        Map<String, Double> currentWeightedValues = calculateCurrentWeightedValues(surveyData, regionIds, weightConfigId);
         
         // 使用TOPSIS算法计算3个一级指标
         Map<String, Double> topsisResults = calculateTOPSIS(currentWeightedValues, allWeightedValues);
@@ -1309,6 +1343,10 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
      * 收集所有地区的步骤4数据
      */
     private Map<String, List<Double>> collectAllStep4Values(List<String> regionIds) {
+        return collectAllStep4Values(regionIds, 1L);
+    }
+
+    private Map<String, List<Double>> collectAllStep4Values(List<String> regionIds, Long weightConfigId) {
         Map<String, List<Double>> allValues = new HashMap<>();
         allValues.put("disasterManagement", new ArrayList<>());
         allValues.put("disasterPreparedness", new ArrayList<>());
@@ -1323,7 +1361,7 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
                 SurveyData surveyData = surveyDataList.get(0);
                 
                 // 获取当前地区的步骤4数据
-                Map<String, Double> step4Data = getStep4DataForRegion(surveyData, regionIds);
+                Map<String, Double> step4Data = getStep4DataForRegion(surveyData, regionIds, weightConfigId);
                 
                 // 添加到对应的列表中
                 allValues.get("disasterManagement").add(step4Data.get("disasterManagement"));
@@ -1539,13 +1577,31 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             log.warn("获取一级指标权重配置失败，使用默认权重: {}", e.getMessage());
         }
         
-        // 如果没有获取到权重配置，使用默认权重
-        if (weights.isEmpty()) {
-            log.warn("getPrimaryIndicatorWeights - 未获取到任何一级权重配置，使用默认权重");
-            weights.put("disasterManagement", 0.33);
-            weights.put("disasterPreparedness", 0.32);
-            weights.put("selfRescueTransfer", 0.35);
+        double dm = safeWeight(weights.get("disasterManagement"));
+        double dp = safeWeight(weights.get("disasterPreparedness"));
+        double st = safeWeight(weights.get("selfRescueTransfer"));
+
+        if (dm <= 0.0) {
+            dm = 0.33;
         }
+        if (dp <= 0.0) {
+            dp = 0.32;
+        }
+        if (st <= 0.0) {
+            st = 0.35;
+        }
+
+        double sum = dm + dp + st;
+        if (sum <= 0.0) {
+            dm = 0.33;
+            dp = 0.32;
+            st = 0.35;
+            sum = 1.0;
+        }
+
+        weights.put("disasterManagement", dm / sum);
+        weights.put("disasterPreparedness", dp / sum);
+        weights.put("selfRescueTransfer", st / sum);
         
         log.info("getPrimaryIndicatorWeights - 最终一级权重配置: {}", weights);
         return weights;
@@ -1613,21 +1669,83 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
             log.warn("获取二级指标权重配置失败，使用默认权重: {}", e.getMessage());
         }
         
-        // 如果没有获取到权重配置，使用默认权重
-        if (weights.isEmpty()) {
-            log.warn("getSecondaryIndicatorWeights - 未获取到任何权重配置，使用默认权重");
-            weights.put("teamManagement", 0.37);
-            weights.put("riskAssessment", 0.31);
-            weights.put("financialInput", 0.32);
-            weights.put("materialReserve", 0.51);
-            weights.put("medicalSupport", 0.49);
-            weights.put("selfRescue", 0.33);
-            weights.put("publicAvoidance", 0.33);
-            weights.put("relocationCapacity", 0.34);
+        double tm = safeWeight(weights.get("teamManagement"));
+        double ra = safeWeight(weights.get("riskAssessment"));
+        double fi = safeWeight(weights.get("financialInput"));
+        if (tm <= 0.0) {
+            tm = 0.37;
         }
+        if (ra <= 0.0) {
+            ra = 0.31;
+        }
+        if (fi <= 0.0) {
+            fi = 0.32;
+        }
+        double g1 = tm + ra + fi;
+        if (g1 <= 0.0) {
+            tm = 0.37;
+            ra = 0.31;
+            fi = 0.32;
+            g1 = 1.0;
+        }
+
+        double mr = safeWeight(weights.get("materialReserve"));
+        double ms = safeWeight(weights.get("medicalSupport"));
+        if (mr <= 0.0) {
+            mr = 0.51;
+        }
+        if (ms <= 0.0) {
+            ms = 0.49;
+        }
+        double g2 = mr + ms;
+        if (g2 <= 0.0) {
+            mr = 0.51;
+            ms = 0.49;
+            g2 = 1.0;
+        }
+
+        double sr = safeWeight(weights.get("selfRescue"));
+        double pa = safeWeight(weights.get("publicAvoidance"));
+        double rc = safeWeight(weights.get("relocationCapacity"));
+        if (sr <= 0.0) {
+            sr = 0.33;
+        }
+        if (pa <= 0.0) {
+            pa = 0.33;
+        }
+        if (rc <= 0.0) {
+            rc = 0.34;
+        }
+        double g3 = sr + pa + rc;
+        if (g3 <= 0.0) {
+            sr = 0.33;
+            pa = 0.33;
+            rc = 0.34;
+            g3 = 1.0;
+        }
+
+        weights.put("teamManagement", tm / g1);
+        weights.put("riskAssessment", ra / g1);
+        weights.put("financialInput", fi / g1);
+        weights.put("materialReserve", mr / g2);
+        weights.put("medicalSupport", ms / g2);
+        weights.put("selfRescue", sr / g3);
+        weights.put("publicAvoidance", pa / g3);
+        weights.put("relocationCapacity", rc / g3);
         
         log.info("getSecondaryIndicatorWeights - 最终权重配置: {}", weights);
         return weights;
+    }
+
+    private double safeWeight(Double v) {
+        if (v == null) {
+            return 0.0;
+        }
+        double d = v;
+        if (Double.isNaN(d) || Double.isInfinite(d)) {
+            return 0.0;
+        }
+        return d;
     }
     
     /**
@@ -1721,14 +1839,18 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
      * 收集所有地区的定权结果
      */
     private Map<String, Map<String, Double>> collectAllWeightedValues(List<String> regionIds) {
+        return collectAllWeightedValues(regionIds, 1L);
+    }
+
+    private Map<String, Map<String, Double>> collectAllWeightedValues(List<String> regionIds, Long weightConfigId) {
         Map<String, Map<String, Double>> allWeightedValues = new HashMap<>();
         
         // 获取所有地区的归一化值
         Map<String, List<Double>> allIndicatorValues = collectAllIndicatorValues(regionIds);
         
         // 获取一级权重配置和二级权重配置
-        Map<String, Double> primaryWeights = getPrimaryIndicatorWeights(1L);
-        Map<String, Double> secondaryWeights = getSecondaryIndicatorWeights(1L);
+        Map<String, Double> primaryWeights = getPrimaryIndicatorWeights(weightConfigId);
+        Map<String, Double> secondaryWeights = getSecondaryIndicatorWeights(weightConfigId);
         
         // 计算所有地区的定权值
         
@@ -1830,14 +1952,18 @@ public class AlgorithmExecutionServiceImpl implements AlgorithmExecutionService 
      * 计算当前地区的定权值
      */
     private Map<String, Double> calculateCurrentWeightedValues(SurveyData surveyData, List<String> regionIds) {
+        return calculateCurrentWeightedValues(surveyData, regionIds, 1L);
+    }
+
+    private Map<String, Double> calculateCurrentWeightedValues(SurveyData surveyData, List<String> regionIds, Long weightConfigId) {
         Map<String, Double> currentWeightedValues = new HashMap<>();
         
         // 获取所有地区的归一化值
         Map<String, List<Double>> allIndicatorValues = collectAllIndicatorValues(regionIds);
         
         // 获取一级权重配置和二级权重配置
-        Map<String, Double> primaryWeights = getPrimaryIndicatorWeights(1L);
-        Map<String, Double> secondaryWeights = getSecondaryIndicatorWeights(1L);
+        Map<String, Double> primaryWeights = getPrimaryIndicatorWeights(weightConfigId);
+        Map<String, Double> secondaryWeights = getSecondaryIndicatorWeights(weightConfigId);
         
         // 计算当前地区定权值
         

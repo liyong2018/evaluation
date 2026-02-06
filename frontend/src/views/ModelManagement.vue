@@ -140,6 +140,13 @@
                 <el-icon><Plus /></el-icon>
                 添加算法
               </el-button>
+              <el-button
+                size="small"
+                @click="syncCurrentStepAlgorithmsWeightVars"
+                :disabled="!selectedStepId || !currentAlgorithms.length"
+              >
+                同步权重变量
+              </el-button>
             </el-space>
           </div>
 
@@ -150,7 +157,7 @@
             <el-table-column label="QLExpress表达式" min-width="250">
               <template #default="scope">
                 <el-text class="expression-preview" truncated>
-                  {{ scope.row.qlExpression || '-' }}
+                  {{ getAlgorithmExpressionPreview(scope.row) }}
                 </el-text>
               </template>
             </el-table-column>
@@ -502,10 +509,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Check, QuestionFilled, Grid } from '@element-plus/icons-vue'
 import request from '@/utils/request'
+import { useGlobalYearStore } from '@/stores/globalYear'
+import { useGlobalOrganizationStore } from '@/stores/globalOrganization'
 
 // 状态管理
 const loading = ref(false)
@@ -574,6 +583,12 @@ const expressionValid = ref<boolean | null>(null)
 const expressionError = ref('')
 const validating = ref(false)
 const expressionInput = ref<any>(null)
+
+const globalYearStore = useGlobalYearStore()
+const globalOrganizationStore = useGlobalOrganizationStore()
+
+const previewWeights = ref<Record<string, number>>({})
+const previewWeightConfigId = ref<number | null>(null)
 
 // 最后一步的预定义输出参数
 const finalStepOutputParams = [
@@ -857,7 +872,8 @@ const showAddAlgorithmDialog = () => {
 // 编辑算法
 const editAlgorithm = (algorithm: any) => {
   algorithmDialogMode.value = 'edit'
-  currentAlgorithm.value = { ...algorithm }
+  const rewritten = rewriteExpressionToWeightVars(algorithm?.qlExpression || '', algorithm?.algorithmCode)
+  currentAlgorithm.value = { ...algorithm, qlExpression: rewritten }
   expressionValid.value = null
   expressionError.value = ''
   algorithmDialogVisible.value = true
@@ -1026,6 +1042,7 @@ const saveAlgorithm = async () => {
   }
 
   // 验证表达式
+  currentAlgorithm.value.qlExpression = normalizeWeightVarCodes(currentAlgorithm.value.qlExpression)
   const isValid = await validateExpression(currentAlgorithm.value.qlExpression)
   if (!isValid) {
     ElMessage.error('QLExpress表达式语法错误，请检查')
@@ -1068,6 +1085,7 @@ const saveAlgorithm = async () => {
 // 更新算法
 const updateAlgorithm = async (algorithm: any) => {
   // 验证表达式
+  algorithm.qlExpression = normalizeWeightVarCodes(algorithm.qlExpression)
   const isValid = await validateExpression(algorithm.qlExpression)
   if (!isValid) {
     ElMessage.error('QLExpress表达式语法错误，请检查')
@@ -1118,7 +1136,7 @@ const validateExpression = async (expression: string): Promise<boolean> => {
   
   try {
     const response = await request.post('/api/model-management/validate-expression', {
-      expression: expression
+      expression: normalizeWeightVarCodes(expression)
     })
     return response.valid === true
   } catch (error) {
@@ -1178,13 +1196,156 @@ const showWeightSelectorDialog = async () => {
   weightSelectorDialogVisible.value = true
   // 加载组织机构树
   await loadWeightOrganizations()
+
+  const currentOrg = globalOrganizationStore.selectedOrganization
+  if (currentOrg?.code) {
+    selectedWeightOrg.value = { ...currentOrg }
+    await nextTick()
+    weightOrgTreeRef.value?.setCurrentKey?.(currentOrg.code)
+    await loadWeightConfigs(currentOrg.code)
+    return
+  }
+
+  if (weightOrganizationList.value.length) {
+    const firstOrg = weightOrganizationList.value[0]
+    selectedWeightOrg.value = firstOrg
+    await nextTick()
+    weightOrgTreeRef.value?.setCurrentKey?.(firstOrg.code)
+    await loadWeightConfigs(firstOrg.code)
+  }
+}
+
+const loadPreviewWeights = async () => {
+  previewWeights.value = {}
+  previewWeightConfigId.value = null
+
+  const orgcode = globalOrganizationStore.selectedOrganization?.code
+  const year = globalYearStore.selectedYear
+  const modelName = (currentModelInfo.value?.modelName || '').trim()
+  if (!orgcode || !year || !modelName) return
+
+  try {
+    const configResponse = await request.get('/api/weight-config', {
+      params: { orgcode, year }
+    })
+    const configs = configResponse.data || []
+    const matched = configs.find((c: any) => (c.configName || '').trim() === modelName) || configs[0]
+    if (!matched?.id) return
+
+    previewWeightConfigId.value = matched.id
+
+    const weightResponse = await request.get(`/api/indicator-weight/config/${matched.id}/average-score`)
+    const weights = weightResponse.data || []
+    const map: Record<string, number> = {}
+    for (const w of weights) {
+      if (w?.indicatorCode) {
+        map[w.indicatorCode] = typeof w.weight === 'number' ? w.weight : Number(w.weight || 0)
+      }
+    }
+    previewWeights.value = map
+  } catch {
+    previewWeights.value = {}
+    previewWeightConfigId.value = null
+  }
+}
+
+const resolveWeightCodesByAlgorithmCode = (algorithmCode: string | undefined | null) => {
+  if (!algorithmCode) return null
+  const code = algorithmCode.trim()
+  if (!code) return null
+
+  const isWeighted = code.endsWith('_WEIGHTED')
+  const isSecondary = code.endsWith('_SECONDARY')
+  if (!isWeighted && !isSecondary) return null
+
+  const base = isWeighted ? code.slice(0, -'_WEIGHTED'.length) : code.slice(0, -'_SECONDARY'.length)
+  const baseUpper = base.toUpperCase()
+
+  const l2Map: Record<string, string> = {
+    MANAGEMENT: 'L2_MANAGEMENT_CAPABILITY',
+    RISK_ASSESSMENT: 'L2_RISK_ASSESSMENT',
+    FUNDING: 'L2_FUNDING',
+    MATERIAL_RESERVE: 'L2_MATERIAL',
+    MEDICAL_SUPPORT: 'L2_MEDICAL',
+    SELF_RESCUE: 'L2_SELF_RESCUE',
+    PUBLIC_AVOIDANCE: 'L2_PUBLIC_AVOIDANCE',
+    RELOCATION: 'L2_RELOCATION'
+  }
+
+  const l2 = l2Map[baseUpper]
+  if (!l2) return null
+
+  const l1 =
+    l2 === 'L2_MATERIAL' || l2 === 'L2_MEDICAL'
+      ? 'L1_DISASTER_PREPAREDNESS'
+      : l2 === 'L2_SELF_RESCUE' || l2 === 'L2_PUBLIC_AVOIDANCE' || l2 === 'L2_RELOCATION'
+        ? 'L1_SELF_RESCUE_TRANSFER'
+        : 'L1_DISASTER_MANAGEMENT'
+
+  return { isWeighted, isSecondary, l1, l2 }
+}
+
+const stripTrailingNumericMultipliers = (expression: string, count: number) => {
+  let current = (expression || '').trim()
+  for (let i = 0; i < count; i++) {
+    const m = current.match(/^(.*)\*\s*([0-9]+(?:\.[0-9]+)?)\s*$/s)
+    if (!m) return null
+    current = (m[1] || '').trim()
+  }
+  return current
+}
+
+const normalizeWeightVarCodes = (expression: string) => {
+  if (!expression) return expression
+  return expression
+    .replace(/weight_L1_MANAGEMENT\b/g, 'weight_L1_DISASTER_MANAGEMENT')
+    .replace(/weight_L1_PREPARATION\b/g, 'weight_L1_DISASTER_PREPAREDNESS')
+    .replace(/weight_L1_SELF_RESCUE\b/g, 'weight_L1_SELF_RESCUE_TRANSFER')
+}
+
+const rewriteExpressionToWeightVars = (expression: string, algorithmCode: string | undefined | null) => {
+  if (!expression) return expression
+  const normalized = normalizeWeightVarCodes(expression)
+  if (normalized.includes('weight_')) return normalized
+  const codes = resolveWeightCodesByAlgorithmCode(algorithmCode)
+  if (!codes) return normalized
+
+  const base = stripTrailingNumericMultipliers(normalized, codes.isWeighted ? 2 : 1)
+  if (!base) return normalized
+
+  if (codes.isWeighted) {
+    return `${base} * weight_${codes.l1} * weight_${codes.l2}`
+  }
+  return `${base} * weight_${codes.l2}`
+}
+
+const formatWeightNumber = (value: unknown) => {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return null
+  return n.toFixed(3)
+}
+
+const getAlgorithmExpressionPreview = (algorithm: any) => {
+  const raw = algorithm?.qlExpression || ''
+  if (!raw) return '-'
+
+  const rewritten = rewriteExpressionToWeightVars(raw, algorithm?.algorithmCode)
+  if (!previewWeights.value || Object.keys(previewWeights.value).length === 0) return rewritten
+
+  return rewritten.replace(/\bweight_([A-Z0-9_]+)\b/g, (full: string, code: string) => {
+    const val = previewWeights.value[code]
+    const formatted = formatWeightNumber(val)
+    return formatted == null ? full : formatted
+  })
 }
 
 // 加载组织机构列表
 const loadWeightOrganizations = async () => {
   loadingWeightOrgs.value = true
   try {
-    const response = await request.get('/api/organization/tree')
+    const response = await request.get('/api/organization/tree', {
+      params: { year: globalYearStore.selectedYear }
+    })
     weightOrganizationList.value = response.data || []
   } catch (error: any) {
     ElMessage.error('加载组织机构失败: ' + (error.message || ''))
@@ -1208,13 +1369,26 @@ const loadWeightConfigs = async (orgcode: string) => {
   loadingWeightData.value = true
   try {
     const response = await request.get('/api/weight-config', {
-      params: { orgcode }
+      params: { orgcode, year: globalYearStore.selectedYear }
     })
     weightConfigs.value = response.data || []
 
-    // 如果只有一个配置，自动选中
-    if (weightConfigs.value.length === 1) {
+    selectedWeightConfigId.value = null
+    const desiredConfigName = (currentModelInfo.value?.modelName || '').trim()
+    if (desiredConfigName) {
+      const matched = weightConfigs.value.find((c: any) => (c.configName || '').trim() === desiredConfigName)
+      if (matched?.id) {
+        selectedWeightConfigId.value = matched.id
+      }
+    }
+
+    if (!selectedWeightConfigId.value && weightConfigs.value.length === 1) {
       selectedWeightConfigId.value = weightConfigs.value[0].id
+    }
+    if (!selectedWeightConfigId.value && weightConfigs.value.length) {
+      selectedWeightConfigId.value = weightConfigs.value[0].id
+    }
+    if (selectedWeightConfigId.value) {
       await loadWeightValues()
     }
   } catch (error: any) {
@@ -1269,7 +1443,7 @@ const buildWeightTree = (weights: any[]) => {
 
 // 选择权重值
 const selectWeightValue = async (data: any) => {
-  const weightValue = data.weight.toFixed(3)
+  const weightValue = `weight_${data.indicatorCode}`
 
   // 插入到表达式文本框的光标位置
   await nextTick()
@@ -1297,6 +1471,73 @@ const selectWeightValue = async (data: any) => {
   weightSelectorDialogVisible.value = false
 
   ElMessage.success(`已插入权重值: ${weightValue}`)
+}
+
+watch(
+  () => [globalYearStore.selectedYear, globalOrganizationStore.selectedOrganization?.code],
+  async ([year, orgcode]) => {
+    if (!weightSelectorDialogVisible.value) return
+    if (!orgcode || !year) return
+
+    selectedWeightOrg.value = { ...(globalOrganizationStore.selectedOrganization as any) }
+    await nextTick()
+    weightOrgTreeRef.value?.setCurrentKey?.(orgcode as any)
+    await loadWeightConfigs(orgcode as any)
+  }
+)
+
+watch(
+  () => [activeTab.value, globalYearStore.selectedYear, globalOrganizationStore.selectedOrganization?.code, currentModelInfo.value?.id],
+  async ([tab]) => {
+    if (tab !== 'algorithms') return
+    await loadPreviewWeights()
+  }
+)
+
+const syncCurrentStepAlgorithmsWeightVars = async () => {
+  if (!selectedStepId.value || !currentAlgorithms.value.length) return
+
+  const changed: any[] = []
+  for (const algo of currentAlgorithms.value) {
+    const nextExpression = rewriteExpressionToWeightVars(algo?.qlExpression || '', algo?.algorithmCode)
+    if (nextExpression && nextExpression !== algo.qlExpression) {
+      changed.push({ ...algo, qlExpression: nextExpression })
+    }
+  }
+
+  if (!changed.length) {
+    ElMessage.info('没有可同步的权重常量')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `将同步 ${changed.length} 条算法：把末尾权重常量替换为 weight_L1/L2 变量。是否继续？`,
+      '确认同步',
+      { type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  saving.value = true
+  try {
+    await Promise.all(
+      changed.map((algo) =>
+        request.put(`/api/model-management/algorithms/${algo.id}`, algo)
+      )
+    )
+    ElMessage.success('同步完成')
+
+    const step = currentSteps.value.find(s => s.id === selectedStepId.value)
+    if (step) {
+      await viewStepAlgorithms(step)
+    }
+  } catch (error: any) {
+    ElMessage.error('同步失败: ' + (error.message || ''))
+  } finally {
+    saving.value = false
+  }
 }
 
 // 初始化
