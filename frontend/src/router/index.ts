@@ -45,12 +45,6 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/algorithm-management',
-      name: 'AlgorithmManagement',
-      component: () => import('@/views/AlgorithmManagement.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
       path: '/thematic-map',
       name: 'ThematicMap',
       component: () => import('@/views/ThematicMap.vue'),

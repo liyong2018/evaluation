@@ -39,7 +39,6 @@ public class IndexController {
         apis.put("权重配置管理", "/api/data/weight");
         apis.put("指标权重管理", "/api/data/weight/indicator");
         apis.put("评估计算", "/api/evaluation");
-        apis.put("算法配置", "/api/algorithm");
         result.put("apis", apis);
         
         return result;

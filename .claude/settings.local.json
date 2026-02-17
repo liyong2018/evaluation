@@ -55,7 +55,8 @@
       "Bash(openclaw gateway stop)",
       "Bash(docker exec:*)",
       "mcp__chrome-devtools__navigate_page",
-      "mcp__chrome-devtools__take_snapshot"
+      "mcp__chrome-devtools__take_snapshot",
+      "Bash(curl.exe -sk -D - https://nxxcyl.cn:3002/a/send/phone/code -H \"Content-Type: application/json\" -X POST --data \"{\"\"phoneNumber\"\":\"\"111\"\"}\" --max-time 15)"
     ],
     "deny": [],
     "ask": []

@@ -89,22 +89,15 @@ public class IndicatorWeightScoreServiceImpl extends ServiceImpl<IndicatorWeight
 
         // 计算每个指标的统计信息
         List<Map<String, Object>> indicatorStats = new ArrayList<>();
-        for (Map.Entry<String, List<IndicatorWeightScore>> entry : groupedByIndicator.entrySet()) {
-            String indicatorCode = entry.getKey();
-            List<IndicatorWeightScore> indicatorScores = entry.getValue();
+        Set<String> includedCodes = new HashSet<>();
+        for (IndicatorWeight indicator : indicators) {
+            String indicatorCode = indicator.getIndicatorCode();
+            includedCodes.add(indicatorCode);
+            List<IndicatorWeightScore> indicatorScores = groupedByIndicator.getOrDefault(indicatorCode, Collections.emptyList());
 
             Map<String, Object> stat = new HashMap<>();
             stat.put("indicatorCode", indicatorCode);
             stat.put("scoreCount", indicatorScores.size());
-
-            // 从indicator_weight表获取指标名称、级别、父ID等信息
-            IndicatorWeight indicator = indicatorMap.get(indicatorCode);
-            if (indicator != null) {
-                stat.put("indicatorName", indicator.getIndicatorName());
-                stat.put("indicatorLevel", indicator.getIndicatorLevel());
-                stat.put("parentId", indicator.getParentId());
-                stat.put("id", indicator.getId());
-            }
 
             // 计算平均值
             double avgWeight = indicatorScores.stream()
@@ -112,8 +105,54 @@ public class IndicatorWeightScoreServiceImpl extends ServiceImpl<IndicatorWeight
                     .average()
                     .orElse(0.0);
             stat.put("avgWeight", avgWeight);
+            stat.put("indicatorName", indicator.getIndicatorName());
+            stat.put("indicatorLevel", indicator.getIndicatorLevel());
+            stat.put("parentId", indicator.getParentId());
+            stat.put("id", indicator.getId());
+            stat.put("currentWeight", indicator.getWeight());
 
             // 获取所有专家的打分
+            List<Map<String, Object>> expertScores = indicatorScores.stream()
+                    .map(score -> {
+                        Map<String, Object> expertScore = new HashMap<>();
+                        expertScore.put("expertName", score.getExpertName());
+                        expertScore.put("expertPhone", score.getExpertPhone());
+                        expertScore.put("weight", score.getWeight());
+                        expertScore.put("createTime", score.getCreateTime());
+                        return expertScore;
+                    })
+                    .collect(Collectors.toList());
+            stat.put("expertScores", expertScores);
+
+            indicatorStats.add(stat);
+        }
+
+        for (Map.Entry<String, List<IndicatorWeightScore>> entry : groupedByIndicator.entrySet()) {
+            String indicatorCode = entry.getKey();
+            if (includedCodes.contains(indicatorCode)) {
+                continue;
+            }
+            List<IndicatorWeightScore> indicatorScores = entry.getValue();
+
+            Map<String, Object> stat = new HashMap<>();
+            stat.put("indicatorCode", indicatorCode);
+            stat.put("scoreCount", indicatorScores.size());
+
+            double avgWeight = indicatorScores.stream()
+                    .mapToDouble(IndicatorWeightScore::getWeight)
+                    .average()
+                    .orElse(0.0);
+            stat.put("avgWeight", avgWeight);
+
+            IndicatorWeight indicator = indicatorMap.get(indicatorCode);
+            if (indicator != null) {
+                stat.put("indicatorName", indicator.getIndicatorName());
+                stat.put("indicatorLevel", indicator.getIndicatorLevel());
+                stat.put("parentId", indicator.getParentId());
+                stat.put("id", indicator.getId());
+                stat.put("currentWeight", indicator.getWeight());
+            }
+
             List<Map<String, Object>> expertScores = indicatorScores.stream()
                     .map(score -> {
                         Map<String, Object> expertScore = new HashMap<>();

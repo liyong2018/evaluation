@@ -97,6 +97,16 @@ public interface IIndicatorWeightService extends IService<IndicatorWeight> {
      */
     boolean initDefaultWeights(Long configId);
 
+    boolean ensureComprehensiveCountyWeights(Long configId, String orgcode, Integer year);
+
+    /**
+     * 删除区县级(orgcode长度=6)权重数据
+     *
+     * @param year 年度（可选；为空则不按年度过滤）
+     * @return 删除条数
+     */
+    int purgeCountyWeights(Integer year);
+
     /**
      * 验证权重配置的完整性
      * 

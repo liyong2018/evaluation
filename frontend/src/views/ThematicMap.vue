@@ -146,7 +146,7 @@ import { ElMessage } from 'element-plus'
 import CompositeThematicMap from '@/components/CompositeThematicMap.vue'
 import ThematicMapGenerator from '@/components/ThematicMapGenerator.vue'
 import OnlyOfficeEditor from '@/components/OnlyOfficeEditor.vue'
-import { wordTemplateApi, organizationApi, algorithmManagementApi } from '@/api'
+import { wordTemplateApi, organizationApi } from '@/api'
 import { useGlobalYearStore } from '@/stores/globalYear'
 import { useGlobalOrganizationStore } from '@/stores/globalOrganization'
 console.log('ThematicMap页面导入完成')
@@ -177,8 +177,6 @@ const loadingOrganizations = ref(false)
 const lastLoadedOrgTreeYear = ref<number | null>(null)
 const orgTreeMaxLevel = 3
 const selectedLevel = ref<string>('township') // 默认乡镇级
-const algorithmList = ref<any[]>([])
-const selectedAlgorithmId = ref<number | null>(null)
 
 const mapSettings = reactive({
   reportId: 1,
@@ -657,17 +655,6 @@ const openOnlyOfficeEditor = async () => {
 // 组件挂载
 onMounted(async () => {
   generateYearOptions()
-  try {
-    const response = await algorithmManagementApi.getList()
-    if (response.success && Array.isArray(response.data)) {
-      algorithmList.value = response.data
-      if (selectedAlgorithmId.value == null && algorithmList.value.length > 0) {
-        selectedAlgorithmId.value = algorithmList.value[0]?.id ?? null
-      }
-    }
-  } catch (e) {
-    algorithmList.value = []
-  }
   await getOrganizationList(selectedYear.value)
 
   // 初始化标题

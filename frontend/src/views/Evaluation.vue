@@ -77,219 +77,32 @@
           </el-col>
         </el-row>        
         <el-row :gutter="20">
-          <el-col :span="8">
-            <el-form-item label="选择省份" prop="province">
-              <el-select
-                v-model="evaluationForm.selectedProvince"
-                placeholder="请选择省份"
-                style="width: 100%"
-                @change="handleProvinceChange"
+          <el-col :span="12">
+            <el-form-item label="选择行政区划" prop="orgCode">
+              <el-tree-select
+                v-model="evaluationForm.orgCode"
+                :data="regionTreeData"
+                placeholder="请选择行政区划"
                 clearable
-              >
-                <el-option
-                  v-for="province in provinces"
-                  :key="province.code"
-                  :label="province.name"
-                  :value="province.code"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="选择城市" prop="city">
-              <el-select
-                v-model="evaluationForm.selectedCity"
-                placeholder="请选择城市"
+                filterable
+                check-strictly
+                :render-after-expand="false"
+                node-key="code"
+                :props="{
+                  value: 'code',
+                  label: 'name',
+                  children: 'children'
+                }"
+                @change="handleRegionTreeChange"
                 style="width: 100%"
-                @change="handleCityChange"
-                :disabled="!evaluationForm.selectedProvince"
-                clearable
               >
-                <el-option
-                  v-for="city in cities"
-                  :key="city.code"
-                  :label="city.name"
-                  :value="city.code"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="选择区县" prop="county">
-              <el-select
-                v-model="evaluationForm.selectedCounty"
-                placeholder="请选择区县"
-                style="width: 100%"
-                @change="handleCountyChange"
-                :disabled="!evaluationForm.selectedCity"
-                clearable
-              >
-                <el-option
-                  v-for="county in counties"
-                  :key="county.code"
-                  :label="county.name"
-                  :value="county.code"
-                />
-              </el-select>
+                <template #default="{ data }">
+                  <span>{{ data.name }} <span style="color: #909399; font-size: 12px;">({{ data.code }})</span></span>
+                </template>
+              </el-tree-select>
             </el-form-item>
           </el-col>
         </el-row>
-        
-        <el-form-item label="算法参数" v-if="selectedAlgorithm">
-          <el-card class="param-card">
-            <div class="algorithm-info">
-              <h4>{{ selectedAlgorithm.configName }}</h4>
-              <p>{{ selectedAlgorithm.description }}</p>
-            </div>
-            
-            <!-- 算法步骤和公式展示 -->
-            <div class="algorithm-steps">
-              <div class="steps-header">
-                <h5>算法步骤和公式：</h5>
-                <el-button 
-                  type="success" 
-                  size="small" 
-                  @click="viewAllStepsResults"
-                  :disabled="!evaluationForm.algorithmId || !evaluationForm.regions || evaluationForm.regions.length === 0"
-                >
-                  <el-icon><DataAnalysis /></el-icon>
-                  查看所有步骤结果
-                </el-button>
-              </div>
-              <div v-if="algorithmSteps.length > 0" class="steps-horizontal-container">
-                <div v-for="(step, index) in algorithmSteps" :key="step.id" class="step-item-horizontal">
-                  <div class="step-layout">
-                    <!-- 步骤信息 -->
-                    <div class="step-content-wrapper">
-                      <div 
-                        class="step-header"
-                        @mouseenter="showFormulaTooltip(step, $event)"
-                        @mouseleave="hideFormulaTooltip"
-                      >
-                        <span class="step-number">步骤 {{ index + 1 }}</span>
-                        <span class="step-name">{{ step.stepName }}</span>
-                      </div>
-                      <div class="step-content">
-                        <p class="step-description">{{ step.stepDescription }}</p>
-                        <div v-if="step.parameters" class="step-parameters">
-                          <strong>参数说明：</strong>
-                          <span>{{ step.parameters }}</span>
-                        </div>
-                        <!-- 查看结果按钮移到步骤描述下面 -->
-                        <div class="step-actions">
-                          <el-button 
-                            type="primary" 
-                            size="small" 
-                            @click="calculateStepResult(step, index)"
-                            :loading="step.calculating"
-                          >
-                            查看结果
-                          </el-button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="no-steps">
-                <el-empty description="请先选择算法以查看步骤和公式" :image-size="80" />
-              </div>
-            </div>
-            
-            <!-- 公式悬停提示框 -->
-            <div 
-              v-if="formulaTooltip.visible" 
-              class="formula-tooltip"
-              :style="{
-                left: formulaTooltip.x + 'px',
-                top: formulaTooltip.y + 'px'
-              }"
-            >
-              <div class="tooltip-header">
-                <strong>{{ formulaTooltip.step?.stepName }} - 公式</strong>
-              </div>
-              <div class="tooltip-content">
-                <div v-if="formulaTooltip.step?.formula" class="formula-display">
-                  <code class="formula-code">{{ formulaTooltip.step.formula }}</code>
-                </div>
-                <div v-else class="no-formula">
-                  <span class="text-muted">暂无公式</span>
-                </div>
-                <div v-if="formulaTooltip.step?.formulaDescription" class="formula-description">
-                  <p>{{ formulaTooltip.step.formulaDescription }}</p>
-                </div>
-              </div>
-            </div>
-            
-            <!-- 通用参数配置 -->
-            <!-- <div class="common-parameters">
-              <h5>通用参数配置：</h5>
-              <el-row :gutter="20">
-                <el-col :span="8">
-                  <el-form-item label="一致性比率阈值">
-                    <el-input-number
-                      v-model="evaluationForm.parameters.crThreshold"
-                      :min="0"
-                      :max="1"
-                      :step="0.01"
-                      :precision="3"
-                      style="width: 100%"
-                    />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item label="最大迭代次数">
-                    <el-input-number
-                      v-model="evaluationForm.parameters.maxIterations"
-                      :min="1"
-                      :max="1000"
-                      style="width: 100%"
-                    />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item label="分辨系数">
-                    <el-input-number
-                      v-model="evaluationForm.parameters.resolution"
-                      :min="0"
-                      :max="1"
-                      :step="0.01"
-                      :precision="3"
-                      style="width: 100%"
-                    />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              
-              <el-row :gutter="20">
-                <el-col :span="8">
-                  <el-form-item label="模糊化方法">
-                    <el-select v-model="evaluationForm.parameters.fuzzyMethod">
-                      <el-option label="三角模糊数" value="TRIANGULAR" />
-                      <el-option label="梯形模糊数" value="TRAPEZOIDAL" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item label="合成算子">
-                    <el-select v-model="evaluationForm.parameters.operator">
-                      <el-option label="加权平均" value="WEIGHTED_AVERAGE" />
-                      <el-option label="最大最小" value="MAX_MIN" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item label="归一化方法">
-                    <el-select v-model="evaluationForm.parameters.normalization">
-                      <el-option label="极值标准化" value="MIN_MAX" />
-                      <el-option label="Z-score标准化" value="Z_SCORE" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </div> -->
-          </el-card>
-        </el-form-item>
         
         <el-form-item label="描述">
           <el-input
@@ -301,7 +114,7 @@
         </el-form-item>
         
         <el-form-item>
-          <el-button type="primary" @click="startEvaluation" :loading="loading.evaluation">
+          <el-button type="primary" @click="startEvaluation" :loading="loading.evaluation" :disabled="!evaluationForm.modelId">
             <el-icon><VideoPlay /></el-icon>
             开始评估
           </el-button>
@@ -559,7 +372,6 @@
       :formula="currentStepInfo?.formula"
       :evaluation-name="evaluationForm.name"
       :model-id="evaluationForm.modelId"
-      :algorithm-id="evaluationForm.algorithmId"
       @export="handleExportResult"
     />
   </div>
@@ -583,7 +395,7 @@ import {
   DataAnalysis,
   List
 } from '@element-plus/icons-vue'
-import { evaluationApi, surveyDataApi, algorithmConfigApi, algorithmExecutionApi, algorithmManagementApi, modelManagementApi, algorithmStepExecutionApi, communityCapacityApi, regionDataApi } from '@/api'
+import { evaluationApi, surveyDataApi, modelManagementApi, communityCapacityApi, regionDataApi, organizationApi } from '@/api'
 import ResultDialog from '@/components/ResultDialog.vue'
 import { useUserStore } from '@/stores/user'
 import { useGlobalYearStore } from '@/stores/globalYear'
@@ -602,11 +414,6 @@ const router = useRouter()
 const userStore = useUserStore()
 const globalYearStore = useGlobalYearStore()
 const globalOrganizationStore = useGlobalOrganizationStore()
-
-// 计算属性
-const selectedAlgorithm = computed(() => {
-  return algorithmConfigs.value.find(config => config.id === evaluationForm.algorithmId)
-})
 
 const selectedModel = computed(() => {
   return evaluationModels.value.find(model => model.id === evaluationForm.modelId)
@@ -639,9 +446,7 @@ const generateEvaluationName = () => {
 
 // 响应式数据
 const evaluationFormRef = ref<FormInstance>()
-const algorithmConfigs = ref<any[]>([])
 const evaluationModels = ref<any[]>([])
-const algorithmSteps = ref<any[]>([])
 const regionTreeData = ref<any[]>([])
 const evaluationHistory = ref<any>({ records: [], total: 0, current: 1, size: 10, pages: 0 })
 const previewData = ref<any[]>([])
@@ -683,20 +488,6 @@ const resultDialogVisible = ref(false)
 const currentStepInfo = ref<any>(null)
 const currentCalculationResult = ref<any>(null)
 
-// 公式悬停提示框数据
-type TooltipStepInfo = {
-  stepName?: string
-  formula?: string
-  formulaDescription?: string
-}
-
-const formulaTooltip = reactive({
-  visible: false,
-  x: 0,
-  y: 0,
-  step: null as TooltipStepInfo | null
-})
-
 const currentYear = new Date().getFullYear()
 const years = ref<number[]>(Array.from({ length: 6 }, (_, i) => currentYear - i))
 
@@ -705,7 +496,6 @@ const evaluationForm = reactive<any>({
   modelId: null,
   weightConfigId: undefined as number | undefined,
   year: globalYearStore.selectedYear,
-  algorithmId: null,
   dataType: 'township', // 默认选择乡镇数据
   dataSource: 'REGION',
   regions: [] as string[],
@@ -748,211 +538,21 @@ const evaluationRules = {
 // 获取地区树形数据
 const getRegionTreeData = async () => {
   try {
-    let response
-    let dataKey
+    const response: any = await organizationApi.getTree({
+      maxLevel: 3,
+      year: evaluationForm.year || undefined
+    })
 
-    // 根据数据类型选择不同的API
-    if (evaluationForm.dataType === 'community') {
-      // 社区数据：从community-capacity API获取数据
-      response = await communityCapacityApi.getList({ page: 1, size: 1000 })
-      dataKey = 'data.data' // 社区数据的嵌套结构
-    } else {
-      // 乡镇数据：从survey-data API获取数据
-      response = await surveyDataApi.getAll({
-        year: evaluationForm.year || undefined,
-        orgCode: evaluationForm.orgCode || globalOrganizationStore.selectedOrganization?.code
-      })
-      dataKey = 'data' // 乡镇数据的直接结构
+    const ok = response?.success === true || response?.code === 200
+    if (!ok) {
+      ElMessage.error(response?.message || '获取行政区划数据失败')
+      return
     }
 
-    if (response.code === 200) {
-      // 根据数据类型选择正确的数据路径
-      const rawData = dataKey === 'data.data' ? response.data.data : response[dataKey]
-      if (!rawData || rawData.length === 0) {
-        ElMessage.warning('未找到相关数据')
-        return
-      }
-
-      // 将数据转换为地区树形结构
-      const regionMap = new Map()
-      const idToRegionCodeMap = new Map()
-
-      rawData.forEach((item: any) => {
-        // 省级
-        const provinceName = evaluationForm.dataType === 'community' ? item.provinceName : item.province
-        if (provinceName && !regionMap.has(provinceName)) {
-          regionMap.set(provinceName, {
-            id: `province_${provinceName}`,
-            name: provinceName,
-            value: `province_${provinceName}`,
-            level: 1,
-            children: []
-          })
-        }
-
-        // 市级
-        const cityName = evaluationForm.dataType === 'community' ? item.cityName : item.city
-        if (cityName && provinceName) {
-          const cityKey = `${provinceName}_${cityName}`
-
-          if (!regionMap.has(cityKey)) {
-            const cityNode = {
-              id: `city_${cityKey}`,
-              name: cityName,
-              value: `city_${cityKey}`,
-              level: 2,
-              children: []
-            }
-
-            regionMap.set(cityKey, cityNode)
-
-            // 添加到省级节点
-            const provinceNode = regionMap.get(provinceName)
-            if (provinceNode) {
-              provinceNode.children.push(cityNode)
-            }
-          }
-        }
-
-        // 县级
-        const countyName = evaluationForm.dataType === 'community' ? item.countyName : item.county
-        if (countyName && cityName && provinceName) {
-          const countyKey = `${provinceName}_${cityName}_${countyName}`
-
-          if (!regionMap.has(countyKey)) {
-            const countyNode = {
-              id: `county_${countyKey}`,
-              name: countyName,
-              value: `county_${countyKey}`,
-              level: 3,
-              children: []
-            }
-
-            regionMap.set(countyKey, countyNode)
-
-            // 添加到市级节点
-            const cityNode = regionMap.get(`${provinceName}_${cityName}`)
-            if (cityNode) {
-              cityNode.children.push(countyNode)
-            }
-          }
-        }
-
-        // 乡镇级/社区级
-        if (evaluationForm.dataType === 'community') {
-          // 社区级
-          if (item.communityName && item.townshipName && countyName && cityName && provinceName) {
-            const townshipKey = `${provinceName}_${cityName}_${countyName}_${item.townshipName}`
-            const communityKey = `${provinceName}_${cityName}_${countyName}_${item.townshipName}_${item.communityName}`
-
-            if (!regionMap.has(communityKey)) {
-              const communityNode = {
-                id: `community_${communityKey}`,
-                name: item.communityName,
-                value: `community_${communityKey}`,
-                level: 5,
-                regionCode: item.regionCode,
-                children: []
-              }
-
-              regionMap.set(communityKey, communityNode)
-
-              // 确保乡镇节点存在
-              if (!regionMap.has(townshipKey)) {
-                const townshipNode = {
-                  id: `township_${townshipKey}`,
-                  name: item.townshipName,
-                  value: `township_${townshipKey}`,
-                  level: 4,
-                  children: []
-                }
-                regionMap.set(townshipKey, townshipNode)
-
-                // 添加到县级节点
-                const countyNode = regionMap.get(`${provinceName}_${cityName}_${countyName}`)
-                if (countyNode) {
-                  countyNode.children.push(townshipNode)
-                }
-              }
-
-              // 添加社区节点到乡镇节点
-              const townshipNode = regionMap.get(townshipKey)
-              if (townshipNode) {
-                townshipNode.children.push(communityNode)
-              }
-
-              // 保存映射
-              idToRegionCodeMap.set(`community_${communityKey}`, item.regionCode)
-            }
-          }
-        } else {
-          // 乡镇级
-          if (item.township && countyName && cityName && provinceName) {
-            const townshipKey = `${provinceName}_${cityName}_${countyName}_${item.township}`
-
-            if (!regionMap.has(townshipKey)) {
-              const townshipNode = {
-                id: `township_${townshipKey}`,
-                name: item.township,
-                value: `township_${townshipKey}`,
-                level: 4,
-                regionCode: item.regionCode,
-                children: []
-              }
-
-              regionMap.set(townshipKey, townshipNode)
-
-              // 添加到县级节点
-              const countyNode = regionMap.get(`${provinceName}_${cityName}_${countyName}`)
-              if (countyNode) {
-                countyNode.children.push(townshipNode)
-              }
-
-              // 保存映射
-              idToRegionCodeMap.set(`township_${townshipKey}`, item.regionCode)
-            }
-          }
-        }
-      })
-
-      // 将映射保存到全局变量
-      window.__regionCodeMap = idToRegionCodeMap
-
-      // 提取省级节点作为根节点
-      const treeData: any[] = []
-      regionMap.forEach((value, key) => {
-        if (value.level === 1) {
-          treeData.push(value)
-        }
-      })
-
-      regionTreeData.value = treeData
-      console.log(`成功获取${evaluationForm.dataType === 'community' ? '社区' : '乡镇'}地区树数据:`, {
-        dataType: evaluationForm.dataType,
-        totalRegions: rawData.length,
-        treeNodes: treeData.length
-      })
-    } else {
-      ElMessage.error(response.message || '获取地区数据失败')
-    }
+    regionTreeData.value = response?.data || []
   } catch (error) {
-    console.error('获取地区数据失败:', error)
-    ElMessage.error('获取地区数据失败')
-  }
-}
-
-// 获取算法配置列表
-const getAlgorithmConfigs = async () => {
-  try {
-    const response = await algorithmConfigApi.getAll()
-    if (response.success) {
-      algorithmConfigs.value = response.data || []
-    } else {
-      ElMessage.error(response.message || '获取算法配置失败')
-    }
-  } catch (error) {
-    console.error('获取算法配置失败:', error)
-    ElMessage.error('获取算法配置失败')
+    console.error('获取行政区划数据失败:', error)
+    ElMessage.error('获取行政区划数据失败')
   }
 }
 
@@ -1006,9 +606,6 @@ const handleModelChange = async (modelId: number) => {
     console.log('恢复组织机构选择:', storedOrg)
     await restoreOrganizationSelection(storedOrg)
   }
-
-  // 如果需要，可以清空算法选择
-  // evaluationForm.algorithmId = null
 }
 
 // 恢复组织机构选择
@@ -1423,71 +1020,128 @@ const handleCountyChange = async (countyCode: string) => {
   }
 }
 
-// 获取算法步骤和公式
-const getAlgorithmSteps = async (algorithmId: number) => {
+// 处理树形选择器变化
+const handleRegionTreeChange = async (value: string) => {
+  console.log('树形选择器变化:', value)
+  // 清空之前的数据
+  evaluationForm.countyData = []
+  evaluationForm.regions = []
+
+  if (!value) {
+    // 清空选择
+    evaluationForm.orgCode = ''
+    globalOrganizationStore.setOrganization(null)
+    return
+  }
+
+  // 从树形数据中查找选中的节点
+  const findNode = (nodes: any[], code: string): any => {
+    for (const node of nodes) {
+      if (node.code === code) return node
+      if (node.children) {
+        const found = findNode(node.children, code)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  const selectedNode = findNode(regionTreeData.value, value)
+  if (!selectedNode) {
+    console.warn('未找到选中的节点:', value)
+    return
+  }
+
+  console.log('选中的节点:', selectedNode)
+
+  // 设置组织代码
+  evaluationForm.orgCode = selectedNode.code
+
+  if (selectedNode.level === 1) {
+    evaluationForm.selectedProvince = selectedNode.provinceName || selectedNode.name
+    evaluationForm.selectedCity = ''
+    evaluationForm.selectedCounty = ''
+  } else if (selectedNode.level === 2) {
+    evaluationForm.selectedProvince = selectedNode.provinceName || evaluationForm.selectedProvince
+    evaluationForm.selectedCity = selectedNode.cityName || selectedNode.name
+    evaluationForm.selectedCounty = ''
+  } else if (selectedNode.level === 3) {
+    evaluationForm.selectedProvince = selectedNode.provinceName || evaluationForm.selectedProvince
+    evaluationForm.selectedCity = selectedNode.cityName || evaluationForm.selectedCity
+    evaluationForm.selectedCounty = selectedNode.name
+  }
+
+  // 根据选择的节点级别保存到全局 store
+  const levelInfo = {
+    code: selectedNode.code,
+    name: selectedNode.name,
+    level: selectedNode.level
+  }
+
+  globalOrganizationStore.setOrganization(levelInfo)
+
+  // 如果选择的是区县级别（level 3），加载数据
+  if (selectedNode.level === 3) {
+    await loadCountyData(selectedNode.name, selectedNode.code)
+  } else {
+    console.log('选择的是非区县级别的节点，暂不加载数据')
+  }
+}
+
+// 加载区县数据
+const loadCountyData = async (countyName: string, countyCode: string) => {
   try {
-    const response = await algorithmManagementApi.getAlgorithmStepsAndFormulas(algorithmId)
-    if (response.success) {
-      const steps: any[] = response.data || []
-      
-      // 处理每个步骤的公式数据
-      steps.forEach((step: any, index: number) => {
-        // 如果步骤有关联的公式配置
-        if (step.formulas && step.formulas.length > 0) {
-          // 取第一个公式作为主要公式
-          const mainFormula = step.formulas[0]
-          step.formula = mainFormula.formulaExpression || mainFormula.formula_expression || ''
-          step.formulaName = mainFormula.formulaName || mainFormula.formula_name || ''
-          step.formulaDescription = mainFormula.description || ''
-        } else {
-          // 如果没有关联公式，尝试从步骤本身获取公式信息
-          step.formula = step.formulaExpression || step.formula_expression || ''
-          step.formulaName = step.formulaName || step.formula_name || ''
-          step.formulaDescription = step.formulaDescription || step.formula_description || ''
+    let provinceName = evaluationForm.selectedProvince
+    let cityName = evaluationForm.selectedCity
+    let countyNameToUse = countyName
+
+    if ((!provinceName || !cityName) && countyCode) {
+      const parts = String(countyCode).split('_')
+      if (parts.length >= 4 && parts[0] === 'county') {
+        provinceName = parts[1]
+        cityName = parts[2]
+        countyNameToUse = parts.slice(3).join('_') || countyNameToUse
+      }
+    }
+
+    if (!provinceName || !cityName) {
+      throw new Error('缺少省/市信息，无法按区县获取数据')
+    }
+
+    const response = await regionDataApi.getDataByCounty(
+      evaluationForm.dataType,
+      provinceName,
+      cityName,
+      countyNameToUse,
+      evaluationForm.year
+    )
+
+    if (response.code === 200) {
+      evaluationForm.countyData = response.data || []
+      console.log('返回的县数据样本:', evaluationForm.countyData[0])
+
+      // 从县数据中提取区县代码（取 regionCode 的前6位，如 511425001 -> 511425）
+      if (evaluationForm.countyData.length > 0) {
+        const firstItem: any = (evaluationForm.countyData as any[])[0]
+        if (firstItem.regionCode) {
+          evaluationForm.orgCode = firstItem.regionCode.substring(0, 6)
         }
-        
-        // 根据用户需求调整步骤3-5的逻辑
-        if (index === 2) { // 步骤3：定权
-          step.stepName = '乡镇减灾能力定权'
-          step.stepDescription = '根据不同的逻辑分别计算一级指标公式和乡镇（街道）减灾能力公式'
-          step.formula = '一级指标权重计算 + 乡镇减灾能力权重计算'
-          step.formulaDescription = '分别计算灾害管理能力、灾害备灾能力、自救转移能力的权重，以及综合减灾能力权重'
-        } else if (index === 3) { // 步骤4：优劣解算
-          step.stepName = '优劣解算法计算'
-          step.stepDescription = '分别计算一级指标优劣和乡镇（街道）减灾能力优劣'
-          step.formula = `一级指标优劣计算：
-灾害管理能力（优）=SQRT((队伍管理能力最大值-本乡镇队伍管理能力)²+(风险评估能力最大值-本乡镇风险评估能力)²+(财政投入能力最大值-本乡镇财政投入能力)²)
-灾害备灾能力（优）=SQRT((物资储备能力最大值-本乡镇物资储备能力)²+(医疗保障能力最大值-本乡镇医疗保障能力)²)
-自救转移能力（优）=SQRT((自救互救能力最大值-本乡镇自救互救能力)²+(公众避险能力最大值-本乡镇公众避险能力)²+(转移安置能力最大值-本乡镇转移安置能力)²)
+      }
 
-乡镇减灾能力优劣计算：
-乡镇名称（优）=SQRT((队伍管理能力最大值-本乡镇队伍管理能力)²+...+所有8个能力指标)
-乡镇名称（差）=对应使用最小值计算`
-          step.formulaDescription = '使用TOPSIS方法计算各指标与理想解和负理想解的距离'
-        } else if (index === 4) { // 步骤5：能力分级
-          step.stepName = '减灾能力分级计算'
-          step.stepDescription = '分别计算一级指标能力值和乡镇（街道）减灾能力值，并进行分级'
-          step.formula = `能力值计算：
-灾害管理能力 = 灾害管理能力（差）/(灾害管理能力（差）+灾害管理能力（优）)
-灾害备灾能力 = 灾害备灾能力（差）/(灾害备灾能力（差）+灾害备灾能力（优）)
-自救转移能力 = 自救转移能力（差）/(自救转移能力（差）+自救转移能力（优）)
-
-分级计算：
-均值μ = AVERAGE(能力值)
-标准差σ = STDEV.S(能力值)
-分级 = IF条件判断（强、较强、中等、较弱、弱）`
-          step.formulaDescription = '基于TOPSIS结果计算最终能力值，并使用统计学方法进行五级分类'
+      // 将数据转换为regions格式用于评估
+      evaluationForm.regions = evaluationForm.countyData.map((item: any) => {
+        if (evaluationForm.dataType === 'community') {
+          return item.regionCode || `${item.provinceName}_${item.cityName}_${item.countyName}_${item.communityName}`
+        } else {
+          return item.regionCode || item.townshipName
         }
       })
-      
-      algorithmSteps.value = steps
-    } else {
-      algorithmSteps.value = []
-      console.error('获取算法步骤失败:', response.message)
+
+      ElMessage.success(`成功获取${countyName}的${evaluationForm.dataType === 'community' ? '社区' : '乡镇'}数据，共${evaluationForm.countyData.length}条`)
     }
   } catch (error) {
-    algorithmSteps.value = []
-    console.error('获取算法步骤失败:', error)
+    console.error('获取县数据失败:', error)
+    ElMessage.error('获取县数据失败')
   }
 }
 
@@ -1715,7 +1369,6 @@ const resetEvaluationForm = () => {
     modelId: null,
     weightConfigId: undefined,
     year: globalYearStore.selectedYear,
-    algorithmId: null,
     dataType: 'township', // 重置为默认乡镇数据
     dataSource: 'REGION',
     regions: [] as string[],
@@ -1796,15 +1449,12 @@ const startEvaluation = async () => {
       return
     }
 
-    // 如果选择了模型，使用模型执行
-    if (evaluationForm.modelId) {
-      await executeModelEvaluation()
-    } else if (evaluationForm.algorithmId) {
-      // 否则使用算法执行
-      await executeAlgorithmEvaluation()
-    } else {
-      ElMessage.error('请选择评估模型或评估算法')
+    if (!evaluationForm.modelId) {
+      ElMessage.error('请选择评估模型')
+      return
     }
+
+    await executeModelEvaluation()
   })
 }
 
@@ -2042,26 +1692,6 @@ const executeModelEvaluation = async () => {
   }
 }
 
-// 执行算法评估（原有逻辑）
-const executeAlgorithmEvaluation = async () => {
-  // 获取算法步骤
-  if (algorithmSteps.value.length === 0) {
-    await getAlgorithmSteps(evaluationForm.algorithmId)
-  }
-
-  if (algorithmSteps.value.length > 0) {
-    // 找到第5步并执行
-    const step5 = algorithmSteps.value[4]
-    if (step5) {
-      await calculateStepResult(step5, 4)
-    } else {
-      ElMessage.error('未找到第5步的配置')
-    }
-  } else {
-    ElMessage.error('未找到算法步骤配置')
-  }
-}
-
 // 提取地区代码
 const extractRegionCode = (regionId: string): string => {
   // 使用全局映射查找 regionCode
@@ -2184,54 +1814,6 @@ const viewEvaluationDetail = (row: any) => {
   viewExecutionDetail(row)
 }
 
-// 重新计算
-const rerunEvaluation = async (row: any) => {
-  try {
-    await ElMessageBox.confirm('确定要重新计算这个评估吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    
-    const response = await evaluationApi.rerun(row.id)
-    if (response.success) {
-      ElMessage.success('重新计算已开始')
-      getEvaluationHistory()
-    } else {
-      ElMessage.error(response.message || '重新计算失败')
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('重新计算失败:', error)
-      ElMessage.error('重新计算失败')
-    }
-  }
-}
-
-// 删除评估
-const deleteEvaluation = async (row: any) => {
-  try {
-    await ElMessageBox.confirm('确定要删除这个评估记录吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    
-    const response = await evaluationApi.deleteResult(row.id)
-    if (response.success) {
-      ElMessage.success('删除成功')
-      getEvaluationHistory()
-    } else {
-      ElMessage.error(response.message || '删除失败')
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除评估失败:', error)
-      ElMessage.error('删除失败')
-    }
-  }
-}
-
 // 删除评估历史记录
 const deleteEvaluationHistory = async (row: any) => {
   try {
@@ -2276,260 +1858,6 @@ const getStatusText = (status: string) => {
     'PENDING': '等待中'
   }
   return statusMap[status] || status
-}
-
-// 监控执行进度
-const monitorExecutionProgress = async (executionId: string) => {
-  const checkProgress = async () => {
-    try {
-      const response = await algorithmExecutionApi.getProgress(executionId)
-      if (response.success && response.data) {
-        const progress = response.data
-        
-        evaluationProgress.percentage = progress.percentage || 0
-        evaluationProgress.message = progress.message || '执行中...'
-        evaluationProgress.detail = progress.detail || ''
-        
-        if (progress.status === 'SUCCESS') {
-          evaluationProgress.status = 'success'
-          ElMessage.success('算法执行完成')
-        } else if (progress.status === 'FAILED') {
-          evaluationProgress.status = 'exception'
-          ElMessage.error('算法执行失败')
-        } else if (progress.status === 'RUNNING') {
-          // 继续监控
-          setTimeout(checkProgress, 1000)
-        }
-      }
-    } catch (error) {
-      console.error('获取执行进度失败:', error)
-    }
-  }
-  
-  // 开始监控
-  checkProgress()
-}
-
-// 查看所有步骤的结果
-const viewAllStepsResults = async () => {
-  if (!evaluationForm.algorithmId) {
-    ElMessage.warning('请先选择算法')
-    return
-  }
-  
-  if (!evaluationForm.regions || evaluationForm.regions.length === 0) {
-    ElMessage.warning('请先选择地区')
-    return
-  }
-  
-  try {
-    // 提取地区代码
-    const regionCodes = evaluationForm.regions.map((regionId: string) => extractRegionCode(regionId))
-    
-    console.log('=== 开始获取所有步骤结果 ===', {
-      algorithmId: evaluationForm.algorithmId,
-      regionCodes,
-      weightConfigId: evaluationForm.weightConfigId
-    })
-    
-    // 首先获取算法步骤信息
-    const stepsResponse = await algorithmStepExecutionApi.getAlgorithmSteps(evaluationForm.algorithmId)
-    if (!stepsResponse.success || !stepsResponse.data.steps) {
-      ElMessage.error('获取算法步骤信息失败')
-      return
-    }
-    
-    const algorithmSteps = stepsResponse.data.steps
-    console.log('获取到算法步骤:', algorithmSteps)
-    
-    // 执行所有步骤获取结果
-    const stepResultPromises = algorithmSteps.map(async (step: any) => {
-      try {
-        const response = await algorithmStepExecutionApi.executeStep(
-          evaluationForm.algorithmId!,
-          step.stepOrder,
-          {
-            regionCodes,
-            weightConfigId: evaluationForm.weightConfigId
-          }
-        )
-        
-        if (response.success) {
-          return response.data
-        } else {
-          console.error(`步骤${step.stepOrder}执行失败:`, response.message)
-          return null
-        }
-      } catch (error) {
-        console.error(`步骤${step.stepOrder}执行异常:`, error)
-        return null
-      }
-    })
-    
-    const stepResults = await Promise.all(stepResultPromises)
-    const validStepResults = stepResults.filter(result => result !== null)
-    
-    if (validStepResults.length === 0) {
-      ElMessage.error('所有步骤执行失败')
-      return
-    }
-    
-    console.log('获取到的步骤结果:', validStepResults)
-    console.log('每个步骤结果的详细信息:')
-    validStepResults.forEach((result, index) => {
-      console.log(`步骤${index + 1}:`, {
-        stepOrder: result.stepOrder,
-        stepName: result.stepName,
-        hasTableData: !!result.tableData,
-        tableDataLength: result.tableData?.length,
-        keys: Object.keys(result)
-      })
-    })
-    
-    // 设置弹窗数据
-    currentStepInfo.value = {
-      stepNumber: 0,
-      stepName: '算法步骤执行结果',
-      description: `共执行了 ${validStepResults.length} 个步骤`,
-      stepCode: 'multi_steps',
-      formula: '',
-      formulaName: '',
-      formulaDescription: ''
-    }
-    
-    const multiStepData = {
-      isMultiStep: true,
-      stepResults: validStepResults
-    }
-    
-    console.log('准备传递给ResultDialog的数据:', {
-      isMultiStep: multiStepData.isMultiStep,
-      stepResultsCount: multiStepData.stepResults.length,
-      firstStepKeys: Object.keys(multiStepData.stepResults[0])
-    })
-    
-    currentCalculationResult.value = multiStepData
-    
-    resultDialogVisible.value = true
-    ElMessage.success(`成功获取 ${validStepResults.length} 个步骤的结果`)
-    
-  } catch (error) {
-    console.error('获取步骤结果失败:', error)
-    ElMessage.error('获取步骤结果失败')
-  }
-}
-
-// 计算步骤结果
-const calculateStepResult = async (step: any, index: number) => {
-  console.log('=== 开始计算步骤结果 ===', {
-    stepIndex: index,
-    stepName: step.stepName,
-    stepId: step.id,
-    algorithmId: evaluationForm.algorithmId
-  })
-  
-  if (!evaluationForm.algorithmId) {
-    ElMessage.warning('请先选择算法')
-    return
-  }
-  
-  // 设置计算状态
-  step.calculating = true
-  
-  try {
-    // 准备计算参数
-    const calculationParams = {
-      algorithmId: evaluationForm.algorithmId,
-      stepId: step.id,
-      stepIndex: index,
-      regions: evaluationForm.regions,
-      parameters: evaluationForm.parameters,
-      formula: step.formula
-    }
-    
-    // 调用后端API计算步骤结果
-    const response = await algorithmExecutionApi.calculateStepResult(calculationParams)
-    
-    let calculationResult
-    if (response.success && response.data) {
-      // 检查是否为双表格数据结构
-      if (response.data.isDualTable) {
-        // 双表格数据结构
-        calculationResult = {
-          isDualTable: true,
-          table1Data: response.data.table1Data || [],
-          table1Columns: response.data.table1Columns || [],
-          table1Summary: response.data.table1Summary || null,
-          table2Data: response.data.table2Data || [],
-          table2Columns: response.data.table2Columns || [],
-          table2Summary: response.data.table2Summary || null
-        }
-        console.log('后端返回双表格数据:', {
-          table1DataCount: calculationResult.table1Data.length,
-          table2DataCount: calculationResult.table2Data.length,
-          table1ColumnsCount: calculationResult.table1Columns.length,
-          table2ColumnsCount: calculationResult.table2Columns.length
-        })
-      } else {
-        // 单表格数据结构
-        calculationResult = {
-          tableData: response.data.tableData || [],
-          columns: response.data.columns || [],
-          summary: response.data.summary || null
-        }
-      }
-      
-      ElMessage.success(`步骤 ${index + 1} 计算完成`)
-    } else {
-      ElMessage.error(response.message || '计算失败')
-      return
-    }
-    
-    // 设置弹窗数据并显示
-    currentStepInfo.value = {
-      stepNumber: index + 1,
-      stepName: step.stepName,
-      description: step.stepDescription,
-      stepCode: step.stepCode || '',
-      formula: step.formula,
-      formulaName: step.formulaName,
-      formulaDescription: step.formulaDescription
-    }
-    currentCalculationResult.value = calculationResult
-    resultDialogVisible.value = true
-    
-  } catch (error) {
-    console.error('计算步骤结果失败:', error)
-    console.error('请求错误:', error)
-    
-    // 如果API不存在，使用模拟数据
-    console.log('API调用失败，使用模拟数据', { stepName: step.stepName, index })
-    const mockResult = generateMockStepResult(step, index)
-    
-    console.log('模拟数据生成结果:', {
-      tableDataLength: mockResult.tableData?.length,
-      columnsLength: mockResult.columns?.length,
-      columns: mockResult.columns?.map(col => ({ prop: col.prop, label: col.label })),
-      firstRowData: mockResult.tableData?.[0]
-    })
-    
-    // 设置弹窗数据并显示
-    currentStepInfo.value = {
-      stepNumber: index + 1,
-      stepName: step.stepName,
-      description: step.stepDescription,
-      stepCode: step.stepCode || '',
-      formula: step.formula,
-      formulaName: step.formulaName,
-      formulaDescription: step.formulaDescription
-    }
-    currentCalculationResult.value = mockResult
-    resultDialogVisible.value = true
-    
-    ElMessage.success(`步骤 ${index + 1} 计算完成（模拟数据）`)
-  } finally {
-    step.calculating = false
-  }
 }
 
 // 处理地区选择
@@ -2580,22 +1908,6 @@ const findNodeById = (nodes: any[], id: string): any => {
     }
   }
   return null
-}
-
-// 显示公式悬停提示
-const showFormulaTooltip = (step: any, event: MouseEvent) => {
-  if (!step.formula) return
-  
-  formulaTooltip.step = step as TooltipStepInfo
-  formulaTooltip.x = event.clientX + 10
-  formulaTooltip.y = event.clientY + 10
-  formulaTooltip.visible = true
-}
-
-// 隐藏公式悬停提示
-const hideFormulaTooltip = () => {
-  formulaTooltip.visible = false
-  formulaTooltip.step = null
 }
 
 // 生成模拟步骤结果
@@ -2970,15 +2282,6 @@ const convertToCSV = (exportData: any) => {
   return csv
 }
 
-// 监听算法选择变化
-watch(() => evaluationForm.algorithmId, (newAlgorithmId) => {
-  if (newAlgorithmId) {
-    getAlgorithmSteps(newAlgorithmId)
-  } else {
-    algorithmSteps.value = []
-  }
-})
-
 // 设置默认值
 const setDefaultValues = async () => {
   // 等待数据加载完成
@@ -2994,6 +2297,7 @@ const setDefaultValues = async () => {
     evaluationForm.modelId = evaluationModels.value[0].id
   }
 
+  await getRegionTreeData()
   await getProvinces(false)
 
   const storedOrg = globalOrganizationStore.selectedOrganization
@@ -3010,7 +2314,6 @@ const setDefaultValues = async () => {
 
 // 组件挂载时获取数据
 onMounted(() => {
-  getAlgorithmConfigs()
   getEvaluationHistory()
   // 设置默认值
   setDefaultValues()
@@ -3037,6 +2340,7 @@ watch(
       getEvaluationHistory(1, pageSize.value)
       resetRegionSelect()
       getProvinces()
+      getRegionTreeData()
     }
 
     // 更新筛选条件中的区县（使用机构代码）
@@ -3241,74 +2545,6 @@ watch(
   margin-top: 12px;
 }
 
-.formula-tooltip {
-  position: fixed;
-  z-index: 9999;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  max-width: 400px;
-  min-width: 250px;
-  pointer-events: none;
-}
-
-.tooltip-header {
-  padding: 12px 16px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  border-radius: 8px 8px 0 0;
-}
-
-.tooltip-header strong {
-  color: #374151;
-  font-size: 14px;
-}
-
-.tooltip-content {
-  padding: 16px;
-}
-
-.formula-display {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 8px;
-}
-
-.formula-code {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 13px;
-  color: #dc2626;
-  background: transparent;
-  border: none;
-  word-break: break-all;
-  white-space: pre-wrap;
-}
-
-.formula-description {
-  margin-top: 8px;
-}
-
-.formula-description p {
-  color: #6b7280;
-  font-size: 13px;
-  margin: 0;
-  line-height: 1.4;
-}
-
-.no-formula {
-  text-align: center;
-  padding: 20px;
-  color: #9ca3af;
-  font-style: italic;
-}
-
-.text-muted {
-  color: #9ca3af;
-}
-
 .common-parameters {
   margin-top: 24px;
 }
@@ -3372,11 +2608,6 @@ watch(
   .step-layout {
     flex-direction: column;
     gap: 16px;
-  }
-  
-  .formula-tooltip {
-    max-width: 300px;
-    min-width: 200px;
   }
   
   /* 移动端步骤布局调整 */

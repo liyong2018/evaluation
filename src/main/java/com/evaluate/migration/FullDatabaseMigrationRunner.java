@@ -145,17 +145,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " update_by varchar(50)" +
                 ")");
 
-        // 3. algorithm_config 表
-        exec(pg, "CREATE TABLE IF NOT EXISTS public.algorithm_config (" +
-                " id bigserial PRIMARY KEY," +
-                " config_name varchar(100) NOT NULL," +
-                " description varchar(255)," +
-                " version varchar(20) DEFAULT '1.0'," +
-                " status int DEFAULT 1," +
-                " create_time timestamptz DEFAULT now()" +
-                ")");
-
-        // 4. weight_config 表
+        // 3. weight_config 表
         exec(pg, "CREATE TABLE IF NOT EXISTS public.weight_config (" +
                 " id bigserial PRIMARY KEY," +
                 " config_name varchar(100) NOT NULL," +
@@ -167,7 +157,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " is_deleted int DEFAULT 0" +
                 ")");
 
-        // 5. indicator_weight 表
+        // 4. indicator_weight 表
         exec(pg, "CREATE TABLE IF NOT EXISTS public.indicator_weight (" +
                 " id bigserial PRIMARY KEY," +
                 " config_id bigint NOT NULL," +
@@ -180,7 +170,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " create_time timestamptz DEFAULT now()" +
                 ")");
 
-        // 6. survey_data 表
+        // 5. survey_data 表
         exec(pg, "CREATE TABLE IF NOT EXISTS public.survey_data (" +
                 " id bigserial PRIMARY KEY," +
                 " region_code varchar(20) NOT NULL," +
@@ -205,7 +195,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " is_deleted int DEFAULT 0" +
                 ")");
 
-        // 7. community_disaster_reduction_capacity 表
+        // 6. community_disaster_reduction_capacity 表
         exec(pg, "CREATE TABLE IF NOT EXISTS public.community_disaster_reduction_capacity (" +
                 " id bigserial PRIMARY KEY," +
                 " region_code varchar(50) NOT NULL," +
@@ -228,7 +218,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " update_time timestamptz" +
                 ")");
 
-        // 8. model_step 表
+        // 7. model_step 表
         exec(pg, "CREATE TABLE IF NOT EXISTS public.model_step (" +
                 " id bigserial PRIMARY KEY," +
                 " model_id bigint NOT NULL," +
@@ -244,21 +234,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " create_time timestamptz DEFAULT now()" +
                 ")");
 
-        // 9. algorithm_step 表
-        exec(pg, "CREATE TABLE IF NOT EXISTS public.algorithm_step (" +
-                " id bigint PRIMARY KEY," +
-                " algorithm_config_id bigint NOT NULL," +
-                " step_name varchar(100) NOT NULL," +
-                " step_code varchar(50) NOT NULL," +
-                " description text NOT NULL," +
-                " input_data bytea," +
-                " output_data bytea," +
-                " step_order int NOT NULL," +
-                " status int DEFAULT 1," +
-                " create_time timestamptz DEFAULT now()" +
-                ")");
-
-        // 10. step_algorithm 表
+        // 8. step_algorithm 表
         exec(pg, "CREATE TABLE IF NOT EXISTS public.step_algorithm (" +
                 " id bigserial PRIMARY KEY," +
                 " step_id bigint NOT NULL," +
@@ -273,7 +249,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " create_time timestamptz DEFAULT now()" +
                 ")");
 
-        // 11. step_execution_result 表
+        // 9. step_execution_result 表
         exec(pg, "CREATE TABLE IF NOT EXISTS public.step_execution_result (" +
                 " id bigserial PRIMARY KEY," +
                 " execution_record_id bigint NOT NULL," +
@@ -287,7 +263,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
                 " error_message text" +
                 ")");
 
-        // 12. report 表
+        // 10. report 表
         exec(pg, "CREATE TABLE IF NOT EXISTS public.report (" +
                 " id bigserial PRIMARY KEY," +
                 " primary_result_id bigint NOT NULL," +
@@ -360,8 +336,8 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
     private void truncateAllTables(Connection pg) throws SQLException {
         String[] tables = {
             "evaluation_result", "model_execution_record", "indicator_weight_score", "organization", "evaluation_model",
-            "algorithm_config", "weight_config", "indicator_weight", "survey_data",
-            "community_disaster_reduction_capacity", "model_step", "algorithm_step",
+            "weight_config", "indicator_weight", "survey_data",
+            "community_disaster_reduction_capacity", "model_step",
             "step_algorithm", "step_execution_result", "report"
         };
 
@@ -376,14 +352,12 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
         // 按依赖关系迁移表
         migrationCounts.put("organization", migrateOrganization(mysql, pg));
         migrationCounts.put("evaluation_model", migrateEvaluationModel(mysql, pg));
-        migrationCounts.put("algorithm_config", migrateAlgorithmConfig(mysql, pg));
         migrationCounts.put("weight_config", migrateWeightConfig(mysql, pg));
         migrationCounts.put("indicator_weight", migrateIndicatorWeight(mysql, pg));
         migrationCounts.put("indicator_weight_score", migrateIndicatorWeightScore(mysql, pg));
         migrationCounts.put("survey_data", migrateSurveyData(mysql, pg));
         migrationCounts.put("community_disaster_reduction_capacity", migrateCommunityCapacity(mysql, pg));
         migrationCounts.put("model_step", migrateModelStep(mysql, pg));
-        migrationCounts.put("algorithm_step", migrateAlgorithmStep(mysql, pg));
         migrationCounts.put("step_algorithm", migrateStepAlgorithm(mysql, pg));
         migrationCounts.put("step_execution_result", migrateStepExecutionResult(mysql, pg));
         migrationCounts.put("report", migrateReport(mysql, pg));
@@ -406,13 +380,6 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
         return migrateTable(mysql, pg, "evaluation_model",
             "id, model_name, model_code, description, version, status, is_default, create_time, update_time, create_by, update_by",
             "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?");
-    }
-
-    private long migrateAlgorithmConfig(Connection mysql, Connection pg) throws SQLException {
-        log.info("迁移 algorithm_config 表...");
-        return migrateTable(mysql, pg, "algorithm_config",
-            "id, config_name, description, version, status, create_time",
-            "?, ?, ?, ?, ?, ?");
     }
 
     private long migrateWeightConfig(Connection mysql, Connection pg) throws SQLException {
@@ -455,13 +422,6 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
         return migrateTable(mysql, pg, "model_step",
             "id, model_id, step_name, step_code, step_order, step_type, description, input_variables, output_variables, depends_on, status, create_time",
             "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?");
-    }
-
-    private long migrateAlgorithmStep(Connection mysql, Connection pg) throws SQLException {
-        log.info("迁移 algorithm_step 表...");
-        return migrateTable(mysql, pg, "algorithm_step",
-            "id, algorithm_config_id, step_name, step_code, description, input_data, output_data, step_order, status, create_time",
-            "?, ?, ?, ?, ?, ?, ?, ?, ?, ?");
     }
 
     private long migrateStepAlgorithm(Connection mysql, Connection pg) throws SQLException {
@@ -556,7 +516,7 @@ public class FullDatabaseMigrationRunner implements ApplicationRunner {
 
     private void alignAllSequences(Connection pg) throws SQLException {
         String[] tables = {
-            "organization", "evaluation_model", "algorithm_config", "weight_config",
+            "organization", "evaluation_model", "weight_config",
             "indicator_weight", "indicator_weight_score", "survey_data", "community_disaster_reduction_capacity",
             "model_step", "step_algorithm", "step_execution_result", "report",
             "evaluation_result", "model_execution_record"

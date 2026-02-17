@@ -58,36 +58,6 @@ public interface ModelExecutionService {
     List<Map<String, Object>> generateResultTable(Map<String, Object> executionResults);
 
     /**
-     * 执行算法的单个步骤并返回2D表格结果
-     * 
-     * @param algorithmId 算法ID
-     * @param stepOrder 步骤顺序（从1开始）
-     * @param regionCodes 地区代码列表
-     * @param weightConfigId 权重配置ID
-     * @return 步骤执行结果，包含2D表格数据
-     */
-    Map<String, Object> executeAlgorithmStep(Long algorithmId, Integer stepOrder, List<String> regionCodes, Long weightConfigId, Integer year);
-
-    /**
-     * 获取算法所有步骤的基本信息
-     * 
-     * @param algorithmId 算法ID
-     * @return 算法步骤列表信息
-     */
-    Map<String, Object> getAlgorithmStepsInfo(Long algorithmId);
-
-    /**
-     * 批量执行算法步骤（直到指定步骤）
-     *
-     * @param algorithmId 算法ID
-     * @param upToStepOrder 执行到第几步（包含该步骤）
-     * @param regionCodes 地区代码列表
-     * @param weightConfigId 权重配置ID
-     * @return 所有已执行步骤的结果
-     */
-    Map<String, Object> executeAlgorithmStepsUpTo(Long algorithmId, Integer upToStepOrder, List<String> regionCodes, Long weightConfigId, Integer year);
-
-    /**
      * 获取执行记录详情
      *
      * @param executionRecordId 执行记录ID

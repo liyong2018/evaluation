@@ -1,7 +1,6 @@
 package com.evaluate.controller;
 
 import com.evaluate.common.Result;
-import com.evaluate.service.IEvaluationService;
 import com.evaluate.service.ModelExecutionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,9 +17,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/evaluation")
 public class EvaluationController {
-
-    @Autowired
-    private IEvaluationService evaluationService;
 
     @Autowired
     private ModelExecutionService modelExecutionService;
@@ -83,89 +79,6 @@ public class EvaluationController {
         } catch (Exception e) {
             log.error("生成结果二维表失败", e);
             return Result.error("生成结果二维表失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 获取算法步骤信息
-     */
-    @GetMapping("/algorithm/{algorithmId}/steps-info")
-    public Result<Map<String, Object>> getAlgorithmStepsInfo(@PathVariable("algorithmId") Long algorithmId) {
-        log.info("获取算法步骤信息, algorithmId={}", algorithmId);
-        try {
-            Map<String, Object> stepsInfo = modelExecutionService.getAlgorithmStepsInfo(algorithmId);
-            return Result.success(stepsInfo);
-        } catch (Exception e) {
-            log.error("获取算法步骤信息失败", e);
-            return Result.error("获取算法步骤信息失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 执行算法的单个步骤并返回2D表格结果
-     */
-    @PostMapping("/algorithm/{algorithmId}/step/{stepOrder}/execute")
-    public Result<Map<String, Object>> executeAlgorithmStep(
-            @PathVariable("algorithmId") Long algorithmId,
-            @PathVariable("stepOrder") Integer stepOrder,
-            @RequestBody Map<String, Object> request) {
-        log.info("执行算法步骤, algorithmId={}, stepOrder={}", algorithmId, stepOrder);
-        try {
-            @SuppressWarnings("unchecked")
-            List<String> regionCodes = (List<String>) request.get("regionCodes");
-            Long weightConfigId = request.get("weightConfigId") != null
-                    ? Long.valueOf(request.get("weightConfigId").toString()) : null;
-            Integer year = null;
-            if (request.get("year") != null) {
-                try {
-                    year = Integer.valueOf(request.get("year").toString());
-                } catch (Exception ignore) {}
-            }
-
-            if (regionCodes == null || regionCodes.isEmpty()) {
-                return Result.error("地区代码列表不能为空");
-            }
-
-            Map<String, Object> result = modelExecutionService.executeAlgorithmStep(
-                    algorithmId, stepOrder, regionCodes, weightConfigId, year);
-            return Result.success(result);
-        } catch (Exception e) {
-            log.error("执行算法步骤失败", e);
-            return Result.error("执行算法步骤失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 批量执行算法步骤（直到指定步骤）
-     */
-    @PostMapping("/algorithm/{algorithmId}/steps-up-to/{upToStepOrder}/execute")
-    public Result<Map<String, Object>> executeAlgorithmStepsUpTo(
-            @PathVariable("algorithmId") Long algorithmId,
-            @PathVariable("upToStepOrder") Integer upToStepOrder,
-            @RequestBody Map<String, Object> request) {
-        log.info("批量执行算法步骤到第{}步, algorithmId={}", upToStepOrder, algorithmId);
-        try {
-            @SuppressWarnings("unchecked")
-            List<String> regionCodes = (List<String>) request.get("regionCodes");
-            Long weightConfigId = request.get("weightConfigId") != null
-                    ? Long.valueOf(request.get("weightConfigId").toString()) : null;
-            Integer year = null;
-            if (request.get("year") != null) {
-                try {
-                    year = Integer.valueOf(request.get("year").toString());
-                } catch (Exception ignore) {}
-            }
-
-            if (regionCodes == null || regionCodes.isEmpty()) {
-                return Result.error("地区代码列表不能为空");
-            }
-
-            Map<String, Object> result = modelExecutionService.executeAlgorithmStepsUpTo(
-                    algorithmId, upToStepOrder, regionCodes, weightConfigId, year);
-            return Result.success(result);
-        } catch (Exception e) {
-            log.error("批量执行算法步骤失败", e);
-            return Result.error("批量执行算法步骤失败: " + e.getMessage());
         }
     }
 

@@ -170,6 +170,17 @@ public class IndicatorWeightController {
         }
     }
 
+    @DeleteMapping("/purge-county")
+    public Result<Integer> purgeCountyWeights(@RequestParam(required = false) Integer year) {
+        try {
+            int deleted = indicatorWeightService.purgeCountyWeights(year);
+            return Result.success(deleted);
+        } catch (Exception e) {
+            log.error("删除区县级权重失败", e);
+            return Result.error("删除区县级权重失败: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/validate")
     public Result<Boolean> validateWeights(@RequestBody List<IndicatorWeight> weights) {
         try {

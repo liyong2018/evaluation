@@ -46,6 +46,12 @@ public class WeightConfig implements Serializable {
     @TableField("orgcode")
     private String orgcode;
 
+    @TableField("data_source")
+    private String dataSource;
+
+    @TableField("year")
+    private Integer year;
+
     /**
      * 创建时间
      */

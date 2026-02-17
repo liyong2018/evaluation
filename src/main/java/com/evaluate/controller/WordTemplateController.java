@@ -4,7 +4,6 @@ import com.evaluate.common.Result;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
 import com.evaluate.service.IWordTemplateService;
 import com.evaluate.service.ICommunityDisasterReductionCapacityService;
-import com.evaluate.service.IEvaluationService;
 import com.evaluate.service.EvaluationResultService;
 import com.evaluate.entity.EvaluationResult;
 import com.evaluate.entity.Organization;
@@ -60,9 +59,6 @@ public class WordTemplateController {
 
     @Autowired
     private ICommunityDisasterReductionCapacityService communityService;
-
-    @Autowired
-    private IEvaluationService evaluationService;
 
     @Autowired
     private EvaluationResultService evaluationResultService;

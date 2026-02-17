@@ -396,7 +396,7 @@
                       </el-tag>
                       <span class="current-weight-ref">
                         <el-icon><View /></el-icon>
-                        参考: {{ data.currentWeight?.toFixed(3) || '0.000' }}
+                        参考: {{ data.currentWeight?.toFixed(2) || '0.00' }}
                       </span>
                     </div>
                     <div class="node-weight">
@@ -456,7 +456,7 @@
             </el-table-column>
             <el-table-column label="平均权重" width="120" align="center">
               <template #default="{ row }">
-                <span class="weight-value">{{ row.level1Avg?.toFixed(3) || '-' }}</span>
+                <span class="weight-value">{{ row.level1Avg?.toFixed(2) || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column label="二级指标">
@@ -469,7 +469,7 @@
                   >
                     <el-tag size="small" type="success">{{ child.indicatorCode }}</el-tag>
                     <span class="indicator-name">{{ child.indicatorName }}</span>
-                    <span class="weight-badge">{{ child.avgWeight.toFixed(3) }}</span>
+                    <span class="weight-badge">{{ child.avgWeight?.toFixed(2) ?? '-' }}</span>
                     <span class="score-count">({{ child.scoreCount }}人)</span>
                   </div>
                 </div>
@@ -543,7 +543,7 @@
                         </div>
                         <div class="node-weight">
                           <span class="weight-label">权重:</span>
-                          <span class="weight-value-display">{{ data.weight.toFixed(3) }}</span>
+                          <span class="weight-value-display">{{ data.weight != null ? data.weight.toFixed(2) : '-' }}</span>
                         </div>
                       </div>
                     </div>
@@ -793,22 +793,20 @@ const selectedExpertScoreTree = computed(() => {
   const expertName = selectedExpert.value.expert_name
   const allStats = statisticsData.value.indicatorStats || []
 
-  // 获取该专家的所有打分
-  const expertScores: any[] = []
+  const nodes: any[] = []
   allStats.forEach((stat: any) => {
+    if (stat.id === null || stat.id === undefined) return
     const expertScore = stat.expertScores?.find((s: any) => s.expertName === expertName)
-    if (expertScore) {
-      expertScores.push({
-        id: stat.id,
-        indicatorCode: stat.indicatorCode,
-        indicatorName: stat.indicatorName,
-        indicatorLevel: stat.indicatorLevel,
-        parentId: stat.parentId,
-        weight: expertScore.weight,
-        createTime: expertScore.createTime,
-        children: []
-      })
-    }
+    nodes.push({
+      id: stat.id,
+      indicatorCode: stat.indicatorCode,
+      indicatorName: stat.indicatorName,
+      indicatorLevel: stat.indicatorLevel,
+      parentId: stat.parentId,
+      weight: expertScore?.weight ?? stat.currentWeight ?? null,
+      createTime: expertScore?.createTime,
+      children: []
+    })
   })
 
   // 构建树形结构
@@ -816,12 +814,12 @@ const selectedExpertScoreTree = computed(() => {
   const roots: any[] = []
 
   // 第一遍：创建所有节点
-  expertScores.forEach(item => {
+  nodes.forEach(item => {
     nodeMap.set(item.id, item)
   })
 
   // 第二遍：建立父子关系
-  expertScores.forEach(item => {
+  nodes.forEach(item => {
     if (item.parentId !== null && item.parentId !== undefined && nodeMap.has(item.parentId)) {
       const parent = nodeMap.get(item.parentId)
       parent.children.push(item)
@@ -1475,7 +1473,7 @@ const submitScore = async () => {
 
   const level1Sum = level1Items.reduce((sum: number, item: any) => sum + (item.weight || 0), 0)
   if (Math.abs(level1Sum - 1) > eps) {
-    ElMessage.warning(`一级指标权重总和必须为1，当前为 ${level1Sum.toFixed(3)}`)
+    ElMessage.warning(`一级指标权重总和必须为1，当前为 ${level1Sum.toFixed(2)}`)
     return
   }
 
@@ -1492,7 +1490,7 @@ const submitScore = async () => {
 
     if (parentWeight > eps || hasAnyChildWeight) {
       if (Math.abs(childSum - 1) > eps) {
-        ElMessage.warning(`${parent.indicatorName} 下二级指标权重总和必须为1，当前为 ${childSum.toFixed(3)}`)
+        ElMessage.warning(`${parent.indicatorName} 下二级指标权重总和必须为1，当前为 ${childSum.toFixed(2)}`)
         return
       }
     } else {

@@ -105,7 +105,15 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             "L2_MEDICAL",
             "L2_SELF_RESCUE",
             "L2_PUBLIC_AVOIDANCE",
-            "L2_RELOCATION"
+            "L2_RELOCATION",
+            "L1_TOWNSHIP",
+            "L1_COMMUNITY",
+            "L2_TOWNSHIP_DISASTER_MANAGEMENT",
+            "L2_TOWNSHIP_DISASTER_PREPAREDNESS",
+            "L2_TOWNSHIP_SELF_RESCUE_TRANSFER",
+            "L2_COMMUNITY_DISASTER_MANAGEMENT",
+            "L2_COMMUNITY_DISASTER_PREPAREDNESS",
+            "L2_COMMUNITY_SELF_RESCUE_TRANSFER"
     };
 
     private static final Duration WEIGHT_CACHE_TTL = Duration.ofMinutes(15);
@@ -1293,6 +1301,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
 
+        boolean hasExplicitL1 = weightMap.containsKey("L1_DISASTER_MANAGEMENT")
+                || weightMap.containsKey("L1_DISASTER_PREPAREDNESS")
+                || weightMap.containsKey("L1_SELF_RESCUE_TRANSFER")
+                || weightMap.containsKey("L1_MANAGEMENT")
+                || weightMap.containsKey("L1_PREPARATION")
+                || weightMap.containsKey("L1_SELF_RESCUE");
+
         Double legacyL1Management = weightMap.get("L1_MANAGEMENT");
         Double legacyL1Preparation = weightMap.get("L1_PREPARATION");
         Double legacyL1SelfRescue = weightMap.get("L1_SELF_RESCUE");
@@ -1375,6 +1390,33 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             weightMap.put("L2_RELOCATION", 0.34);
         }
 
+        if (!hasExplicitL1) {
+            double s1 = weightMap.getOrDefault("L2_MANAGEMENT_CAPABILITY", 0.0)
+                    + weightMap.getOrDefault("L2_RISK_ASSESSMENT", 0.0)
+                    + weightMap.getOrDefault("L2_FUNDING", 0.0);
+            double s2 = weightMap.getOrDefault("L2_MATERIAL", 0.0)
+                    + weightMap.getOrDefault("L2_MEDICAL", 0.0);
+            double s3 = weightMap.getOrDefault("L2_SELF_RESCUE", 0.0)
+                    + weightMap.getOrDefault("L2_PUBLIC_AVOIDANCE", 0.0)
+                    + weightMap.getOrDefault("L2_RELOCATION", 0.0);
+            double total = s1 + s2 + s3;
+            if (total > 0.0) {
+                weightMap.put("L1_DISASTER_MANAGEMENT", s1 / total);
+                weightMap.put("L1_DISASTER_PREPAREDNESS", s2 / total);
+                weightMap.put("L1_SELF_RESCUE_TRANSFER", s3 / total);
+                weightMap.put("L1_MANAGEMENT", weightMap.get("L1_DISASTER_MANAGEMENT"));
+                weightMap.put("L1_PREPARATION", weightMap.get("L1_DISASTER_PREPAREDNESS"));
+                weightMap.put("L1_SELF_RESCUE", weightMap.get("L1_SELF_RESCUE_TRANSFER"));
+            } else {
+                weightMap.put("L1_DISASTER_MANAGEMENT", 0.33);
+                weightMap.put("L1_DISASTER_PREPAREDNESS", 0.32);
+                weightMap.put("L1_SELF_RESCUE_TRANSFER", 0.35);
+                weightMap.put("L1_MANAGEMENT", 0.33);
+                weightMap.put("L1_PREPARATION", 0.32);
+                weightMap.put("L1_SELF_RESCUE", 0.35);
+            }
+        }
+
         Map<String, Double> immutable = Collections.unmodifiableMap(weightMap);
         synchronized (weightMapCacheLock) {
             weightMapCache.put(weightConfigId, new TimedValue<>(immutable, Instant.now()));
@@ -1448,9 +1490,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             return expression;
         }
         String normalized = expression;
-        normalized = normalized.replace("weight_L1_MANAGEMENT", "weight_L1_DISASTER_MANAGEMENT");
-        normalized = normalized.replace("weight_L1_PREPARATION", "weight_L1_DISASTER_PREPAREDNESS");
-        normalized = normalized.replace("weight_L1_SELF_RESCUE", "weight_L1_SELF_RESCUE_TRANSFER");
+        normalized = normalized.replaceAll("(?<![A-Za-z0-9_])weight_L1_MANAGEMENT(?![A-Za-z0-9_])", "weight_L1_DISASTER_MANAGEMENT");
+        normalized = normalized.replaceAll("(?<![A-Za-z0-9_])weight_L1_PREPARATION(?![A-Za-z0-9_])", "weight_L1_DISASTER_PREPAREDNESS");
+        normalized = normalized.replaceAll("(?<![A-Za-z0-9_])weight_L1_SELF_RESCUE(?![A-Za-z0-9_])", "weight_L1_SELF_RESCUE_TRANSFER");
         return normalized;
     }
 
@@ -1873,431 +1915,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     }
 
     /**
-     * 执行算法的单个步骤并返回2D表格结果
-     *
-     * @param algorithmId 算法ID（对应algorithm_config表）
-     * @param stepOrder 步骤顺序（从1开始）
-     * @param regionCodes 地区代码列表
-     * @param weightConfigId 权重配置ID
-     * @return 步骤执行结果，包含2D表格数据
-     */
-    @Override
-    public Map<String, Object> executeAlgorithmStep(Long algorithmId, Integer stepOrder, List<String> regionCodes, Long weightConfigId, Integer year) {
-
-        try {
-            // 1. 获取算法配置的所有步骤
-            QueryWrapper<AlgorithmStep> stepQuery = new QueryWrapper<>();
-            stepQuery.eq("algorithm_config_id", algorithmId)
-                    .eq("status", 1)
-                    .orderByAsc("step_order");
-            List<AlgorithmStep> algorithmSteps = algorithmStepMapper.selectList(stepQuery);
-
-            if (algorithmSteps.isEmpty()) {
-                throw new RuntimeException("算法配置没有找到任何步骤");
-            }
-
-            // 2. 找到指定顺序的步骤
-            AlgorithmStep targetStep = algorithmSteps.stream()
-                    .filter(step -> stepOrder.equals(step.getStepOrder()))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("未找到步骤顺序为 " + stepOrder + " 的算法步骤"));
-
-            // 3. 如果不是第一步，需要先执行前面的所有步骤来获取依赖数据
-            Map<String, Object> globalContext = new HashMap<>();
-            globalContext.put("algorithmId", algorithmId);
-            globalContext.put("regionCodes", regionCodes);
-            globalContext.put("weightConfigId", weightConfigId);
-            if (year != null) {
-                globalContext.put("year", year);
-            }
-
-            // 加载基础数据
-            loadBaseDataToContext(globalContext, regionCodes, weightConfigId);
-
-            // 如果不是第一步，执行前面的所有步骤
-            if (stepOrder > 1) {
-                executeAlgorithmStepsInternalUpTo(algorithmSteps, stepOrder - 1, regionCodes, globalContext);
-            }
-
-            // 4. 执行目标步骤
-            Map<String, Object> stepExecutionResult = executeAlgorithmStepInternal(targetStep, regionCodes, globalContext);
-
-        // 5. 生成该步骤的2D表格数据
-        List<Map<String, Object>> tableData = generateStepResultTable(stepExecutionResult, regionCodes, year);
-
-        // 生成 columns 数组（包含 stepOrder 信息）
-        List<Map<String, Object>> columns = generateColumnsWithStepOrder(tableData, stepOrder);
-
-        // 6. 构建返回结果
-        Map<String, Object> result = new HashMap<>();
-        result.put("stepId", targetStep.getId());
-        result.put("stepName", targetStep.getStepName());
-        result.put("stepOrder", stepOrder);
-        result.put("stepCode", targetStep.getStepCode());
-        result.put("description", targetStep.getStepDescription());
-        result.put("executionResult", stepExecutionResult);
-        result.put("tableData", tableData);
-        result.put("columns", columns);
-        result.put("success", true);
-        result.put("executionTime", new Date());
-
-            return result;
-
-        } catch (Exception e) {
-            throw new RuntimeException("执行算法步骤失败: " + e.getMessage(), e);
-        }
-    }
-
-    private Double formatAndSanitizeNumber(double value) {
-        if (Double.isNaN(value) || Double.isInfinite(value)) {
-            return 0.0;
-        }
-        return Double.parseDouble(String.format("%.8f", value));
-    }
-
-    /**
-     * 获取算法所有步骤的基本信息
-     *
-     * @param algorithmId 算法ID
-     * @return 算法步骤列表信息
-     */
-    @Override
-    public Map<String, Object> getAlgorithmStepsInfo(Long algorithmId) {
-
-        try {
-            // 获取算法配置
-            AlgorithmConfig algorithmConfig = algorithmConfigMapper.selectById(algorithmId);
-            if (algorithmConfig == null) {
-                throw new RuntimeException("算法配置不存在");
-            }
-
-            // 获取所有步骤
-            QueryWrapper<AlgorithmStep> stepQuery = new QueryWrapper<>();
-            stepQuery.eq("algorithm_config_id", algorithmId)
-                    .eq("status", 1)
-                    .orderByAsc("step_order");
-            List<AlgorithmStep> algorithmSteps = algorithmStepMapper.selectList(stepQuery);
-
-            // 转换为简化信息
-            List<Map<String, Object>> stepsInfo = algorithmSteps.stream().map(step -> {
-                Map<String, Object> stepInfo = new HashMap<>();
-                stepInfo.put("stepId", step.getId());
-                stepInfo.put("stepName", step.getStepName());
-                stepInfo.put("stepOrder", step.getStepOrder());
-                stepInfo.put("stepCode", step.getStepCode());
-                stepInfo.put("description", step.getStepDescription());
-                stepInfo.put("status", step.getStatus());
-                return stepInfo;
-            }).collect(Collectors.toList());
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("algorithmId", algorithmId);
-            result.put("algorithmName", algorithmConfig.getConfigName());
-            result.put("algorithmDescription", algorithmConfig.getDescription());
-            result.put("totalSteps", stepsInfo.size());
-            result.put("steps", stepsInfo);
-            result.put("success", true);
-
-            return result;
-
-        } catch (Exception e) {
-            throw new RuntimeException("获取算法步骤信息失败: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 批量执行算法步骤（直到指定步骤）
-     *
-     * @param algorithmId 算法ID
-     * @param upToStepOrder 执行到第几步（包含该步骤）
-     * @param regionCodes 地区代码列表
-     * @param weightConfigId 权重配置ID
-     * @return 所有已执行步骤的结果
-     */
-    @Override
-    public Map<String, Object> executeAlgorithmStepsUpTo(Long algorithmId, Integer upToStepOrder, List<String> regionCodes, Long weightConfigId, Integer year) {
-
-        try {
-            // 1. 获取算法配置的所有步骤
-            QueryWrapper<AlgorithmStep> stepQuery = new QueryWrapper<>();
-            stepQuery.eq("algorithm_config_id", algorithmId)
-                    .eq("status", 1)
-                    .orderByAsc("step_order");
-            List<AlgorithmStep> algorithmSteps = algorithmStepMapper.selectList(stepQuery);
-
-            if (algorithmSteps.isEmpty()) {
-                throw new RuntimeException("算法配置没有找到任何步骤");
-            }
-
-            // 2. 验证步骤顺序
-            boolean hasTargetStep = algorithmSteps.stream()
-                    .anyMatch(step -> upToStepOrder.equals(step.getStepOrder()));
-            if (!hasTargetStep) {
-                throw new RuntimeException("未找到步骤顺序为 " + upToStepOrder + " 的算法步骤");
-            }
-
-            // 3. 初始化上下文
-            Map<String, Object> globalContext = new HashMap<>();
-            globalContext.put("algorithmId", algorithmId);
-            globalContext.put("regionCodes", regionCodes);
-            globalContext.put("weightConfigId", weightConfigId);
-            if (year != null) {
-                globalContext.put("year", year);
-            }
-
-            // 加载基础数据
-            loadBaseDataToContext(globalContext, regionCodes, weightConfigId);
-
-            // 4. 执行所有步骤直到指定步骤
-            Map<String, Object> allStepResults = executeAlgorithmStepsInternalUpTo(algorithmSteps, upToStepOrder, regionCodes, globalContext);
-
-            // 5. 为每个步骤生成2D表格
-            Map<String, List<Map<String, Object>>> allTableData = new LinkedHashMap<>();
-            for (Map.Entry<String, Object> entry : allStepResults.entrySet()) {
-                String stepKey = entry.getKey();
-                if (stepKey.startsWith("step_")) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
-                    List<Map<String, Object>> tableData = generateStepResultTable(stepResult, regionCodes, year);
-                    allTableData.put(stepKey, tableData);
-                }
-            }
-
-            // 6. 构建返回结果
-            Map<String, Object> result = new HashMap<>();
-            result.put("algorithmId", algorithmId);
-            result.put("executedUpToStep", upToStepOrder);
-            result.put("stepResults", allStepResults);
-            result.put("tableData", allTableData);
-            result.put("success", true);
-            result.put("executionTime", new Date());
-
-            return result;
-
-        } catch (Exception e) {
-            throw new RuntimeException("批量执行算法步骤失败: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 内部方法：执行算法步骤直到指定顺序
-     */
-    private Map<String, Object> executeAlgorithmStepsInternalUpTo(List<AlgorithmStep> algorithmSteps, Integer upToStepOrder, 
-                                                                  List<String> regionCodes, Map<String, Object> globalContext) {
-        Map<String, Object> stepResults = new HashMap<>();
-        
-        for (AlgorithmStep algorithmStep : algorithmSteps) {
-            if (algorithmStep.getStepOrder() <= upToStepOrder) {
-                
-                try {
-                    Map<String, Object> stepResult = executeAlgorithmStepInternal(algorithmStep, regionCodes, globalContext);
-                    stepResults.put("step_" + algorithmStep.getStepCode(), stepResult);
-                    
-                    // 将步骤结果合并到全局上下文（供后续步骤使用）
-                    globalContext.put("step_" + algorithmStep.getStepCode(), stepResult);
-                    
-                } catch (Exception e) {
-                    throw new RuntimeException("算法步骤 " + algorithmStep.getStepName() + " 执行失败: " + e.getMessage(), e);
-                }
-            }
-        }
-        
-        return stepResults;
-    }
-
-    /**
-     * 内部方法：执行单个算法步骤
-     */
-    private Map<String, Object> executeAlgorithmStepInternal(AlgorithmStep algorithmStep, List<String> regionCodes, Map<String, Object> globalContext) {
-        // 获取该步骤的所有公式并按顺序排序
-        QueryWrapper<FormulaConfig> formulaQuery = new QueryWrapper<>();
-        formulaQuery.eq("algorithm_step_id", algorithmStep.getId().toString())
-                .eq("status", 1)
-                .orderByAsc("id");
-        List<FormulaConfig> formulas = formulaConfigMapper.selectList(formulaQuery);
-
-        if (formulas.isEmpty()) {
-            return new HashMap<>();
-        }
-
-        // 初始化步骤结果
-        Map<String, Object> stepResult = new HashMap<>();
-        stepResult.put("stepId", algorithmStep.getId());
-        stepResult.put("stepName", algorithmStep.getStepName());
-        stepResult.put("stepCode", algorithmStep.getStepCode());
-
-        // 第一遍：为所有地区准备上下文数据
-        Map<String, Map<String, Object>> allRegionContexts = new LinkedHashMap<>();
-
-        // 获取modelId以决定使用哪个数据源
-        Long modelId = (Long) globalContext.get("modelId");
-
-        @SuppressWarnings("unchecked")
-        Map<String, Map<String, Object>> communityDataMap =
-                (Map<String, Map<String, Object>>) globalContext.get("communityDataMap");
-        @SuppressWarnings("unchecked")
-        Map<String, SurveyData> surveyDataMap =
-                (Map<String, SurveyData>) globalContext.get("surveyDataMap");
-
-        for (String regionCode : regionCodes) {
-            Map<String, Object> regionContext = new HashMap<>(globalContext);
-            regionContext.put("currentRegionCode", regionCode);
-
-            // 根据modelId选择不同的数据源
-            if (modelId != null && modelId == 4) {
-                // 社区模型(modelId=4)：从community_disaster_reduction_capacity表加载数据
-                // 使用selectMaps直接返回Map，key为数据库字段名，可直接匹配算法表达式中的变量名
-                Map<String, Object> cachedCommunity = communityDataMap != null ? communityDataMap.get(regionCode) : null;
-                if (cachedCommunity != null) {
-                    addMapDataToContext(regionContext, cachedCommunity);
-                } else {
-                    QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
-                    communityQuery.eq("region_code", regionCode);
-                    List<Map<String, Object>> communityDataList = communityDataMapper.selectMaps(communityQuery);
-
-                    if (communityDataList != null && !communityDataList.isEmpty()) {
-                        Map<String, Object> communityDataRow = communityDataList.get(0);
-                        addMapDataToContext(regionContext, communityDataRow);
-                    }
-                }
-            } else {
-                // 乡镇模型(modelId=3)：从survey_data表加载数据
-                SurveyData cachedSurvey = surveyDataMap != null ? surveyDataMap.get(regionCode) : null;
-                if (cachedSurvey != null) {
-                    addSurveyDataToContext(regionContext, cachedSurvey);
-                } else {
-                    QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
-                    dataQuery.eq("region_code", regionCode);
-                    SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
-
-                    if (surveyData != null) {
-                        addSurveyDataToContext(regionContext, surveyData);
-                    }
-                }
-            }
-
-            // 再加载前面步骤的输出结果（计算结果），这样会覆盖原始数据中的同名字段
-            loadPreviousStepOutputs(regionContext, regionCode, globalContext);
-
-            allRegionContexts.put(regionCode, regionContext);
-        }
-        
-        Set<String> gradeScoreFields = new LinkedHashSet<>();
-        for (FormulaConfig formula : formulas) {
-            String expression = formula.getFormulaExpression();
-            if (expression != null && expression.startsWith("@GRADE")) {
-                String[] parts = expression.substring(1).split(":", 2);
-                String params = parts.length > 1 ? parts[1] : "";
-                if (params != null && !params.trim().isEmpty()) {
-                    gradeScoreFields.add(params.trim());
-                }
-            }
-        }
-
-        if (!gradeScoreFields.isEmpty()) {
-            Map<String, double[]> gradeStats = buildGradeStats(gradeScoreFields, allRegionContexts);
-            if (!gradeStats.isEmpty()) {
-                for (Map<String, Object> regionContext : allRegionContexts.values()) {
-                    regionContext.put("gradeStats", gradeStats);
-                }
-            }
-        }
-
-        // 第二遍：为每个地区执行公式（支持特殊标记）
-        Map<String, Map<String, Object>> regionResults = new LinkedHashMap<>();
-        Map<String, String> outputToFormulaName = new LinkedHashMap<>();
-        
-        for (String regionCode : regionCodes) {
-            Map<String, Object> regionContext = allRegionContexts.get(regionCode);
-            Map<String, Object> formulaOutputs = new LinkedHashMap<>();
-            
-            // 按顺序执行每个公式
-            for (FormulaConfig formula : formulas) {
-                try {
-                    
-                    Object result;
-                    String expression = formula.getFormulaExpression();
-                    
-                    // 检查是否是特殊标记
-                    if (expression != null && expression.startsWith("@")) {
-                        // 解析特殊标记: @MARKER:params
-                        String[] parts = expression.substring(1).split(":", 2);
-                        String marker = parts[0];
-                        String params = parts.length > 1 ? parts[1] : "";
-                        
-                        
-                        // 调用特殊算法服务
-                        result = specialAlgorithmService.executeSpecialAlgorithm(
-                                marker, params, regionCode, regionContext, allRegionContexts);
-                        
-                        // 确保数值类型转换并格式化为8位小数
-                        if (result != null && result instanceof Number) {
-                            double doubleValue = ((Number) result).doubleValue();
-                            result = formatAndSanitizeNumber(doubleValue);
-                        }
-                    } else {
-                        // 执行标准QLExpress表达式
-                        result = qlExpressService.execute(expression, regionContext);
-                        
-                        // 确保数值类型的结果转换为Double并格式化为8位小数
-                        if (result != null && result instanceof Number) {
-                            double doubleValue = ((Number) result).doubleValue();
-                            result = formatAndSanitizeNumber(doubleValue);
-                        }
-                    }
-                    
-                    // 保存公式输出到上下文（供后续公式使用）
-                    String outputParam = formula.getOutputVariable();
-                    if (outputParam != null && !outputParam.isEmpty()) {
-                        regionContext.put(outputParam, result);
-                        allRegionContexts.put(regionCode, regionContext);  // 更新全局上下文
-                        formulaOutputs.put(outputParam, result);
-                        outputToFormulaName.put(outputParam, formula.getFormulaName());
-                    }
-                    
-                } catch (Exception e) {
-                    throw new RuntimeException("公式 " + formula.getFormulaName() + " 执行失败: " + e.getMessage(), e);
-                }
-            }
-            
-            regionResults.put(regionCode, formulaOutputs);
-        }
-
-        // 对于社区评估模型(modelId=4)，确保_firstCommunityCode元数据被正确设置
-        if (modelId != null && modelId == 4) {
-            log.info("为社区评估模型设置_firstCommunityCode元数据，modelId={}", modelId);
-            for (String regionCode : regionCodes) {
-                Map<String, Object> regionResult = regionResults.get(regionCode);
-                if (regionResult != null) {
-                    // 检查是否已经包含_firstCommunityCode
-                    if (!regionResult.containsKey("_firstCommunityCode")) {
-                        // 对于社区评估，regionCode本身就是社区代码
-                        regionResult.put("_firstCommunityCode", regionCode);
-                        log.info("设置_firstCommunityCode元数据: regionCode={}, firstCommunityCode={}", regionCode, regionCode);
-                    } else {
-                        log.info("firstCommunityCode已存在: regionCode={}, firstCommunityCode={}",
-                                regionCode, regionResult.get("_firstCommunityCode"));
-                    }
-                }
-            }
-        }
-
-        // 保存输出参数到公式名称的映射
-        if (!outputToFormulaName.isEmpty()) {
-            stepResult.put("outputToFormulaName", outputToFormulaName);
-        }
-
-        // 从全局上下文中获取modelId并保存到stepResult
-        Object modelIdObj = globalContext.get("modelId");
-        if (modelIdObj != null) {
-            stepResult.put("modelId", modelIdObj);
-        }
-
-        stepResult.put("regionResults", regionResults);
-        return stepResult;
-    }
-
-    /**
      * 为单个步骤生成2D表格数据
      */
     private List<Map<String, Object>> generateStepResultTable(Map<String, Object> stepResult, List<String> regionCodes, Integer year) {
@@ -2665,15 +2282,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         return columns;
     }
-
-    @Autowired
-    private AlgorithmStepMapper algorithmStepMapper;
-    
-    @Autowired
-    private AlgorithmConfigMapper algorithmConfigMapper;
-    
-    @Autowired
-    private FormulaConfigMapper formulaConfigMapper;
 
     /**
      * 数据聚合步骤（支持多种模型类型）

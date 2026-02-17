@@ -23,6 +23,8 @@ import java.util.List;
 @RequestMapping("/api/weight-config")
 public class WeightConfigController {
 
+    private static final int BASELINE_YEAR = 2020;
+
     @Autowired
     private IWeightConfigService weightConfigService;
 
@@ -34,6 +36,10 @@ public class WeightConfigController {
     ) {
         try {
             if (StringUtils.hasText(orgcode) && year != null) {
+                if (Boolean.TRUE.equals(ensureDefaults)) {
+                    List<WeightConfig> list = weightConfigService.getOrCreateModelYearConfigs(orgcode.trim(), year);
+                    return Result.success(list);
+                }
                 List<WeightConfig> list = weightConfigService.getEffectiveModelYearConfigs(orgcode.trim(), year);
                 return Result.success(list);
             }
@@ -43,7 +49,7 @@ public class WeightConfigController {
                 queryWrapper.eq("orgcode", orgcode.trim());
             }
             if (year != null) {
-                queryWrapper.apply("YEAR(create_time) = {0}", year);
+                queryWrapper.and(w -> w.eq("year", year).or().isNull("year").apply("YEAR(create_time) = {0}", year));
             }
             queryWrapper.orderByDesc("create_time");
 
@@ -88,13 +94,23 @@ public class WeightConfigController {
         try {
             QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
             queryWrapper.eq("config_name", configName);
+            queryWrapper.eq("is_deleted", 0);
             if (year != null) {
-                queryWrapper.apply("YEAR(create_time) = {0}", year);
+                queryWrapper.and(w -> w.eq("year", year).or().isNull("year").apply("YEAR(create_time) = {0}", year));
             }
             queryWrapper.orderByDesc("create_time");
             queryWrapper.last("LIMIT 1");
 
             WeightConfig weightConfig = weightConfigService.getOne(queryWrapper, false);
+            if (weightConfig == null && year != null && year >= 2023) {
+                QueryWrapper<WeightConfig> baselineQuery = new QueryWrapper<>();
+                baselineQuery.eq("config_name", configName);
+                baselineQuery.eq("is_deleted", 0);
+                baselineQuery.and(w -> w.eq("year", BASELINE_YEAR).or().isNull("year"));
+                baselineQuery.orderByDesc("create_time");
+                baselineQuery.last("LIMIT 1");
+                weightConfig = weightConfigService.getOne(baselineQuery, false);
+            }
             if (weightConfig == null) {
                 return Result.error("权重配置不存在");
             }
@@ -122,6 +138,9 @@ public class WeightConfigController {
             @RequestParam(required = false) Integer year
     ) {
         try {
+            if (weightConfig != null && weightConfig.getYear() == null && year != null) {
+                weightConfig.setYear(year);
+            }
             if (weightConfig != null && weightConfig.getCreateTime() == null && year != null) {
                 weightConfig.setCreateTime(LocalDateTime.of(year, 1, 1, 0, 0));
             }

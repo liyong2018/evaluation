@@ -36,13 +36,6 @@ public class MetaObjectHandlerConfig implements MetaObjectHandler {
             this.strictInsertFill(metaObject, "updatedBy", String.class, currentUsername);
         }
 
-        // 为 FormulaConfig 的 algorithmStepId 字段设置默认值
-        if (metaObject.getOriginalObject().getClass().getSimpleName().equals("FormulaConfig")) {
-            Object algorithmStepId = getFieldValByName("algorithmStepId", metaObject);
-            if (algorithmStepId == null || "".equals(algorithmStepId)) {
-                this.strictInsertFill(metaObject, "algorithmStepId", String.class, null);
-            }
-        }
     }
 
     @Override
