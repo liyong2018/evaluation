@@ -59,4 +59,5 @@ frontend/public/zzjg.txt
 src/main/java/com/evaluate/service/impl/AlgorithmManagementServiceImpl.java.tmp
 ngrok.zip
 frontend-dist.tgz
+frontend-dist.zip
 .gitignore
