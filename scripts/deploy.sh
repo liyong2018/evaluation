@@ -230,8 +230,7 @@ build_and_start_services() {
     ssh ${SSH_OPTS} ${SERVER} "
 cd ${REMOTE_DIR} && \
 if [ '${COMPOSE_FILE}' = 'docker-compose.prod.yml' ]; then
-    docker-compose -f ${COMPOSE_FILE} pull || true && \
-    docker-compose -f ${COMPOSE_FILE} up -d --remove-orphans
+    docker-compose -f ${COMPOSE_FILE} up -d --build --remove-orphans
 else
     docker-compose -f ${COMPOSE_FILE} build --no-cache && \
     docker-compose -f ${COMPOSE_FILE} up -d --remove-orphans

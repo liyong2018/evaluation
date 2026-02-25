@@ -1,7 +1,27 @@
 version: '3.8'
 
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: evaluation-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: evaluate_db
+    ports:
+      - "30314:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d
+      - ./src/main/resources/sql/init_database_consolidated.sql:/docker-entrypoint-initdb.d/1_init.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    restart: unless-stopped
+    networks:
+      - evaluation-network
+
   backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
     image: evaluation-backend:latest
     container_name: evaluation-backend
     ports:
@@ -9,7 +29,7 @@ services:
     environment:
       - SERVER_PORT=8081
       - SPRING_PROFILES_ACTIVE=mysql
-      - MYSQL_JDBC_URL=jdbc:mysql://evaluation-mysql:3306/evaluate_db?useSSL=false&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      - MYSQL_JDBC_URL=jdbc:mysql://evaluation-mysql:3306/evaluate_db?useSSL=false&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&connectionCollation=utf8mb4_unicode_ci
       - MYSQL_JDBC_USER=root
       - MYSQL_JDBC_PASSWORD=123456
       - INIT_ADMIN_USERNAME=admin
@@ -18,6 +38,8 @@ services:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
     restart: unless-stopped
+    depends_on:
+      - mysql
     networks:
       - evaluation-network
 
@@ -45,7 +67,10 @@ services:
     networks:
       - evaluation-network
 
+volumes:
+  mysql_data:
+    driver: local
+
 networks:
   evaluation-network:
-    name: evaluation_evaluation-network
-    external: true
+    driver: bridge
