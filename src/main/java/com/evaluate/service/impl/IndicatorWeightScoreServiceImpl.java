@@ -35,6 +35,37 @@ public class IndicatorWeightScoreServiceImpl extends ServiceImpl<IndicatorWeight
         if (scores == null || scores.isEmpty()) {
             return false;
         }
+        Long configId = scores.get(0).getConfigId();
+        if (configId == null) {
+            throw new IllegalArgumentException("configId 不能为空");
+        }
+
+        boolean hasDifferentConfigId = scores.stream()
+                .anyMatch(s -> s.getConfigId() == null || !configId.equals(s.getConfigId()));
+        if (hasDifferentConfigId) {
+            throw new IllegalArgumentException("批量打分记录必须属于同一个配置");
+        }
+
+        List<IndicatorWeight> indicatorWeights = indicatorWeightService.list(
+                new LambdaQueryWrapper<IndicatorWeight>().eq(IndicatorWeight::getConfigId, configId)
+        );
+        if (!indicatorWeights.isEmpty()) {
+            java.util.Set<String> validCodes = indicatorWeights.stream()
+                    .map(IndicatorWeight::getIndicatorCode)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toSet());
+
+            List<String> invalidCodes = scores.stream()
+                    .map(IndicatorWeightScore::getIndicatorCode)
+                    .filter(code -> code != null && !validCodes.contains(code))
+                    .distinct()
+                    .collect(java.util.stream.Collectors.toList());
+
+            if (!invalidCodes.isEmpty()) {
+                throw new IllegalArgumentException("存在无效指标代码: " + String.join(", ", invalidCodes));
+            }
+        }
+
         return saveBatch(scores);
     }
 
@@ -100,7 +131,9 @@ public class IndicatorWeightScoreServiceImpl extends ServiceImpl<IndicatorWeight
             stat.put("scoreCount", indicatorScores.size());
 
             // 计算平均值
-            double avgWeight = indicatorScores.stream()
+            Double avgWeight = indicatorScores.isEmpty()
+                    ? null
+                    : indicatorScores.stream()
                     .mapToDouble(IndicatorWeightScore::getWeight)
                     .average()
                     .orElse(0.0);
@@ -138,7 +171,7 @@ public class IndicatorWeightScoreServiceImpl extends ServiceImpl<IndicatorWeight
             stat.put("indicatorCode", indicatorCode);
             stat.put("scoreCount", indicatorScores.size());
 
-            double avgWeight = indicatorScores.stream()
+            Double avgWeight = indicatorScores.stream()
                     .mapToDouble(IndicatorWeightScore::getWeight)
                     .average()
                     .orElse(0.0);
@@ -151,6 +184,20 @@ public class IndicatorWeightScoreServiceImpl extends ServiceImpl<IndicatorWeight
                 stat.put("parentId", indicator.getParentId());
                 stat.put("id", indicator.getId());
                 stat.put("currentWeight", indicator.getWeight());
+            } else {
+                Integer inferredLevel = null;
+                if (indicatorCode != null) {
+                    if (indicatorCode.startsWith("L1_")) {
+                        inferredLevel = 1;
+                    } else if (indicatorCode.startsWith("L2_")) {
+                        inferredLevel = 2;
+                    }
+                }
+                stat.put("indicatorName", indicatorCode);
+                stat.put("indicatorLevel", inferredLevel);
+                stat.put("parentId", null);
+                stat.put("id", indicatorCode);
+                stat.put("currentWeight", null);
             }
 
             List<Map<String, Object>> expertScores = indicatorScores.stream()
@@ -198,14 +245,20 @@ public class IndicatorWeightScoreServiceImpl extends ServiceImpl<IndicatorWeight
             List<IndicatorWeight> indicatorWeights = indicatorWeightService.list(queryWrapper);
 
             // 3. 更新权重值
+            int updated = 0;
             for (IndicatorWeight indicatorWeight : indicatorWeights) {
                 String indicatorCode = indicatorWeight.getIndicatorCode();
                 if (averageWeights.containsKey(indicatorCode)) {
                     indicatorWeight.setWeight(averageWeights.get(indicatorCode));
+                    updated++;
                 }
             }
 
             // 4. 批量更新
+            if (updated == 0) {
+                log.warn("配置ID {} 的专家打分指标与当前配置指标不匹配，未更新任何权重", configId);
+                return false;
+            }
             return indicatorWeightService.updateBatchById(indicatorWeights);
         } catch (Exception e) {
             log.error("应用平均权重失败", e);

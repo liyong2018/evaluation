@@ -2,8 +2,10 @@ package com.evaluate.controller;
 
 import com.evaluate.common.Result;
 import com.evaluate.entity.IndicatorWeight;
+import com.evaluate.entity.IndicatorWeightScore;
 import com.evaluate.service.IIndicatorWeightScoreService;
 import com.evaluate.service.IIndicatorWeightService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -152,6 +154,11 @@ public class IndicatorWeightController {
     public Result<Boolean> initDefaultWeights(@PathVariable Long configId) {
         try {
             boolean result = indicatorWeightService.initDefaultWeights(configId);
+            if (result && indicatorWeightScoreService != null) {
+                indicatorWeightScoreService.remove(
+                        new LambdaQueryWrapper<IndicatorWeightScore>().eq(IndicatorWeightScore::getConfigId, configId)
+                );
+            }
             return result ? Result.success(true) : Result.error("初始化默认权重失败");
         } catch (Exception e) {
             log.error("初始化默认权重失败", e);
