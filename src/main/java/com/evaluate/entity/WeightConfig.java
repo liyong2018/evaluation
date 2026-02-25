@@ -70,4 +70,17 @@ public class WeightConfig implements Serializable {
     @TableLogic
     @TableField(value = "is_deleted", fill = FieldFill.INSERT)
     private Integer isDeleted;
+
+    /**
+     * 实际数据来源组织机构编码（非持久化字段，用于显示数据继承关系）
+     * 当当前区县没有自己的配置时，此字段记录配置实际所属的父级组织机构
+     */
+    @TableField(exist = false)
+    private String actualOrgcode;
+
+    /**
+     * 实际数据来源组织机构名称（非持久化字段，用于显示）
+     */
+    @TableField(exist = false)
+    private String actualOrgName;
 }

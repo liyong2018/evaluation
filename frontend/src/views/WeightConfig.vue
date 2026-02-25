@@ -90,11 +90,28 @@
               <div class="org-info-content">
                 <el-tag type="primary" size="large">{{ selectedOrg.name }}</el-tag>
                 <span class="org-info-code">组织机构代码: {{ selectedOrg.code }}</span>
+                <el-tag type="success" size="large" v-if="orgYear">
+                  <el-icon><Calendar /></el-icon>
+                  {{ orgYear }}年数据
+                </el-tag>
               </div>
             </el-card>
 
             <!-- 配置列表 -->
             <el-card class="config-list">
+              <!-- 数据来源提示 -->
+              <div v-if="configList.length > 0 && configList.some(c => c.actualOrgcode && c.actualOrgcode !== selectedOrg?.code)" class="data-source-notice">
+                <el-alert type="info" :closable="false">
+                  <template #title>
+                    <span>以下配置的数据来自上级组织机构：</span>
+                  </template>
+                  <div v-for="config in configList.filter(c => c.actualOrgcode && c.actualOrgcode !== selectedOrg?.code)" :key="config.id" class="data-source-item">
+                    <span class="config-name">{{ config.configName }}</span>
+                    <el-tag type="warning" size="small">{{ config.actualOrgName || config.actualOrgcode }}</el-tag>
+                    <span class="year-label">{{ config.year }}年</span>
+                  </div>
+                </el-alert>
+              </div>
               <el-table
                 v-loading="loading.configs"
                 :data="configList"
@@ -430,10 +447,27 @@
     <!-- 统计详情对话框 -->
     <el-dialog
       v-model="dialogVisible.statistics"
-      :title="`打分统计详情 - ${currentScoreConfig?.configName || ''}`"
       width="1920px"
       :close-on-click-modal="false"
     >
+      <template #header>
+        <div class="statistics-dialog-header">
+          <div class="header-title">打分统计详情 - {{ currentScoreConfig?.configName || '' }}</div>
+          <div class="header-info">
+            <el-tag type="primary" size="small">
+              <el-icon><Calendar /></el-icon>
+              {{ currentScoreConfig?.year || orgYear }}年数据
+            </el-tag>
+            <el-tag type="success" size="small">
+              <el-icon><Location /></el-icon>
+              {{ currentScoreConfig?.actualOrgName || currentScoreConfig?.actualOrgcode || selectedOrg?.name }}
+            </el-tag>
+            <el-tag v-if="currentScoreConfig?.actualOrgcode && currentScoreConfig?.actualOrgcode !== selectedOrg?.code" type="warning" size="small">
+              继承自上级
+            </el-tag>
+          </div>
+        </div>
+      </template>
       <div v-if="statisticsData" class="statistics-content-new">
         <!-- 顶部：平均分表格 -->
         <el-card class="average-table-card" shadow="never">
@@ -580,7 +614,9 @@ import {
   DocumentAdd,
   DataLine,
   View,
-  User
+  User,
+  Calendar,
+  Location
 } from '@element-plus/icons-vue'
 import { weightConfigApi, indicatorWeightApi, organizationApi, indicatorWeightScoreApi } from '@/api'
 import { useGlobalYearStore } from '@/stores/globalYear'
@@ -1750,6 +1786,29 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* 数据来源提示 */
+.data-source-notice {
+  margin-bottom: 16px;
+}
+
+.data-source-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 16px;
+  margin-top: 4px;
+}
+
+.data-source-item .config-name {
+  font-weight: 500;
+}
+
+.data-source-item .year-label {
+  color: #909399;
+  font-size: 12px;
 }
 
 .org-info-code {
@@ -2419,6 +2478,31 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* 统计对话框头部 */
+.statistics-dialog-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.statistics-dialog-header .header-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.statistics-dialog-header .header-info {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.statistics-dialog-header .header-info .el-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* 顶部平均分表格 */

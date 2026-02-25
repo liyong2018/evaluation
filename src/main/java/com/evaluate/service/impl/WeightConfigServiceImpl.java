@@ -6,11 +6,13 @@ import com.evaluate.entity.EvaluationModel;
 import com.evaluate.entity.IndicatorWeight;
 import com.evaluate.entity.IndicatorWeightScore;
 import com.evaluate.entity.WeightConfig;
+import com.evaluate.entity.Organization;
 import com.evaluate.mapper.EvaluationModelMapper;
 import com.evaluate.mapper.WeightConfigMapper;
 import com.evaluate.service.IIndicatorWeightScoreService;
 import com.evaluate.service.IWeightConfigService;
 import com.evaluate.service.IIndicatorWeightService;
+import com.evaluate.service.IOrganizationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -26,7 +28,7 @@ import java.util.Objects;
 
 /**
  * 权重配置服务实现类
- * 
+ *
  * @author System
  * @since 2024-01-01
  */
@@ -44,6 +46,9 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
 
     @Autowired
     private EvaluationModelMapper evaluationModelMapper;
+
+    @Autowired
+    private IOrganizationService organizationService;
 
     @Override
     public WeightConfig getDefaultConfig() {
@@ -485,6 +490,12 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                 view.setCreateTime(best.getCreateTime());
                 view.setUpdateTime(best.getUpdateTime());
                 view.setIsDeleted(best.getIsDeleted());
+
+                // 设置实际数据来源信息
+                view.setActualOrgcode(best.getOrgcode());
+                Organization actualOrg = organizationService.getByCode(best.getOrgcode());
+                view.setActualOrgName(actualOrg != null ? actualOrg.getName() : best.getOrgcode());
+
                 result.add(view);
             }
         }
