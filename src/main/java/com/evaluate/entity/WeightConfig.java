@@ -83,4 +83,11 @@ public class WeightConfig implements Serializable {
      */
     @TableField(exist = false)
     private String actualOrgName;
+
+    /**
+     * 实际数据年份（非持久化字段，用于显示）
+     * 当请求的年份数据不存在时，此字段记录实际使用的数据年份（如2020基准年）
+     */
+    @TableField(exist = false)
+    private Integer actualYear;
 }

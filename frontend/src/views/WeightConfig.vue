@@ -100,15 +100,21 @@
             <!-- 配置列表 -->
             <el-card class="config-list">
               <!-- 数据来源提示 -->
-              <div v-if="configList.length > 0 && configList.some(c => c.actualOrgcode && c.actualOrgcode !== selectedOrg?.code)" class="data-source-notice">
-                <el-alert type="info" :closable="false">
+              <div v-if="configList.length > 0 && (configList.some(c => c.actualOrgcode && c.actualOrgcode !== selectedOrg?.code) || configList.some(c => c.actualYear !== null && c.actualYear !== orgYear))" class="data-source-notice">
+                <el-alert type="warning" :closable="false">
                   <template #title>
-                    <span>以下配置的数据来自上级组织机构：</span>
+                    <span>注意：以下配置的数据来源与当前选择不同</span>
                   </template>
-                  <div v-for="config in configList.filter(c => c.actualOrgcode && c.actualOrgcode !== selectedOrg?.code)" :key="config.id" class="data-source-item">
-                    <span class="config-name">{{ config.configName }}</span>
-                    <el-tag type="warning" size="small">{{ config.actualOrgName || config.actualOrgcode }}</el-tag>
-                    <span class="year-label">{{ config.year }}年</span>
+                  <div class="data-source-items">
+                    <div v-for="config in configList.filter(c => (c.actualOrgcode && c.actualOrgcode !== selectedOrg?.code) || (c.actualYear !== null && c.actualYear !== orgYear))" :key="config.id" class="data-source-item">
+                      <span class="config-name">{{ config.configName }}</span>
+                      <el-tag v-if="config.actualOrgcode && config.actualOrgcode !== selectedOrg?.code" type="warning" size="small">{{ config.actualOrgName || config.actualOrgcode }}</el-tag>
+                      <span v-if="config.actualYear !== null && config.actualYear !== orgYear" class="year-diff">
+                        <el-tag type="info" size="small">{{ config.actualYear }}年数据</el-tag>
+                        <span class="year-arrow">→</span>
+                        <el-tag type="primary" size="small">请求{{ orgYear }}年</el-tag>
+                      </span>
+                    </div>
                   </div>
                 </el-alert>
               </div>
@@ -456,7 +462,10 @@
           <div class="header-info">
             <el-tag type="primary" size="small">
               <el-icon><Calendar /></el-icon>
-              {{ currentScoreConfig?.year || orgYear }}年数据
+              {{ currentScoreConfig?.actualYear ?? currentScoreConfig?.year ?? orgYear }}年数据
+              <span v-if="currentScoreConfig?.actualYear !== null && currentScoreConfig?.actualYear !== orgYear">
+                (请求{{ orgYear }}年，使用{{ currentScoreConfig.actualYear }}年基准)
+              </span>
             </el-tag>
             <el-tag type="success" size="small">
               <el-icon><Location /></el-icon>
@@ -1794,6 +1803,10 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
+.data-source-items {
+  margin-top: 8px;
+}
+
 .data-source-item {
   display: inline-flex;
   align-items: center;
@@ -1807,6 +1820,17 @@ onMounted(() => {
 }
 
 .data-source-item .year-label {
+  color: #909399;
+  font-size: 12px;
+}
+
+.data-source-item .year-diff {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.data-source-item .year-arrow {
   color: #909399;
   font-size: 12px;
 }

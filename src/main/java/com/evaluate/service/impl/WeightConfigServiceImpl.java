@@ -476,6 +476,8 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
             }
 
             if (best != null) {
+                // 获取实际数据的年份（配置的原始年份）
+                Integer actualDataYear = best.getYear();
                 Integer effectiveYear = forcedYear != null ? forcedYear : resolveConfigYear(best, fallbackYearForNull);
                 if (modelId != null && modelId.equals(11L)) {
                     indicatorWeightService.ensureComprehensiveCountyWeights(best.getId(), best.getOrgcode(), effectiveYear);
@@ -495,6 +497,8 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                 view.setActualOrgcode(best.getOrgcode());
                 Organization actualOrg = organizationService.getByCode(best.getOrgcode());
                 view.setActualOrgName(actualOrg != null ? actualOrg.getName() : best.getOrgcode());
+                // 设置实际数据年份
+                view.setActualYear(actualDataYear);
 
                 result.add(view);
             }
