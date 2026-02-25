@@ -2,38 +2,46 @@
 
 ## 项目概述
 
-本工具是一个基于Spring Boot + Vue.js的社区减灾能力评估平台，主要用于实时处理和评估社区减灾能力数据。系统支持多种评估模型的执行，并提供实时进度反馈和结果可视化。
+本工具是一个基于 Spring Boot 3 + Vue 3 的综合减灾能力评估平台，用于导入/维护基础数据，按“模型-步骤-算法”配置执行评估计算，并沉淀执行记录与评估结果，支持结果可视化、专题图生成与 Word 报告导出（OnlyOffice 预览）。
 
 ## 核心功能
+
+### 0. 项目结构与功能模块
+
+```
+src/main/java/com/evaluate/
+├── controller/        # REST API（按业务域拆分）
+├── service/           # 业务逻辑（含模型执行、导入、报告等）
+├── mapper/            # MyBatis-Plus Mapper
+├── entity/            # 表实体（@TableName 对应数据库表）
+├── config/            # Spring 配置（异步线程池、安全、MyBatisPlus 等）
+└── security/          # Header 认证适配（X-Current-User）
+frontend/src/
+├── views/             # 页面（数据管理/评估/结果/专题图/模型管理/系统管理等）
+├── api/               # 后端接口封装
+├── stores/            # Pinia（用户/年份/组织机构等全局状态）
+└── utils/request.ts   # Axios 统一拦截与 Result 解析
+```
 
 ### 1. 实时进度功能
 
 #### 1.1 功能描述
-系统支持评估模型执行过程中的实时进度反馈，包括：
-- 实时显示当前执行步骤
-- 显示处理进度百分比
-- 提供详细的日志信息
-- 支持WebSocket实时通信
+系统支持评估模型执行过程中的“异步执行 + 执行记录查询”能力，包括：
+- 提交评估任务后立即返回执行记录 ID
+- 执行记录状态更新（RUNNING / SUCCESS / FAILED）
+- 查询执行记录详情与评估结果
 
 #### 1.2 技术实现
-- **后端**: Spring Boot异步任务处理
-- **前端**: Vue.js + WebSocket客户端
-- **通信协议**: RESTful API + WebSocket
-- **数据格式**: JSON
+- **后端**: Spring Boot 3 + MyBatis-Plus，线程池异步执行（AsyncConfig）
+- **前端**: Vue 3 + Axios（统一封装 Result 响应）
+- **通信协议**: RESTful API（无 WebSocket）
+- **认证方式**: 请求头 `X-Current-User`（由前端拦截器注入）
 
 #### 1.3 进度反馈机制
-```java
-// 评估执行进度跟踪
-public class ModelExecutionProgress {
-    private String taskId;           // 任务ID
-    private String currentStep;      // 当前步骤
-    private int totalSteps;          // 总步骤数
-    private int currentStepIndex;    // 当前步骤索引
-    private String status;           // 执行状态
-    private String message;          // 状态消息
-    private long timestamp;          // 时间戳
-}
-```
+当前项目以执行记录表模型（[ModelExecutionRecord](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/entity/ModelExecutionRecord.java)）作为“进度/状态”的承载：
+- 提交任务返回 `executionRecordId`
+- 后台线程更新 `execution_status`、`result_summary`、`result_detail`
+- 前端按需查询详情与结果（见 3.2）
 
 ### 2. 评估模型系统
 
@@ -67,15 +75,17 @@ graph TD
 
 #### 3.1 评估执行接口
 
-**POST** `/api/evaluation/execute`
+**POST** `/api/evaluation/execute-model`
 
 **请求参数:**
 ```json
 {
-    "modelId": 4,                    // 模型ID
-    "regionCode": "511425001001",    // 区域代码
-    "year": 2024,                    // 评估年份
-    "parameters": {}                 // 自定义参数
+    "modelId": 4,
+    "regionCodes": ["511425001001"],
+    "weightConfigId": 1,
+    "year": 2024,
+    "orgCode": "511425",
+    "createBy": "admin"
 }
 ```
 
@@ -83,134 +93,39 @@ graph TD
 ```json
 {
     "code": 200,
-    "message": "评估任务启动成功",
+    "message": "操作成功",
     "data": {
-        "taskId": "task_123456",
-        "estimatedDuration": 1800,
-        "steps": [
-            {
-                "stepName": "数据加载",
-                "description": "加载社区减灾能力数据"
-            },
-            {
-                "stepName": "模型计算",
-                "description": "执行社区减灾能力评估算法"
-            }
-        ]
-    }
-}
-```
-
-#### 3.2 进度查询接口
-
-**GET** `/api/evaluation/progress/{taskId}`
-
-**响应格式:**
-```json
-{
-    "code": 200,
-    "message": "查询成功",
-    "data": {
-        "taskId": "task_123456",
+        "executionRecordId": 123,
         "status": "RUNNING",
-        "currentStep": "模型计算",
-        "currentStepIndex": 1,
-        "totalSteps": 3,
-        "progress": 65.5,
-        "message": "正在处理数据...",
-        "logs": [
-            {
-                "timestamp": 1703123456789,
-                "level": "INFO",
-                "message": "开始加载社区数据"
-            }
-        ]
+        "message": "评估任务已提交，正在后台执行中"
     }
 }
 ```
 
-#### 3.3 WebSocket实时通信
+#### 3.2 执行记录/历史查询
 
-**连接地址:** `ws://localhost:8087/ws/evaluation/{taskId}`
+- **GET** `/api/evaluation/history?page=1&size=10&modelId=&executionStatus=&year=&orgCode=`
+- **GET** `/api/evaluation/history/detail/{id}`
+- **DELETE** `/api/evaluation/history/{id}`
+- **GET** `/api/model-execution-record/list?current=1&size=10&modelId=&executionStatus=`
+- **GET** `/api/model-execution-record/{id}`
+- **GET** `/api/model-execution-record/{id}/results`
 
-**消息格式:**
-```json
-{
-    "type": "PROGRESS_UPDATE",
-    "data": {
-        "taskId": "task_123456",
-        "step": "数据处理",
-        "progress": 75.0,
-        "timestamp": 1703123456789
-    }
-}
-```
+说明：当前工程未实现 WebSocket 进度推送；“进度/状态”以执行记录状态（RUNNING/SUCCESS/FAILED）和结果明细为准。
 
 ### 4. 数据库设计
 
-#### 4.1 核心数据表
+#### 4.1 初始化脚本
+- 初始化入口脚本：`src/main/resources/sql/init_database_consolidated.sql`（包含 RBAC、组织机构、基层组织、医疗卫生机构、消防员配置、索引等）
+- 其他辅助脚本：`src/main/resources/sql/insert_firefighter_config.sql`、`src/main/resources/sql/import_organizations.sql`
 
-**评估结果表 (evaluation_result)**
-```sql
-CREATE TABLE evaluation_result (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    region_code VARCHAR(20) NOT NULL,           -- 区域代码
-    region_name VARCHAR(100) NOT NULL,          -- 区域名称
-    community_code VARCHAR(20),                 -- 社区代码
-    community_name VARCHAR(100),                -- 社区名称
-    model_id INT NOT NULL,                      -- 模型ID
-    year INT NOT NULL,                          -- 评估年份
-    result_value DECIMAL(10,2),                 -- 评估结果值
-    result_level VARCHAR(50),                   -- 评估等级
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-    INDEX idx_region_model_year (region_code, model_id, year),
-    INDEX idx_community_model_year (community_code, model_id, year)
-);
-```
-
-**社区减灾能力表 (community_disaster_reduction_capacity)**
-```sql
-CREATE TABLE community_disaster_reduction_capacity (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    region_code VARCHAR(20) NOT NULL,           -- 区域代码
-    community_name VARCHAR(100) NOT NULL,       -- 社区名称
-    year INT NOT NULL,                          -- 年份
-    organization_score DECIMAL(5,2),            -- 组织建设得分
-    resource_score DECIMAL(5,2),                -- 资源配置得分
-    plan_score DECIMAL(5,2),                    -- 应急预案得分
-    training_score DECIMAL(5,2),                -- 培训演练得分
-    facility_score DECIMAL(5,2),                -- 设施建设得分
-    total_score DECIMAL(5,2),                   -- 总分
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    UNIQUE KEY uk_community_region_community_year (region_code, community_name, year)
-);
-```
-
-#### 4.2 数据约束修复
-
-系统实现了针对社区评估模型的约束修复机制：
-
-```sql
--- 清理重复数据并修复约束
-DELETE s1 FROM survey_data s1
-INNER JOIN survey_data s2 ON (
-    s1.region_code = s2.region_code
-    AND s1.year = s2.year
-    AND s1.id > s2.id
-);
-
--- 添加唯一约束
-ALTER TABLE survey_data
-ADD CONSTRAINT uk_survey_region_year
-UNIQUE (region_code, year);
-
-ALTER TABLE community_disaster_reduction_capacity
-ADD CONSTRAINT uk_community_region_community_year
-UNIQUE (region_code, community_name, year);
-```
+#### 4.2 核心表（以实体 @TableName 为准）
+- **权限与用户**：`sys_user`、`sys_role`、`sys_menu`（以及若干关联表，详见初始化脚本）
+- **组织机构**：`organization`、`grassroots_organization`、`organization_boundary`
+- **基础数据**：`survey_data`、`region_data`、`community_disaster_reduction_capacity`、`medical_institution`、`firefighter_config`
+- **模型配置**：`evaluation_model`、`model_step`、`step_algorithm`、`field_mapping_config`
+- **权重配置**：`weight_config`、`indicator_weight`、`indicator_weight_score`
+- **执行与结果**：`model_execution_record`、`evaluation_result`、`primary_indicator_result`、`secondary_indicator_result`、`report`
 
 ### 5. 前端技术架构
 
@@ -220,7 +135,6 @@ UNIQUE (region_code, community_name, year);
 - **UI组件**: Element Plus
 - **状态管理**: Pinia
 - **HTTP客户端**: Axios
-- **WebSocket**: 原生WebSocket API
 
 #### 5.2 组件结构
 
@@ -229,89 +143,26 @@ src/
 ├── views/
 │   ├── Evaluation.vue          # 评估主界面
 │   ├── DataManagement.vue      # 数据管理界面
-│   └── ModelManagement.vue     # 模型管理界面
+│   ├── Results.vue             # 结果展示
+│   ├── ThematicMap.vue         # 专题图生成/管理
+│   ├── ModelManagement.vue     # 模型管理（管理员）
+│   ├── WeightConfig.vue        # 权重配置
+│   ├── FirefighterConfig.vue   # 消防员配置
+│   └── system/                 # 系统管理（用户/角色/菜单）
 ├── components/
-│   ├── ProgressTracker.vue     # 进度跟踪组件
-│   ├── ModelSelector.vue       # 模型选择器
-│   └── ResultDisplay.vue       # 结果展示组件
+│   ├── OnlyOfficeEditor.vue    # OnlyOffice 在线预览/编辑
+│   ├── ThematicMapGenerator.vue# 专题图生成组件
+│   ├── ResultDialog.vue        # 结果弹窗
+│   └── topsis/                 # TOPSIS 配置/测试面板（前端页面使用）
 ├── api/
 │   └── index.ts               # API接口定义
 └── utils/
-    ├── request.ts             # HTTP请求工具
-    └── websocket.ts           # WebSocket工具
+    └── request.ts             # HTTP请求工具（含 X-Current-User 注入）
 ```
 
-#### 5.3 实时进度组件
+#### 5.3 请求封装与认证头
 
-```vue
-<template>
-  <div class="progress-container">
-    <el-progress
-      :percentage="progress"
-      :status="status"
-      :stroke-width="10"
-    />
-    <div class="step-info">
-      <h4>{{ currentStep }}</h4>
-      <p>{{ message }}</p>
-    </div>
-    <div class="log-container">
-      <div v-for="log in logs" :key="log.timestamp" class="log-item">
-        <span class="log-time">{{ formatTime(log.timestamp) }}</span>
-        <span :class="['log-level', log.level.toLowerCase()]">{{ log.level }}</span>
-        <span class="log-message">{{ log.message }}</span>
-      </div>
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-
-interface ProgressData {
-  taskId: string
-  status: string
-  currentStep: string
-  progress: number
-  message: string
-  logs: LogEntry[]
-}
-
-interface LogEntry {
-  timestamp: number
-  level: string
-  message: string
-}
-
-const progress = ref(0)
-const currentStep = ref('')
-const status = ref<'success' | 'exception' | 'warning' | ''>('')
-const message = ref('')
-const logs = ref<LogEntry[]>([])
-
-let ws: WebSocket | null = null
-
-const connectWebSocket = (taskId: string) => {
-  ws = new WebSocket(`ws://localhost:8087/ws/evaluation/${taskId}`)
-
-  ws.onmessage = (event) => {
-    const data = JSON.parse(event.data)
-    updateProgress(data)
-  }
-}
-
-const updateProgress = (data: ProgressData) => {
-  progress.value = data.progress
-  currentStep.value = data.currentStep
-  message.value = data.message
-  status.value = getStatus(data.status)
-
-  if (data.logs) {
-    logs.value = [...logs.value, ...data.logs]
-  }
-}
-</script>
-```
+前端在请求拦截器中从 `localStorage.userInfo` 读取用户名，并注入到请求头 `X-Current-User`，后端通过 [UserHeaderFilter](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/security/UserHeaderFilter.java) 写入 SecurityContext（当前配置为逐步迁移阶段，接口暂时放行）。
 
 ### 6. 核心技术实现
 
@@ -323,28 +174,11 @@ const updateProgress = (data: ProgressData) => {
 @Service
 public class ModelExecutionServiceImpl {
 
-    private EvaluationResult extractEvaluationResults(
-            StepResult stepResult, Integer modelId, String regionCode,
-            String regionName, String stepRegionCode, Integer year) {
-
-        EvaluationResult result = new EvaluationResult();
-
-        // 关键修复：对于社区评估模型(modelId=4)，使用stepRegionCode作为社区代码
-        String firstCommunityCode = extractCommunityCodeFromStepResult(stepResult);
-        if (firstCommunityCode == null && modelId != null && modelId == 4) {
-            log.info("社区评估模型 - 使用stepRegionCode作为社区代码: stepRegionCode={}", stepRegionCode);
-            firstCommunityCode = stepRegionCode;
-        }
-
-        if (firstCommunityCode != null) {
-            result.setRegionCode(firstCommunityCode);
-            result.setRegionName(getRegionName(firstCommunityCode));
-        } else {
-            result.setRegionCode(regionCode);
-            result.setRegionName(regionName);
-        }
-
-        return result;
+    // 对于社区评估模型(modelId=4)，如果当前步骤输出中没有_firstCommunityCode，
+    // 则使用 stepRegionCode 作为社区代码写入 evaluation_result
+    String firstCommunityCode = toString(outputs.get("_firstCommunityCode"));
+    if (firstCommunityCode == null && modelId != null && modelId == 4) {
+        firstCommunityCode = stepRegionCode;
     }
 }
 ```
@@ -413,24 +247,14 @@ public class CommunityDisasterReductionCapacityServiceImpl {
 **application.yml**
 ```yaml
 server:
-  port: 8087
+  port: 8081
 
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/evaluate_db?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2B8
+    url: jdbc:mysql://127.0.0.1:30314/evaluate_db?useSSL=false&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
     password: 123456
-
-  task:
-    execution:
-      pool:
-        core-size: 10
-        max-size: 50
-        queue-capacity: 100
-
-websocket:
-  allowed-origins: "http://localhost:5173"
 ```
 
 #### 7.2 前端配置
@@ -442,12 +266,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8087',
+        target: 'http://localhost:8081',
         changeOrigin: true
-      },
-      '/ws': {
-        target: 'ws://localhost:8087',
-        ws: true
       }
     }
   }
@@ -462,8 +282,7 @@ CREATE DATABASE IF NOT EXISTS evaluate_db
 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- 执行数据库脚本
-source src/main/resources/db/migration/V1.0.0__Create_Tables.sql;
-source src/main/resources/db/migration/V1.0.1__Insert_Default_Data.sql;
+source src/main/resources/sql/init_database_consolidated.sql;
 ```
 
 ### 8. 性能优化
@@ -475,8 +294,8 @@ source src/main/resources/db/migration/V1.0.1__Insert_Default_Data.sql;
 
 #### 8.2 前端优化
 - 组件懒加载
-- WebSocket连接池管理
-- 进度信息节流处理
+- Axios统一拦截与错误提示（`frontend/src/utils/request.ts`）
+- 大文件导入接口单独设置更长超时（例如 5 分钟）
 
 #### 8.3 系统优化
 - 异步任务执行
@@ -529,8 +348,8 @@ log.info("保存评估结果 - 社区代码: {}, 得分: {}, 等级: {}",
    - 解决：检查唯一约束配置
 
 3. **WebSocket连接失败**
-   - 问题：无法建立实时通信
-   - 解决：检查端口配置和防火墙设置
+   - 问题：页面显示评估“进行中”，但长时间不结束或结果为空
+   - 解决：查看执行记录详情与后端日志，确认模型步骤与数据完整性
 
 #### 10.2 故障排查步骤
 
@@ -538,14 +357,14 @@ log.info("保存评估结果 - 社区代码: {}, 得分: {}, 等级: {}",
 2. 验证数据库约束状态
 3. 确认前后端配置一致性
 4. 测试API接口可用性
-5. 检查WebSocket连接状态
+5. 检查执行记录状态与结果明细（history/detail 或 model-execution-record）
 
 ### 11. 开发指南
 
 #### 11.1 环境要求
 
 - JDK 17+
-- Node.js 16+
+- Node.js 20+
 - MySQL 8.0+
 - Maven 3.6+
 
@@ -553,11 +372,11 @@ log.info("保存评估结果 - 社区代码: {}, 得分: {}, 等级: {}",
 
 ```bash
 # 启动后端
-cd backend
 mvn spring-boot:run
 
 # 启动前端
 cd frontend
+npm ci
 npm run dev
 ```
 
