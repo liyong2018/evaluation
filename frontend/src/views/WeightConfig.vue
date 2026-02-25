@@ -491,7 +491,7 @@
                 v-for="(expert, index) in statisticsData.experts"
                 :key="index"
                 class="expert-item"
-                :class="{ active: selectedExpert?.expert_name === expert.expert_name }"
+                :class="{ active: selectedExpertKey === getExpertKey(expert) }"
                 @click="selectExpert(expert)"
               >
                 <div class="expert-info">
@@ -501,7 +501,7 @@
                     <div class="expert-phone">{{ expert.expert_phone || '未填写电话' }}</div>
                   </div>
                 </div>
-                <el-icon v-if="selectedExpert?.expert_name === expert.expert_name" class="check-icon">
+                <el-icon v-if="selectedExpertKey === getExpertKey(expert)" class="check-icon">
                   <Check />
                 </el-icon>
               </div>
@@ -791,19 +791,23 @@ const selectedExpertScoreTree = computed(() => {
   if (!selectedExpert.value || !statisticsData.value) return []
 
   const expertName = selectedExpert.value.expert_name
+  const expertPhone = selectedExpert.value.expert_phone ?? ''
   const allStats = statisticsData.value.indicatorStats || []
 
   const nodes: any[] = []
   allStats.forEach((stat: any) => {
     if (stat.id === null || stat.id === undefined) return
-    const expertScore = stat.expertScores?.find((s: any) => s.expertName === expertName)
+    const expertScore = stat.expertScores?.find((s: any) => {
+      const sPhone = s.expertPhone ?? ''
+      return s.expertName === expertName && sPhone === expertPhone
+    })
     nodes.push({
       id: stat.id,
       indicatorCode: stat.indicatorCode,
       indicatorName: stat.indicatorName,
       indicatorLevel: stat.indicatorLevel,
       parentId: stat.parentId,
-      weight: expertScore?.weight ?? stat.currentWeight ?? null,
+      weight: expertScore?.weight ?? null,
       createTime: expertScore?.createTime,
       children: []
     })
@@ -1539,6 +1543,9 @@ const openStatisticsDialog = async (row: any) => {
     const response = await indicatorWeightScoreApi.getScoreStatistics(row.id)
     if (response.success) {
       statisticsData.value = response.data
+      if (statisticsData.value?.experts?.length === 1) {
+        selectedExpert.value = statisticsData.value.experts[0]
+      }
       dialogVisible.statistics = true
     } else {
       ElMessage.error(response.message || '获取统计信息失败')
@@ -1552,9 +1559,16 @@ const openStatisticsDialog = async (row: any) => {
 }
 
 // 选择专家
+const getExpertKey = (expert: any) => `${expert?.expert_name || ''}__${expert?.expert_phone || ''}`
+
+const selectedExpertKey = computed(() => getExpertKey(selectedExpert.value))
+
 const selectExpert = (expert: any) => {
+  if (selectedExpertKey.value === getExpertKey(expert)) {
+    selectedExpert.value = null
+    return
+  }
   selectedExpert.value = expert
-  console.log('选中专家:', expert)
 }
 
 // 应用平均权重到正式配置
