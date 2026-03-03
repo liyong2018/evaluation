@@ -70,6 +70,21 @@ public interface MedicalInstitutionMapper extends BaseMapper<MedicalInstitution>
     Integer sumActualHospitalBedsByTownship(String townshipName, Integer year);
 
     /**
+     * 根据组织机构编码统计实有住院床位数总和
+     *
+     * 使用 org_code 前缀匹配，统计同一组织机构下的医疗机构床位数
+     * 例如：region_code 为 511402102 时，匹配 org_code 以 511402102 开头的所有医疗机构
+     *
+     * @param regionCode 组织机构编码（如：511402102 表示太和镇）
+     * @param year 数据年份
+     * @return 实有住院床位数总和
+     */
+    @Select("SELECT COALESCE(SUM(actual_hospital_beds), 0) FROM medical_institution " +
+            "WHERE org_code LIKE CONCAT(#{arg0}, '%') " +
+            "AND year = #{arg1}")
+    Integer sumActualHospitalBedsByRegionCode(String regionCode, Integer year);
+
+    /**
      * 更新地址字段（用于在INSERT后更新township等字段）
      */
     @Update("UPDATE medical_institution SET province = #{province}, city = #{city}, " +

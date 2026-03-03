@@ -219,8 +219,13 @@
         stripe
         border
       >
-        <el-table-column prop="executionCode" label="执行编号" width="350" />
-        <el-table-column label="状态" width="200">
+        <el-table-column label="评估名称" min-width="200">
+          <template #default="{ row }">
+            {{ generateHistoryEvaluationName(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="executionCode" label="执行编号" width="180" />
+        <el-table-column label="状态" width="180">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.executionStatus)">
               {{ getStatusText(row.executionStatus) }}
@@ -228,17 +233,17 @@
           </template>
         </el-table-column>
         
-        <el-table-column prop="startTime" label="开始时间" width="280">
+        <el-table-column prop="startTime" label="开始时间" width="200">
           <template #default="{ row }">
             {{ formatDate(row.startTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="endTime" label="结束时间" width="280">
+        <el-table-column prop="endTime" label="结束时间" width="200">
           <template #default="{ row }">
             {{ formatDate(row.endTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="createBy" label="执行人" width="300">
+        <el-table-column prop="createBy" label="执行人" width="200">
           <template #default="{ row }">
             {{ row.createBy || '-' }}
           </template>
@@ -429,7 +434,7 @@ const generateEvaluationName = () => {
   const model = selectedModel.value
   const county = selectedCounty.value
 
-  let name = `${year}`
+  let name = `${year}年`
 
   if (county?.name) {
     name += `${county.name}`
@@ -1858,6 +1863,34 @@ const getStatusText = (status: string) => {
     'PENDING': '等待中'
   }
   return statusMap[status] || status
+}
+
+// 生成评估历史记录的评估名称
+const generateHistoryEvaluationName = (row: any) => {
+  const year = row.year || new Date().getFullYear()
+  let name = `${year}年`
+
+  // 查找区县名称
+  if (row.orgCode) {
+    const county = counties.value.find((c: any) => c.code === row.orgCode)
+    if (county?.name) {
+      name += county.name
+    }
+  }
+
+  // 查找模型名称
+  if (row.modelId) {
+    const model = evaluationModels.value.find((m: any) => m.id === row.modelId)
+    if (model?.modelName) {
+      name += `${model.modelName}评估`
+    } else {
+      name += '减灾能力评估'
+    }
+  } else {
+    name += '减灾能力评估'
+  }
+
+  return name
 }
 
 // 处理地区选择

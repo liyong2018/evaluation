@@ -86,6 +86,17 @@ public interface IMedicalInstitutionService extends IService<MedicalInstitution>
     Integer sumActualHospitalBedsByTownship(String townshipAddress, Integer year);
 
     /**
+     * 根据组织机构编码统计实有住院床位数总和
+     *
+     * 使用 org_code 前缀匹配，统计同一组织机构下的医疗机构床位数
+     *
+     * @param regionCode 组织机构编码
+     * @param year 数据年份
+     * @return 实有住院床位数总和
+     */
+    Integer sumActualHospitalBedsByRegionCode(String regionCode, Integer year);
+
+    /**
      * 检查指定年份是否存在任何医疗卫生机构数据
      *
      * @param year 年份

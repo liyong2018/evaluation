@@ -399,12 +399,12 @@ public class CommunityDisasterReductionCapacityServiceImpl
     private BigDecimal getCellDecimalValue(Cell cell) {
         if (cell == null) return BigDecimal.ZERO;
         try {
-            return BigDecimal.valueOf(cell.getNumericCellValue());
+            return BigDecimal.valueOf(cell.getNumericCellValue()).setScale(4, BigDecimal.ROUND_HALF_UP);
         } catch (Exception e) {
             String value = getCellStringValue(cell);
             if (value.isEmpty()) return BigDecimal.ZERO;
             try {
-                return new BigDecimal(value);
+                return new BigDecimal(value).setScale(4, BigDecimal.ROUND_HALF_UP);
             } catch (NumberFormatException ex) {
                 return BigDecimal.ZERO;
             }
@@ -430,10 +430,10 @@ public class CommunityDisasterReductionCapacityServiceImpl
     private BigDecimal getDecimalValue(Object value) {
         if (value == null) return BigDecimal.ZERO;
         if (value instanceof Number) {
-            return BigDecimal.valueOf(((Number) value).doubleValue());
+            return BigDecimal.valueOf(((Number) value).doubleValue()).setScale(4, BigDecimal.ROUND_HALF_UP);
         }
         try {
-            return new BigDecimal(value.toString());
+            return new BigDecimal(value.toString()).setScale(4, BigDecimal.ROUND_HALF_UP);
         } catch (NumberFormatException e) {
             return BigDecimal.ZERO;
         }

@@ -1097,6 +1097,11 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         return baseMapper.sumActualHospitalBedsByTownship(townshipAddress, year);
     }
 
+    @Override
+    public Integer sumActualHospitalBedsByRegionCode(String regionCode, Integer year) {
+        return baseMapper.sumActualHospitalBedsByRegionCode(regionCode, year);
+    }
+
     /**
      * 修改数据库唯一约束，支持多年度数据
      */

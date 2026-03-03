@@ -6,6 +6,7 @@ import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -225,7 +226,7 @@ public class SurveyData implements Serializable {
      * 上一年度防灾减灾救灾资金投入总金额(万元)
      */
     @TableField("funding_amount")
-    private Double fundingAmount;
+    private BigDecimal fundingAmount;
 
     /**
      * 救灾物资储备方式
@@ -285,7 +286,7 @@ public class SurveyData implements Serializable {
      * 现有储备物资、装备折合金额(万元)
      */
     @TableField("material_value")
-    private Double materialValue;
+    private BigDecimal materialValue;
 
     /**
      * 本级灾害应急避难场所数量(个或处)

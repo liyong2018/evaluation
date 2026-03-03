@@ -7,8 +7,11 @@ import com.evaluate.entity.WeightConfig;
 import com.evaluate.mapper.IndicatorWeightMapper;
 import com.evaluate.mapper.WeightConfigMapper;
 import com.evaluate.service.IIndicatorWeightService;
+import com.evaluate.service.IIndicatorWeightScoreService;
+import com.evaluate.service.IWeightConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -33,6 +36,14 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
 
     @Autowired
     private WeightConfigMapper weightConfigMapper;
+
+    @Lazy
+    @Autowired(required = false)
+    private IIndicatorWeightScoreService indicatorWeightScoreService;
+
+    @Lazy
+    @Autowired(required = false)
+    private IWeightConfigService weightConfigService;
 
     private static final Map<String, double[]> CITY_TOWN_COMM_ABS_2025 = buildCityTownCommAbs2025();
 
@@ -631,6 +642,280 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
                .eq("parent_id", parentId)
                .orderByAsc("sort_order");
         return list(wrapper);
+    }
+
+    @Override
+    public List<IndicatorWeight> getWeightsWithInheritance(Long configId, String parentOrgcode, Long parentConfigId) {
+        if (configId == null) {
+            return new ArrayList<>();
+        }
+
+        // 获取基准权重
+        List<IndicatorWeight> baselineWeights = getByConfigId(configId);
+
+        // 如果有专家打分服务，获取专家平均权重
+        Map<String, Double> expertWeights = new HashMap<>();
+        try {
+            if (indicatorWeightScoreService != null) {
+                Map<String, Double> averages = indicatorWeightScoreService.calculateAverageWeights(configId);
+                if (averages != null) {
+                    expertWeights = averages;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("获取专家平均权重失败: configId={}", configId, e);
+        }
+
+        // 准备继承权重映射（从父级配置）
+        Map<String, IndicatorWeight> parentWeightMap = new HashMap<>();
+        if (parentConfigId != null) {
+            try {
+                List<IndicatorWeight> parentWeights = getByConfigId(parentConfigId);
+                for (IndicatorWeight pw : parentWeights) {
+                    if (pw.getIndicatorCode() != null) {
+                        parentWeightMap.put(pw.getIndicatorCode(), pw);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("获取父级权重失败: parentConfigId={}", parentConfigId, e);
+            }
+        }
+
+        // 构建结果列表，应用继承逻辑
+        List<IndicatorWeight> result = new ArrayList<>();
+        for (IndicatorWeight baseline : baselineWeights) {
+            IndicatorWeight weight = new IndicatorWeight();
+            weight.setId(baseline.getId());
+            weight.setConfigId(baseline.getConfigId());
+            weight.setIndicatorCode(baseline.getIndicatorCode());
+            weight.setIndicatorName(baseline.getIndicatorName());
+            weight.setIndicatorLevel(baseline.getIndicatorLevel());
+            weight.setParentId(baseline.getParentId());
+            weight.setSortOrder(baseline.getSortOrder());
+            weight.setCreateTime(baseline.getCreateTime());
+
+            // 继承优先级：
+            // 1. 专家打分平均值
+            // 2. 基准表权重
+            // 3. 父级配置权重
+            String code = baseline.getIndicatorCode();
+            Double finalWeight = null;
+            String dataSource = "baseline"; // 数据来源标识
+
+            if (expertWeights.containsKey(code)) {
+                finalWeight = expertWeights.get(code);
+                dataSource = "expert";
+            } else if (baseline.getWeight() != null) {
+                finalWeight = baseline.getWeight();
+                dataSource = "baseline";
+            } else if (parentWeightMap.containsKey(code) && parentWeightMap.get(code).getWeight() != null) {
+                finalWeight = parentWeightMap.get(code).getWeight();
+                dataSource = "parent";
+            }
+
+            weight.setWeight(finalWeight != null ? finalWeight : 0.0);
+            result.add(weight);
+        }
+
+        return result;
+    }
+
+    @Override
+    public Map<String, Double> findExpertScoresByOrgcodeAndYear(String orgcode, Integer requestedYear, Long modelId, String configName) {
+        if (indicatorWeightScoreService == null || !StringUtils.hasText(orgcode) || requestedYear == null) {
+            return new HashMap<>();
+        }
+
+        // 优先使用 modelId 查找
+        if (modelId != null) {
+            for (int year = requestedYear; year >= 2021; year--) {
+                QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
+                queryWrapper.eq("orgcode", orgcode.trim());
+                queryWrapper.eq("model_id", modelId);
+                queryWrapper.eq("is_deleted", 0);
+                queryWrapper.eq("year", year);
+                queryWrapper.last("LIMIT 1");
+
+                WeightConfig config = weightConfigMapper.selectOne(queryWrapper);
+                if (config != null && config.getId() != null) {
+                    Map<String, Double> averages = indicatorWeightScoreService.calculateAverageWeights(config.getId());
+                    if (averages != null && !averages.isEmpty()) {
+                        log.info("找到专家打分数据（通过modelId）: orgcode={}, year={}, modelId={}", orgcode, year, modelId);
+                        return averages;
+                    }
+                }
+            }
+        }
+
+        // 备用：使用 configName 查找（向后兼容）
+        if (StringUtils.hasText(configName)) {
+            for (int year = requestedYear; year >= 2021; year--) {
+                QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
+                queryWrapper.eq("orgcode", orgcode.trim());
+                queryWrapper.eq("config_name", configName.trim());
+                queryWrapper.eq("is_deleted", 0);
+                queryWrapper.eq("year", year);
+                queryWrapper.last("LIMIT 1");
+
+                WeightConfig config = weightConfigMapper.selectOne(queryWrapper);
+                if (config != null && config.getId() != null) {
+                    Map<String, Double> averages = indicatorWeightScoreService.calculateAverageWeights(config.getId());
+                    if (averages != null && !averages.isEmpty()) {
+                        log.info("找到专家打分数据（通过configName）: orgcode={}, year={}, configName={}", orgcode, year, configName);
+                        return averages;
+                    }
+                }
+            }
+        }
+
+        log.debug("未找到专家打分数据: orgcode={}, requestedYear={}, modelId={}, configName={}", orgcode, requestedYear, modelId, configName);
+        return new HashMap<>();
+    }
+
+    @Override
+    public Map<String, IndicatorWeight> findBaselineWeightsByOrgcode(String orgcode, Long modelId, String configName) {
+        if (!StringUtils.hasText(orgcode)) {
+            return new HashMap<>();
+        }
+
+        // 层级查找：区县 → 市级 → 省级
+        List<String> orgcodeCandidates = new ArrayList<>();
+        String trimmed = orgcode.trim();
+
+        // 市级（4位）- 先添加市级，因为基准数据主要是市级
+        if (trimmed.length() >= 4) {
+            orgcodeCandidates.add(trimmed.substring(0, 4));
+        }
+        // 省级（2位）
+        if (trimmed.length() >= 2) {
+            orgcodeCandidates.add(trimmed.substring(0, 2));
+        }
+        // 区县级（6位）- 只有在区县有自己数据时才使用
+        if (trimmed.length() >= 6) {
+            orgcodeCandidates.add(trimmed.substring(0, 6));
+        }
+
+        // 优先使用 modelId 查找
+        if (modelId != null) {
+            for (String candidateOrgcode : orgcodeCandidates) {
+                QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
+                queryWrapper.eq("orgcode", candidateOrgcode);
+                queryWrapper.eq("model_id", modelId);
+                queryWrapper.eq("is_deleted", 0);
+                queryWrapper.eq("year", BASELINE_YEAR);
+                queryWrapper.last("LIMIT 1");
+
+                WeightConfig config = weightConfigMapper.selectOne(queryWrapper);
+                if (config != null && config.getId() != null) {
+                    List<IndicatorWeight> weights = getByConfigId(config.getId());
+                    if (!weights.isEmpty()) {
+                        Map<String, IndicatorWeight> weightMap = new HashMap<>();
+                        for (IndicatorWeight w : weights) {
+                            if (w.getIndicatorCode() != null) {
+                                weightMap.put(w.getIndicatorCode(), w);
+                            }
+                        }
+                        log.info("找到基准表数据（通过modelId）: orgcode={}, modelId={}, weightCount={}",
+                                orgcode, modelId, weightMap.size());
+                        return weightMap;
+                    }
+                }
+            }
+        }
+
+        // 备用：使用 configName 查找（向后兼容）
+        if (StringUtils.hasText(configName)) {
+            for (String candidateOrgcode : orgcodeCandidates) {
+                QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
+                queryWrapper.eq("orgcode", candidateOrgcode);
+                queryWrapper.eq("config_name", configName.trim());
+                queryWrapper.eq("is_deleted", 0);
+                queryWrapper.eq("year", BASELINE_YEAR);
+                queryWrapper.last("LIMIT 1");
+
+                WeightConfig config = weightConfigMapper.selectOne(queryWrapper);
+                if (config != null && config.getId() != null) {
+                    List<IndicatorWeight> weights = getByConfigId(config.getId());
+                    if (!weights.isEmpty()) {
+                        Map<String, IndicatorWeight> weightMap = new HashMap<>();
+                        for (IndicatorWeight w : weights) {
+                            if (w.getIndicatorCode() != null) {
+                                weightMap.put(w.getIndicatorCode(), w);
+                            }
+                        }
+                        log.info("找到基准表数据（通过configName）: orgcode={}, configName={}, weightCount={}",
+                                orgcode, configName, weightMap.size());
+                        return weightMap;
+                    }
+                }
+            }
+        }
+
+        log.debug("未找到基准表数据: orgcode={}, modelId={}, configName={}", orgcode, modelId, configName);
+        return new HashMap<>();
+    }
+
+    @Override
+    public List<IndicatorWeight> getWeightsWithFullInheritance(
+            Long configId, String orgcode, Integer requestedYear, Long modelId, String configName) {
+
+        if (configId == null) {
+            return new ArrayList<>();
+        }
+
+        // 获取当前配置的指标结构
+        List<IndicatorWeight> templateWeights = getByConfigId(configId);
+
+        // 如果当前配置没有指标结构，尝试从基准数据中获取模板
+        if (templateWeights.isEmpty()) {
+            log.warn("配置ID {} 没有指标结构，尝试从基准数据获取模板", configId);
+            Map<String, IndicatorWeight> baselineWeights = findBaselineWeightsByOrgcode(orgcode, modelId, configName);
+            if (!baselineWeights.isEmpty()) {
+                templateWeights = new ArrayList<>(baselineWeights.values());
+                // 按sort_order排序
+                templateWeights.sort(Comparator.comparing(IndicatorWeight::getSortOrder));
+            }
+        }
+
+        if (templateWeights.isEmpty()) {
+            log.warn("未找到指标结构: configId={}, orgcode={}, modelId={}, configName={}", configId, orgcode, modelId, configName);
+            return new ArrayList<>();
+        }
+
+        // 1. 首先查找专家打分数据（按年份从新到旧）
+        Map<String, Double> expertWeights = findExpertScoresByOrgcodeAndYear(orgcode, requestedYear, modelId, configName);
+
+        // 2. 如果专家打分数据不足，查找基准表数据（区县→市级→省级）
+        Map<String, IndicatorWeight> baselineWeights = findBaselineWeightsByOrgcode(orgcode, modelId, configName);
+
+        // 3. 构建结果，应用继承逻辑
+        List<IndicatorWeight> result = new ArrayList<>();
+        for (IndicatorWeight template : templateWeights) {
+            IndicatorWeight weight = new IndicatorWeight();
+            weight.setId(template.getId());
+            weight.setConfigId(template.getConfigId());
+            weight.setIndicatorCode(template.getIndicatorCode());
+            weight.setIndicatorName(template.getIndicatorName());
+            weight.setIndicatorLevel(template.getIndicatorLevel());
+            weight.setParentId(template.getParentId());
+            weight.setSortOrder(template.getSortOrder());
+            weight.setCreateTime(template.getCreateTime());
+
+            String code = template.getIndicatorCode();
+            Double finalWeight = null;
+
+            // 优先级：专家打分 > 基准表
+            if (expertWeights.containsKey(code)) {
+                finalWeight = expertWeights.get(code);
+            } else if (baselineWeights.containsKey(code) && baselineWeights.get(code).getWeight() != null) {
+                finalWeight = baselineWeights.get(code).getWeight();
+            }
+
+            weight.setWeight(finalWeight != null ? finalWeight : 0.0);
+            result.add(weight);
+        }
+
+        return result;
     }
 
 }

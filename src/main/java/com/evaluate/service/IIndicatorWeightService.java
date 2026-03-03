@@ -160,4 +160,54 @@ public interface IIndicatorWeightService extends IService<IndicatorWeight> {
     List<IndicatorWeight> getPrimaryWeights(Long weightConfigId);
 
     List<IndicatorWeight> getChildWeights(Long weightConfigId, Long parentId);
+
+    /**
+     * 根据组织编码和年份查找专家打分权重（按年份降序查找）
+     *
+     * @param orgcode 组织编码
+     * @param requestedYear 请求的年份（从该年份开始向下查找）
+     * @param modelId 模型ID（优先使用）
+     * @param configName 配置名称（已废弃，仅用于向后兼容）
+     * @return 指标代码到平均权重的映射
+     */
+    Map<String, Double> findExpertScoresByOrgcodeAndYear(String orgcode, Integer requestedYear, Long modelId, String configName);
+
+    /**
+     * 从基准表查找权重（支持区县→市级→省级继承）
+     *
+     * @param orgcode 组织编码
+     * @param modelId 模型ID（优先使用）
+     * @param configName 配置名称（已废弃，仅用于向后兼容）
+     * @return 指标代码到权重的映射
+     */
+    Map<String, IndicatorWeight> findBaselineWeightsByOrgcode(String orgcode, Long modelId, String configName);
+
+    /**
+     * 获取指标权重（带完整继承逻辑）
+     * 继承顺序：
+     * 1. 专家打分表：按年份从新到旧查找（requestedYear → requestedYear-1 → ... → 2021）
+     * 2. 2020年基准表：区县 → 市级 → 省级（层级继承）
+     *
+     * @param configId 配置ID（用于获取指标结构）
+     * @param orgcode 组织编码
+     * @param requestedYear 请求的年份
+     * @param modelId 模型ID（优先使用）
+     * @param configName 配置名称（已废弃，仅用于向后兼容）
+     * @return 带继承信息的指标权重列表
+     */
+    List<IndicatorWeight> getWeightsWithFullInheritance(Long configId, String orgcode, Integer requestedYear, Long modelId, String configName);
+
+    /**
+     * 获取指标权重（带继承逻辑）- 保留兼容性
+     * 继承顺序：
+     * 1. 专家打分表中的平均值（当前配置）
+     * 2. 基准表中的权重（当前配置）
+     * 3. 基准表中的权重（上级组织配置）
+     *
+     * @param configId 配置ID
+     * @param parentOrgcode 上级组织编码（用于继承）
+     * @param parentConfigId 上级配置ID（用于继承）
+     * @return 带继承信息的指标权重列表
+     */
+    List<IndicatorWeight> getWeightsWithInheritance(Long configId, String parentOrgcode, Long parentConfigId);
 }

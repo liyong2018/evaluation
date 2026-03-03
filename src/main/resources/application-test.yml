@@ -1,6 +1,6 @@
 # 服务器配置
 server:
-  port: 8081
+  port: 8080
   servlet:
     context-path: /
     encoding:
@@ -13,22 +13,28 @@ spring:
   application:
     name: disaster-reduction-evaluation
 
-  # 数据源配置 - 禁用数据库
+  # 数据源配置 - 使用MySQL
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: ""
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:30314/evaluate_db?useSSL=false&useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_unicode_ci&characterSetResults=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
     hikari:
-      maximum-pool-size: 0
-      auto-commit: true
-      connection-timeout: 1000
-
-  # JPA配置
-  jpa:
-    hibernate:
-      ddl-auto: none
-    show-sql: false
+      maximum-pool-size: 50
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 60000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+      leak-detection-threshold: 10000
+      validation-timeout: 5000
+      keepalive-time: 30000
+      connection-init-sql: SET NAMES utf8mb4
+      data-source-properties:
+        useUnicode: true
+        characterEncoding: utf8
+        characterSetResults: utf8mb4
+        connectionCollation: utf8mb4_unicode_ci
 
   # 文件上传配置
   servlet:
@@ -43,11 +49,15 @@ spring:
     time-zone: GMT+8
     default-property-inclusion: non_null
 
-# MyBatis Plus配置 - 禁用
+# MyBatis Plus配置
 mybatis-plus:
+  type-aliases-package: com.evaluate.entity
   configuration:
     map-underscore-to-camel-case: true
     cache-enabled: false
+  global-config:
+    db-config:
+      insert-strategy: ignored
 
 # 日志配置
 logging:
@@ -63,5 +73,5 @@ logging:
 springfox:
   documentation:
     swagger-ui:
-      enabled: false
-    enabled: false
+      enabled: true
+    enabled: true

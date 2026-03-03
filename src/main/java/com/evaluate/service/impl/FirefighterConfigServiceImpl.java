@@ -41,16 +41,13 @@ public class FirefighterConfigServiceImpl
                 return count;
             }
 
-            // 如果精确匹配没有结果，尝试去掉最后3位（社区代码转乡镇代码）
-            if (regionCode.trim().length() >= 3) {
-                String townshipCode = regionCode.trim().substring(0, regionCode.trim().length() - 3);
-                count = baseMapper.getFirefighterCountByRegionCode(townshipCode);
-                log.info("去掉后3位匹配查询结果，原代码: {}, 乡镇代码: {}, 消防员数量: {}", regionCode, townshipCode, count);
+            // 如果精确匹配没有结果，尝试使用前缀匹配并汇总
+            // 用于处理：乡镇代码(9位) 匹配 社区级配置(12位) 的场景
+            Integer sumCount = baseMapper.sumFirefighterCountByRegionCodePrefix(regionCode.trim());
+            log.info("前缀匹配汇总查询结果，区域代码: {}, 消防员总数: {}", regionCode, sumCount);
 
-                if (count != null && count > 0) {
-                    log.debug("通过去掉后3位匹配到消防员数量，原代码: {}, 乡镇代码: {}, 数量: {}", regionCode, townshipCode, count);
-                    return count;
-                }
+            if (sumCount != null && sumCount > 0) {
+                return sumCount;
             }
 
             log.info("未找到消防员配置，区域代码: {}, 返回0", regionCode);
@@ -74,6 +71,20 @@ public class FirefighterConfigServiceImpl
             return count != null ? count : 0;
         } catch (Exception e) {
             log.error("通过乡镇名称查询消防员数量失败，乡镇名称: {}", townshipName, e);
+            return 0;
+        }
+    }
+
+    @Override
+    public Integer sumFirefighterCountByRegionCodePrefix(String regionCodePrefix) {
+        if (regionCodePrefix == null || regionCodePrefix.trim().isEmpty()) {
+            return 0;
+        }
+
+        try {
+            return baseMapper.sumFirefighterCountByRegionCodePrefix(regionCodePrefix.trim());
+        } catch (Exception e) {
+            log.error("根据区域代码前缀汇总消防员数量失败，区域代码: {}", regionCodePrefix, e);
             return 0;
         }
     }

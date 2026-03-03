@@ -12,7 +12,7 @@ export default defineConfig({
   ],
   server: {
     host: '0.0.0.0', // 允许所有网络接口访问
-    port: 5173,      // 使用5173端口
+    port: 5174,      // 使用5174端口
     proxy: {
       '/api': {
         target: 'http://localhost:8081', // 使用本地后端

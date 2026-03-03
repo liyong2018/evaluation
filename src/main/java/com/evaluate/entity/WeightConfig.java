@@ -49,6 +49,12 @@ public class WeightConfig implements Serializable {
     @TableField("data_source")
     private String dataSource;
 
+    /**
+     * 关联的模型ID（用于替代 configName 进行模型关联）
+     */
+    @TableField("model_id")
+    private Long modelId;
+
     @TableField("year")
     private Integer year;
 

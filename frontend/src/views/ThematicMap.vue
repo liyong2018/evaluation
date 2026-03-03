@@ -30,7 +30,7 @@
                   check-strictly
                   :render-after-expand="false"
                   :disabled="loadingOrganizations"
-                  style="width: 260px"
+                  style="width: 210px"
                   node-key="code"
                   :props="{ value: 'code', label: 'name', children: 'children' }"
                   @change="handleFilterChange"
@@ -42,17 +42,15 @@
                 <el-select
                   v-model="selectedLevel"
                   placeholder="级别"
-                  style="width: 160px"
+                  style="width: 210px"
                   @change="handleFilterChange"
                 >
                   <el-option label="乡镇级" value="township" />
-                  <el-option label="社区-行政村级" value="community_village" />
-                  <el-option label="社区-乡镇级" value="community_township" />
+                  <el-option label="社区级（社区单元）" value="community_village" />
+                  <el-option label="社区级（乡镇单元）" value="community_township" />
                   <el-option label="综合" value="comprehensive" />
-                  <el-option label="综合（组合图）" value="comprehensive_composite" />
                 </el-select>
-                <el-button size="small" @click="refreshMap">刷新</el-button>
-                <el-button size="small" type="success" @click="fullscreen">全屏</el-button>
+                <el-button type="success" @click="fullscreen">全屏</el-button>
                 <el-dropdown split-button type="primary" @click="downloadReport">
                   <span>生成报告</span>
                   <template #dropdown>
@@ -69,7 +67,7 @@
           <div class="map-container" v-loading="loading">
             <div class="map-stage">
               <CompositeThematicMap
-                v-if="selectedLevel === 'comprehensive_composite' && showMap"
+                v-if="selectedLevel === 'comprehensive' && showMap"
                 :year="selectedYear || undefined"
                 :orgCode="selectedOrgCode || ''"
                 :orgId="selectedOrgId || undefined"
@@ -165,7 +163,7 @@ const generationMapRef = ref()
 const generationCompositeMapRef = ref()
 const showOnlyOfficeEditor = ref(false) // 控制OnlyOffice编辑器显示
 const wordDocumentUrl = ref('')
-const wordDocumentTitle = ref('青神县减灾能力评估技术报告')
+const wordDocumentTitle = ref('')
 const wordDocumentKey = ref('')
 const wordTemplatePath = ref('templates/四川省眉山市青神县减灾能力评估技术报告-系统模板.docx') // Word模板路径
 
@@ -180,7 +178,7 @@ const selectedLevel = ref<string>('township') // 默认乡镇级
 
 const mapSettings = reactive({
   reportId: 1,
-  title: '四川省雅安市青神县乡镇减灾能力评估结果图',
+  title: '四川省眉山市青神县乡镇（街道）减灾能力评估结果图',
   subtitle: `数据来源：减灾能力评估工具 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`,
   displayElements: ['title', 'legend', 'table', 'scale', 'compass', 'border']
 })
@@ -244,6 +242,13 @@ const selectedOrgCityName = computed(() => {
   const node = findOrgNodeByCode(organizationList.value, selectedOrgCode.value)
   return node?.cityName || globalOrganizationStore.selectedOrganization?.cityName || ''
 })
+
+const buildReportBaseTitle = (year: number) => {
+  const province = selectedOrgProvinceName.value || '四川省'
+  const city = selectedOrgCityName.value || '眉山市'
+  const county = selectedOrgName.value || ''
+  return `${year}年${province}${city}${county}减灾能力评估技术报告`
+}
 
 const selectedOrgParentName = computed(() => {
   if (!selectedOrgCode.value) return ''
@@ -339,12 +344,21 @@ const handleFilterChange = async () => {
   const org = selectedOrgName.value ? ` | 区域：${selectedOrgName.value}` : ''
   const levelNames: Record<string, string> = {
     'township': '乡镇级',
-    'community_village': '社区-行政村级',
-    'community_township': '社区-乡镇级',
-    'comprehensive': '综合',
-    'comprehensive_composite': '综合'
+    'community_village': '社区级（社区单元）',
+    'community_township': '社区级（乡镇单元）',
+    'comprehensive': '综合'
   }
   const levelName = levelNames[selectedLevel.value] || '乡镇级'
+
+  // 标题中的级别文本
+  const titleLevelText: Record<string, string> = {
+    'township': '乡镇（街道）减灾能力',
+    'community_village': '社区（行政村）减灾能力（社区单元）',
+    'community_township': '社区（行政村）减灾能力（乡镇单元）',
+    'comprehensive': '综合减灾能力'
+  }
+  const levelTextForTitle = titleLevelText[selectedLevel.value] || '乡镇（街道）减灾能力'
+
   const regionName = selectedOrgName.value || '无区域'
 
   const provinceName = selectedOrgProvinceName.value || '四川省'
@@ -357,7 +371,8 @@ const handleFilterChange = async () => {
         ? `${provinceName}${regionName}`
         : `${provinceName}${cityName}${regionName}`
 
-  mapSettings.title = `${titleLocation}${levelName}减灾能力评估结果图`
+  const yearText = selectedYear.value ? `${selectedYear.value}年` : ''
+  mapSettings.title = `${yearText}${titleLocation}${levelTextForTitle}评估结果图`
   mapSettings.subtitle = `数据年份：${y}${org} | 级别：${levelName} | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
   showMap.value = Boolean(selectedOrgCode.value)
   refreshMap()
@@ -391,7 +406,7 @@ const generateMap = async () => {
 // 重置配置
 const resetSettings = () => {
   mapSettings.reportId = 1
-  mapSettings.title = '四川省雅安市青神县乡镇减灾能力评估结果图'
+  mapSettings.title = '四川省眉山市青神县乡镇（街道）减灾能力评估结果图'
   mapSettings.subtitle = `数据来源：减灾能力评估工具 | 制图时间：${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
   mapSettings.displayElements = ['title', 'legend', 'table', 'scale', 'compass', 'border']
   showMap.value = false
@@ -442,8 +457,8 @@ const downloadReport = async () => {
     // 定义4个级别的专题图
     const levels = [
       { value: 'township', name: '乡镇级' },
-      { value: 'community_village', name: '社区-行政村级' },
-      { value: 'community_township', name: '社区-乡镇级' },
+      { value: 'community_village', name: '社区级（社区单元）' },
+      { value: 'community_township', name: '社区级（乡镇单元）' },
       { value: 'comprehensive', name: '综合' }
     ]
 
@@ -505,7 +520,7 @@ const downloadReport = async () => {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `青神县减灾能力评估技术报告_${year}.docx`
+      link.download = `${buildReportBaseTitle(year)}.docx`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -551,8 +566,8 @@ const openOnlyOfficeEditor = async () => {
     // 定义4个级别的专题图
     const levels = [
       { value: 'township', name: '乡镇级' },
-      { value: 'community_village', name: '社区-行政村级' },
-      { value: 'community_township', name: '社区-乡镇级' },
+      { value: 'community_village', name: '社区级（社区单元）' },
+      { value: 'community_township', name: '社区级（乡镇单元）' },
       { value: 'comprehensive', name: '综合' }
     ]
 
@@ -634,7 +649,7 @@ const openOnlyOfficeEditor = async () => {
     }
 
     wordDocumentUrl.value = `${baseUrl}/api/word-template/latest-report`
-    wordDocumentTitle.value = `青神县减灾能力评估技术报告_${year}.docx`
+    wordDocumentTitle.value = `${buildReportBaseTitle(year)}.docx`
     wordDocumentKey.value = new Date().getTime().toString()
 
     // 5. 将上传的专题图URLs存储到window对象，供OnlyOffice使用

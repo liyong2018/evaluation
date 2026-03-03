@@ -8,6 +8,7 @@ import com.evaluate.service.IIndicatorWeightService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -197,6 +198,66 @@ public class IndicatorWeightController {
         } catch (Exception e) {
             log.error("验证权重配置失败", e);
             return Result.error("验证权重配置失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取指标权重（带继承逻辑）
+     * 继承顺序：
+     * 1. 专家打分表中的平均值（当前配置）
+     * 2. 基准表中的权重（当前配置）
+     * 3. 基准表中的权重（上级组织配置）
+     *
+     * @param configId 配置ID
+     * @param parentOrgcode 上级组织编码（用于继承）
+     * @param parentConfigId 上级配置ID（用于继承）
+     * @return 带继承信息的指标权重列表
+     */
+    @GetMapping("/config/{configId}/with-inheritance")
+    public Result<List<IndicatorWeight>> getIndicatorWeightsWithInheritance(
+            @PathVariable Long configId,
+            @RequestParam(required = false) String parentOrgcode,
+            @RequestParam(required = false) Long parentConfigId
+    ) {
+        try {
+            List<IndicatorWeight> list = indicatorWeightService.getWeightsWithInheritance(
+                    configId, parentOrgcode, parentConfigId);
+            return Result.success(list);
+        } catch (Exception e) {
+            log.error("获取指标权重（带继承）失败", e);
+            return Result.error("获取指标权重（带继承）失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取指标权重（带完整继承逻辑）
+     * 继承顺序：
+     * 1. 专家打分表：按年份从新到旧查找（requestedYear → 2021）
+     * 2. 2020年基准表：区县 → 市级 → 省级（层级继承）
+     *
+     * @param configId 配置ID（用于获取指标结构）
+     * @param orgcode 组织编码
+     * @param requestedYear 请求的年份
+     * @param modelId 模型ID（优先使用，比configName更可靠）
+     * @param configName 配置名称（已废弃，仅用于向后兼容）
+     * @return 带继承信息的指标权重列表
+     */
+    @GetMapping("/config/{configId}/with-full-inheritance")
+    public Result<List<IndicatorWeight>> getIndicatorWeightsWithFullInheritance(
+            @PathVariable Long configId,
+            @RequestParam String orgcode,
+            @RequestParam Integer requestedYear,
+            @RequestParam(required = false) Long modelId,
+            @RequestParam(required = false) String configName
+    ) {
+        try {
+            // 优先使用 modelId，如果没有则使用 configName（向后兼容）
+            List<IndicatorWeight> list = indicatorWeightService.getWeightsWithFullInheritance(
+                    configId, orgcode, requestedYear, modelId, configName);
+            return Result.success(list);
+        } catch (Exception e) {
+            log.error("获取指标权重（带完整继承）失败: orgcode={}, year={}, modelId={}, configName={}", orgcode, requestedYear, modelId, configName, e);
+            return Result.error("获取指标权重（带完整继承）失败: " + e.getMessage());
         }
     }
 }

@@ -113,6 +113,48 @@ graph TD
 
 说明：当前工程未实现 WebSocket 进度推送；“进度/状态”以执行记录状态（RUNNING/SUCCESS/FAILED）和结果明细为准。
 
+#### 3.3 业务域接口概览
+- **评估执行**（[EvaluationController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/EvaluationController.java)）
+  - `POST /api/evaluation/execute-model` 异步执行模型（返回 executionRecordId）
+  - `GET /api/evaluation/check-data` 评估前数据检查
+  - `POST /api/evaluation/generate-table` 结果二维表
+  - `GET /api/evaluation/history` / `GET /api/evaluation/history/detail/{id}` / `DELETE /api/evaluation/history/{id}`
+- **执行记录**（[ModelExecutionRecordController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/ModelExecutionRecordController.java)）
+  - `GET /api/model-execution-record/list` / `GET /api/model-execution-record/{id}` / `GET /api/model-execution-record/{id}/results`
+  - `DELETE /api/model-execution-record/{id}` / `GET /api/model-execution-record/statistics`
+- **数据管理（调查表）**（[SurveyDataController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/SurveyDataController.java)）
+  - `GET /api/survey-data` 分页查询；`POST /api/survey-data/import` Excel 导入；`GET /api/survey-data/export/all` 导出
+  - `POST /api/survey-data/validate-gpkg` / `POST /api/survey-data/import-gpkg` 乡镇级 GPKG 校验/导入
+  - `POST /api/survey-data/check-import-prerequisites` 导入前置条件检查（医疗床位/消防员配置）
+- **社区-行政村能力数据**（[CommunityDisasterReductionCapacityController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/CommunityDisasterReductionCapacityController.java)）
+  - `POST /api/community-capacity/import` Excel 导入；`POST /api/community-capacity/validate-gpkg` / `POST /api/community-capacity/import-gpkg`
+  - `GET /api/community-capacity/list` / `GET /api/community-capacity/search` / `DELETE /api/community-capacity/delete-by-year-org`
+- **医疗卫生机构**（[MedicalInstitutionController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/MedicalInstitutionController.java)）
+  - `POST /api/medical-institution/import` Excel 导入；`GET /api/medical-institution/page` 分页；`GET /api/medical-institution/template` 模板
+  - `POST /api/medical-institution/validate-gpkg` / `POST /api/medical-institution/import-gpkg`
+- **消防员配置**（[FirefighterConfigController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/FirefighterConfigController.java)）
+  - `GET /api/firefighter-config/list` / `GET /api/firefighter-config/region/{regionCode}` / `PUT /api/firefighter-config/update`
+- **权重配置与指标权重**（[WeightConfigController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/WeightConfigController.java)、[IndicatorWeightController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/IndicatorWeightController.java)、[IndicatorWeightScoreController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/IndicatorWeightScoreController.java)）
+  - `GET /api/weight-config` / `POST /api/weight-config/activate/{id}` / `POST /api/weight-config/copy/{id}`
+  - `GET /api/indicator-weight/config/{configId}/with-full-inheritance` 权重继承链查询
+  - `POST /api/indicator-weight-score/config/{configId}/apply-average` 专家打分均值落表
+- **模型管理（步骤/算法/表达式）**（[ModelManagementController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/ModelManagementController.java)）
+  - `GET /api/model-management/models` / `GET /api/model-management/models/{modelId}/detail`
+  - `POST /api/model-management/validate-expression` QLExpress 语法校验
+- **专题图**（[ThematicMapController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/ThematicMapController.java)）
+  - `GET /api/thematic-map/data` 获取专题图数据（level 映射模型）
+  - `GET /api/thematic-map/tianditu-config` 获取天地图配置（当前返回 key）
+  - `POST /api/thematic-map/upload-map-image` 上传专题图图片；`GET /api/thematic-map/map-image/{filename}` 获取图片
+- **报告与模板（OnlyOffice）**（[WordTemplateController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/WordTemplateController.java)）
+  - `GET|POST /api/word-template/generate-report` 基于模板生成报告
+  - `GET /api/word-template/latest-report` / `GET /api/word-template/preview-report` / `POST /api/word-template/callback`
+- **组织机构与区域**（[OrganizationController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/OrganizationController.java)、[GrassrootsOrganizationController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/GrassrootsOrganizationController.java)、[RegionDataController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/RegionDataController.java)）
+  - `GET /api/organization/tree` / `POST /api/organization/import` / `POST /api/organization/copy-from-previous-year`
+  - `GET /api/grassroots-organization/tree/by-county-id/{countyId}`（含乡镇/社区树）
+- **系统管理（RBAC）**（[SysUserController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/system/SysUserController.java)、[SysRoleController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/system/SysRoleController.java)、[SysMenuController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/system/SysMenuController.java)、[UserController](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/controller/UserController.java)）
+  - `POST /api/user/login` / `POST /api/user/register`
+  - `GET /api/sys/user/list` / `GET /api/sys/role/list` / `GET /api/sys/menu/list`（及关联关系配置）
+
 ### 4. 数据库设计
 
 #### 4.1 初始化脚本
@@ -163,6 +205,17 @@ src/
 #### 5.3 请求封装与认证头
 
 前端在请求拦截器中从 `localStorage.userInfo` 读取用户名，并注入到请求头 `X-Current-User`，后端通过 [UserHeaderFilter](file:///d:/Evaluation/evaluation/src/main/java/com/evaluate/security/UserHeaderFilter.java) 写入 SecurityContext（当前配置为逐步迁移阶段，接口暂时放行）。
+
+#### 5.4 路由与页面
+前端路由集中在 [router/index.ts](file:///d:/Evaluation/evaluation/frontend/src/router/index.ts)，核心页面如下：
+- `/data-management` 数据管理（调查表、GPKG/Excel 导入/导出）
+- `/weight-config` 权重配置（指标权重继承、专家打分均值落表）
+- `/firefighter-config` 消防员配置
+- `/evaluation` 评估执行（调用 `execute-model`）
+- `/results` 结果展示（部分接口仍在迁移，见 10.1）
+- `/thematic-map` 专题图
+- `/model-management` 模型管理（管理员）
+- `/system/*` 系统管理（管理员：用户/角色/菜单/组织机构）
 
 ### 6. 核心技术实现
 
@@ -347,9 +400,13 @@ log.info("保存评估结果 - 社区代码: {}, 得分: {}, 等级: {}",
    - 问题：相同数据多次插入
    - 解决：检查唯一约束配置
 
-3. **WebSocket连接失败**
+3. **执行记录长时间 RUNNING / 结果为空**
    - 问题：页面显示评估“进行中”，但长时间不结束或结果为空
-   - 解决：查看执行记录详情与后端日志，确认模型步骤与数据完整性
+   - 解决：查看执行记录详情与后端日志，确认模型步骤、基础数据与组织机构/年份筛选一致
+
+4. **前后端接口不一致（历史接口遗留）**
+   - 现象：前端 `Results.vue` 调用 `/api/evaluation/process`，后端当前未提供对应端点
+   - 处理：以 `executionRecordId` 维度改为查询 `/api/model-execution-record/{id}` 与 `/api/model-execution-record/{id}/results`，或在后端补齐过程数据接口
 
 #### 10.2 故障排查步骤
 

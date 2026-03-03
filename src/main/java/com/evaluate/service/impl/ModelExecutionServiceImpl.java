@@ -1739,13 +1739,12 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         context.put("是否开展风险评估", normalizedRiskAssessment);  // 中文变量名
         
         // 资金投入（驼峰和下划线两种命名）
-        context.put("fundingAmount", surveyData.getFundingAmount());
-        context.put("funding_amount", surveyData.getFundingAmount());
-        
+        context.put("fundingAmount", surveyData.getFundingAmount() != null ? surveyData.getFundingAmount().doubleValue() : 0.0);
+        context.put("funding_amount", surveyData.getFundingAmount() != null ? surveyData.getFundingAmount().doubleValue() : 0.0);
+
         // 物资储备（驼峰和下划线两种命名）- 处理null值
-        Double materialValue = surveyData.getMaterialValue();
-        context.put("materialValue", materialValue != null ? materialValue : 0.0);
-        context.put("material_value", materialValue != null ? materialValue : 0.0);
+        context.put("materialValue", surveyData.getMaterialValue() != null ? surveyData.getMaterialValue().doubleValue() : 0.0);
+        context.put("material_value", surveyData.getMaterialValue() != null ? surveyData.getMaterialValue().doubleValue() : 0.0);
 
         // 医院床位（驼峰和下划线两种命名）- 处理null值
         Integer hospitalBeds = surveyData.getHospitalBeds();

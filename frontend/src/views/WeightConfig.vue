@@ -1312,10 +1312,27 @@ const activateConfig = async (row: any) => {
 // 加载指标权重
 const loadIndicatorWeights = async () => {
   if (!selectedConfigId.value) return
-  
+
   loading.weights = true
   try {
-    const response = await indicatorWeightApi.getByConfigId(selectedConfigId.value)
+    // 查找选中的配置，获取配置名称和模型ID
+    const selectedConfig = configList.value.find(c => c.id === selectedConfigId.value)
+    if (!selectedConfig) {
+      weightList.value = []
+      return
+    }
+
+    // 使用完整继承逻辑API：
+    // 1. 专家打分表：按年份从新到旧查找（orgYear → orgYear-1 → ... → 2021）
+    // 2. 2020年基准表：区县 → 市级 → 省级（层级继承）
+    // 使用 modelId（模型ID）比 configName（配置名称）更可靠
+    const response = await indicatorWeightApi.getByConfigIdWithFullInheritance(
+      selectedConfigId.value,
+      selectedOrg.value?.code || '',  // 组织编码
+      orgYear.value ?? new Date().getFullYear(), // 请求的年份
+      selectedConfig.configName || '',  // 配置名称（向后兼容）
+      selectedConfig.modelId  // 模型ID（优先使用）
+    )
     if (response.success) {
       weightList.value = response.data || []
     } else {

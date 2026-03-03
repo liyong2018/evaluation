@@ -148,6 +148,21 @@ export const indicatorWeightApi = {
   // 根据配置ID获取指标权重
   getByConfigId: (configId: number) => request.get(`/api/indicator-weight/config/${configId}`),
 
+  // 根据配置ID获取指标权重（带继承逻辑）
+  // 继承顺序：专家打分平均值 -> 基准表权重 -> 上级组织权重
+  getByConfigIdWithInheritance: (configId: number, parentOrgcode?: string, parentConfigId?: number) =>
+    request.get(`/api/indicator-weight/config/${configId}/with-inheritance`, {
+      params: { parentOrgcode, parentConfigId }
+    }),
+
+  // 根据配置ID获取指标权重（带完整继承逻辑）
+  // 继承顺序：专家打分表（按年份从新到旧） -> 2020基准表（区县→市级→省级）
+  // 使用 modelId（模型ID）比 configName（配置名称）更可靠
+  getByConfigIdWithFullInheritance: (configId: number, orgcode: string, requestedYear: number, configName: string, modelId?: number) =>
+    request.get(`/api/indicator-weight/config/${configId}/with-full-inheritance`, {
+      params: { orgcode, requestedYear, configName, modelId }
+    }),
+
   // 根据指标代码获取权重
   getByIndicatorCode: (indicatorCode: string) => request.get(`/api/indicator-weight/indicator/${indicatorCode}`),
 

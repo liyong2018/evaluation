@@ -904,7 +904,6 @@ const getCurrentLevelLabel = () => {
   if (level === 'community_village') return '社区'
   if (level === 'community_township') return '社区'
   if (level === 'comprehensive') return '综合'
-  if (level === 'comprehensive_composite') return '综合'
   return '综合'
 }
 

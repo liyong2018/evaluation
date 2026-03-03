@@ -41,7 +41,7 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
     @Autowired
     private IIndicatorWeightService indicatorWeightService;
 
-    @Autowired
+    @Autowired(required = false)
     private IIndicatorWeightScoreService indicatorWeightScoreService;
 
     @Autowired
@@ -387,6 +387,8 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
     }
 
     private List<WeightConfig> queryBaselineCandidates(List<String> orgcodeCandidates) {
+        // 基准数据查询只返回真正的2020年基准数据
+        // 如果数据库中没有2020年数据，返回空列表而不是用其他年份数据代替
         if (orgcodeCandidates == null || orgcodeCandidates.isEmpty()) {
             return new ArrayList<>();
         }
@@ -394,46 +396,12 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
         QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
         queryWrapper.in("orgcode", orgcodeCandidates);
         queryWrapper.eq("is_deleted", 0);
+        // 只返回2020年或者year=null且创建时间是2020年的数据
+        queryWrapper.and(wrapper -> wrapper.eq("year", BASELINE_YEAR)
+            .or(w2 -> w2.isNull("year").apply("YEAR(create_time) = {0}", BASELINE_YEAR)));
         queryWrapper.orderByDesc("create_time");
 
-        List<WeightConfig> all = list(queryWrapper);
-        if (all == null || all.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        Map<String, Integer> minYearByOrg = new HashMap<>();
-        for (WeightConfig cfg : all) {
-            if (cfg == null || !StringUtils.hasText(cfg.getOrgcode()) || cfg.getYear() == null) {
-                continue;
-            }
-            String key = cfg.getOrgcode().trim();
-            Integer current = minYearByOrg.get(key);
-            if (current == null || cfg.getYear() < current) {
-                minYearByOrg.put(key, cfg.getYear());
-            }
-        }
-
-        List<WeightConfig> baseline = new ArrayList<>();
-        for (WeightConfig cfg : all) {
-            if (cfg == null || !StringUtils.hasText(cfg.getOrgcode())) {
-                continue;
-            }
-            String org = cfg.getOrgcode().trim();
-            Integer minYear = minYearByOrg.get(org);
-            Integer cfgYear = cfg.getYear();
-            if (cfgYear != null && cfgYear.equals(BASELINE_YEAR)) {
-                baseline.add(cfg);
-                continue;
-            }
-            if (cfgYear == null) {
-                baseline.add(cfg);
-                continue;
-            }
-            if (minYear != null && cfgYear.equals(minYear)) {
-                baseline.add(cfg);
-            }
-        }
-        return baseline;
+        return list(queryWrapper);
     }
 
     private boolean shouldFallbackToBaseline(Integer year, boolean allowBaselineFallback, List<WeightConfig> result) {
@@ -488,6 +456,7 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                 view.setConfigName(modelName);
                 view.setDescription(best.getDescription());
                 view.setDataSource(best.getDataSource());
+                view.setModelId(modelId);  // 设置模型ID
                 view.setYear(effectiveYear);
                 view.setCreateTime(best.getCreateTime());
                 view.setUpdateTime(best.getUpdateTime());

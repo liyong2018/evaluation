@@ -60,7 +60,13 @@
       "Bash(Get-Content:*)",
       "Bash(Get-Content \"C:/tmp/openclaw/openclaw-2026-02-21.log\" -Tail 50)",
       "Bash(echo \"=== 检查本地jar包时间 ===\" ls -l /d/Evaluation/evaluation/target/disaster-reduction-evaluation-1.0.0.jar echo \"\" echo \"=== 检查服务器jar包时间 ===\" ssh -i /c/Users/admin/.ssh/id_rsa_evaluation -o StrictHostKeyChecking=no root@101.126.46.254 'ls -l /opt/evaluation/disaster-reduction-evaluation-1.0.0.jar' echo \"\" echo \"=== 检查本地target目录下最新文件 ===\" ls -lt /d/Evaluation/evaluation/target/*.jar)",
-      "Bash(mysqldump:*)"
+      "Bash(mysqldump:*)",
+      "Bash(env)",
+      "Bash(wsl -l -v)",
+      "Bash(start \"\" \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
+      "Bash(docker-compose up -d mysql)",
+      "Bash(docker run -d --name evaluation-mysql -p 30314:3306 -e MYSQL_ROOT_PASSWORD=123456 -e MYSQL_DATABASE=evaluate_db --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci mysql:8.0)",
+      "Bash(docker run --name evaluation-mysql -p 30314:3306 -e MYSQL_ROOT_PASSWORD=123456 -e MYSQL_DATABASE=evaluate_db mysql:8.0)"
     ],
     "deny": [],
     "ask": []

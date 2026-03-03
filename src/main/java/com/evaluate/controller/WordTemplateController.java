@@ -38,7 +38,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -128,8 +127,34 @@ public class WordTemplateController {
             if (!directory.exists()) {
                 directory.mkdirs();
             }
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String fileName = "青神县减灾能力评估技术报告_" + timestamp + ".docx";
+            // 从variables中获取实际的地区信息，动态生成文件名
+            String province = (String) variables.getOrDefault("province", "");
+            String city = (String) variables.getOrDefault("city", "");
+            String county = (String) variables.getOrDefault("county", "未知区县");
+            String yearStr = year != null ? String.valueOf(year) : "2024";
+
+            // 构建文件名：年份+省+市+区县+减灾能力评估技术报告
+            StringBuilder fileNameBuilder = new StringBuilder();
+            fileNameBuilder.append(yearStr).append("年");
+            if (province != null && !province.isEmpty()) {
+                // 省份名称可能已经包含"省"，避免重复
+                if (!province.endsWith("省")) {
+                    fileNameBuilder.append(province).append("省");
+                } else {
+                    fileNameBuilder.append(province);
+                }
+            }
+            if (city != null && !city.isEmpty()) {
+                // 城市名称可能已经包含"市"，避免重复
+                if (!city.endsWith("市")) {
+                    fileNameBuilder.append(city).append("市");
+                } else {
+                    fileNameBuilder.append(city);
+                }
+            }
+            fileNameBuilder.append(county).append("减灾能力评估技术报告.docx");
+
+            String fileName = fileNameBuilder.toString();
             String filePath = tempDir + fileName;
 
             try (FileOutputStream fos = new FileOutputStream(filePath)) {
@@ -137,10 +162,12 @@ public class WordTemplateController {
             }
             log.info("Word报告已保存到临时文件: {}", filePath);
 
-            // 设置响应头 - 使用inline以便OnlyOffice可以预览
+            // 设置响应头 - 使用attachment触发下载
             String encodedFilename = java.net.URLEncoder.encode(fileName, "UTF-8");
             response.setContentType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-            response.setHeader("Content-Disposition", "inline; filename*=UTF-8''" + encodedFilename);
+            // 同时设置 filename 和 filename* 以确保浏览器兼容性
+            String asciiFilename = "report.docx"; // ASCII fallback
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + asciiFilename + "\"; filename*=UTF-8''" + encodedFilename);
             response.setContentLength(wordData.length);
 
             // 写入响应
@@ -192,17 +219,22 @@ public class WordTemplateController {
             // 读取文件内容
             byte[] fileContent = java.nio.file.Files.readAllBytes(latestFile.toPath());
 
-            // 设置响应头
-            String encodedFilename = java.net.URLEncoder.encode(latestFile.getName(), "UTF-8");
+            // 动态生成文件名（根据year和orgCode参数）
+            String fileName = generateDynamicFileName(year, orgCode);
+
+            // 设置响应头 - 使用attachment触发下载
+            String encodedFilename = java.net.URLEncoder.encode(fileName, "UTF-8");
             response.setContentType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-            response.setHeader("Content-Disposition", "inline; filename*=UTF-8''" + encodedFilename);
+            // 同时设置 filename 和 filename* 以确保浏览器兼容性
+            String asciiFilename = "report.docx"; // ASCII fallback
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + asciiFilename + "\"; filename*=UTF-8''" + encodedFilename);
             response.setContentLength(fileContent.length);
 
             // 写入响应
             response.getOutputStream().write(fileContent);
             response.getOutputStream().flush();
 
-            log.info("返回最新生成的报告文件: {}", latestFile.getName());
+            log.info("返回最新生成的报告文件: {} (磁盘文件: {})", fileName, latestFile.getName());
 
         } catch (Exception e) {
             log.error("获取最新报告文件失败", e);
@@ -212,6 +244,46 @@ public class WordTemplateController {
                 log.error("发送错误响应失败", ex);
             }
         }
+    }
+
+    /**
+     * 根据年份和区县代码动态生成文件名
+     * 格式：年份+省+市+区县+减灾能力评估技术报告.docx
+     */
+    private String generateDynamicFileName(Integer year, String orgCode) {
+        // 默认值
+        if (year == null) year = 2024;
+        if (orgCode == null || orgCode.trim().isEmpty()) orgCode = "511425";
+
+        // 获取地区信息
+        Map<String, String> location = resolveLocation(year, orgCode);
+        String province = location.get("province");
+        String city = location.get("city");
+        String county = location.get("county");
+        String yearStr = String.valueOf(year);
+
+        // 构建文件名：年份+省+市+区县+减灾能力评估技术报告
+        StringBuilder fileNameBuilder = new StringBuilder();
+        fileNameBuilder.append(yearStr).append("年");
+        if (province != null && !province.isEmpty()) {
+            // 省份名称可能已经包含"省"，避免重复
+            if (!province.endsWith("省")) {
+                fileNameBuilder.append(province).append("省");
+            } else {
+                fileNameBuilder.append(province);
+            }
+        }
+        if (city != null && !city.isEmpty()) {
+            // 城市名称可能已经包含"市"，避免重复
+            if (!city.endsWith("市")) {
+                fileNameBuilder.append(city).append("市");
+            } else {
+                fileNameBuilder.append(city);
+            }
+        }
+        fileNameBuilder.append(county).append("减灾能力评估技术报告.docx");
+
+        return fileNameBuilder.toString();
     }
 
     /**

@@ -34,6 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -377,7 +378,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             data.setFundingSupportMethodOther(getCellStringValue(row.getCell(24)));
 
             // 第25列：上一年度防灾减灾救灾资金投入总金额
-            data.setFundingAmount(getCellDoubleValue(row.getCell(25)));
+            data.setFundingAmount(getCellBigDecimalValue(row.getCell(25)));
 
             // 第26列：救灾物资储备方式
             data.setMaterialStorageMethod(getCellStringValue(row.getCell(26)));
@@ -427,7 +428,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             // 智能检测物资价值列（通常包含"万元"、"现有储备物资"等关键词）
             int materialValueColumn = findMaterialValueColumn(row);
             Cell materialValueCell = row.getCell(materialValueColumn);
-            Double materialValue = getCellDoubleValue(materialValueCell);
+            BigDecimal materialValue = getCellBigDecimalValue(materialValueCell);
             data.setMaterialValue(materialValue);
             log.info("物资价值解析 - 行: {}, 检测到列: {}, 单元格类型: {}, 原始值: {}, 解析结果: {}",
                 rowNumber, materialValueColumn, materialValueCell != null ? materialValueCell.getCellType() : "null",
@@ -494,7 +495,12 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             // 第43列（或调整后）：填写说明
             data.setFillInstructions(getCellStringValue(row.getCell(fillInstructionsColumn)));
 
-            // 使用新的数据源设置消防员、志愿者、民兵预备役数据
+            // 第44列（或调整后）：消防员数量 - 读取Excel中的值
+            int firefighterColumn = fillInstructionsColumn + 1;
+            data.setFirefightersCount(getCellIntegerValue(row.getCell(firefighterColumn)));
+            log.debug("消防员数量解析 - 行: {}, 使用列: {}, 值: {}", rowNumber, firefighterColumn, data.getFirefightersCount());
+
+            // 使用新的数据源设置志愿者、民兵预备役、医院床位数据（消防员已从Excel读取，不再覆盖）
             setEnhancedDataFromConfig(data, year);
 
             return data;
@@ -613,6 +619,39 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             }
         } catch (Exception e) {
             log.warn("解析双精度数值失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 获取单元格BigDecimal值（支持字符串格式的数字，保留4位小数）
+     */
+    private BigDecimal getCellBigDecimalValue(Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+
+        try {
+            switch (cell.getCellType()) {
+                case NUMERIC:
+                    double value = cell.getNumericCellValue();
+                    // 使用BigDecimal.valueOf避免精度问题，并设置4位小数精度
+                    return BigDecimal.valueOf(value).setScale(4, BigDecimal.ROUND_HALF_UP);
+                case STRING:
+                    String strValue = cell.getStringCellValue().trim();
+                    if (strValue.isEmpty()) {
+                        return null;
+                    }
+                    double parsedValue = Double.parseDouble(strValue.replaceAll("[,，]", ""));
+                    return BigDecimal.valueOf(parsedValue).setScale(4, BigDecimal.ROUND_HALF_UP);
+                case FORMULA:
+                    double formulaValue = cell.getNumericCellValue();
+                    return BigDecimal.valueOf(formulaValue).setScale(4, BigDecimal.ROUND_HALF_UP);
+                default:
+                    return null;
+            }
+        } catch (Exception e) {
+            log.warn("解析BigDecimal数值失败: {}", e.getMessage());
             return null;
         }
     }
@@ -809,8 +848,8 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                 row.createCell(5).setCellValue(data.getPopulation() != null ? data.getPopulation() : 0);
                 row.createCell(6).setCellValue(data.getManagementStaff() != null ? data.getManagementStaff() : 0);
                 row.createCell(7).setCellValue(data.getRiskAssessment() != null ? data.getRiskAssessment() : "");
-                row.createCell(8).setCellValue(data.getFundingAmount() != null ? data.getFundingAmount() : 0);
-                row.createCell(9).setCellValue(data.getMaterialValue() != null ? data.getMaterialValue() : 0);
+                row.createCell(8).setCellValue(data.getFundingAmount() != null ? data.getFundingAmount().doubleValue() : 0);
+                row.createCell(9).setCellValue(data.getMaterialValue() != null ? data.getMaterialValue().doubleValue() : 0);
                 row.createCell(10).setCellValue(data.getDisasterInfoStaff() != null ? data.getDisasterInfoStaff() : 0);
                 row.createCell(11).setCellValue(data.getEmergencyPlanCount() != null ? data.getEmergencyPlanCount() : 0);
                 row.createCell(12).setCellValue(data.getEmergencyResponseCount() != null ? data.getEmergencyResponseCount() : 0);
@@ -898,8 +937,8 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                 row.createCell(5).setCellValue(data.getPopulation() != null ? data.getPopulation() : 0);
                 row.createCell(6).setCellValue(data.getManagementStaff() != null ? data.getManagementStaff() : 0);
                 row.createCell(7).setCellValue(data.getRiskAssessment() != null ? data.getRiskAssessment() : "");
-                row.createCell(8).setCellValue(data.getFundingAmount() != null ? data.getFundingAmount() : 0.0);
-                row.createCell(9).setCellValue(data.getMaterialValue() != null ? data.getMaterialValue() : 0.0);
+                row.createCell(8).setCellValue(data.getFundingAmount() != null ? data.getFundingAmount().doubleValue() : 0.0);
+                row.createCell(9).setCellValue(data.getMaterialValue() != null ? data.getMaterialValue().doubleValue() : 0.0);
                 row.createCell(10).setCellValue(data.getDisasterInfoStaff() != null ? data.getDisasterInfoStaff() : 0);
                 row.createCell(11).setCellValue(data.getEmergencyPlanCount() != null ? data.getEmergencyPlanCount() : 0);
                 row.createCell(12).setCellValue(data.getEmergencyResponseCount() != null ? data.getEmergencyResponseCount() : 0);
@@ -942,24 +981,34 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
 
         try {
 
-            // 1. 从消防员配置表获取消防员数量
+            // 1. 从消防员配置表获取消防员数量（只按组织编码精确匹配）
+            // 注意：只有当配置表中有数据时，才使用配置表的值；否则保留Excel中导入的值
             try {
-                Integer firefighters = firefighterConfigService.getFirefighterCountByRegionCode(regionCode);
-                if (firefighters == null || firefighters == 0) {
-                    // 如果按区域代码找不到，尝试按乡镇名称匹配
-                    String townshipName = data.getTownship();
-                    if (townshipName != null && !townshipName.trim().isEmpty()) {
-                        log.info("按区域代码未找到消防员数据，尝试按乡镇名称匹配，乡镇: {}", townshipName);
-                        firefighters = firefighterConfigService.getFirefighterCountByTownshipName(townshipName);
+                Integer configuredFirefighters = firefighterConfigService.getFirefighterCountByRegionCode(regionCode);
+                if (configuredFirefighters != null && configuredFirefighters > 0) {
+                    // 配置表有数据，使用配置表的值
+                    data.setFirefighters(configuredFirefighters);
+                    log.debug("使用消防员配置数据，区域: {}, 数量: {}", regionCode, configuredFirefighters);
+                } else {
+                    // 配置表没有数据，保留Excel中导入的值（如果Excel中也没有，保持为0）
+                    // 如果Excel中有值但firefighters字段为null，则从firefightersCount字段复制到firefighters字段
+                    if (data.getFirefighters() == null && data.getFirefightersCount() != null) {
+                        data.setFirefighters(data.getFirefightersCount());
                     }
-                }
-                if (firefighters != null) {
-                    // 使用向后兼容方法设置消防员数量（包括0）
-                    data.setFirefighters(firefighters);
-                    log.debug("设置消防员数量成功，区域: {}, 数量: {}", regionCode, firefighters);
+                    if (data.getFirefighters() == null) {
+                        data.setFirefighters(0);
+                    }
+                    log.debug("使用Excel导入的消防员数据，区域: {}, 数量: {}", regionCode, data.getFirefighters());
                 }
             } catch (Exception e) {
                 log.error("获取消防员配置失败，区域代码: {}", regionCode, e);
+                // 出错时使用Excel中的值
+                if (data.getFirefighters() == null && data.getFirefightersCount() != null) {
+                    data.setFirefighters(data.getFirefightersCount());
+                }
+                if (data.getFirefighters() == null) {
+                    data.setFirefighters(0);
+                }
             }
 
             // 2. 统计志愿者人数 - 设置到独立的志愿者字段，不影响培训参与人次
@@ -993,16 +1042,15 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                     log.warn("医疗设施服务未注入，跳过医院床位统计，区域代码: {}, 年份: {}", regionCode, year);
                     data.setHospitalBeds(0);
                 } else {
-                    // 使用乡镇名称进行精确匹配
+                    // 使用组织机构编码进行前缀匹配统计
                     Integer hospitalBeds = 0;
-                    String townshipName = data.getTownship();
 
-                    if (townshipName != null && !townshipName.trim().isEmpty()) {
-                        hospitalBeds = medicalInstitutionService.sumActualHospitalBedsByTownship(townshipName, year);
-                        log.info("设置医疗设施实有住院床位数 - 乡镇: {}, 年份: {}, 床位数: {}",
-                                 townshipName, year, hospitalBeds);
+                    if (regionCode != null && !regionCode.trim().isEmpty()) {
+                        hospitalBeds = medicalInstitutionService.sumActualHospitalBedsByRegionCode(regionCode, year);
+                        log.info("设置医疗设施实有住院床位数 - 组织机构编码: {}, 乡镇: {}, 年份: {}, 床位数: {}",
+                                 regionCode, data.getTownship(), year, hospitalBeds);
                     } else {
-                        log.info("乡镇名称为空，设置医院床位数为0，区域代码: {}, 年份: {}", regionCode, year);
+                        log.info("组织机构编码为空，设置医院床位数为0，乡镇: {}, 年份: {}", data.getTownship(), year);
                     }
 
                     data.setHospitalBeds(hospitalBeds != null ? hospitalBeds : 0);
@@ -1453,10 +1501,10 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                     data.setRiskAssessment(getStringValue(value));
                     break;
                 case "fundingAmount":
-                    data.setFundingAmount(getDoubleValue(value));
+                    data.setFundingAmount(getBigDecimalValue(value));
                     break;
                 case "materialValue":
-                    data.setMaterialValue(getDoubleValue(value));
+                    data.setMaterialValue(getBigDecimalValue(value));
                     break;
                 case "hospitalBeds":
                     data.setHospitalBeds(getIntValue(value));
@@ -1553,6 +1601,27 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
         }
         try {
             return Double.parseDouble(str);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 获取BigDecimal数值（保留4位小数）
+     */
+    private BigDecimal getBigDecimalValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return BigDecimal.valueOf(((Number) value).doubleValue()).setScale(4, BigDecimal.ROUND_HALF_UP);
+        }
+        String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(str).setScale(4, BigDecimal.ROUND_HALF_UP);
         } catch (NumberFormatException e) {
             return null;
         }

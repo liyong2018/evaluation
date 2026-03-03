@@ -231,13 +231,15 @@
         <!-- 资金投入(万元) -->
         <el-table-column v-if="dataType !== 'medical'" prop="fundingAmount" label="资金投入(万元)" width="140">
           <template #default="{ row }">
-            {{ dataType === 'township' ? row.fundingAmount : row.lastYearFundingAmount }}
+            <span v-if="dataType === 'township'">{{ formatDecimal(row.fundingAmount) }}</span>
+            <span v-else>{{ formatDecimal(row.lastYearFundingAmount) }}</span>
           </template>
         </el-table-column>
         <!-- 物资价值(万元) -->
         <el-table-column v-if="dataType !== 'medical'" prop="materialValue" label="物资价值(万元)" width="140">
           <template #default="{ row }">
-            {{ dataType === 'township' ? row.materialValue : row.materialsEquipmentValue }}
+            <span v-if="dataType === 'township'">{{ formatDecimal(row.materialValue) }}</span>
+            <span v-else>{{ formatDecimal(row.materialsEquipmentValue) }}</span>
           </template>
         </el-table-column>
 
@@ -904,6 +906,14 @@ const getFieldValue = (row: any, fieldName: string) => {
     // 社区数据使用带 Name 后缀的字段名
     return row[`${fieldName}Name`] || '-'
   }
+}
+
+// 格式化数字，保留4位小数
+const formatDecimal = (value: any) => {
+  if (value === null || value === undefined || value === '') return '-'
+  const num = parseFloat(value)
+  if (isNaN(num)) return '-'
+  return num.toFixed(4)
 }
 
 // 根据代码获取地区名称（带鲁棒回退）
