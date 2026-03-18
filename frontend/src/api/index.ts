@@ -59,7 +59,8 @@ export const surveyDataApi = {
       formData.append('orgCode', orgCode)
     }
     return request.post('/api/survey-data/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000
     })
   },
 
@@ -71,9 +72,12 @@ export const surveyDataApi = {
   }),
 
   // 验证GPKG文件字段
-  validateGpkg: (file: File) => {
+  validateGpkg: (file: File, year?: number) => {
     const formData = new FormData()
     formData.append('file', file)
+    if (year !== undefined) {
+      formData.append('year', year.toString())
+    }
     return request.post('/api/survey-data/validate-gpkg', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
@@ -459,14 +463,18 @@ export const communityCapacityApi = {
     formData.append('file', file)
     formData.append('year', year.toString())
     return request.post('/api/community-capacity/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000
     })
   },
 
   // 验证GPKG文件字段
-  validateGpkg: (file: File) => {
+  validateGpkg: (file: File, year?: number) => {
     const formData = new FormData()
     formData.append('file', file)
+    if (year !== undefined) {
+      formData.append('year', year.toString())
+    }
     return request.post('/api/community-capacity/validate-gpkg', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
@@ -528,14 +536,18 @@ export const medicalInstitutionApi = {
     formData.append('file', file)
     formData.append('year', year.toString())
     return request.post('/api/medical-institution/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 1800000
     })
   },
 
   // 验证GPKG文件字段
-  validateGpkg: (file: File) => {
+  validateGpkg: (file: File, year?: number) => {
     const formData = new FormData()
     formData.append('file', file)
+    if (year !== undefined) {
+      formData.append('year', year.toString())
+    }
     return request.post('/api/medical-institution/validate-gpkg', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })

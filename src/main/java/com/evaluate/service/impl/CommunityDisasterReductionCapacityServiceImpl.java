@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.evaluate.dto.GpkgFieldValidationResult;
 import com.evaluate.entity.CommunityDisasterReductionCapacity;
+import com.evaluate.entity.Organization;
 import com.evaluate.mapper.CommunityDisasterReductionCapacityMapper;
 import com.evaluate.service.ICommunityDisasterReductionCapacityService;
 import com.evaluate.service.IOrganizationService;
@@ -26,6 +27,7 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -79,23 +81,24 @@ public class CommunityDisasterReductionCapacityServiceImpl
             // 读取Excel文件（使用新的解析逻辑）
             List<CommunityDisasterReductionCapacity> dataList = readExcelDataWithNewFormat(file, year, errorMessages);
             log.info("从Excel中读取到 {} 条数据", dataList.size());
+            Map<String, Long> existingIdMap = loadExistingCommunityIdMap(dataList);
 
             // 批量保存数据
             for (CommunityDisasterReductionCapacity entity : dataList) {
                 try {
-                    // 检查是否已存在相同地区代码、社区名称和年份的数据
-                    CommunityDisasterReductionCapacity existing = getByRegionAndCommunityAndYear(
-                            entity.getRegionCode(), entity.getCommunityName(), entity.getYear());
+                    String uniqueKey = buildCommunityUniqueKey(entity.getRegionCode(), entity.getCommunityName(), entity.getYear());
+                    Long existingId = uniqueKey == null ? null : existingIdMap.get(uniqueKey);
 
-                    if (existing != null) {
-                        // 更新现有数据（相同地区代码、社区名称和年份）
-                        entity.setId(existing.getId());
+                    if (existingId != null) {
+                        entity.setId(existingId);
                         updateById(entity);
                         log.debug("更新社区减灾能力数据: {} - {} ({}年)", entity.getRegionCode(), entity.getCommunityName(), entity.getYear());
                     } else {
-                        // 插入新数据（新的年份或新的地区）
                         entity.setId(null);
                         save(entity);
+                        if (uniqueKey != null && entity.getId() != null) {
+                            existingIdMap.put(uniqueKey, entity.getId());
+                        }
                         log.debug("新增社区减灾能力数据: {} - {} ({}年)", entity.getRegionCode(), entity.getCommunityName(), entity.getYear());
                     }
                     successCount++;
@@ -123,6 +126,55 @@ public class CommunityDisasterReductionCapacityServiceImpl
         }
 
         return result;
+    }
+
+    private String buildCommunityUniqueKey(String regionCode, String communityName, Integer year) {
+        if (!StringUtils.hasText(regionCode) || !StringUtils.hasText(communityName) || year == null) {
+            return null;
+        }
+        return regionCode.trim() + "|" + communityName.trim() + "|" + year;
+    }
+
+    private Map<String, Long> loadExistingCommunityIdMap(List<CommunityDisasterReductionCapacity> dataList) {
+        Map<String, Long> existingIdMap = new HashMap<>();
+        Set<String> regionCodes = new HashSet<>();
+        Set<Integer> years = new HashSet<>();
+
+        for (CommunityDisasterReductionCapacity item : dataList) {
+            if (item == null) {
+                continue;
+            }
+            if (StringUtils.hasText(item.getRegionCode())) {
+                regionCodes.add(item.getRegionCode().trim());
+            }
+            if (item.getYear() != null) {
+                years.add(item.getYear());
+            }
+        }
+
+        if (regionCodes.isEmpty() || years.isEmpty()) {
+            return existingIdMap;
+        }
+
+        List<String> allRegionCodes = new ArrayList<>(regionCodes);
+        int batchSize = 1000;
+        for (int start = 0; start < allRegionCodes.size(); start += batchSize) {
+            int end = Math.min(start + batchSize, allRegionCodes.size());
+            List<String> regionCodeBatch = allRegionCodes.subList(start, end);
+            QueryWrapper<CommunityDisasterReductionCapacity> wrapper = new QueryWrapper<>();
+            wrapper.select("id", "region_code", "community_name", "year");
+            wrapper.in("region_code", regionCodeBatch);
+            wrapper.in("year", years);
+            List<CommunityDisasterReductionCapacity> existingList = list(wrapper);
+            for (CommunityDisasterReductionCapacity existing : existingList) {
+                String key = buildCommunityUniqueKey(existing.getRegionCode(), existing.getCommunityName(), existing.getYear());
+                if (key != null && existing.getId() != null) {
+                    existingIdMap.put(key, existing.getId());
+                }
+            }
+        }
+
+        return existingIdMap;
     }
 
     @Override
@@ -440,10 +492,11 @@ public class CommunityDisasterReductionCapacityServiceImpl
     }
 
     private String normalizeYesNo(String value) {
-        if (value == null || value.trim().isEmpty()) {
+        String normalizedListValue = normalizeListText(value);
+        if (normalizedListValue == null || normalizedListValue.trim().isEmpty()) {
             return "否";
         }
-        String normalized = value.trim();
+        String normalized = normalizedListValue.trim();
         return normalized.equals("是") || normalized.equalsIgnoreCase("yes") ||
                normalized.equals("1") || normalized.equalsIgnoreCase("true") ? "是" : "否";
     }
@@ -454,17 +507,21 @@ public class CommunityDisasterReductionCapacityServiceImpl
     private List<CommunityDisasterReductionCapacity> readExcelDataWithNewFormat(MultipartFile file, Integer year, List<String> errorMessages) throws Exception {
         List<CommunityDisasterReductionCapacity> dataList = new ArrayList<>();
 
-        try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(file.getInputStream())) {
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(0);
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
+            Map<String, Integer> columnIndexMap = buildExcelColumnIndexMap(sheet);
+            boolean isCodeHeaderExcel = columnIndexMap.containsKey("dwmc")
+                    && columnIndexMap.containsKey("address")
+                    && (columnIndexMap.containsKey("codery") || columnIndexMap.containsKey("code"));
+            int startRow = isCodeHeaderExcel ? 1 : 2;
 
-            // 跳过前两行表头，从第三行开始读取数据
-            for (int i = 2; i <= sheet.getLastRowNum(); i++) {
-                org.apache.poi.ss.usermodel.Row row = sheet.getRow(i);
+            for (int i = startRow; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
                 if (row == null) continue;
+                if (isCodeHeaderExcel && isLikelyCommunityDescriptionRow(row, columnIndexMap)) continue;
 
-                CommunityDisasterReductionCapacity data = parseRowToCommunityData(row);
+                CommunityDisasterReductionCapacity data = parseRowToCommunityData(row, isCodeHeaderExcel, columnIndexMap);
                 if (data != null) {
-                    // 设置年份
                     data.setYear(year);
                     dataList.add(data);
                 } else {
@@ -483,9 +540,91 @@ public class CommunityDisasterReductionCapacityServiceImpl
      * 解析Excel行数据为CommunityDisasterReductionCapacity对象
      * 跳过前两行表头，从第3行开始解析数据
      */
-    private CommunityDisasterReductionCapacity parseRowToCommunityData(org.apache.poi.ss.usermodel.Row row) {
+    private CommunityDisasterReductionCapacity parseRowToCommunityData(Row row, boolean isCodeHeaderExcel, Map<String, Integer> columnIndexMap) {
         try {
             CommunityDisasterReductionCapacity data = new CommunityDisasterReductionCapacity();
+            if (isCodeHeaderExcel) {
+                data.setUniqueId(firstNonBlank(
+                        getCellValueByColumnName(row, columnIndexMap, "id"),
+                        getCellValueByColumnName(row, columnIndexMap, "fxpc_datai")
+                ));
+                data.setVerificationStatus(firstNonBlank(
+                        getCellValueByColumnName(row, columnIndexMap, "verification_status"),
+                        getCellValueByColumnName(row, columnIndexMap, "fxpc_sjzt_")
+                ));
+                data.setCommunityName(getCellValueByColumnName(row, columnIndexMap, "dwmc"));
+
+                String communityAddress = getCellValueByColumnName(row, columnIndexMap, "address");
+                data.setCommunityAddress(communityAddress);
+                parseAddressToProvinceCityCounty(data, communityAddress);
+
+                String regionCode = firstNonBlank(
+                        getCellValueByColumnName(row, columnIndexMap, "codery"),
+                        getCellValueByColumnName(row, columnIndexMap, "code")
+                );
+                data.setRegionCode(regionCode);
+                data.setTotalHouseholds(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "zhs")));
+                data.setResidentPopulation(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "nmczrksl")));
+                data.setAge0To14Count(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "zero_ss_sr")));
+                data.setAge65PlusCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "lw_shysrs")));
+                data.setDisabledPersonCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "czryrs")));
+                data.setMedicalServiceCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "sqylwsfwzh")));
+                data.setIsNationalDemoCommunity(normalizeYesNo(getCellValueByColumnName(row, columnIndexMap, "sfwqgzhjzs")));
+                data.setIsProvincialDemoCommunity(normalizeYesNo(getCellValueByColumnName(row, columnIndexMap, "sfwsjzhjzs")));
+                data.setHasDisasterPointsList(normalizeYesNo(getCellValueByColumnName(row, columnIndexMap, "sfybxqdzzh")));
+                data.setHasVulnerableGroupsList(normalizeYesNo(getCellValueByColumnName(row, columnIndexMap, "sfybxqrsr1")));
+                data.setHasDisasterMap(normalizeYesNo(getCellValueByColumnName(row, columnIndexMap, "sfysqxzcz1")));
+                data.setHasEmergencyPlan(normalizeYesNo(getCellValueByColumnName(row, columnIndexMap, "sfysqxzcy1")));
+
+                BigDecimal fundingAmount = getCellBigDecimalValue(getCellByColumnName(row, columnIndexMap, "syndfzjzjz"));
+                if (fundingAmount != null) data.setLastYearFundingAmount(fundingAmount);
+
+                data.setDisasterInfoStaffCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "zhxxyrs")));
+                data.setRegisteredVolunteerCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "djzczyzrs")));
+                data.setMilitiaReserveCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "mbybyrs")));
+                data.setEmergencyShelterCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "zhyjbncssl")));
+                data.setEmergencyShelterCapacity(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "zhyjbncsrl")));
+                data.setMaterialStorageMethod(normalizeListText(getCellValueByColumnName(row, columnIndexMap, "fzjzyjwzc1")));
+                data.setMaterialStorageMethodOther(getCellValueByColumnName(row, columnIndexMap, "fzjzyjwzc2"));
+
+                BigDecimal materialValue = getCellBigDecimalValue(getCellByColumnName(row, columnIndexMap, "xycbwzzbzh"));
+                if (materialValue != null) data.setMaterialsEquipmentValue(materialValue);
+
+                data.setWarningReceiveMethod(normalizeListText(getCellValueByColumnName(row, columnIndexMap, "zhyjxxjsf1")));
+                data.setWarningReceiveMethodOther(getCellValueByColumnName(row, columnIndexMap, "zhyjxxjsf2"));
+                data.setWarningCommunicationMethod(normalizeListText(getCellValueByColumnName(row, columnIndexMap, "zhyjxxcdf1")));
+                data.setWarningCommunicationMethodOther(getCellValueByColumnName(row, columnIndexMap, "zhyjxxcdf2"));
+                data.setDisasterReportMethod(normalizeListText(getCellValueByColumnName(row, columnIndexMap, "zqxxsbfs")));
+                data.setDisasterReportMethodOther(getCellValueByColumnName(row, columnIndexMap, "zqxxsbfs_q"));
+                data.setLastYearTrainingCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "syndzzdfz1")));
+                data.setLastYearTrainingParticipants(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "pxrc")));
+                data.setLastYearDrillCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "syndzzdfz2")));
+                data.setLastYearDrillParticipants(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "cyyldjmrc")));
+                data.setUnitLeader(getCellValueByColumnName(row, columnIndexMap, "dwfzr"));
+                data.setStatisticsLeader(getCellValueByColumnName(row, columnIndexMap, "tjfzr"));
+                data.setFormFiller(getCellValueByColumnName(row, columnIndexMap, "tbr"));
+                data.setContactPhone(getCellValueByColumnName(row, columnIndexMap, "lxdh"));
+                data.setReportDate(getDateValue(getCellValueByColumnName(row, columnIndexMap, "tbrq")));
+                data.setFillInstructions(getCellValueByColumnName(row, columnIndexMap, "fxpc_dcdxb"));
+
+                String provinceName = getCellValueByColumnName(row, columnIndexMap, "dzsheng");
+                String cityName = getCellValueByColumnName(row, columnIndexMap, "dzshi");
+                String countyName = getCellValueByColumnName(row, columnIndexMap, "dzxian");
+                String townshipName = getCellValueByColumnName(row, columnIndexMap, "dzxiang");
+                if (provinceName != null && !provinceName.trim().isEmpty()) data.setProvinceName(provinceName.trim());
+                if (cityName != null && !cityName.trim().isEmpty()) data.setCityName(cityName.trim());
+                if (countyName != null && !countyName.trim().isEmpty()) data.setCountyName(countyName.trim());
+                if (townshipName != null && !townshipName.trim().isEmpty()) data.setTownshipName(townshipName.trim());
+                if ((data.getCommunityName() == null || data.getCommunityName().trim().isEmpty())) {
+                    String communityName = getCellValueByColumnName(row, columnIndexMap, "dzcun");
+                    if (communityName != null && !communityName.trim().isEmpty()) data.setCommunityName(communityName.trim());
+                }
+
+                if (isCommunityRowEmpty(data)) {
+                    return null;
+                }
+                return data;
+            }
 
             // 第0列：唯一码
             data.setUniqueId(getCellStringValue(row.getCell(0)));
@@ -624,10 +763,10 @@ public class CommunityDisasterReductionCapacityServiceImpl
                     if (reportDateCell.getCellType() == CellType.STRING) {
                         String dateStr = reportDateCell.getStringCellValue();
                         if (dateStr != null && !dateStr.trim().isEmpty()) {
-                            data.setReportDate(LocalDate.parse(dateStr.trim(), DateTimeFormatter.ofPattern("yyyy/MM/dd")));
+                            data.setReportDate(getDateValue(dateStr.trim()));
                         }
                     } else if (reportDateCell.getCellType() == CellType.NUMERIC) {
-                        data.setReportDate(reportDateCell.getLocalDateTimeCellValue().toLocalDate());
+                        data.setReportDate(getDateValue(reportDateCell.getDateCellValue()));
                     }
                 } catch (Exception e) {
                     log.warn("解析报出日期失败: {}", e.getMessage());
@@ -849,8 +988,8 @@ public class CommunityDisasterReductionCapacityServiceImpl
     }
 
     @Override
-    public GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType) {
-        return GpkgUtil.validateGpkgFields(file, dataType);
+    public GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType, Integer year) {
+        return GpkgUtil.validateGpkgFields(file, dataType, year);
     }
 
     @Override
@@ -897,18 +1036,19 @@ public class CommunityDisasterReductionCapacityServiceImpl
                 FeatureSource<SimpleFeatureType, SimpleFeature> featureSource =
                         dataStore.getFeatureSource(layerName);
 
-                // 获取字段映射
-                Map<String, String> fieldMapping = GpkgUtil.getFieldMapping("community");
+                // 获取字段映射（根据年份选择不同的 GPKG 字段映射）
+                Map<String, String> fieldMapping = GpkgUtil.getFieldMapping("community", year);
 
                 // 读取所有要素
                 Query query = new Query(layerName);
                 FeatureCollection<SimpleFeatureType, SimpleFeature> collection = featureSource.getFeatures(query);
 
                 List<CommunityDisasterReductionCapacity> dataList = new ArrayList<>();
+                Map<String, String> orgNameCache = new HashMap<>();
                 try (FeatureIterator<SimpleFeature> features = collection.features()) {
                     while (features.hasNext()) {
                         SimpleFeature feature = features.next();
-                        CommunityDisasterReductionCapacity data = parseGpkgFeatureToCommunityCapacity(feature, fieldMapping, year);
+                        CommunityDisasterReductionCapacity data = parseGpkgFeatureToCommunityCapacity(feature, fieldMapping, year, orgNameCache);
                         if (data != null) {
                             dataList.add(data);
                         }
@@ -977,7 +1117,7 @@ public class CommunityDisasterReductionCapacityServiceImpl
      * 将GPKG要素解析为CommunityDisasterReductionCapacity对象
      */
     private CommunityDisasterReductionCapacity parseGpkgFeatureToCommunityCapacity(
-            SimpleFeature feature, Map<String, String> fieldMapping, Integer year) {
+            SimpleFeature feature, Map<String, String> fieldMapping, Integer year, Map<String, String> orgNameCache) {
         try {
             CommunityDisasterReductionCapacity data = new CommunityDisasterReductionCapacity();
             data.setYear(year);
@@ -992,6 +1132,8 @@ public class CommunityDisasterReductionCapacityServiceImpl
                     setCommunityFieldValue(data, dbField, value);
                 }
             }
+
+            normalizeCommunityDivisionFields(data, feature, year, orgNameCache);
 
             return data;
         } catch (Exception e) {
@@ -1032,16 +1174,16 @@ public class CommunityDisasterReductionCapacityServiceImpl
                     data.setResidentPopulation(getIntegerValue(value));
                     break;
                 case "hasEmergencyPlan":
-                    data.setHasEmergencyPlan(getStringValue(value));
+                    data.setHasEmergencyPlan(normalizeYesNo(getStringValue(value)));
                     break;
                 case "hasVulnerableGroupsList":
-                    data.setHasVulnerableGroupsList(getStringValue(value));
+                    data.setHasVulnerableGroupsList(normalizeYesNo(getStringValue(value)));
                     break;
                 case "hasDisasterPointsList":
-                    data.setHasDisasterPointsList(getStringValue(value));
+                    data.setHasDisasterPointsList(normalizeYesNo(getStringValue(value)));
                     break;
                 case "hasDisasterMap":
-                    data.setHasDisasterMap(getStringValue(value));
+                    data.setHasDisasterMap(normalizeYesNo(getStringValue(value)));
                     break;
                 case "lastYearFundingAmount":
                     data.setLastYearFundingAmount(getDecimalValue(value));
@@ -1074,5 +1216,188 @@ public class CommunityDisasterReductionCapacityServiceImpl
         } catch (Exception e) {
             log.warn("设置字段值失败: {} = {}", fieldName, value);
         }
+    }
+
+    private void normalizeCommunityDivisionFields(CommunityDisasterReductionCapacity data, SimpleFeature feature, Integer year, Map<String, String> orgNameCache) {
+        String provinceCode = firstNonBlank(getStringValue(feature.getAttribute("fxpc_xzqhbma_sjgl")), getStringValue(feature.getAttribute("dcsheng")));
+        String cityCode = firstNonBlank(getStringValue(feature.getAttribute("fxpc_xzqhbmb_sjgl")), getStringValue(feature.getAttribute("dcshi")));
+        String countyCode = firstNonBlank(getStringValue(feature.getAttribute("fxpc_xzqhbmc_sjgl")), getStringValue(feature.getAttribute("dcxian")));
+        String townshipCode = firstNonBlank(getStringValue(feature.getAttribute("fxpc_xzqhbmd_sjgl")), extractTownshipCode(data.getRegionCode()));
+
+        if (isCodeLike(data.getProvinceName())) {
+            String provinceName = resolveOrganizationName(provinceCode, 1, year, orgNameCache);
+            if (hasText(provinceName)) {
+                data.setProvinceName(provinceName);
+            }
+        }
+        if (isCodeLike(data.getCityName())) {
+            String cityName = resolveOrganizationName(cityCode, 2, year, orgNameCache);
+            if (hasText(cityName)) {
+                data.setCityName(cityName);
+            }
+        }
+        if (isCodeLike(data.getCountyName())) {
+            String countyName = resolveOrganizationName(countyCode, 3, year, orgNameCache);
+            if (hasText(countyName)) {
+                data.setCountyName(countyName);
+            }
+        }
+        if (!hasText(data.getTownshipName()) || isCodeLike(data.getTownshipName())) {
+            String townshipName = resolveOrganizationName(townshipCode, 4, year, orgNameCache);
+            if (hasText(townshipName)) {
+                data.setTownshipName(townshipName);
+            }
+        }
+
+        if (!hasText(data.getProvinceName()) || !hasText(data.getCityName()) || !hasText(data.getCountyName()) || !hasText(data.getTownshipName())
+                || isCodeLike(data.getProvinceName()) || isCodeLike(data.getCityName()) || isCodeLike(data.getCountyName()) || isCodeLike(data.getTownshipName())) {
+            parseAddressToProvinceCityCounty(data, data.getCommunityAddress());
+        }
+    }
+
+    private boolean isCommunityRowEmpty(CommunityDisasterReductionCapacity data) {
+        return (data.getUniqueId() == null || data.getUniqueId().trim().isEmpty())
+                && (data.getCommunityName() == null || data.getCommunityName().trim().isEmpty())
+                && (data.getCommunityAddress() == null || data.getCommunityAddress().trim().isEmpty())
+                && (data.getRegionCode() == null || data.getRegionCode().trim().isEmpty());
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null || values.length == 0) return null;
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) return value.trim();
+        }
+        return null;
+    }
+
+    private boolean isLikelyCommunityDescriptionRow(Row row, Map<String, Integer> columnIndexMap) {
+        String idDesc = getCellValueByColumnName(row, columnIndexMap, "id");
+        String nameDesc = getCellValueByColumnName(row, columnIndexMap, "dwmc");
+        String addressDesc = getCellValueByColumnName(row, columnIndexMap, "address");
+        String idText = idDesc == null ? "" : idDesc.trim();
+        String nameText = nameDesc == null ? "" : nameDesc.trim();
+        String addressText = addressDesc == null ? "" : addressDesc.trim();
+        return idText.contains("唯一标识")
+                || nameText.contains("社区（行政村）名称")
+                || addressText.contains("社区（行政村）地址");
+    }
+
+    private String normalizeListText(String value) {
+        if (value == null || value.trim().isEmpty()) return value;
+        String text = value.trim();
+        if (text.startsWith("[") && text.endsWith("]")) {
+            text = text.substring(1, text.length() - 1).trim();
+        }
+        text = text.replace("\"", "").replace("'", "").trim();
+        if (text.contains(",")) {
+            String[] parts = text.split(",");
+            List<String> normalized = new ArrayList<>();
+            for (String part : parts) {
+                if (part != null && !part.trim().isEmpty()) normalized.add(part.trim());
+            }
+            if (!normalized.isEmpty()) return String.join(";", normalized);
+        }
+        return text;
+    }
+
+    private LocalDate getDateValue(Object value) {
+        if (value == null) return null;
+        if (value instanceof LocalDate) return (LocalDate) value;
+        if (value instanceof java.util.Date) {
+            return ((java.util.Date) value).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        }
+        String str = String.valueOf(value).trim();
+        if (str.isEmpty()) return null;
+        try {
+            String normalized = str;
+            if (normalized.matches("\\d{4}/\\d{2}/\\d{2}")) normalized = normalized.replace('/', '-');
+            if (normalized.matches("\\d{4}-\\d{2}-\\d{2}\\s+.*")) normalized = normalized.split("\\s+")[0];
+            if (normalized.matches("\\d{4}-\\d{2}-\\d{2}")) return LocalDate.parse(normalized);
+            DateTimeFormatter englishDateTimeFormatter =
+                    DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss zzz yyyy", Locale.ENGLISH);
+            return java.time.ZonedDateTime.parse(str, englishDateTimeFormatter).toLocalDate();
+        } catch (Exception e) {
+            log.warn("解析报出日期失败: {}", str);
+            return null;
+        }
+    }
+
+    private String getCellValueByColumnName(Row row, Map<String, Integer> columnIndexMap, String columnName) {
+        Integer colIndex = columnIndexMap.get(columnName);
+        if (colIndex == null) return null;
+        String value = getCellStringValue(row.getCell(colIndex));
+        return value == null ? null : value.trim();
+    }
+
+    private Cell getCellByColumnName(Row row, Map<String, Integer> columnIndexMap, String columnName) {
+        Integer colIndex = columnIndexMap.get(columnName);
+        if (colIndex == null) return null;
+        return row.getCell(colIndex);
+    }
+
+    private Map<String, Integer> buildExcelColumnIndexMap(Sheet sheet) {
+        Map<String, Integer> columnIndexMap = new HashMap<>();
+        Row headerRow = sheet.getRow(0);
+        if (headerRow == null) return columnIndexMap;
+        for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+            Cell cell = headerRow.getCell(i);
+            if (cell != null) {
+                String columnName = getCellStringValue(cell);
+                if (columnName != null && !columnName.trim().isEmpty()) {
+                    columnIndexMap.put(columnName.trim().toLowerCase(), i);
+                }
+            }
+        }
+        return columnIndexMap;
+    }
+
+    private String extractTownshipCode(String regionCode) {
+        if (!hasText(regionCode)) {
+            return null;
+        }
+        String code = regionCode.trim();
+        if (!code.matches("\\d+")) {
+            return null;
+        }
+        return code.length() >= 9 ? code.substring(0, 9) : code;
+    }
+
+    private String resolveOrganizationName(String code, Integer level, Integer year, Map<String, String> orgNameCache) {
+        if (!hasText(code)) {
+            return null;
+        }
+        String normalizedCode = code.trim();
+        String cacheKey = normalizedCode + "_" + level + "_" + year;
+        if (orgNameCache.containsKey(cacheKey)) {
+            return orgNameCache.get(cacheKey);
+        }
+
+        QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("code", normalizedCode);
+        if (level != null) {
+            queryWrapper.eq("level", level);
+        }
+        if (year != null) {
+            queryWrapper.and(wrapper -> wrapper.eq("year", year).or().eq("is_baseline", 1));
+        }
+        queryWrapper.orderByDesc("is_baseline").orderByDesc("year");
+        queryWrapper.last("LIMIT 1");
+
+        Organization organization = organizationService.getOne(queryWrapper, false);
+        String name = organization != null ? organization.getName() : null;
+        orgNameCache.put(cacheKey, name);
+        return name;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private boolean isCodeLike(String value) {
+        if (!hasText(value)) {
+            return false;
+        }
+        String normalized = value.trim();
+        return normalized.matches("\\d{2,}");
     }
 }

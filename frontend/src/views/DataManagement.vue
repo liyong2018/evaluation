@@ -197,9 +197,17 @@
         <!-- 医疗机构地址 (仅医疗机构数据) -->
         <el-table-column v-if="dataType === 'medical'" prop="institutionAddress" label="机构地址" width="250" show-overflow-tooltip />
         <!-- 医疗机构类型 (仅医疗机构数据) -->
-        <el-table-column v-if="dataType === 'medical'" prop="institutionTypeLarge" label="机构类型(大类)" width="120" />
+        <el-table-column v-if="dataType === 'medical'" prop="institutionTypeLarge" label="机构类型(大类)" width="120">
+          <template #default="{ row }">
+            {{ formatMedicalInstitutionTypeLarge(row.institutionTypeLarge) }}
+          </template>
+        </el-table-column>
         <!-- 医院等级 (仅医疗机构数据) -->
-        <el-table-column v-if="dataType === 'medical'" prop="hospitalLevel" label="医院等级" width="100" />
+        <el-table-column v-if="dataType === 'medical'" prop="hospitalLevel" label="医院等级" width="100">
+          <template #default="{ row }">
+            {{ formatMedicalHospitalLevel(row.hospitalLevel) }}
+          </template>
+        </el-table-column>
         <!-- 实有床位数 (仅医疗机构数据) -->
         <el-table-column v-if="dataType === 'medical'" prop="actualHospitalBeds" label="实有床位数" width="100" />
 
@@ -209,13 +217,29 @@
 
         <!-- ========== 社区数据列 ========== -->
         <!-- 应急预案 -->
-        <el-table-column v-if="dataType === 'community'" prop="hasEmergencyPlan" label="应急预案" width="100" />
+        <el-table-column v-if="dataType === 'community'" prop="hasEmergencyPlan" label="应急预案" width="100">
+          <template #default="{ row }">
+            {{ formatYesNo(row.hasEmergencyPlan) }}
+          </template>
+        </el-table-column>
         <!-- 弱势人群清单 -->
-        <el-table-column v-if="dataType === 'community'" prop="hasVulnerableGroupsList" label="弱势人群清单" width="120" />
+        <el-table-column v-if="dataType === 'community'" prop="hasVulnerableGroupsList" label="弱势人群清单" width="120">
+          <template #default="{ row }">
+            {{ formatYesNo(row.hasVulnerableGroupsList) }}
+          </template>
+        </el-table-column>
         <!-- 地质灾害隐患点清单 -->
-        <el-table-column v-if="dataType === 'community'" prop="hasDisasterPointsList" label="地质灾害隐患点清单" width="150" />
+        <el-table-column v-if="dataType === 'community'" prop="hasDisasterPointsList" label="地质灾害隐患点清单" width="150">
+          <template #default="{ row }">
+            {{ formatYesNo(row.hasDisasterPointsList) }}
+          </template>
+        </el-table-column>
         <!-- 灾害类地图 -->
-        <el-table-column v-if="dataType === 'community'" prop="hasDisasterMap" label="灾害类地图" width="100" />
+        <el-table-column v-if="dataType === 'community'" prop="hasDisasterMap" label="灾害类地图" width="100">
+          <template #default="{ row }">
+            {{ formatYesNo(row.hasDisasterMap) }}
+          </template>
+        </el-table-column>
 
         <!-- ========== 乡镇/社区数据列 ========== -->
         <!-- 人口数量 -->
@@ -226,7 +250,11 @@
         </el-table-column>
 
         <!-- 风险评估 (仅乡镇数据) -->
-        <el-table-column v-if="dataType === 'township'" prop="riskAssessment" label="风险评估" width="140" />
+        <el-table-column v-if="dataType === 'township'" prop="riskAssessment" label="风险评估" width="140">
+          <template #default="{ row }">
+            {{ formatYesNo(row.riskAssessment) }}
+          </template>
+        </el-table-column>
 
         <!-- 资金投入(万元) -->
         <el-table-column v-if="dataType !== 'medical'" prop="fundingAmount" label="资金投入(万元)" width="140">
@@ -588,7 +616,7 @@ import {
   UploadFilled,
   Refresh
 } from '@element-plus/icons-vue'
-import { surveyDataApi, communityCapacityApi, organizationApi, medicalInstitutionApi } from '@/api'
+import { surveyDataApi, communityCapacityApi, organizationApi, medicalInstitutionApi, grassrootsOrganizationApi } from '@/api'
 import { useGlobalYearStore } from '@/stores/globalYear'
 import { useUserStore } from '@/stores/user'
 import { useGlobalOrganizationStore } from '@/stores/globalOrganization'
@@ -615,6 +643,7 @@ const tableData = ref<any[]>([])
 const selectedRows = ref<any[]>([])
 // 代码->名称映射表（一次性从后端加载）
 const regionNameMap = ref<Record<string, string>>({})
+const orgCodeNameMap = ref<Record<string, string>>({})
 // 下拉选项（从后端获取），包含代码与名称
 const regionSelectOptions = ref<Array<{ code: string; name: string }>>([])
 // 组织机构相关
@@ -774,13 +803,48 @@ const findOrgNodeByCode = (tree: any[], code: any): any | null => {
   return null
 }
 
+const collectOrgCodeNameMap = (tree: any[], result: Record<string, string> = {}) => {
+  for (const node of tree || []) {
+    const code = String(node?.code || '').trim()
+    const name = String(node?.name || '').trim()
+    if (code && name && !/^\d{2,}$/.test(name)) {
+      result[code] = name
+    }
+    if (Array.isArray(node?.children) && node.children.length > 0) {
+      collectOrgCodeNameMap(node.children, result)
+    }
+  }
+  return result
+}
+
+const normalizeOrgTreeNames = (tree: any[], fallbackNameMap: Record<string, string>) => {
+  const patchNode = (node: any) => {
+    const normalizedCode = String(node?.code || '').trim()
+    const normalizedName = String(node?.name || '').trim()
+    if (normalizedCode && (!normalizedName || /^\d{2,}$/.test(normalizedName))) {
+      const fallback = fallbackNameMap[normalizedCode]
+      if (fallback) {
+        node.name = fallback
+      }
+    }
+    if (Array.isArray(node?.children) && node.children.length > 0) {
+      node.children.forEach((child: any) => patchNode(child))
+    }
+  }
+  ;(tree || []).forEach((node: any) => patchNode(node))
+}
+
 const getOrganizationList = async () => {
   loading.organizations = true
   try {
-    // 传递当前选择的年份参数
-    const response = await organizationApi.getTree({ year: searchForm.year || undefined })
+    const [response, baselineResponse] = await Promise.all([
+      organizationApi.getTree({ year: searchForm.year || undefined }),
+      organizationApi.getTree({})
+    ])
     if (response.success && response.data) {
       organizationList.value = response.data || []
+      const fallbackMap = collectOrgCodeNameMap(baselineResponse?.success ? (baselineResponse.data || []) : [])
+      normalizeOrgTreeNames(organizationList.value, fallbackMap)
       // 收集需要展开的节点key
       defaultExpandedKeys.value = collectExpandedKeys(organizationList.value)
       console.log('组织机构树形数据 (年份:', searchForm.year, '):', organizationList.value)
@@ -899,13 +963,250 @@ const getSearchPlaceholder = () => {
 // 获取字段值（处理不同数据类型的字段名差异）
 const getFieldValue = (row: any, fieldName: string) => {
   if (!row) return '-'
-  if (dataType.value === 'township' || dataType.value === 'medical') {
-    // 乡镇和医疗机构数据使用简单字段名
+  if (dataType.value === 'township' && !['province', 'city', 'county', 'township'].includes(fieldName)) {
     return row[fieldName] || '-'
-  } else {
-    // 社区数据使用带 Name 后缀的字段名
-    return row[`${fieldName}Name`] || '-'
   }
+  let rawValue = row[`${fieldName}Name`] || row[fieldName]
+  const addressText = String(row.communityAddress || row.institutionAddress || row.address || '').trim()
+  const parsedByAddress = parseDivisionFromAddress(addressText)
+  if ((rawValue === null || rawValue === undefined || rawValue === '' || rawValue === '-') && fieldName === 'township') {
+    const regionCode = String(row.regionCode || '').trim()
+    if (/^\d{9,}$/.test(regionCode)) {
+      const townshipCode = regionCode.substring(0, 9)
+      const townshipName = getOrgNameByCode(townshipCode)
+      if (townshipName) {
+        rawValue = townshipName
+      } else {
+        rawValue = townshipCode
+      }
+    }
+  }
+  if ((rawValue === null || rawValue === undefined || rawValue === '' || rawValue === '-') && parsedByAddress) {
+    if (fieldName === 'province') rawValue = parsedByAddress.province
+    if (fieldName === 'city') rawValue = parsedByAddress.city
+    if (fieldName === 'county') rawValue = parsedByAddress.county
+    if (fieldName === 'township') rawValue = parsedByAddress.township
+  }
+  if (!rawValue || rawValue === '-') return '-'
+  const normalized = String(rawValue).trim()
+  if (!/^\d{2,}$/.test(normalized)) {
+    return normalized
+  }
+  const regionCode = String(row.regionCode || '').trim()
+  if (fieldName === 'province' && /^\d{6,}$/.test(regionCode)) {
+    const fallback = orgCodeNameMap.value[`${regionCode.substring(0, 2)}0000`]
+    if (fallback) return fallback
+  }
+  if (fieldName === 'city' && /^\d{6,}$/.test(regionCode)) {
+    const fallback = orgCodeNameMap.value[`${regionCode.substring(0, 4)}00`]
+    if (fallback) return fallback
+  }
+  if (fieldName === 'county' && /^\d{6,}$/.test(regionCode)) {
+    const fallback = orgCodeNameMap.value[regionCode.substring(0, 6)]
+    if (fallback) return fallback
+  }
+  if (fieldName === 'township' && /^\d{9,}$/.test(regionCode)) {
+    const fallback = orgCodeNameMap.value[regionCode.substring(0, 9)]
+    if (fallback) return fallback
+  }
+  const cacheName = orgCodeNameMap.value[normalized]
+  if (cacheName) {
+    return cacheName
+  }
+  const orgName = getOrgNameByCode(normalized)
+  if (orgName) {
+    orgCodeNameMap.value[normalized] = orgName
+    return orgName
+  }
+  if (parsedByAddress) {
+    if (fieldName === 'province' && parsedByAddress.province) return parsedByAddress.province
+    if (fieldName === 'city' && parsedByAddress.city) return parsedByAddress.city
+    if (fieldName === 'county' && parsedByAddress.county) return parsedByAddress.county
+    if (fieldName === 'township' && parsedByAddress.township) return parsedByAddress.township
+  }
+  return normalized
+}
+
+const getOrgNameByCode = (code: string) => {
+  const normalizedCode = String(code || '').trim()
+  if (!normalizedCode) return ''
+  if (orgCodeNameMap.value[normalizedCode]) {
+    return orgCodeNameMap.value[normalizedCode]
+  }
+  const candidates = new Set<string>([normalizedCode])
+  if (/^\d{6}$/.test(normalizedCode)) {
+    candidates.add(`${normalizedCode.substring(0, 2)}0000`)
+    candidates.add(`${normalizedCode.substring(0, 4)}00`)
+    candidates.add(normalizedCode.substring(0, 2))
+    candidates.add(normalizedCode.substring(0, 4))
+  } else if (/^\d{9}$/.test(normalizedCode)) {
+    candidates.add(normalizedCode.substring(0, 6))
+    candidates.add(`${normalizedCode.substring(0, 4)}00`)
+    candidates.add(`${normalizedCode.substring(0, 2)}0000`)
+  } else if (/^\d{12}$/.test(normalizedCode)) {
+    candidates.add(normalizedCode.substring(0, 9))
+    candidates.add(normalizedCode.substring(0, 6))
+  }
+  for (const candidate of candidates) {
+    const mapped = orgCodeNameMap.value[candidate]
+    if (mapped) return mapped
+  }
+  return ''
+}
+
+const cacheNameWithCode = (code: string, name: string) => {
+  const normalizedCode = String(code || '').trim()
+  const normalizedName = String(name || '').trim()
+  if (!normalizedCode || !normalizedName) return
+  orgCodeNameMap.value[normalizedCode] = normalizedName
+  if (/^\d{12}$/.test(normalizedCode)) {
+    orgCodeNameMap.value[normalizedCode.substring(0, 9)] = normalizedName
+  }
+  if (/^\d{6}$/.test(normalizedCode)) {
+    orgCodeNameMap.value[`${normalizedCode.substring(0, 2)}0000`] = orgCodeNameMap.value[`${normalizedCode.substring(0, 2)}0000`] || normalizedName
+    orgCodeNameMap.value[`${normalizedCode.substring(0, 4)}00`] = orgCodeNameMap.value[`${normalizedCode.substring(0, 4)}00`] || normalizedName
+  }
+}
+
+const preloadOrgCodeNameMap = async (rows: any[]) => {
+  if ((dataType.value !== 'township' && dataType.value !== 'community' && dataType.value !== 'medical') || !rows?.length) return
+  const queue = [...organizationList.value]
+  while (queue.length > 0) {
+    const node = queue.shift()
+    if (!node) continue
+    cacheNameWithCode(String(node.code || ''), String(node.name || ''))
+    if (Array.isArray(node.children) && node.children.length > 0) {
+      queue.push(...node.children)
+    }
+  }
+  const countyCodes = new Set<string>()
+  rows.forEach((row: any) => {
+    ;[row.countyName, row.county].forEach((value: any) => {
+      const code = String(value || '').trim()
+      if (/^\d{6,12}$/.test(code)) countyCodes.add(code.substring(0, 6))
+    })
+    const regionCode = String(row.regionCode || row.orgCode || '').trim()
+    if (/^\d{6,}$/.test(regionCode)) {
+      countyCodes.add(regionCode.substring(0, 6))
+      orgCodeNameMap.value[`${regionCode.substring(0, 2)}0000`] = orgCodeNameMap.value[`${regionCode.substring(0, 2)}0000`] || ''
+      orgCodeNameMap.value[`${regionCode.substring(0, 4)}00`] = orgCodeNameMap.value[`${regionCode.substring(0, 4)}00`] || ''
+    }
+  })
+  const year = searchForm.year || undefined
+  await Promise.all(Array.from(countyCodes).map(async (countyCode) => {
+    try {
+      const response = await grassrootsOrganizationApi.getTownshipsByCountyCode(countyCode, year)
+      if (response?.success && Array.isArray(response.data)) {
+        response.data.forEach((item: any) => {
+          cacheNameWithCode(String(item?.code || ''), String(item?.name || item?.townshipName || ''))
+          if (item?.provinceName) cacheNameWithCode(`${countyCode.substring(0, 2)}0000`, String(item.provinceName))
+          if (item?.cityName) cacheNameWithCode(`${countyCode.substring(0, 4)}00`, String(item.cityName))
+          if (item?.countyName) cacheNameWithCode(countyCode, String(item.countyName))
+        })
+      }
+    } catch (error) {
+      console.warn('预加载乡镇名称失败:', countyCode, error)
+    }
+  }))
+}
+
+const parseDivisionFromAddress = (address: string) => {
+  const text = String(address || '').trim()
+  if (!text) return null
+  const provinceMatch = text.match(/([^省]+省|[^自治区]+自治区|[^特别行政区]+特别行政区)/)
+  const cityMatch = text.match(/([^市]+市|[^州]+州|[^地区]+地区|[^盟]+盟)/)
+  const countyMatch = text.match(/([^县]+县|[^区]+区|[^市]+市|[^旗]+旗)/)
+  const townshipMatch = text.match(/([^镇]+镇|[^乡]+乡|[^街道]+街道|[^苏木]+苏木)/)
+  return {
+    province: provinceMatch?.[1] || '',
+    city: cityMatch?.[1] || '',
+    county: countyMatch?.[1] || '',
+    township: townshipMatch?.[1] || ''
+  }
+}
+
+const formatYesNo = (value: any) => {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (normalized === '是' || normalized === 'yes' || normalized === 'true' || normalized === '1') return '是'
+  if (normalized === '否' || normalized === 'no' || normalized === 'false' || normalized === '0' || normalized === '2') return '否'
+  return value || '-'
+}
+
+const MEDICAL_INSTITUTION_TYPE_LARGE_MAP: Record<string, string> = {
+  '1': '医院',
+  '2': '基层医疗机构',
+  '3': '专业公共卫生机构'
+}
+
+const MEDICAL_HOSPITAL_LEVEL_GRADE_MAP: Record<string, string> = {
+  '5': '特等',
+  '6': '甲等',
+  '7': '乙等',
+  '8': '丙等',
+  '9': '未定等'
+}
+
+const MEDICAL_HOSPITAL_LEVEL_CLASS_MAP: Record<string, string> = {
+  '1': '三级',
+  '2': '二级',
+  '3': '一级',
+  '4': '未定级'
+}
+
+const formatMedicalInstitutionTypeLarge = (value: any) => {
+  const raw = String(value ?? '').trim()
+  if (!raw) return '-'
+  return MEDICAL_INSTITUTION_TYPE_LARGE_MAP[raw] || raw
+}
+
+const formatMedicalHospitalLevel = (value: any) => {
+  const raw = String(value ?? '').trim()
+  if (!raw) return '-'
+  if (raw.includes(';')) return raw
+  const parts = raw.split(',').map((item: string) => item.trim()).filter(Boolean)
+  if (parts.length !== 2) return raw
+  const [first, second] = parts
+  const firstAsGrade = MEDICAL_HOSPITAL_LEVEL_GRADE_MAP[first]
+  const secondAsClass = MEDICAL_HOSPITAL_LEVEL_CLASS_MAP[second]
+  if (firstAsGrade && secondAsClass) return `${firstAsGrade};${secondAsClass}`
+  const firstAsClass = MEDICAL_HOSPITAL_LEVEL_CLASS_MAP[first]
+  const secondAsGrade = MEDICAL_HOSPITAL_LEVEL_GRADE_MAP[second]
+  if (firstAsClass && secondAsGrade) return `${secondAsGrade};${firstAsClass}`
+  return raw
+}
+
+const getImportResultPayload = (response: any) => {
+  if (!response || typeof response !== 'object') return response
+
+  if (Object.prototype.hasOwnProperty.call(response, 'success')) {
+    return response
+  }
+
+  if (response.data && typeof response.data === 'object') {
+    if (Object.prototype.hasOwnProperty.call(response.data, 'success')) {
+      return response.data
+    }
+    if (response.data.data && typeof response.data.data === 'object' && Object.prototype.hasOwnProperty.call(response.data.data, 'success')) {
+      return response.data.data
+    }
+  }
+
+  return response
+}
+
+const isOperationSuccess = (payload: any) => {
+  if (payload === true) return true
+  if (!payload || typeof payload !== 'object') return false
+  if (payload.success === true) return true
+  if (payload.code === 200 || payload.code === '200' || payload.code === 0 || payload.code === '0') return true
+  if (payload.data === true) return true
+  return false
+}
+
+const isRequestTimeoutError = (error: any) => {
+  const code = String(error?.code || '')
+  const message = String(error?.message || '')
+  return code === 'ECONNABORTED' || /timeout/i.test(message)
 }
 
 // 格式化数字，保留4位小数
@@ -1028,6 +1329,7 @@ const getDataList = async () => {
 
     if (response.success) {
       tableData.value = allData
+      await preloadOrgCodeNameMap(tableData.value)
       // 如果下拉选项还未加载成功，基于现有表格构建一个临时选项集
       if (!regionSelectOptions.value?.length && tableData.value?.length && dataType.value !== 'medical') {
         const uniq = new Map<string, string>()
@@ -1172,6 +1474,7 @@ const handleSearch = async () => {
       }
 
       tableData.value = allData
+      await preloadOrgCodeNameMap(tableData.value)
       // 对于非分页的搜索结果，更新 total
       if (dataType.value !== 'township' || searchForm.keyword || searchForm.selectedRegion) {
         pagination.total = tableData.value.length
@@ -1531,9 +1834,9 @@ const handleFileChange = (file: any) => {
   uploadFile.value = file.raw
 }
 
-// 获取接受的文件类型（仅2024年支持.gpkg）
+// 获取接受的文件类型（2024、2025年支持.gpkg）
 const getFileAcceptTypes = () => {
-  if (searchForm.year === 2024) {
+  if (searchForm.year === 2024 || searchForm.year === 2025) {
     return '.xlsx,.xls,.csv,.gpkg'
   }
   return '.xlsx,.xls,.csv'
@@ -1541,8 +1844,8 @@ const getFileAcceptTypes = () => {
 
 // 获取文件上传提示
 const getFileUploadTip = () => {
-  if (searchForm.year === 2024) {
-    return '支持 xlsx/xls/csv/gpkg 格式文件，文件大小不超过 10MB（注：.gpkg文件仅2024年可用）'
+  if (searchForm.year === 2024 || searchForm.year === 2025) {
+    return '支持 xlsx/xls/csv/gpkg 格式文件，文件大小不超过 10MB（注：.gpkg文件仅2024、2025年可用）'
   }
   return '支持 xlsx/xls/csv 格式文件，文件大小不超过 10MB'
 }
@@ -1558,9 +1861,9 @@ const beforeUpload = (file: File) => {
 
   // 检查是否为GPKG文件
   if (isGpkgFile(file)) {
-    // GPKG文件仅2024年可用
-    if (searchForm.year !== 2024) {
-      ElMessage.error('.gpkg文件仅支持2024年数据导入')
+    // GPKG文件仅2024、2025年可用
+    if (searchForm.year !== 2024 && searchForm.year !== 2025) {
+      ElMessage.error('.gpkg文件仅支持2024、2025年数据导入')
       return false
     }
     if (!isLt10M) {
@@ -1627,11 +1930,11 @@ const handleGpkgImport = async () => {
 
     let validateResponse
     if (dataType.value === 'township') {
-      validateResponse = await surveyDataApi.validateGpkg(file)
+      validateResponse = await surveyDataApi.validateGpkg(file, searchForm.year)
     } else if (dataType.value === 'community') {
-      validateResponse = await communityCapacityApi.validateGpkg(file)
+      validateResponse = await communityCapacityApi.validateGpkg(file, searchForm.year)
     } else if (dataType.value === 'medical') {
-      validateResponse = await medicalInstitutionApi.validateGpkg(file)
+      validateResponse = await medicalInstitutionApi.validateGpkg(file, searchForm.year)
     }
 
     ElMessage.closeAll()
@@ -1695,12 +1998,15 @@ const handleGpkgImport = async () => {
 
     ElMessage.closeAll()
 
-    if (response.success) {
-      ElMessage.success(response.message || '导入成功')
+    const importResult = getImportResultPayload(response)
+    if (isOperationSuccess(importResult) || isOperationSuccess(response)) {
+      ElMessage.success(importResult?.message || response?.message || '导入成功')
       dialogVisible.import = false
-      getDataList()
+      uploadFile.value = null
+      uploadRef.value?.clearFiles()
+      await getDataList()
     } else {
-      ElMessage.error(response.message || '导入失败')
+      ElMessage.error(importResult?.message || response?.message || '导入失败')
     }
   } catch (error) {
     ElMessage.closeAll()
@@ -1769,11 +2075,12 @@ const handleExcelImport = async () => {
       response = await medicalInstitutionApi.importData(file, searchForm.year)
     }
 
-    if (response.success) {
-      if (response.warnings && response.warnings.length > 0) {
-        const warningTitle = `导入完成！共处理${response.totalCount || 0}条数据，新增${response.insertCount || 0}条，更新${response.updateCount || 0}条。\n\n以下数据的机构地址未能完整解析省市区街道社区信息：`
-        const warningMessage = response.warnings.slice(0, 10).join('\n') +
-          (response.warnings.length > 10 ? `\n... 等 ${response.warnings.length} 条警告` : '')
+    const importResult = getImportResultPayload(response)
+    if (isOperationSuccess(importResult) || isOperationSuccess(response)) {
+      if (importResult.warnings && importResult.warnings.length > 0) {
+        const warningTitle = `导入完成！共处理${importResult.totalCount || 0}条数据，新增${importResult.insertCount || 0}条，更新${importResult.updateCount || 0}条。\n\n以下数据的机构地址未能完整解析省市区街道社区信息：`
+        const warningMessage = importResult.warnings.slice(0, 10).join('\n') +
+          (importResult.warnings.length > 10 ? `\n... 等 ${importResult.warnings.length} 条警告` : '')
 
         ElMessageBox.alert(warningMessage, warningTitle, {
           confirmButtonText: '确定',
@@ -1781,16 +2088,15 @@ const handleExcelImport = async () => {
           dangerouslyUseHTMLString: false
         })
       } else {
-        ElMessage.success(response.message || '导入成功')
+        ElMessage.success(importResult.message || '导入成功')
       }
       dialogVisible.import = false
       getDataList()
     } else {
-      // 导入失败，检查是否有错误详情
-      if (response.errors && response.errors.length > 0) {
+      if (importResult?.errors && importResult.errors.length > 0) {
         const errorTitle = '导入失败：地址验证未通过\n\n请确保以下信息在组织机构管理中已维护：'
-        const errorMessage = response.errors.slice(0, 10).join('\n') +
-          (response.errors.length > 10 ? `\n... 等 ${response.errors.length} 条错误` : '')
+        const errorMessage = importResult.errors.slice(0, 10).join('\n') +
+          (importResult.errors.length > 10 ? `\n... 等 ${importResult.errors.length} 条错误` : '')
 
         ElMessageBox.alert(errorMessage, errorTitle, {
           confirmButtonText: '确定',
@@ -1798,12 +2104,14 @@ const handleExcelImport = async () => {
           dangerouslyUseHTMLString: false
         })
       } else {
-        ElMessage.error(response.message || '导入失败')
+        ElMessage.error(importResult?.message || '导入失败')
       }
     }
   } catch (error) {
     console.error('导入失败:', error)
-    ElMessage.error('导入失败')
+    if (!isRequestTimeoutError(error)) {
+      ElMessage.error('导入失败')
+    }
   } finally {
     loading.import = false
   }
@@ -1814,8 +2122,11 @@ const downloadTemplate = async () => {
   try {
     const response = await medicalInstitutionApi.downloadTemplate()
 
+    // 从响应中获取数据
+    const blobData = response.data || response
+
     // 创建blob对象
-    const blob = new Blob([response], {
+    const blob = new Blob([blobData], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     })
 
@@ -1859,8 +2170,11 @@ const exportData = async () => {
     let fileName
 
     if (dataType.value === 'medical') {
-      // 医疗卫生机构数据导出 - 直接返回blob
-      blob = response
+      // 医疗卫生机构数据导出 - 返回 {data, headers} 格式
+      const blobData = response.data || response
+      blob = blobData instanceof Blob ? blobData : new Blob([blobData], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
       fileName = `医疗卫生机构数据_${searchForm.year || new Date().getFullYear()}_${new Date().toISOString().slice(0, 10)}.xlsx`
     } else {
       // 其他类型数据导出 - 需要处理响应格式

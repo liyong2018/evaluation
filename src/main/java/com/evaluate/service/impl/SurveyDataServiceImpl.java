@@ -141,37 +141,34 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             int successCount = 0;
             int updateCount = 0;
             int insertCount = 0;
+            Map<String, Long> existingIdMap = loadExistingSurveyIdMap(dataList);
 
             for (int i = 0; i < dataList.size(); i++) {
                 SurveyData data = dataList.get(i);
                 try {
                     log.debug("处理第{}条数据，地区代码：{}，年份：{}", i+1, data.getRegionCode(), data.getYear());
+                    String uniqueYearKey = buildSurveyUniqueYearKey(data.getRegionCode(), data.getYear());
+                    Long existingId = uniqueYearKey == null ? null : existingIdMap.get(uniqueYearKey);
 
-                    // 根据地区代码和年份查找现有记录
-                    QueryWrapper<SurveyData> queryWrapper = new QueryWrapper<>();
-                    queryWrapper.eq("region_code", data.getRegionCode())
-                               .eq("year", data.getYear());
-
-                    SurveyData existingData = getOne(queryWrapper);
-
-                    if (existingData != null) {
-                        // 记录已存在，更新现有记录
-                        log.debug("更新现有记录，ID：{}，地区代码：{}，年份：{}", existingData.getId(), data.getRegionCode(), data.getYear());
-                        data.setId(existingData.getId()); // 保持原有的ID
+                    if (existingId != null) {
+                        log.debug("更新现有记录，ID：{}，地区代码：{}，年份：{}", existingId, data.getRegionCode(), data.getYear());
+                        data.setId(existingId);
                         boolean updateResult = updateById(data);
                         if (updateResult) {
                             organizationService.syncFromSurveyData(data);
                             updateCount++;
                             successCount++;
                         } else {
-                            log.error("更新记录失败，ID：{}，地区代码：{}，年份：{}", existingData.getId(), data.getRegionCode(), data.getYear());
+                            log.error("更新记录失败，ID：{}，地区代码：{}，年份：{}", existingId, data.getRegionCode(), data.getYear());
                         }
                     } else {
-                        // 记录不存在，插入新记录（ID为null，会自动生成）
                         log.debug("插入新记录，地区代码：{}，年份：{}", data.getRegionCode(), data.getYear());
                         data.setId(null);
                         boolean saveResult = save(data);
                         if (saveResult) {
+                            if (uniqueYearKey != null && data.getId() != null) {
+                                existingIdMap.put(uniqueYearKey, data.getId());
+                            }
                             organizationService.syncFromSurveyData(data);
                             insertCount++;
                             successCount++;
@@ -191,6 +188,55 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             log.error("智能批量保存数据失败", e);
             throw e;
         }
+    }
+
+    private String buildSurveyUniqueYearKey(String regionCode, Integer year) {
+        if (!StringUtils.hasText(regionCode) || year == null) {
+            return null;
+        }
+        return regionCode.trim() + "|" + year;
+    }
+
+    private Map<String, Long> loadExistingSurveyIdMap(List<SurveyData> dataList) {
+        Map<String, Long> existingIdMap = new HashMap<>();
+        Set<String> regionCodes = new HashSet<>();
+        Set<Integer> years = new HashSet<>();
+
+        for (SurveyData item : dataList) {
+            if (item == null) {
+                continue;
+            }
+            if (StringUtils.hasText(item.getRegionCode())) {
+                regionCodes.add(item.getRegionCode().trim());
+            }
+            if (item.getYear() != null) {
+                years.add(item.getYear());
+            }
+        }
+
+        if (regionCodes.isEmpty() || years.isEmpty()) {
+            return existingIdMap;
+        }
+
+        List<String> allRegionCodes = new ArrayList<>(regionCodes);
+        int batchSize = 1000;
+        for (int start = 0; start < allRegionCodes.size(); start += batchSize) {
+            int end = Math.min(start + batchSize, allRegionCodes.size());
+            List<String> regionCodeBatch = allRegionCodes.subList(start, end);
+            QueryWrapper<SurveyData> wrapper = new QueryWrapper<>();
+            wrapper.select("id", "region_code", "year");
+            wrapper.in("region_code", regionCodeBatch);
+            wrapper.in("year", years);
+            List<SurveyData> existingList = list(wrapper);
+            for (SurveyData existing : existingList) {
+                String key = buildSurveyUniqueYearKey(existing.getRegionCode(), existing.getYear());
+                if (key != null && existing.getId() != null) {
+                    existingIdMap.put(key, existing.getId());
+                }
+            }
+        }
+
+        return existingIdMap;
     }
 
     @Override
@@ -220,26 +266,32 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
 
         log.info("开始导入调查数据，文件名：{}，年份：{}，orgCode：{}", file.getOriginalFilename(), year, orgCode);
 
-        try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             log.info("Excel文件共{}行数据", sheet.getLastRowNum() + 1);
+            Map<String, Integer> columnIndexMap = buildExcelColumnIndexMap(sheet);
+            boolean isCodeHeaderExcel = columnIndexMap.containsKey("dwmc")
+                    && columnIndexMap.containsKey("address")
+                    && (columnIndexMap.containsKey("jgdmry") || columnIndexMap.containsKey("code"));
 
             List<SurveyData> dataList = new ArrayList<>();
             int validRowCount = 0;
             int emptyRowCount = 0;
 
-            // 跳过前两行表头，从第三行开始读取
-            for (int i = 2; i <= sheet.getLastRowNum(); i++) {
+            int startRow = isCodeHeaderExcel ? 1 : 2;
+            for (int i = startRow; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) {
                     emptyRowCount++;
                     continue;
                 }
+                if (isCodeHeaderExcel && isLikelyTownshipDescriptionRow(row, columnIndexMap)) {
+                    continue;
+                }
 
                 try {
-                    SurveyData data = parseRowToSurveyData(row, year, i);
+                    SurveyData data = parseRowToSurveyData(row, year, i, isCodeHeaderExcel, columnIndexMap);
                     if (data != null) {
-                        // 设置年份
                         data.setYear(year);
                         dataList.add(data);
                         validRowCount++;
@@ -287,7 +339,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
      * 包含所有字段：唯一码和核实状态也会被处理
      */
     private SurveyData parseRowToSurveyData(Row row, Integer year) {
-        return parseRowToSurveyData(row, year, -1);  // -1 表示未知行号
+        return parseRowToSurveyData(row, year, -1, false, Collections.emptyMap());
     }
 
     /**
@@ -295,8 +347,87 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
      * 包含所有字段：唯一码和核实状态也会被处理
      */
     private SurveyData parseRowToSurveyData(Row row, Integer year, int rowNumber) {
+        return parseRowToSurveyData(row, year, rowNumber, false, Collections.emptyMap());
+    }
+
+    private SurveyData parseRowToSurveyData(Row row, Integer year, int rowNumber, boolean isCodeHeaderExcel, Map<String, Integer> columnIndexMap) {
         try {
             SurveyData data = new SurveyData();
+            if (isCodeHeaderExcel) {
+                data.setUniqueId(firstNonBlank(
+                        getCellValueByColumnName(row, columnIndexMap, "id"),
+                        getCellValueByColumnName(row, columnIndexMap, "fxpc_datai")
+                ));
+                data.setVerificationStatus(firstNonBlank(
+                        getCellValueByColumnName(row, columnIndexMap, "verification_status"),
+                        getCellValueByColumnName(row, columnIndexMap, "fxpc_sjzt_")
+                ));
+                data.setTownship(firstNonBlank(
+                        getCellValueByColumnName(row, columnIndexMap, "dwmc"),
+                        getCellValueByColumnName(row, columnIndexMap, "dzxiang")
+                ));
+                String townshipAddress = getCellValueByColumnName(row, columnIndexMap, "address");
+                data.setTownshipAddress(townshipAddress);
+                parseAddressToProvinceCityCounty(data, townshipAddress);
+
+                String regionCode = firstNonBlank(
+                        getCellValueByColumnName(row, columnIndexMap, "jgdmry"),
+                        getCellValueByColumnName(row, columnIndexMap, "code")
+                );
+                data.setRegionCode(regionCode);
+                data.setTotalHouseholds(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "zhs")));
+                data.setPopulation(getCellNumericValue(getCellByColumnName(row, columnIndexMap, "nmczrksl")));
+                data.setMainDisasterTypes(normalizeListText(getCellValueByColumnName(row, columnIndexMap, "yxxzjddzy1")));
+                data.setDisasterTypesOther(getCellValueByColumnName(row, columnIndexMap, "yxxzjddzy2"));
+                data.setManagementStaff(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "bjzhglgzry")));
+                data.setDisasterInfoStaff(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "bjzhxxyrs")));
+                data.setRiskAssessment(normalizeYesNo(getCellValueByColumnName(row, columnIndexMap, "sfkzxzjdz1")));
+                data.setHasDisasterMap(normalizeYesNo(getCellValueByColumnName(row, columnIndexMap, "sfyxzjdzhl")));
+                data.setWarningReceiveMethod(normalizeListText(getCellValueByColumnName(row, columnIndexMap, "zhyjxxjsf1")));
+                data.setWarningReceiveMethodOther(getCellValueByColumnName(row, columnIndexMap, "zhyjxxjsf2"));
+                data.setWarningCommunicationMethod(normalizeListText(getCellValueByColumnName(row, columnIndexMap, "zhyjxxcdf1")));
+                data.setWarningCommunicationMethodOther(getCellValueByColumnName(row, columnIndexMap, "zhyjxxcdf2"));
+                data.setDisasterReportMethod(normalizeListText(getCellValueByColumnName(row, columnIndexMap, "zqxxsbfs")));
+                data.setDisasterReportMethodOther(getCellValueByColumnName(row, columnIndexMap, "zqxxsbfs_q"));
+                data.setEmergencyPlanCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "j3nbzhxdzr")));
+                data.setEmergencyResponseCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "j3nzdzrzhq")));
+                data.setTrainingDrillCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "syndzzdyj1")));
+                data.setTrainingParticipants(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "syndzzdyj2")));
+                data.setFundingSupportMethod(normalizeListText(getCellValueByColumnName(row, columnIndexMap, "xzjdzhjzg1")));
+                data.setFundingSupportMethodOther(getCellValueByColumnName(row, columnIndexMap, "xzjdzhjzg2"));
+                data.setFundingAmount(getCellBigDecimalValue(getCellByColumnName(row, columnIndexMap, "syndfzjzjz")));
+                data.setMaterialStorageMethod(normalizeListText(getCellValueByColumnName(row, columnIndexMap, "jzwzcbfs")));
+                data.setStoragePointCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "xyjzwzzbcb")));
+                data.setStorageEquipmentCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "xyjzwzzbsl")));
+                data.setEmergencyPowerCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "yjdyhyjfds")));
+                data.setEmergencyCommunicationCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "yjtxsbsl")));
+                data.setEmergencyWaterCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "yjgssbsl")));
+                data.setEmergencyMedicalCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "yjylsbsl")));
+                data.setMaterialValue(getCellBigDecimalValue(getCellByColumnName(row, columnIndexMap, "xycbwzzbzh")));
+                data.setShelterCount(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "bjzhyjbnc1")));
+                data.setShelterCapacity(getCellIntegerValue(getCellByColumnName(row, columnIndexMap, "bjzhyjbnc2")));
+                data.setUnitLeader(getCellValueByColumnName(row, columnIndexMap, "dwfzr"));
+                data.setStatisticsLeader(getCellValueByColumnName(row, columnIndexMap, "tjfzr"));
+                data.setFormFiller(getCellValueByColumnName(row, columnIndexMap, "tbr"));
+                data.setContactPhone(getCellValueByColumnName(row, columnIndexMap, "lxdh"));
+                data.setReportDate(getDateValue(getCellValueByColumnName(row, columnIndexMap, "tbrq")));
+                data.setFillInstructions(getCellValueByColumnName(row, columnIndexMap, "fxpc_dcdxb"));
+
+                String province = getCellValueByColumnName(row, columnIndexMap, "dzsheng");
+                String city = getCellValueByColumnName(row, columnIndexMap, "dzshi");
+                String county = getCellValueByColumnName(row, columnIndexMap, "dzxian");
+                String township = getCellValueByColumnName(row, columnIndexMap, "dzxiang");
+                if (StringUtils.hasText(province)) data.setProvince(province.trim());
+                if (StringUtils.hasText(city)) data.setCity(city.trim());
+                if (StringUtils.hasText(county)) data.setCounty(county.trim());
+                if (!StringUtils.hasText(data.getTownship()) && StringUtils.hasText(township)) data.setTownship(township.trim());
+
+                if (isTownshipRowEmpty(data)) {
+                    return null;
+                }
+                setEnhancedDataFromConfig(data, year);
+                return data;
+            }
 
             // 第0列：唯一码
             data.setUniqueId(getCellStringValue(row.getCell(0)));
@@ -482,10 +613,10 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                     if (reportDateCell.getCellType() == CellType.STRING) {
                         String dateStr = reportDateCell.getStringCellValue();
                         if (StringUtils.hasText(dateStr)) {
-                            data.setReportDate(LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("yyyy/MM/dd")));
+                            data.setReportDate(getDateValue(dateStr));
                         }
                     } else if (reportDateCell.getCellType() == CellType.NUMERIC) {
-                        data.setReportDate(reportDateCell.getLocalDateTimeCellValue().toLocalDate());
+                        data.setReportDate(getDateValue(reportDateCell.getDateCellValue()));
                     }
                 } catch (Exception e) {
                     log.warn("解析报出日期失败: {}", e.getMessage());
@@ -508,6 +639,140 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             log.error("解析Excel行数据失败", e);
             return null;
         }
+    }
+
+    private boolean isTownshipRowEmpty(SurveyData data) {
+        return !StringUtils.hasText(data.getUniqueId())
+                && !StringUtils.hasText(data.getTownship())
+                && !StringUtils.hasText(data.getTownshipAddress())
+                && !StringUtils.hasText(data.getRegionCode());
+    }
+
+    private boolean isLikelyTownshipDescriptionRow(Row row, Map<String, Integer> columnIndexMap) {
+        String idDesc = getCellValueByColumnName(row, columnIndexMap, "id");
+        String townshipDesc = getCellValueByColumnName(row, columnIndexMap, "dwmc");
+        String addressDesc = getCellValueByColumnName(row, columnIndexMap, "address");
+        String idText = idDesc == null ? "" : idDesc.trim();
+        String townshipText = townshipDesc == null ? "" : townshipDesc.trim();
+        String addressText = addressDesc == null ? "" : addressDesc.trim();
+        return idText.contains("唯一标识")
+                || townshipText.contains("乡镇（街道）名称")
+                || addressText.contains("乡镇（街道）地址");
+    }
+
+    private String normalizeYesNo(String value) {
+        String normalized = normalizeListText(value);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        String text = normalized.trim();
+        return text.equals("是") || text.equalsIgnoreCase("yes")
+                || text.equals("1") || text.equalsIgnoreCase("true") ? "是" : "否";
+    }
+
+    private String normalizeListText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String text = value.trim();
+        if (text.startsWith("[") && text.endsWith("]")) {
+            text = text.substring(1, text.length() - 1).trim();
+        }
+        text = text.replace("\"", "").replace("'", "").trim();
+        if (text.contains(",")) {
+            String[] parts = text.split(",");
+            List<String> normalized = new ArrayList<>();
+            for (String part : parts) {
+                if (StringUtils.hasText(part)) {
+                    normalized.add(part.trim());
+                }
+            }
+            if (!normalized.isEmpty()) {
+                return String.join(";", normalized);
+            }
+        }
+        return text;
+    }
+
+    private LocalDate getDateValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDate) {
+            return (LocalDate) value;
+        }
+        if (value instanceof java.util.Date) {
+            return ((java.util.Date) value).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        }
+        String str = String.valueOf(value).trim();
+        if (!StringUtils.hasText(str)) {
+            return null;
+        }
+        try {
+            String normalized = str;
+            if (normalized.matches("\\d{4}/\\d{2}/\\d{2}")) {
+                normalized = normalized.replace('/', '-');
+            }
+            if (normalized.matches("\\d{4}-\\d{2}-\\d{2}\\s+.*")) {
+                normalized = normalized.split("\\s+")[0];
+            }
+            if (normalized.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                return LocalDate.parse(normalized);
+            }
+            DateTimeFormatter englishDateTimeFormatter =
+                    DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss zzz yyyy", Locale.ENGLISH);
+            return java.time.ZonedDateTime.parse(str, englishDateTimeFormatter).toLocalDate();
+        } catch (Exception e) {
+            log.warn("解析报出日期失败: {}", str);
+            return null;
+        }
+    }
+
+    private String getCellValueByColumnName(Row row, Map<String, Integer> columnIndexMap, String columnName) {
+        Integer colIndex = columnIndexMap.get(columnName);
+        if (colIndex == null) {
+            return null;
+        }
+        String value = getCellStringValue(row.getCell(colIndex));
+        return value == null ? null : value.trim();
+    }
+
+    private Cell getCellByColumnName(Row row, Map<String, Integer> columnIndexMap, String columnName) {
+        Integer colIndex = columnIndexMap.get(columnName);
+        if (colIndex == null) {
+            return null;
+        }
+        return row.getCell(colIndex);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null || values.length == 0) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private Map<String, Integer> buildExcelColumnIndexMap(Sheet sheet) {
+        Map<String, Integer> columnIndexMap = new HashMap<>();
+        Row headerRow = sheet.getRow(0);
+        if (headerRow == null) {
+            return columnIndexMap;
+        }
+        for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+            Cell cell = headerRow.getCell(i);
+            if (cell != null) {
+                String columnName = getCellStringValue(cell);
+                if (StringUtils.hasText(columnName)) {
+                    columnIndexMap.put(columnName.trim().toLowerCase(), i);
+                }
+            }
+        }
+        return columnIndexMap;
     }
 
     /**
@@ -1347,8 +1612,8 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
     }
 
     @Override
-    public GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType) {
-        return GpkgUtil.validateGpkgFields(file, dataType);
+    public GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType, Integer year) {
+        return GpkgUtil.validateGpkgFields(file, dataType, year);
     }
 
     @Override
@@ -1392,8 +1657,8 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                 FeatureSource<SimpleFeatureType, SimpleFeature> featureSource =
                         dataStore.getFeatureSource(layerName);
 
-                // 获取字段映射
-                Map<String, String> fieldMapping = GpkgUtil.getFieldMapping("township");
+                // 获取字段映射（根据年份选择不同的 GPKG 字段映射）
+                Map<String, String> fieldMapping = GpkgUtil.getFieldMapping("township", year);
 
                 // 读取所有要素
                 Query query = new Query(layerName);
