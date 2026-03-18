@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -87,6 +88,133 @@ public class OrganizationSqlUtil {
     @Deprecated
     public SqlScriptResult generate2024TownshipChangeSql(String geojsonPath, Integer year) throws IOException {
         return generateTownshipChangeSql(geojsonPath, year);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public BaselineSyncResult syncOrganizationBaselineFromGrassroots(Integer baselineYear, Boolean updateCode) {
+        int year = baselineYear == null ? BASELINE_YEAR : baselineYear;
+        boolean syncCode = updateCode == null || updateCode;
+        BaselineSyncResult result = new BaselineSyncResult();
+
+        QueryWrapper<GrassrootsOrganization> grassrootsQuery = new QueryWrapper<>();
+        grassrootsQuery.eq("year", year);
+        grassrootsQuery.eq("level", LEVEL_TOWNSHIP);
+        grassrootsQuery.eq("is_deleted", 0);
+        List<GrassrootsOrganization> townshipList = grassrootsOrganizationMapper.selectList(grassrootsQuery);
+        if (townshipList == null || townshipList.isEmpty()) {
+            result.setScannedGrassrootsCount(0);
+            return result;
+        }
+        result.setScannedGrassrootsCount(townshipList.size());
+
+        Map<String, ExpectedAdminRecord> expectedByCode = new LinkedHashMap<>();
+        for (GrassrootsOrganization item : townshipList) {
+            String code = normalize(item.getCode());
+            if (!StringUtils.hasText(code) || code.length() < 6) {
+                continue;
+            }
+            upsertExpected(expectedByCode, code.substring(0, 2), item.getProvinceName(), 1, null, result);
+            upsertExpected(expectedByCode, code.substring(0, 4), item.getCityName(), 2, code.substring(0, 2), result);
+            upsertExpected(expectedByCode, code.substring(0, 6), item.getCountyName(), 3, code.substring(0, 4), result);
+        }
+
+        QueryWrapper<Organization> orgQuery = new QueryWrapper<>();
+        orgQuery.eq("year", year);
+        orgQuery.in("level", Arrays.asList(1, 2, 3));
+        orgQuery.eq("is_deleted", 0);
+        List<Organization> organizations = organizationMapper.selectList(orgQuery);
+        result.setScannedOrganizationCount(organizations == null ? 0 : organizations.size());
+        if (organizations == null || organizations.isEmpty()) {
+            return result;
+        }
+
+        Map<String, Organization> orgByCode = new HashMap<>();
+        Map<String, List<Organization>> orgByLevelAndName = new HashMap<>();
+        for (Organization org : organizations) {
+            if (org == null || !StringUtils.hasText(org.getCode())) {
+                continue;
+            }
+            String orgCode = normalize(org.getCode());
+            orgByCode.put(orgCode, org);
+            String orgName = normalize(org.getName());
+            if (StringUtils.hasText(orgName)) {
+                orgByLevelAndName.computeIfAbsent(buildNameKey(org.getLevel(), orgName), k -> new ArrayList<>()).add(org);
+            }
+        }
+
+        List<ExpectedAdminRecord> expectedRecords = new ArrayList<>(expectedByCode.values());
+        expectedRecords.sort(Comparator.comparingInt(ExpectedAdminRecord::getLevel));
+
+        for (ExpectedAdminRecord expected : expectedRecords) {
+            if (expected == null || !StringUtils.hasText(expected.getCode()) || !StringUtils.hasText(expected.getName())) {
+                continue;
+            }
+            String expectedCode = expected.getCode();
+            Organization target = orgByCode.get(expectedCode);
+            if (target == null && syncCode) {
+                List<Organization> sameNameList = orgByLevelAndName.getOrDefault(buildNameKey(expected.getLevel(), expected.getName()), Collections.emptyList());
+                if (sameNameList.size() == 1) {
+                    Organization candidate = sameNameList.get(0);
+                    if (candidate != null && !expectedCode.equals(normalize(candidate.getCode())) && !orgByCode.containsKey(expectedCode)) {
+                        String oldCode = normalize(candidate.getCode());
+                        candidate.setCode(expectedCode);
+                        if (StringUtils.hasText(candidate.getBaselineCode())) {
+                            candidate.setBaselineCode(expectedCode);
+                        }
+                        target = candidate;
+                        orgByCode.remove(oldCode);
+                        orgByCode.put(expectedCode, candidate);
+                        result.setCodeChangedCount(result.getCodeChangedCount() + 1);
+                    }
+                }
+            }
+            if (target == null) {
+                result.setMissingInOrganizationCount(result.getMissingInOrganizationCount() + 1);
+                continue;
+            }
+
+            boolean changed = false;
+            if (!Objects.equals(normalize(target.getName()), expected.getName())) {
+                target.setName(expected.getName());
+                changed = true;
+            }
+            Long expectedParentId = null;
+            if (StringUtils.hasText(expected.getParentCode())) {
+                Organization parent = orgByCode.get(expected.getParentCode());
+                if (parent != null) {
+                    expectedParentId = parent.getId();
+                }
+            }
+            if (!Objects.equals(target.getParentId(), expectedParentId)) {
+                target.setParentId(expectedParentId);
+                changed = true;
+            }
+
+            String expectedProvince = expected.getLevel() == 1 ? expected.getName() : getNameByCode(expectedByCode, expected.getCode().substring(0, 2));
+            String expectedCity = expected.getLevel() <= 1 ? null : (expected.getLevel() == 2 ? expected.getName() : getNameByCode(expectedByCode, expected.getCode().substring(0, 4)));
+            String expectedCounty = expected.getLevel() <= 2 ? null : expected.getName();
+            if (!Objects.equals(normalize(target.getProvinceName()), normalize(expectedProvince))) {
+                target.setProvinceName(expectedProvince);
+                changed = true;
+            }
+            if (!Objects.equals(normalize(target.getCityName()), normalize(expectedCity))) {
+                target.setCityName(expectedCity);
+                changed = true;
+            }
+            if (!Objects.equals(normalize(target.getCountyName()), normalize(expectedCounty))) {
+                target.setCountyName(expectedCounty);
+                changed = true;
+            }
+
+            if (changed) {
+                organizationMapper.updateById(target);
+                result.setUpdatedCount(result.getUpdatedCount() + 1);
+            } else {
+                result.setUnchangedCount(result.getUnchangedCount() + 1);
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -469,6 +597,51 @@ public class OrganizationSqlUtil {
         return str.replace("'", "''");
     }
 
+    private void upsertExpected(Map<String, ExpectedAdminRecord> expectedByCode,
+                                String code,
+                                String name,
+                                int level,
+                                String parentCode,
+                                BaselineSyncResult result) {
+        String normalizedCode = normalize(code);
+        String normalizedName = normalize(name);
+        if (!StringUtils.hasText(normalizedCode) || !StringUtils.hasText(normalizedName)) {
+            return;
+        }
+        ExpectedAdminRecord existed = expectedByCode.get(normalizedCode);
+        if (existed == null) {
+            ExpectedAdminRecord record = new ExpectedAdminRecord();
+            record.setCode(normalizedCode);
+            record.setName(normalizedName);
+            record.setLevel(level);
+            record.setParentCode(normalize(parentCode));
+            expectedByCode.put(normalizedCode, record);
+            return;
+        }
+        if (!Objects.equals(existed.getName(), normalizedName)) {
+            result.setConflictCount(result.getConflictCount() + 1);
+        }
+        if (!StringUtils.hasText(existed.getParentCode()) && StringUtils.hasText(parentCode)) {
+            existed.setParentCode(normalize(parentCode));
+        }
+    }
+
+    private String getNameByCode(Map<String, ExpectedAdminRecord> expectedByCode, String code) {
+        if (!StringUtils.hasText(code)) {
+            return null;
+        }
+        ExpectedAdminRecord record = expectedByCode.get(code);
+        return record == null ? null : record.getName();
+    }
+
+    private String buildNameKey(Integer level, String name) {
+        return (level == null ? "0" : String.valueOf(level)) + "|" + normalize(name);
+    }
+
+    private String normalize(String value) {
+        return value == null ? null : value.trim();
+    }
+
     /**
      * 从 Map 中获取字符串值
      */
@@ -526,6 +699,31 @@ public class OrganizationSqlUtil {
 
         public String getSummary() {
             return String.format("新增：%d, 删除：%d, 变更：%d", addedCount, removedCount, changedCount);
+        }
+    }
+
+    @Data
+    public static class ExpectedAdminRecord {
+        private String code;
+        private String name;
+        private Integer level;
+        private String parentCode;
+    }
+
+    @Data
+    public static class BaselineSyncResult {
+        private int scannedGrassrootsCount;
+        private int scannedOrganizationCount;
+        private int updatedCount;
+        private int unchangedCount;
+        private int codeChangedCount;
+        private int missingInOrganizationCount;
+        private int conflictCount;
+
+        public String getSummary() {
+            return String.format("扫描grassroots=%d, 扫描organization=%d, 更新=%d, 代码变更=%d, 未变更=%d, organization缺失=%d, 名称冲突=%d",
+                    scannedGrassrootsCount, scannedOrganizationCount, updatedCount, codeChangedCount, unchangedCount,
+                    missingInOrganizationCount, conflictCount);
         }
     }
 }

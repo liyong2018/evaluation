@@ -941,7 +941,8 @@ public class MedicalInstitutionController {
      * 检查GPKG文件是否包含医疗卫生机构数据所需的必要字段
      */
     @PostMapping("/validate-gpkg")
-    public Map<String, Object> validateGpkgFile(@RequestParam("file") MultipartFile file) {
+    public Map<String, Object> validateGpkgFile(@RequestParam("file") MultipartFile file,
+                                                 @RequestParam(value = "year", required = false) Integer year) {
         Map<String, Object> result = new HashMap<>();
 
         try {
@@ -952,7 +953,7 @@ public class MedicalInstitutionController {
                 return result;
             }
 
-            GpkgFieldValidationResult validationResult = medicalInstitutionService.validateGpkgFields(file, "medical");
+            GpkgFieldValidationResult validationResult = medicalInstitutionService.validateGpkgFields(file, "medical", year);
             result.put("success", true);
             result.put("data", validationResult);
             result.put("message", validationResult.getMessage());

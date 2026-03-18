@@ -938,7 +938,11 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
             // 从最近年份开始找第一个有效记录
             Organization selectedOrg = null;
+            Organization baselineOrg = null;
             for (Organization org : orgList) {
+                if (org.getIsBaseline() != null && org.getIsBaseline() == 1 && baselineOrg == null) {
+                    baselineOrg = org;
+                }
                 // 如果是删除标记，记录该code为已删除
                 if (org.getIsDeleted() != null && org.getIsDeleted() == 1) {
                     log.warn("组织机构 {} 在年份 {} 被标记为删除", code, org.getYear());
@@ -954,13 +958,133 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 break; // 只保留最近年份的记录
             }
 
+            if (selectedOrg != null
+                    && baselineOrg != null
+                    && (selectedOrg.getIsBaseline() == null || selectedOrg.getIsBaseline() == 0)
+                    && selectedOrg.getYear() != null
+                    && selectedOrg.getYear() > 2020
+                    && isSameAsBaselineOrganization(baselineOrg, selectedOrg)) {
+                selectedOrg = baselineOrg;
+            }
+
             if (selectedOrg != null) {
                 mergedMap.put(code, selectedOrg);
             }
         }
 
+        List<String> baselineCodesToRemove = new ArrayList<>();
+        for (Organization org : mergedMap.values()) {
+            if (org == null) {
+                continue;
+            }
+            if (org.getIsBaseline() != null && org.getIsBaseline() == 1) {
+                continue;
+            }
+            String baselineCode = normalizeText(org.getBaselineCode());
+            String currentCode = normalizeText(org.getCode());
+            if (!StringUtils.hasText(baselineCode) || !StringUtils.hasText(currentCode)) {
+                continue;
+            }
+            if (baselineCode.equals(currentCode)) {
+                continue;
+            }
+            Organization baseline = mergedMap.get(baselineCode);
+            if (baseline != null) {
+                if (org.getId() == null && baseline.getId() != null) {
+                    org.setId(baseline.getId());
+                }
+                if (org.getParentId() == null) {
+                    org.setParentId(baseline.getParentId());
+                }
+                if (org.getLevel() == null) {
+                    org.setLevel(baseline.getLevel());
+                }
+                baselineCodesToRemove.add(baselineCode);
+            }
+        }
+        for (String baselineCode : baselineCodesToRemove) {
+            mergedMap.remove(baselineCode);
+        }
+
         log.info("mergeOrganizationDataByYear: 合并后剩余 {} 条组织记录（目标年份: {}）", mergedMap.size(), targetYear);
         return new ArrayList<>(mergedMap.values());
+    }
+
+    private boolean isSameAsBaselineOrganization(Organization baseline, Organization latest) {
+        if (baseline == null || latest == null) {
+            return false;
+        }
+        return Objects.equals(normalizeText(baseline.getName()), normalizeText(latest.getName()))
+                && Objects.equals(normalizeText(baseline.getProvinceName()), normalizeText(latest.getProvinceName()))
+                && Objects.equals(normalizeText(baseline.getCityName()), normalizeText(latest.getCityName()))
+                && Objects.equals(normalizeText(baseline.getCountyName()), normalizeText(latest.getCountyName()))
+                && Objects.equals(normalizeText(baseline.getTownshipName()), normalizeText(latest.getTownshipName()))
+                && Objects.equals(normalizeText(baseline.getCommunityName()), normalizeText(latest.getCommunityName()))
+                && Objects.equals(baseline.getLevel(), latest.getLevel());
+    }
+
+    private boolean isSameAsBaselineGrassroots(GrassrootsOrganization baseline, GrassrootsOrganization latest) {
+        if (baseline == null || latest == null) {
+            return false;
+        }
+        return Objects.equals(normalizeText(baseline.getName()), normalizeText(latest.getName()))
+                && Objects.equals(normalizeText(baseline.getProvinceName()), normalizeText(latest.getProvinceName()))
+                && Objects.equals(normalizeText(baseline.getCityName()), normalizeText(latest.getCityName()))
+                && Objects.equals(normalizeText(baseline.getCountyName()), normalizeText(latest.getCountyName()))
+                && Objects.equals(normalizeText(baseline.getTownshipName()), normalizeText(latest.getTownshipName()))
+                && Objects.equals(normalizeText(baseline.getCommunityName()), normalizeText(latest.getCommunityName()))
+                && Objects.equals(baseline.getLevel(), latest.getLevel());
+    }
+
+    private boolean hasGrassrootsYearChangeForCounty(Long countyId, Integer requestedYear) {
+        if (countyId == null || requestedYear == null || requestedYear <= 2020) {
+            return false;
+        }
+
+        QueryWrapper<GrassrootsOrganization> yearQuery = new QueryWrapper<>();
+        yearQuery.eq("county_id", countyId);
+        yearQuery.eq("year", requestedYear);
+        yearQuery.and(w -> w.eq("is_baseline", 0).or().isNull("is_baseline"));
+        List<GrassrootsOrganization> yearRecords = grassrootsOrganizationMapper.selectList(yearQuery);
+        if (yearRecords == null || yearRecords.isEmpty()) {
+            return false;
+        }
+
+        QueryWrapper<GrassrootsOrganization> baselineQuery = new QueryWrapper<>();
+        baselineQuery.eq("county_id", countyId);
+        baselineQuery.eq("is_baseline", 1);
+        List<GrassrootsOrganization> baselineRecords = grassrootsOrganizationMapper.selectList(baselineQuery);
+        Map<String, GrassrootsOrganization> baselineByCode = new HashMap<>();
+        if (baselineRecords != null) {
+            for (GrassrootsOrganization baseline : baselineRecords) {
+                if (baseline != null && StringUtils.hasText(baseline.getCode())) {
+                    baselineByCode.put(baseline.getCode(), baseline);
+                }
+            }
+        }
+
+        for (GrassrootsOrganization yearRecord : yearRecords) {
+            if (yearRecord == null || !StringUtils.hasText(yearRecord.getCode())) {
+                continue;
+            }
+            if (yearRecord.getIsDeleted() != null && yearRecord.getIsDeleted() == 1) {
+                return true;
+            }
+            GrassrootsOrganization baseline = baselineByCode.get(yearRecord.getCode());
+            if (baseline == null && StringUtils.hasText(yearRecord.getBaselineCode())) {
+                baseline = baselineByCode.get(yearRecord.getBaselineCode());
+            }
+            if (baseline == null) {
+                return true;
+            }
+            if (!Objects.equals(normalizeText(baseline.getCode()), normalizeText(yearRecord.getCode()))) {
+                return true;
+            }
+            if (!isSameAsBaselineGrassroots(baseline, yearRecord)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1651,19 +1775,11 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             }
         }
 
-        // 对于区县节点（level=3），检查其下基层组织的最新年份
-        if (org.getLevel() != null && org.getLevel() == LEVEL_COUNTY) {
+        // 对于区县节点（level=3），仅在当年基层组织有真实变更时提升年份
+        if (org.getLevel() != null && org.getLevel() == LEVEL_COUNTY && year != null && year > 2020) {
             try {
-                List<GrassrootsOrganization> grassrootsList = grassrootsOrganizationMapper.selectList(
-                    new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<GrassrootsOrganization>()
-                        .eq("county_id", org.getId())
-                        .ge("year", 2021)
-                        .le("year", year != null ? year : 2026)
-                );
-                for (GrassrootsOrganization grassroots : grassrootsList) {
-                    if (grassroots.getYear() != null && grassroots.getYear() > sourceYear) {
-                        sourceYear = grassroots.getYear();
-                    }
+                if (hasGrassrootsYearChangeForCounty(org.getId(), year) && year > sourceYear) {
+                    sourceYear = year;
                 }
             } catch (Exception e) {
                 log.warn("查询区县{}下的基层组织年份失败: {}", org.getCode(), e.getMessage());

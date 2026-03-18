@@ -66,7 +66,8 @@
       "Bash(start \"\" \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
       "Bash(docker-compose up -d mysql)",
       "Bash(docker run -d --name evaluation-mysql -p 30314:3306 -e MYSQL_ROOT_PASSWORD=123456 -e MYSQL_DATABASE=evaluate_db --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci mysql:8.0)",
-      "Bash(docker run --name evaluation-mysql -p 30314:3306 -e MYSQL_ROOT_PASSWORD=123456 -e MYSQL_DATABASE=evaluate_db mysql:8.0)"
+      "Bash(docker run --name evaluation-mysql -p 30314:3306 -e MYSQL_ROOT_PASSWORD=123456 -e MYSQL_DATABASE=evaluate_db mysql:8.0)",
+      "Bash(Out-String)"
     ],
     "deny": [],
     "ask": []

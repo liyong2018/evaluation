@@ -289,10 +289,11 @@ public class SurveyDataController {
      * 检查GPKG文件是否包含乡镇评估数据所需的必要字段
      */
     @PostMapping("/validate-gpkg")
-    public Result<GpkgFieldValidationResult> validateGpkgFile(@RequestParam MultipartFile file) {
+    public Result<GpkgFieldValidationResult> validateGpkgFile(@RequestParam MultipartFile file,
+                                                               @RequestParam(value = "year", required = false) Integer year) {
         try {
             log.info("验证乡镇评估数据GPKG文件: {}", file.getOriginalFilename());
-            GpkgFieldValidationResult result = surveyDataService.validateGpkgFields(file, "township");
+            GpkgFieldValidationResult result = surveyDataService.validateGpkgFields(file, "township", year);
             return Result.success(result);
         } catch (Exception e) {
             log.error("验证GPKG文件失败", e);

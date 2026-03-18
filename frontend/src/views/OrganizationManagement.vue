@@ -61,6 +61,12 @@
                            class="source-year-tag">
                     {{ getSourceYearLabel(data.sourceYear, treeYear) }}
                   </el-tag>
+                  <el-tag v-if="data.changeType"
+                           size="small"
+                           :type="getChangeTypeTagType(data.changeType)"
+                           class="change-type-tag">
+                    {{ getChangeTypeLabel(data.changeType) }}
+                  </el-tag>
                   <el-tag size="small" :type="getLevelTagType(data.level)" class="level-tag">
                     {{ getLevelName(data.level) }}
                   </el-tag>
@@ -132,6 +138,12 @@
                            :type="getSourceYearTagType(data.sourceYear, treeYear)"
                            class="source-year-tag">
                     {{ getSourceYearLabel(data.sourceYear, treeYear) }}
+                  </el-tag>
+                  <el-tag v-if="data.changeType"
+                           size="small"
+                           :type="getChangeTypeTagType(data.changeType)"
+                           class="change-type-tag">
+                    {{ getChangeTypeLabel(data.changeType) }}
                   </el-tag>
                   <el-tag size="small" :type="getLevelTagType(data.level)" class="level-tag">
                     {{ getLevelName(data.level) }}
@@ -620,6 +632,19 @@ const getSourceYearTagType = (sourceYear: number, currentYear: number | null) =>
     return 'warning' // 顺延数据显示为橙色
   }
   return 'info'
+}
+
+const getChangeTypeLabel = (changeType: string) => {
+  return changeType
+}
+
+const getChangeTypeTagType = (changeType: string) => {
+  const types: Record<string, string> = {
+    新增: 'success',
+    更新: 'warning',
+    删除: 'danger'
+  }
+  return types[changeType] || 'info'
 }
 
 const getChildCount = (node: any) => {
@@ -1186,6 +1211,10 @@ watch(
 }
 
 .source-year-tag {
+  margin-left: 4px;
+}
+
+.change-type-tag {
   margin-left: 4px;
 }
 

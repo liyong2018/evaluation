@@ -163,7 +163,7 @@ public class GpkgUtil {
      * @param dataType 数据类型 (township/community/medical)
      * @return 验证结果
      */
-    public static GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType) {
+    public static GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType, Integer year) {
         GpkgFieldValidationResult result = new GpkgFieldValidationResult();
         result.setDataType(dataType);
         result.setValid(false);
@@ -225,11 +225,61 @@ public class GpkgUtil {
                 }
 
                 // 根据数据类型验证字段
-                Set<String> requiredFields = getRequiredFields(dataType);
+                Set<String> requiredFields = getRequiredFields(dataType, year);
                 Set<String> optionalFields = getOptionalFields(dataType);
 
                 // 检查必要字段
                 for (String requiredField : requiredFields) {
+                    // 2025 年乡镇数据编码字段兼容：
+                    // codery(标准字段) / code(旧字段) / fxpc_xzqhbmd_sjgl(街道乡镇编码字段) 任一存在即可
+                    if (year != null && year >= 2025 && "township".equals(dataType) && "codery".equals(requiredField)) {
+                        boolean hasTownshipCode = gpkgFields.contains("codery")
+                                || gpkgFields.contains("code")
+                                || gpkgFields.contains("fxpc_xzqhbmd_sjgl");
+                        if (!hasTownshipCode) {
+                            result.addMissingField("codery/code/fxpc_xzqhbmd_sjgl (至少一个)");
+                        }
+                        continue;
+                    }
+
+                    // 2025 年乡镇数据的行政区划字段特殊处理：4 个中至少 1 个
+                    if (year != null && year >= 2025 && "township".equals(dataType)) {
+                        if (isTownshipDivisionCodeField(requiredField)) {
+                            // 检查是否有任意一个行政区划字段存在
+                            boolean hasAnyDivisionCode = gpkgFields.contains("fxpc_xzqhbma_sjgl") ||
+                                    gpkgFields.contains("fxpc_xzqhbmb_sjgl") ||
+                                    gpkgFields.contains("fxpc_xzqhbmc_sjgl") ||
+                                    gpkgFields.contains("fxpc_xzqhbmd_sjgl");
+                            if (!hasAnyDivisionCode) {
+                                result.addMissingField("fxpc_xzqhbma_sjgl/fxpc_xzqhbmb_sjgl/fxpc_xzqhbmc_sjgl/fxpc_xzqhbmd_sjgl (至少一个)");
+                            }
+                            // 跳过单个字段检查，避免重复添加错误
+                            continue;
+                        }
+                    }
+
+                    // 2025 年医疗/社区数据的行政区划字段特殊处理：新旧字段兼容
+                    if (year != null && year >= 2025 && ("medical".equals(dataType) || "community".equals(dataType))) {
+                        if (isDivisionCodeField(requiredField)) {
+                            // 检查新字段是否存在
+                            boolean hasNewDivisionCode = gpkgFields.contains("fxpc_xzqhbma_sjgl") ||
+                                    gpkgFields.contains("fxpc_xzqhbmb_sjgl") ||
+                                    gpkgFields.contains("fxpc_xzqhbmc_sjgl") ||
+                                    gpkgFields.contains("fxpc_xzqhbmd_sjgl");
+                            // 检查旧字段是否存在（兼容旧格式）
+                            boolean hasOldDivisionCode = gpkgFields.contains("dzsheng") ||
+                                    gpkgFields.contains("dzshi") ||
+                                    gpkgFields.contains("dzxian") ||
+                                    gpkgFields.contains("dzxiang");
+                            // 新旧字段至少有一组存在
+                            if (!hasNewDivisionCode && !hasOldDivisionCode) {
+                                result.addMissingField("dzsheng/dzshi/dzxian/dzxiang 或 fxpc_xzqhbma_sjgl/fxpc_xzqhbmb_sjgl/fxpc_xzqhbmc_sjgl/fxpc_xzqhbmd_sjgl");
+                            }
+                            // 跳过单个字段检查，避免重复添加错误
+                            continue;
+                        }
+                    }
+
                     if (!gpkgFields.contains(requiredField)) {
                         result.addMissingField(requiredField);
                     }
@@ -272,19 +322,169 @@ public class GpkgUtil {
     }
 
     /**
-     * 获取必要字段集合
+     * 验证 GPKG 文件是否包含必要字段
+     *
+     * @param file     GPKG 文件
+     * @param dataType 数据类型 (township/community/medical)
+     * @return 验证结果
+     * @deprecated 使用 {@link #validateGpkgFields(MultipartFile, String, Integer)} 代替
      */
-    private static Set<String> getRequiredFields(String dataType) {
+    @Deprecated
+    public static GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType) {
+        return validateGpkgFields(file, dataType, null);
+    }
+
+    /**
+     * 获取必要字段集合
+     *
+     * @param dataType 数据类型 (township/community/medical)
+     * @param year     数据年份，用于区分不同年份的字段要求
+     * @return 必要字段集合
+     */
+    private static Set<String> getRequiredFields(String dataType, Integer year) {
         switch (dataType) {
             case "township":
-                return TOWNSHIP_REQUIRED_FIELDS;
+                return getTownshipRequiredFields(year);
             case "community":
-                return COMMUNITY_REQUIRED_FIELDS;
+                return getCommunityRequiredFields(year);
             case "medical":
-                return MEDICAL_REQUIRED_FIELDS;
+                return getMedicalRequiredFields(year);
             default:
                 return new HashSet<>();
         }
+    }
+
+    /**
+     * 获取乡镇数据必要字段集合（根据年份区分）
+     *
+     * @param year 数据年份
+     * @return 必要字段集合
+     */
+    private static Set<String> getTownshipRequiredFields(Integer year) {
+        Set<String> requiredFields = new HashSet<>();
+        // 公共必要字段
+        requiredFields.add("dwmc");       // 乡镇（街道）名称
+        requiredFields.add("nmczrksl");   // 常住人口数量
+
+        if (year != null && year >= 2025) {
+            // 2025 年及以后：使用新字段
+            requiredFields.add("codery"); // 行政区划代码（2025 年）
+            // 行政区划字段：4 个中至少 1 个（验证逻辑特殊处理）
+            requiredFields.add("fxpc_xzqhbma_sjgl");
+            requiredFields.add("fxpc_xzqhbmb_sjgl");
+            requiredFields.add("fxpc_xzqhbmc_sjgl");
+            requiredFields.add("fxpc_xzqhbmd_sjgl");
+        } else {
+            // 2024 年及以前：使用旧字段
+            requiredFields.add("code");   // 行政区划代码
+            requiredFields.add("dzsheng"); // 省名称
+            requiredFields.add("dzshi");   // 市名称
+            requiredFields.add("dzxian");  // 县名称
+            requiredFields.add("dzxiang"); // 乡名称
+        }
+
+        return requiredFields;
+    }
+
+    /**
+     * 获取医疗数据必要字段集合（根据年份区分）
+     *
+     * @param year 数据年份
+     * @return 必要字段集合
+     */
+    private static Set<String> getMedicalRequiredFields(Integer year) {
+        Set<String> requiredFields = new HashSet<>();
+        // 公共必要字段
+        requiredFields.add("dwmc");       // 医疗卫生机构名称
+        requiredFields.add("address");    // 医疗卫生机构详细地址
+
+        if (year != null && year >= 2025) {
+            // 2025 年及以后：使用新字段
+            requiredFields.add("fxpc_xzqhbma_sjgl"); // 省
+            requiredFields.add("fxpc_xzqhbmb_sjgl"); // 市
+            requiredFields.add("fxpc_xzqhbmc_sjgl"); // 县
+            requiredFields.add("fxpc_xzqhbmd_sjgl"); // 乡
+        } else {
+            // 2024 年及以前：使用旧字段
+            requiredFields.add("dzsheng"); // 地址省
+            requiredFields.add("dzshi");   // 地址市
+            requiredFields.add("dzxian");  // 地址县
+            requiredFields.add("dzxiang"); // 地址乡
+        }
+
+        return requiredFields;
+    }
+
+    /**
+     * 获取社区数据必要字段集合（根据年份区分）
+     *
+     * @param year 数据年份
+     * @return 必要字段集合
+     */
+    private static Set<String> getCommunityRequiredFields(Integer year) {
+        Set<String> requiredFields = new HashSet<>();
+        // 公共必要字段
+        requiredFields.add("dwmc");       // 社区（行政村）名称
+
+        if (year != null && year >= 2025) {
+            // 2025 年及以后：使用新字段
+            requiredFields.add("codery"); // 行政区划代码（2025 年）
+            requiredFields.add("fxpc_xzqhbma_sjgl"); // 省
+            requiredFields.add("fxpc_xzqhbmb_sjgl"); // 市
+            requiredFields.add("fxpc_xzqhbmc_sjgl"); // 县
+            requiredFields.add("fxpc_xzqhbmd_sjgl"); // 乡
+        } else {
+            // 2024 年及以前：使用旧字段
+            requiredFields.add("code");   // 行政区划代码
+            requiredFields.add("dzsheng"); // 地址省
+            requiredFields.add("dzshi");   // 地址市
+            requiredFields.add("dzxian");  // 地址县
+            requiredFields.add("dzxiang"); // 地址乡
+        }
+
+        return requiredFields;
+    }
+
+    /**
+     * 获取必要字段集合（向后兼容）
+     *
+     * @param dataType 数据类型 (township/community/medical)
+     * @return 必要字段集合
+     * @deprecated 使用 {@link #getRequiredFields(String, Integer)} 代替
+     */
+    @Deprecated
+    private static Set<String> getRequiredFields(String dataType) {
+        return getRequiredFields(dataType, null);
+    }
+
+    /**
+     * 判断是否为乡镇行政区划代码字段
+     *
+     * @param fieldName 字段名
+     * @return 是否为乡镇行政区划代码字段
+     */
+    private static boolean isTownshipDivisionCodeField(String fieldName) {
+        return "fxpc_xzqhbma_sjgl".equals(fieldName) ||
+                "fxpc_xzqhbmb_sjgl".equals(fieldName) ||
+                "fxpc_xzqhbmc_sjgl".equals(fieldName) ||
+                "fxpc_xzqhbmd_sjgl".equals(fieldName);
+    }
+
+    /**
+     * 判断是否为行政区划代码字段（医疗/社区数据）
+     *
+     * @param fieldName 字段名
+     * @return 是否为行政区划代码字段
+     */
+    private static boolean isDivisionCodeField(String fieldName) {
+        return "fxpc_xzqhbma_sjgl".equals(fieldName) ||
+                "fxpc_xzqhbmb_sjgl".equals(fieldName) ||
+                "fxpc_xzqhbmc_sjgl".equals(fieldName) ||
+                "fxpc_xzqhbmd_sjgl".equals(fieldName) ||
+                "dzsheng".equals(fieldName) ||
+                "dzshi".equals(fieldName) ||
+                "dzxian".equals(fieldName) ||
+                "dzxiang".equals(fieldName);
     }
 
     /**
@@ -347,6 +547,8 @@ public class GpkgUtil {
         fieldNames.put("dzxiang", "地址乡");
         fieldNames.put("id", "唯一标识");
         fieldNames.put("code", "行政区划代码");
+        fieldNames.put("codery", "行政区划代码（2025）");
+        fieldNames.put("fxpc_xzqhbmd_sjgl", "街道/乡镇编码（2025）");
         fieldNames.put("dmlx", "代码类型");
         fieldNames.put("yljglxdl", "医疗机构类型（大类）");
         fieldNames.put("yydj", "医院等级");
@@ -406,67 +608,96 @@ public class GpkgUtil {
     }
 
     /**
-     * 获取字段映射（用于从GPKG属性导入到数据库）
+     * 获取字段映射（用于从 GPKG 属性导入到数据库）
+     *
+     * @param dataType 数据类型 (township/community/medical)
+     * @param year     数据年份，用于区分不同年份的字段映射（如 2025 年新字段）
+     * @return 字段映射表（GPKG 字段名 → 数据库字段名）
      */
-    public static Map<String, String> getFieldMapping(String dataType) {
+    public static Map<String, String> getFieldMapping(String dataType, Integer year) {
         Map<String, String> mapping = new HashMap<>();
 
         switch (dataType) {
             case "township":
-                // 乡镇数据字段映射（GPKG字段 → 数据库字段）
-                mapping.put("dwmc", "township");                       // 乡镇（街道）名称 → township
-                mapping.put("code", "regionCode");                     // 行政区划代码 → regionCode
-                mapping.put("nmczrksl", "population");                 // 常住人口数量 → population
-                mapping.put("dzsheng", "province");                    // 省名称 → province
-                mapping.put("dzshi", "city");                          // 市名称 → city
-                mapping.put("dzxian", "county");                       // 县名称 → county
-                mapping.put("dzxiang", "address");                     // 乡名称 → address
-                mapping.put("address", "townshipAddress");             // 乡镇（街道）地址 → townshipAddress
-                mapping.put("dzjh", "contactPhone");                   // 地址街号 → contactPhone
-                mapping.put("bjzhglgzryzs", "managementStaff");        // 本级灾害管理工作人员总数 → managementStaff
-                mapping.put("sfkzxzjdzhfxpg", "riskAssessment");       // 是否开展乡镇（街道）灾害风险评估 → riskAssessment
-                mapping.put("syndfzjzjzzjtrzje", "fundingAmount");     // 上一年度防灾减灾救灾资金投入总金额 → fundingAmount
-                mapping.put("xycbwzzbzhje", "materialValue");          // 现有储备物资、装备折合金额 → materialValue
-                mapping.put("syndzzdyjglpyhylcs", "trainingDrillCount"); // 培训次数 → trainingDrillCount
-                mapping.put("syndzzdyjglpyhylcyrc", "trainingParticipants"); // 培训参与人次 → trainingParticipants
-                mapping.put("bjzhyjbncssl", "shelterCount");           // 本级灾害应急避难场所数量 → shelterCount
-                mapping.put("bjzhyjbncsrl", "shelterCapacity");        // 本级灾害应急避难场所容量 → shelterCapacity
-                mapping.put("yjgssbsl", "emergencyWaterCount");        // 应急供水设备数量 → emergencyWaterCount
-                mapping.put("yjylsbsl", "emergencyMedicalCount");      // 应急医疗设备数量 → emergencyMedicalCount
-                mapping.put("yjtxsbsl", "emergencyCommunicationCount"); // 应急通信设备数量 → emergencyCommunicationCount
-                mapping.put("yjdyhyjfdsbsl", "emergencyPowerCount");   // 应急电源或应急发电设备数量 → emergencyPowerCount
-                mapping.put("xyjzwzzbsl", "storageEquipmentCount");    // 本级储备点救灾物资、装备数量 → storageEquipmentCount
-                mapping.put("xyjzwzzbcbdsl", "storagePointCount");     // 本级救灾物资、装备储备点数量 → storagePointCount
-                mapping.put("bjzhxxyrs", "disasterInfoStaff");         // 本级灾害信息员人数 → disasterInfoStaff
-                mapping.put("j3nbzhxdzrzhyjyasl", "emergencyPlanCount"); // 近3年编制或修订自然灾害应急预案数量 → emergencyPlanCount
-                mapping.put("j3nzdzrzhqdyjxycs", "emergencyResponseCount"); // 近3年针对自然灾害启动应急响应次数 → emergencyResponseCount
-                mapping.put("zhs", "totalHouseholds");                 // 年末总户数 → totalHouseholds
-                mapping.put("yxxzjddzyzhlx", "mainDisasterTypes");     // 影响乡镇（街道）的主要灾害类型 → mainDisasterTypes
-                mapping.put("sfyxzjdzhldt", "hasDisasterMap");         // 是否有乡镇（街道）灾害类地图 → hasDisasterMap
-                mapping.put("tbr", "formFiller");                      // 填表人 → formFiller
-                mapping.put("lxdh", "contactPhone");                   // 联系电话 → contactPhone
-                mapping.put("dwfzr", "unitLeader");                    // 单位负责人 → unitLeader
-                mapping.put("tjfzr", "statisticsLeader");              // 统计负责人 → statisticsLeader
-                mapping.put("tbrq", "reportDate");                     // 报出日期 → reportDate
-                mapping.put("id", "uniqueId");                         // 唯一标识 → uniqueId
+                // 乡镇数据字段映射（GPKG 字段 → 数据库字段）
+                // 2025 年及以后使用新字段映射，2024 年及以前使用旧字段映射
+                if (year != null && year >= 2025) {
+                    // 2025 年新字段映射
+                    mapping.put("fxpc_xzqhbma_sjgl", "province");       // 省
+                    mapping.put("fxpc_xzqhbmb_sjgl", "city");           // 市
+                    mapping.put("fxpc_xzqhbmc_sjgl", "county");         // 县
+                    mapping.put("fxpc_xzqhbmd_sjgl", "regionCode");     // 乡镇代码（2025 年）
+                    mapping.put("codery", "regionCode");                // 行政区划代码（2025 年字段名从 code 变为 codery）
+                    // 兼容旧字段
+                    mapping.put("code", "regionCode");                  // 行政区划代码（兼容旧字段）
+                } else {
+                    // 2024 年及以前旧字段映射
+                    mapping.put("dzsheng", "province");                 // 省名称
+                    mapping.put("dzshi", "city");                       // 市名称
+                    mapping.put("dzxian", "county");                    // 县名称
+                    mapping.put("dzxiang", "address");                  // 乡名称
+                    mapping.put("code", "regionCode");                  // 行政区划代码
+                }
+                // 公共字段（不分年份）
+                mapping.put("dwmc", "township");                        // 乡镇（街道）名称
+                mapping.put("nmczrksl", "population");                  // 常住人口数量
+                mapping.put("address", "townshipAddress");              // 乡镇（街道）地址
+                mapping.put("dzjh", "contactPhone");                    // 地址街号
+                mapping.put("bjzhglgzryzs", "managementStaff");         // 本级灾害管理工作人员总数
+                mapping.put("sfkzxzjdzhfxpg", "riskAssessment");        // 是否开展乡镇（街道）灾害风险评估
+                mapping.put("syndfzjzjzzjtrzje", "fundingAmount");      // 上一年度防灾减灾救灾资金投入总金额
+                mapping.put("xycbwzzbzhje", "materialValue");           // 现有储备物资、装备折合金额
+                mapping.put("syndzzdyjglpyhylcs", "trainingDrillCount"); // 培训次数
+                mapping.put("syndzzdyjglpyhylcyrc", "trainingParticipants"); // 培训参与人次
+                mapping.put("bjzhyjbncssl", "shelterCount");            // 本级灾害应急避难场所数量
+                mapping.put("bjzhyjbncsrl", "shelterCapacity");         // 本级灾害应急避难场所容量
+                mapping.put("yjgssbsl", "emergencyWaterCount");         // 应急供水设备数量
+                mapping.put("yjylsbsl", "emergencyMedicalCount");       // 应急医疗设备数量
+                mapping.put("yjtxsbsl", "emergencyCommunicationCount"); // 应急通信设备数量
+                mapping.put("yjdyhyjfdsbsl", "emergencyPowerCount");    // 应急电源或应急发电设备数量
+                mapping.put("xyjzwzzbsl", "storageEquipmentCount");     // 本级储备点救灾物资、装备数量
+                mapping.put("xyjzwzzbcbdsl", "storagePointCount");      // 本级救灾物资、装备储备点数量
+                mapping.put("bjzhxxyrs", "disasterInfoStaff");          // 本级灾害信息员人数
+                mapping.put("j3nbzhxdzrzhyjyasl", "emergencyPlanCount"); // 近 3 年编制或修订自然灾害应急预案数量
+                mapping.put("j3nzdzrzhqdyjxycs", "emergencyResponseCount"); // 近 3 年针对自然灾害启动应急响应次数
+                mapping.put("zhs", "totalHouseholds");                  // 年末总户数
+                mapping.put("yxxzjddzyzhlx", "mainDisasterTypes");      // 影响乡镇（街道）的主要灾害类型
+                mapping.put("sfyxzjdzhldt", "hasDisasterMap");          // 是否有乡镇（街道）灾害类地图
+                mapping.put("tbr", "formFiller");                       // 填表人
+                mapping.put("lxdh", "contactPhone");                    // 联系电话
+                mapping.put("dwfzr", "unitLeader");                     // 单位负责人
+                mapping.put("tjfzr", "statisticsLeader");               // 统计负责人
+                mapping.put("tbrq", "reportDate");                      // 报出日期
+                mapping.put("id", "uniqueId");                          // 唯一标识
                 break;
 
+
             case "medical":
-                // 医疗数据字段映射（GPKG字段 → 数据库字段）
-                // 基本信息
-                mapping.put("dwmc", "institutionName");                      // 机构名称
-                mapping.put("address", "institutionAddress");                // 机构地址
-                mapping.put("dzsheng", "province");                         // 地址省
-                mapping.put("dzshi", "city");                               // 地址市
-                mapping.put("dzxian", "county");                            // 地址县
-                mapping.put("dzxiang", "township");                          // 地址乡
-                mapping.put("dzjh", "contactPhone");                        // 地址街号 → 联系电话
-                mapping.put("dzcun", "villageName");                         // 地址村
-                mapping.put("id", "uniqueCode");                             // 唯一标识
-                mapping.put("jgbm", "unifiedSocialCreditCode");              // 机构编码
-                mapping.put("code", "orgCode");                              // 行政区划代码 → org_code（优先）
-                mapping.put("fxpc_xzqhbmd_sjgl", "townshipCodeFromFxpc");   // 备用乡镇代码
-                mapping.put("dmlx", "codeType");                            // 代码类型
+                // 医疗数据字段映射（GPKG 字段 → 数据库字段）
+                // 2025 年及以后使用新字段映射，2024 年及以前使用旧字段映射
+                if (year != null && year >= 2025) {
+                    // 2025 年新字段映射
+                    mapping.put("dwmc", "institutionName");                      // 机构名称
+                    mapping.put("address", "institutionAddress");                // 机构地址
+                    mapping.put("fxpc_xzqhbma_sjgl", "province");               // 省
+                    mapping.put("fxpc_xzqhbmb_sjgl", "city");                   // 市
+                    mapping.put("fxpc_xzqhbmc_sjgl", "county");                 // 县
+                    mapping.put("fxpc_xzqhbmd_sjgl", "townshipCodeFromFxpc");   // 乡镇代码（备用）
+                    // 2025 年行政区划代码字段
+                    mapping.put("codery", "orgCode");                           // 行政区划代码（2025 年）
+                    mapping.put("code", "orgCode");                             // 行政区划代码（兼容旧字段）
+                } else {
+                    // 2024 年及以前旧字段映射
+                    mapping.put("dwmc", "institutionName");                      // 机构名称
+                    mapping.put("address", "institutionAddress");                // 机构地址
+                    mapping.put("dzsheng", "province");                         // 地址省
+                    mapping.put("dzshi", "city");                               // 地址市
+                    mapping.put("dzxian", "county");                            // 地址县
+                    mapping.put("dzxiang", "township");                         // 地址乡
+                    mapping.put("code", "orgCode");                             // 行政区划代码
+                    mapping.put("fxpc_xzqhbmd_sjgl", "townshipCodeFromFxpc");   // 备用乡镇代码（仅 2024 年需要）
+                }
+                // 公共字段（不分年份）
 
                 // 机构分类
                 mapping.put("ylwsjglbdm", "institutionCategoryCode");        // 医疗卫生机构类别代码
@@ -531,15 +762,28 @@ public class GpkgUtil {
                 break;
 
             case "community":
-                // 社区数据字段映射（GPKG字段 → 数据库字段）
-                // 基本信息
-                mapping.put("code", "regionCode");                      // 行政区划代码 → regionCode
-                mapping.put("dzsheng", "provinceName");                 // 地址省 → provinceName
-                mapping.put("dzshi", "cityName");                       // 地址市 → cityName
-                mapping.put("dzxian", "countyName");                    // 地址县 → countyName
-                mapping.put("dzxiang", "townshipName");                 // 地址乡 → townshipName
-                mapping.put("dwmc", "communityName");                  // 社区（行政村）名称 → communityName
-                mapping.put("dzcun", "villageName");                   // 地址村 → villageName
+                // 社区数据字段映射（GPKG 字段 → 数据库字段）
+                // 2025 年及以后使用新字段映射，2024 年及以前使用旧字段映射
+                if (year != null && year >= 2025) {
+                    // 2025 年新字段映射
+                    mapping.put("fxpc_xzqhbma_sjgl", "provinceName");   // 省
+                    mapping.put("fxpc_xzqhbmb_sjgl", "cityName");       // 市
+                    mapping.put("fxpc_xzqhbmc_sjgl", "countyName");     // 县
+                    mapping.put("fxpc_xzqhbmd_sjgl", "regionCode");     // 乡镇代码（2025 年）
+                    mapping.put("codery", "regionCode");                // 行政区划代码（2025 年字段名从 code 变为 codery）
+                    // 兼容旧字段
+                    mapping.put("code", "regionCode");                  // 行政区划代码（兼容旧字段）
+                } else {
+                    // 2024 年及以前旧字段映射
+                    mapping.put("dzsheng", "provinceName");             // 地址省
+                    mapping.put("dzshi", "cityName");                   // 地址市
+                    mapping.put("dzxian", "countyName");                // 地址县
+                    mapping.put("dzxiang", "townshipName");             // 地址乡
+                    mapping.put("code", "regionCode");                  // 行政区划代码
+                }
+                // 其他公共字段（不分年份）
+                mapping.put("dwmc", "communityName");                   // 社区（行政村）名称 → communityName
+                mapping.put("dzcun", "villageName");                    // 地址村 → villageName
                 mapping.put("address", "communityAddress");             // 社区（行政村）地址 → communityAddress
 
                 // 人口统计
@@ -611,5 +855,16 @@ public class GpkgUtil {
         }
 
         return mapping;
+    }
+
+    /**
+     * 获取字段映射（用于从 GPKG 属性导入到数据库）
+     * 向后兼容方法，调用带年份参数的版本并传入 null
+     *
+     * @param dataType 数据类型 (township/community/medical)
+     * @return 字段映射表（GPKG 字段名 → 数据库字段名）
+     */
+    public static Map<String, String> getFieldMapping(String dataType) {
+        return getFieldMapping(dataType, null);
     }
 }

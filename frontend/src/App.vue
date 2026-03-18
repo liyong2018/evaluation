@@ -11,8 +11,8 @@
           <div class="menu-spacer"></div>
           <nav class="header-nav">
             <router-link to="/data-management" class="nav-item" :class="{ active: activeIndex === '/data-management' }">数据管理</router-link>
-            <router-link to="/weight-config" class="nav-item" :class="{ active: activeIndex === '/weight-config' }">权重配置</router-link>
             <router-link to="/firefighter-config" class="nav-item" :class="{ active: activeIndex === '/firefighter-config' }">消防员配置</router-link>
+            <router-link to="/weight-config" class="nav-item" :class="{ active: activeIndex === '/weight-config' }">权重配置</router-link>
             <router-link v-if="userStore.isAdmin" to="/model-management" class="nav-item" :class="{ active: activeIndex === '/model-management' }">模型管理</router-link>
             <router-link to="/evaluation" class="nav-item" :class="{ active: activeIndex === '/evaluation' }">评估计算</router-link>
             <router-link to="/thematic-map" class="nav-item" :class="{ active: activeIndex === '/thematic-map' }">评估报告</router-link>

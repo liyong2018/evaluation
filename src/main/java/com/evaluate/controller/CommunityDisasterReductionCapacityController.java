@@ -221,10 +221,11 @@ public class CommunityDisasterReductionCapacityController {
      * 检查GPKG文件是否包含社区减灾能力数据所需的必要字段
      */
     @PostMapping("/validate-gpkg")
-    public Result<GpkgFieldValidationResult> validateGpkgFile(@RequestParam("file") MultipartFile file) {
+    public Result<GpkgFieldValidationResult> validateGpkgFile(@RequestParam("file") MultipartFile file,
+                                                               @RequestParam(value = "year", required = false) Integer year) {
         log.info("验证社区减灾能力数据GPKG文件: {}", file.getOriginalFilename());
         try {
-            GpkgFieldValidationResult result = communityDisasterReductionCapacityService.validateGpkgFields(file, "community");
+            GpkgFieldValidationResult result = communityDisasterReductionCapacityService.validateGpkgFields(file, "community", year);
             return Result.success(result);
         } catch (Exception e) {
             log.error("验证GPKG文件失败", e);

@@ -191,18 +191,32 @@ const downloadWord = async () => {
   try {
     const response = await wordTemplateApi.generateReport(props.year, props.orgCode)
 
-    // response is already a Blob due to request interceptor
-    const blob = response instanceof Blob ? response : new Blob([response], {
+    // 从响应中获取数据和文件名
+    const blobData = response.data || response
+    let fileName = `青神县减灾能力评估技术报告_${new Date().getFullYear()}.docx`
+
+    // 尝试从响应头中获取文件名
+    if (response.headers) {
+      const contentDisposition = response.headers['content-disposition'] || response.headers['Content-Disposition']
+      if (contentDisposition) {
+        const filenameStarMatch = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition)
+        if (filenameStarMatch && filenameStarMatch[1]) {
+          try {
+            fileName = decodeURIComponent(filenameStarMatch[1])
+          } catch (e) {
+            console.warn('解码文件名失败，使用默认文件名', e)
+          }
+        }
+      }
+    }
+
+    const blob = blobData instanceof Blob ? blobData : new Blob([blobData], {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     })
 
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-
-    const currentDate = new Date()
-    const fileName = `青神县减灾能力评估技术报告_${currentDate.getFullYear()}${String(currentDate.getMonth() + 1).padStart(2, '0')}${String(currentDate.getDate()).padStart(2, '0')}.docx`
-
     link.download = fileName
     document.body.appendChild(link)
     link.click()

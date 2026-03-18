@@ -43,6 +43,30 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         return org.getIsBaseline() == null || org.getIsBaseline() == 0;
     }
 
+    private boolean isSameAsBaseline(GrassrootsOrganization baseline, GrassrootsOrganization latest) {
+        if (baseline == null || latest == null) {
+            return false;
+        }
+        String baselineName = baseline.getName();
+        String latestName = latest.getName();
+        if (!Objects.equals(baselineName, latestName)) {
+            return false;
+        }
+        String baselineTownshipName = baseline.getTownshipName();
+        String latestTownshipName = latest.getTownshipName();
+        if (!Objects.equals(baselineTownshipName, latestTownshipName)) {
+            return false;
+        }
+        String baselineCommunityName = baseline.getCommunityName();
+        String latestCommunityName = latest.getCommunityName();
+        if (!Objects.equals(baselineCommunityName, latestCommunityName)) {
+            return false;
+        }
+        Integer baselineLevel = baseline.getLevel();
+        Integer latestLevel = latest.getLevel();
+        return Objects.equals(baselineLevel, latestLevel);
+    }
+
     private void applyYearRangeCondition(QueryWrapper<GrassrootsOrganization> queryWrapper, Integer year) {
         if (year == null || year <= BASELINE_YEAR) {
             queryWrapper.eq("is_baseline", 1);
@@ -146,7 +170,16 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
 
             GrassrootsOrganization latest = entry.getValue();
             GrassrootsOrganization baseline = baselineByCode.get(code);
+            if (baseline == null && StringUtils.hasText(latest != null ? latest.getBaselineCode() : null)) {
+                baseline = baselineByCode.get(latest.getBaselineCode());
+            }
+            if (baseline == null && latest != null) {
+                baseline = findBaselineBySameName(new ArrayList<>(baselineByCode.values()), latest);
+            }
             if (latest == null) {
+                continue;
+            }
+            if (baseline != null && Objects.equals(baseline.getCode(), latest.getCode()) && isSameAsBaseline(baseline, latest)) {
                 continue;
             }
 
@@ -154,6 +187,9 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 latest.setId(baseline.getId());
             }
             if (baseline != null) {
+                if (!Objects.equals(baseline.getCode(), latest.getCode())) {
+                    mergedByCode.remove(baseline.getCode());
+                }
                 if (latest.getParentId() == null) {
                     latest.setParentId(baseline.getParentId());
                 }
@@ -162,6 +198,9 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 }
                 if (latest.getLevel() == null) {
                     latest.setLevel(baseline.getLevel());
+                }
+                if (!StringUtils.hasText(latest.getBaselineCode())) {
+                    latest.setBaselineCode(baseline.getCode());
                 }
             }
 
@@ -243,6 +282,91 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             }
         }
         return BASELINE_YEAR;
+    }
+
+    private Map<String, String> buildChangeTypeMap(List<GrassrootsOrganization> baselineList,
+                                                   List<GrassrootsOrganization> yearList,
+                                                   Integer requestedYear) {
+        Map<String, String> changeTypeMap = new HashMap<>();
+        if (requestedYear == null || requestedYear <= BASELINE_YEAR) {
+            return changeTypeMap;
+        }
+        if (yearList == null || yearList.isEmpty()) {
+            return changeTypeMap;
+        }
+        Map<String, GrassrootsOrganization> baselineByCode = new HashMap<>();
+        if (baselineList != null) {
+            for (GrassrootsOrganization baseline : baselineList) {
+                if (baseline != null && StringUtils.hasText(baseline.getCode())) {
+                    baselineByCode.put(baseline.getCode(), baseline);
+                }
+            }
+        }
+        for (GrassrootsOrganization yearRecord : yearList) {
+            if (yearRecord == null || !StringUtils.hasText(yearRecord.getCode())) {
+                continue;
+            }
+            if (yearRecord.getYear() == null || !yearRecord.getYear().equals(requestedYear)) {
+                continue;
+            }
+            if (yearRecord.getIsBaseline() != null && yearRecord.getIsBaseline() == 1) {
+                continue;
+            }
+            String code = yearRecord.getCode();
+            if (yearRecord.getIsDeleted() != null && yearRecord.getIsDeleted() == 1) {
+                changeTypeMap.put(code, "删除");
+                continue;
+            }
+            GrassrootsOrganization baseline = baselineByCode.get(code);
+            if (baseline == null && StringUtils.hasText(yearRecord.getBaselineCode())) {
+                baseline = baselineByCode.get(yearRecord.getBaselineCode());
+            }
+            if (baseline == null) {
+                baseline = findBaselineBySameName(baselineList, yearRecord);
+            }
+            if (baseline == null) {
+                changeTypeMap.put(code, "新增");
+                continue;
+            }
+            if (!Objects.equals(baseline.getCode(), yearRecord.getCode()) || !isSameAsBaseline(baseline, yearRecord)) {
+                changeTypeMap.put(code, "更新");
+            }
+        }
+        return changeTypeMap;
+    }
+
+    private GrassrootsOrganization findBaselineBySameName(List<GrassrootsOrganization> baselineList,
+                                                          GrassrootsOrganization yearRecord) {
+        if (baselineList == null || baselineList.isEmpty() || yearRecord == null) {
+            return null;
+        }
+        String name = normalizeText(yearRecord.getName());
+        if (!StringUtils.hasText(name)) {
+            return null;
+        }
+        String countyName = normalizeText(yearRecord.getCountyName());
+        List<GrassrootsOrganization> sameName = baselineList.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> name.equals(normalizeText(item.getName())))
+                .collect(Collectors.toList());
+        if (sameName.isEmpty()) {
+            return null;
+        }
+        if (sameName.size() == 1) {
+            return sameName.get(0);
+        }
+        if (StringUtils.hasText(countyName)) {
+            for (GrassrootsOrganization candidate : sameName) {
+                if (countyName.equals(normalizeText(candidate.getCountyName()))) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String normalizeText(String value) {
+        return value == null ? null : value.trim();
     }
 
     private boolean hasAnyYearChange(Integer year, Long countyId) {
@@ -361,6 +485,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         try {
             // 先通过区县代码找到区县ID
             Organization county = null;
+            Organization baselineCounty = null;
 
             if (year != null) {
                 // 首先尝试查找指定年份的区县记录
@@ -379,6 +504,14 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                     baselineQuery.eq("is_baseline", 1);
                     county = organizationMapper.selectOne(baselineQuery);
                 }
+
+                // 无论是否找到年份记录，都需要获取基准记录的 ID
+                // 因为街道表中的 county_id 存储的是基准记录的 ID
+                QueryWrapper<Organization> baselineQuery = new QueryWrapper<>();
+                baselineQuery.eq("code", countyCode.trim());
+                baselineQuery.eq("level", 3);
+                baselineQuery.eq("is_baseline", 1);
+                baselineCounty = organizationMapper.selectOne(baselineQuery);
             } else {
                 // 没有指定年份，直接使用底表记录
                 QueryWrapper<Organization> orgQuery = new QueryWrapper<>();
@@ -386,6 +519,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 orgQuery.eq("level", 3); // 区县级别
                 orgQuery.eq("is_baseline", 1);
                 county = organizationMapper.selectOne(orgQuery);
+                baselineCounty = county;
             }
 
             if (county == null) {
@@ -393,7 +527,9 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 return new ArrayList<>();
             }
 
-            return getTownshipsByCountyId(county.getId(), year);
+            // 使用基准记录的 ID 查询街道数据（街道表中的 county_id 存储的是基准记录 ID）
+            Long effectiveCountyId = baselineCounty != null ? baselineCounty.getId() : county.getId();
+            return getTownshipsByCountyId(effectiveCountyId, year);
         } catch (Exception e) {
             log.error("根据区县代码获取乡镇列表失败: countyCode={}, year={}", countyCode, year, e);
             return new ArrayList<>();
@@ -487,6 +623,8 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
 
             // 查询 grassroots 组织
             List<GrassrootsOrganization> all = null;
+            List<GrassrootsOrganization> yearRecords = new ArrayList<>();
+            List<GrassrootsOrganization> baselineRecords = new ArrayList<>();
 
             if (year != null && year > BASELINE_YEAR) {
                 // 先尝试查询指定年份的数据
@@ -495,6 +633,9 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 yearQuery.eq("year", year);
                 yearQuery.orderByAsc("level", "code");
                 all = list(yearQuery);
+                if (all != null && !all.isEmpty()) {
+                    yearRecords = new ArrayList<>(all);
+                }
 
                 // 如果指定年份没有数据，尝试从 year-1 向下查到 BASELINE_YEAR
                 if (all == null || all.isEmpty()) {
@@ -531,6 +672,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                     baselineQuery.eq("is_baseline", 1);
                     List<GrassrootsOrganization> baseline = list(baselineQuery);
                     if (baseline != null && !baseline.isEmpty()) {
+                        baselineRecords = new ArrayList<>(baseline);
                         all.addAll(baseline);
                         all = mergeBaselineWithLatestYearData(all, year);
                     }
@@ -553,9 +695,11 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
 
             log.info("getTreeByCountyId: countyId={}, year={}, 查询结果数={}", countyId, year, all.size());
 
+            Map<String, String> changeTypeMap = buildChangeTypeMap(baselineRecords, yearRecords, year);
+
             // 构建完整的树形结构，不需要传递parentId（null表示构建整棵树）
             // countyId已经用于过滤数据，不需要再传递给buildTree
-            List<Map<String, Object>> tree = buildTree(all, null);
+            List<Map<String, Object>> tree = buildTree(all, null, changeTypeMap, year);
             return tree;
         } catch (Exception e) {
             log.error("根据区县ID获取树形结构失败: countyId={}, year={}", countyId, year, e);
@@ -1313,7 +1457,10 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
     /**
      * 构建树形结构
      */
-    private List<Map<String, Object>> buildTree(List<GrassrootsOrganization> organizations, Long parentId) {
+    private List<Map<String, Object>> buildTree(List<GrassrootsOrganization> organizations,
+                                                Long parentId,
+                                                Map<String, String> changeTypeMap,
+                                                Integer requestedYear) {
         if (organizations == null || organizations.isEmpty()) {
             return new ArrayList<>();
         }
@@ -1323,17 +1470,31 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         // 例如：510104001 (某某街道) -> 510104001001 (某某社区)
         Map<String, List<GrassrootsOrganization>> codeParentMap = new HashMap<>();
         Map<String, GrassrootsOrganization> codeToOrgMap = new HashMap<>();
+        Map<Long, GrassrootsOrganization> idToOrgMap = new HashMap<>();
+        Map<String, List<GrassrootsOrganization>> townshipByNameMap = new HashMap<>();
 
         // 首先建立code到organization的映射
         for (GrassrootsOrganization org : organizations) {
             if (org.getCode() != null) {
                 codeToOrgMap.put(org.getCode(), org);
             }
+            if (org.getId() != null) {
+                idToOrgMap.put(org.getId(), org);
+            }
+            if (org.getLevel() != null && org.getLevel() == LEVEL_TOWNSHIP) {
+                String townshipName = normalizeText(org.getName());
+                if (!StringUtils.hasText(townshipName)) {
+                    townshipName = normalizeText(org.getTownshipName());
+                }
+                if (StringUtils.hasText(townshipName)) {
+                    townshipByNameMap.computeIfAbsent(townshipName, k -> new ArrayList<>()).add(org);
+                }
+            }
         }
 
         // 然后根据层级和代码前缀建立父子关系
         for (GrassrootsOrganization org : organizations) {
-            String parentCode = findParentCodeForGrassroots(org.getCode(), org.getLevel(), codeToOrgMap);
+            String parentCode = findParentCodeForGrassroots(org, codeToOrgMap, idToOrgMap, townshipByNameMap);
             if (parentCode == null) {
                 parentCode = ""; // 根节点（乡镇）使用空字符串作为key
             }
@@ -1349,7 +1510,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                     .filter(o -> o.getId().equals(parentId))
                     .findFirst().orElse(null);
             if (parentOrg != null) {
-                return buildTreeRecursiveByCode(parentOrg.getCode(), codeParentMap, codeToOrgMap);
+                return buildTreeRecursiveByCode(parentOrg.getCode(), codeParentMap, codeToOrgMap, changeTypeMap, requestedYear);
             }
             return new ArrayList<>();
         } else {
@@ -1377,7 +1538,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 if (root == null || root.getId() == null) {
                     continue;
                 }
-                Map<String, Object> node = buildNodeForGrassroots(root, codeParentMap, codeToOrgMap);
+                Map<String, Object> node = buildNodeForGrassroots(root, codeParentMap, codeToOrgMap, changeTypeMap, requestedYear);
                 result.add(node);
             }
 
@@ -1390,7 +1551,15 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
      * 乡镇(level=4, 9位代码) 没有父节点（在这个方法中作为根节点）
      * 社区(level=5, 12位代码) 的父代码是乡镇代码(前9位)
      */
-    private String findParentCodeForGrassroots(String code, Integer level, Map<String, GrassrootsOrganization> codeToOrgMap) {
+    private String findParentCodeForGrassroots(GrassrootsOrganization org,
+                                               Map<String, GrassrootsOrganization> codeToOrgMap,
+                                               Map<Long, GrassrootsOrganization> idToOrgMap,
+                                               Map<String, List<GrassrootsOrganization>> townshipByNameMap) {
+        if (org == null) {
+            return null;
+        }
+        String code = org.getCode();
+        Integer level = org.getLevel();
         if (code == null || level == null) {
             return null;
         }
@@ -1405,6 +1574,31 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             if (codeToOrgMap.containsKey(parentCode)) {
                 return parentCode;
             }
+            if (org.getParentId() != null) {
+                GrassrootsOrganization parentOrg = idToOrgMap.get(org.getParentId());
+                if (parentOrg != null && parentOrg.getLevel() != null && parentOrg.getLevel() == LEVEL_TOWNSHIP
+                        && StringUtils.hasText(parentOrg.getCode())) {
+                    return parentOrg.getCode();
+                }
+            }
+            String townshipName = normalizeText(org.getTownshipName());
+            if (StringUtils.hasText(townshipName)) {
+                List<GrassrootsOrganization> candidates = townshipByNameMap.getOrDefault(townshipName, Collections.emptyList());
+                if (candidates.size() == 1) {
+                    return candidates.get(0).getCode();
+                }
+                if (candidates.size() > 1) {
+                    String countyName = normalizeText(org.getCountyName());
+                    for (GrassrootsOrganization candidate : candidates) {
+                        if (candidate == null || !StringUtils.hasText(candidate.getCode())) {
+                            continue;
+                        }
+                        if (Objects.equals(normalizeText(candidate.getCountyName()), countyName)) {
+                            return candidate.getCode();
+                        }
+                    }
+                }
+            }
         }
 
         return null;
@@ -1415,7 +1609,9 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
      */
     private Map<String, Object> buildNodeForGrassroots(GrassrootsOrganization org,
                                                        Map<String, List<GrassrootsOrganization>> codeParentMap,
-                                                       Map<String, GrassrootsOrganization> codeToOrgMap) {
+                                                       Map<String, GrassrootsOrganization> codeToOrgMap,
+                                                       Map<String, String> changeTypeMap,
+                                                       Integer requestedYear) {
         Map<String, Object> node = new HashMap<>();
         node.put("id", org.getId());
         node.put("parentId", org.getParentId());
@@ -1443,23 +1639,16 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         if (sourceYear == null) {
             sourceYear = 2020; // 底表数据默认为2020年
         }
+        String changeType = changeTypeMap != null ? changeTypeMap.get(org.getCode()) : null;
+        if (StringUtils.hasText(changeType)) {
+            node.put("changeType", changeType);
+        }
 
         // 递归构建子节点
-        List<Map<String, Object>> childNodes = buildTreeRecursiveByCode(org.getCode(), codeParentMap, codeToOrgMap);
+        List<Map<String, Object>> childNodes = buildTreeRecursiveByCode(
+                org.getCode(), codeParentMap, codeToOrgMap, changeTypeMap, requestedYear);
         if (!childNodes.isEmpty()) {
             node.put("children", childNodes);
-
-            // 更新sourceYear为子节点中最大的年份
-            // 这样父节点会跟随子节点显示最新的数据年份
-            for (Map<String, Object> child : childNodes) {
-                Object childSourceYearObj = child.get("sourceYear");
-                if (childSourceYearObj instanceof Number) {
-                    int childSourceYear = ((Number) childSourceYearObj).intValue();
-                    if (childSourceYear > sourceYear) {
-                        sourceYear = childSourceYear;
-                    }
-                }
-            }
         }
         node.put("sourceYear", sourceYear);
 
@@ -1472,7 +1661,9 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
     private List<Map<String, Object>> buildTreeRecursiveByCode(
             String parentCode,
             Map<String, List<GrassrootsOrganization>> codeParentMap,
-            Map<String, GrassrootsOrganization> codeToOrgMap
+            Map<String, GrassrootsOrganization> codeToOrgMap,
+            Map<String, String> changeTypeMap,
+            Integer requestedYear
     ) {
         if (parentCode == null) {
             return new ArrayList<>();
@@ -1483,10 +1674,9 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             return new ArrayList<>();
         }
 
-        return children.stream().map(org -> {
-            Map<String, Object> node = buildNodeForGrassroots(org, codeParentMap, codeToOrgMap);
-            return node;
-        }).sorted((a, b) -> {
+        return children.stream().map(org -> buildNodeForGrassroots(
+                org, codeParentMap, codeToOrgMap, changeTypeMap, requestedYear
+        )).sorted((a, b) -> {
             // 按code数值大小排序
             String codeA = (String) a.get("code");
             String codeB = (String) b.get("code");

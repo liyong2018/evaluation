@@ -2,7 +2,7 @@
   <div class="thematic-map-page">
     <div class="page-header">
       <h1>评估报告生成</h1>
-      <p class="page-description">基于减灾能力评估数据生成专业的专题图，支持多种格式导出</p>
+      <p class="page-description">基于减灾能力评估数据生成专业的专题图，支持多种格式导出。v2.0</p>
     </div>
     
     <div class="page-content">    
@@ -515,12 +515,45 @@ const downloadReport = async () => {
       const response = await wordTemplateApi.generateReport(year, orgCode)
       console.log('Word文档生成成功')
 
+      // 从响应中获取数据和文件名
+      const blobData = response.data
+      let fileName = `${buildReportBaseTitle(year)}.docx`
+
+      // 尝试从响应头中获取文件名
+      if (response.headers) {
+        const contentDisposition = response.headers['content-disposition'] || response.headers['Content-Disposition']
+        if (contentDisposition) {
+          console.log('Content-Disposition:', contentDisposition)
+          // 解析 filename*=UTF-8''encoded_filename 格式
+          const filenameStarMatch = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition)
+          if (filenameStarMatch && filenameStarMatch[1]) {
+            try {
+              fileName = decodeURIComponent(filenameStarMatch[1])
+              console.log('从响应头解析文件名:', fileName)
+            } catch (e) {
+              console.warn('解码文件名失败，使用默认文件名', e)
+            }
+          } else {
+            // 尝试解析 filename="..." 格式
+            const filenameMatch = /filename="([^"]+)"/i.exec(contentDisposition)
+            if (filenameMatch && filenameMatch[1]) {
+              try {
+                fileName = decodeURIComponent(filenameMatch[1])
+                console.log('从响应头解析文件名:', fileName)
+              } catch (e) {
+                console.warn('解码文件名失败，使用默认文件名', e)
+              }
+            }
+          }
+        }
+      }
+
       // 创建下载链接
-      const blob = new Blob([response], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+      const blob = new Blob([blobData], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `${buildReportBaseTitle(year)}.docx`
+      link.download = fileName
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -620,9 +653,27 @@ const openOnlyOfficeEditor = async () => {
     // 2. 生成Word文档
     showLoading('正在生成Word文档，请稍候...')
     console.log(`正在生成${year}年${orgCode}区域的Word文档...`)
+    let fileName = `${buildReportBaseTitle(year)}.docx`
     try {
-      await wordTemplateApi.generateReport(year, orgCode)
+      const response = await wordTemplateApi.generateReport(year, orgCode)
       console.log('Word文档生成成功')
+
+      // 从响应头中获取文件名
+      if (response.headers) {
+        const contentDisposition = response.headers['content-disposition'] || response.headers['Content-Disposition']
+        if (contentDisposition) {
+          console.log('Content-Disposition:', contentDisposition)
+          const filenameStarMatch = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition)
+          if (filenameStarMatch && filenameStarMatch[1]) {
+            try {
+              fileName = decodeURIComponent(filenameStarMatch[1])
+              console.log('从响应头解析文件名:', fileName)
+            } catch (e) {
+              console.warn('解码文件名失败，使用默认文件名', e)
+            }
+          }
+        }
+      }
     } catch (e) {
       console.error('生成Word文档失败:', e)
       ElMessage.error('生成Word文档失败，请重试')
@@ -649,7 +700,7 @@ const openOnlyOfficeEditor = async () => {
     }
 
     wordDocumentUrl.value = `${baseUrl}/api/word-template/latest-report`
-    wordDocumentTitle.value = `${buildReportBaseTitle(year)}.docx`
+    wordDocumentTitle.value = fileName
     wordDocumentKey.value = new Date().getTime().toString()
 
     // 5. 将上传的专题图URLs存储到window对象，供OnlyOffice使用

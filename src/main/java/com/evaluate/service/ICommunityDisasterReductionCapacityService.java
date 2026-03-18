@@ -81,7 +81,7 @@ public interface ICommunityDisasterReductionCapacityService extends IService<Com
      * @param dataType 数据类型 (township/community/medical)
      * @return 验证结果
      */
-    GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType);
+    GpkgFieldValidationResult validateGpkgFields(MultipartFile file, String dataType, Integer year);
 
     /**
      * 从GPKG文件导入社区减灾能力数据

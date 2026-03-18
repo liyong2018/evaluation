@@ -41,12 +41,12 @@ request.interceptors.response.use(
   (response: AxiosResponse) => {
     // 对响应数据做点什么
     const { data } = response
-    
-    // 如果是文件下载等特殊响应，直接返回
+
+    // 如果是文件下载等特殊响应，返回完整response对象以便获取响应头中的文件名
     if (response.config.responseType === 'blob') {
-      return data
+      return { data, headers: response.headers }
     }
-    
+
     // 统一处理后端返回的Result格式
     if (data && typeof data === 'object') {
       if (data.success === false) {
@@ -55,7 +55,7 @@ request.interceptors.response.use(
       }
       return data
     }
-    
+
     return data
   },
   (error: AxiosError) => {
@@ -63,11 +63,12 @@ request.interceptors.response.use(
     console.error('请求错误:', error)
     // 专门处理超时错误
     if ((error as any)?.code === 'ECONNABORTED' || /timeout/i.test(String((error as any)?.message))) {
-      // 检查是否是GPKG导入请求超时
-      const isGpkgImport = error.config?.url?.includes('/import-gpkg')
-      const msg = isGpkgImport
+      const requestUrl = error.config?.url || ''
+      const timeoutValue = Number(error.config?.timeout) || DEFAULT_TIMEOUT
+      const isImportRequest = requestUrl.includes('/import')
+      const msg = isImportRequest
         ? '导入请求超时，但数据可能仍在后台处理中。请稍后刷新列表查看导入结果。'
-        : `请求超时，请稍后重试（当前超时：${DEFAULT_TIMEOUT}ms）`
+        : `请求超时，请稍后重试（当前超时：${timeoutValue}ms）`
       ElMessage.warning(msg)
       return Promise.reject(error)
     }
