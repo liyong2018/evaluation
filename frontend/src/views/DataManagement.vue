@@ -2011,7 +2011,9 @@ const handleGpkgImport = async () => {
   } catch (error) {
     ElMessage.closeAll()
     console.error('导入GPKG文件失败:', error)
-    ElMessage.error('导入失败')
+    if (!isRequestTimeoutError(error)) {
+      ElMessage.error('导入失败')
+    }
   } finally {
     loading.import = false
   }

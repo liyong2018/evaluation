@@ -90,7 +90,7 @@ export const surveyDataApi = {
     formData.append('year', year.toString())
     return request.post('/api/survey-data/import-gpkg', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000 // 5分钟超时（文件导入可能耗时较长）
+      timeout: 1800000
     })
   },
 
@@ -487,7 +487,7 @@ export const communityCapacityApi = {
     formData.append('year', year.toString())
     return request.post('/api/community-capacity/import-gpkg', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000 // 5分钟超时（文件导入可能耗时较长）
+      timeout: 1800000
     })
   },
 
@@ -560,7 +560,7 @@ export const medicalInstitutionApi = {
     formData.append('year', year.toString())
     return request.post('/api/medical-institution/import-gpkg', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000 // 5分钟超时（文件导入可能耗时较长）
+      timeout: 1800000
     })
   },
 
