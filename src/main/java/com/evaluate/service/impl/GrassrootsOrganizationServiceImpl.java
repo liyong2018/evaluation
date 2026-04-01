@@ -381,97 +381,116 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         return baseMapper.selectOne(queryWrapper) != null;
     }
 
+    private Long resolveEffectiveCountyId(Long countyId) {
+        if (countyId == null) {
+            return null;
+        }
+        QueryWrapper<Organization> checkOrg = new QueryWrapper<>();
+        checkOrg.eq("id", countyId);
+        Organization county = organizationMapper.selectOne(checkOrg);
+        if (county == null || county.getYear() == null ||
+                (county.getIsBaseline() != null && county.getIsBaseline() == 1)) {
+            return countyId;
+        }
+
+        QueryWrapper<Organization> baselineOrg = new QueryWrapper<>();
+        baselineOrg.eq("code", StringUtils.hasText(county.getBaselineCode()) ? county.getBaselineCode() : county.getCode());
+        baselineOrg.eq("is_baseline", 1);
+        Organization baseline = organizationMapper.selectOne(baselineOrg);
+        if (baseline != null && baseline.getId() != null) {
+            return baseline.getId();
+        }
+        return countyId;
+    }
+
+    private List<GrassrootsOrganization> loadCountyCandidates(Long countyId, Integer year) {
+        if (countyId == null) {
+            return new ArrayList<>();
+        }
+        if (year != null && year > BASELINE_YEAR) {
+            return baseMapper.selectByCountyIdUpToYearIncludeDeleted(countyId, year);
+        }
+        return baseMapper.selectByCountyIdBaselineIncludeDeleted(countyId);
+    }
+
+    private List<GrassrootsOrganization> sortGrassrootsOrganizations(List<GrassrootsOrganization> organizations) {
+        organizations.sort((a, b) -> {
+            int levelA = a != null && a.getLevel() != null ? a.getLevel() : 0;
+            int levelB = b != null && b.getLevel() != null ? b.getLevel() : 0;
+            if (levelA != levelB) {
+                return Integer.compare(levelA, levelB);
+            }
+            String codeA = a != null ? a.getCode() : null;
+            String codeB = b != null ? b.getCode() : null;
+            if (codeA == null && codeB == null) {
+                return 0;
+            }
+            if (codeA == null) {
+                return 1;
+            }
+            if (codeB == null) {
+                return -1;
+            }
+            return codeA.compareTo(codeB);
+        });
+        return organizations;
+    }
+
+    private List<GrassrootsOrganization> pruneOrphanCommunities(List<GrassrootsOrganization> organizations) {
+        Map<String, GrassrootsOrganization> codeMap = organizations.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> StringUtils.hasText(item.getCode()))
+                .collect(Collectors.toMap(GrassrootsOrganization::getCode, item -> item, (left, right) -> left));
+
+        return organizations.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> {
+                    if (!Objects.equals(item.getLevel(), LEVEL_COMMUNITY)) {
+                        return true;
+                    }
+                    String code = normalizeText(item.getCode());
+                    if (!StringUtils.hasText(code) || code.length() < 9) {
+                        return false;
+                    }
+                    String parentCode = code.substring(0, 9);
+                    return codeMap.containsKey(parentCode);
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<GrassrootsOrganization> loadEffectiveCountyOrganizations(Long countyId, Integer year) {
+        List<GrassrootsOrganization> candidates = loadCountyCandidates(countyId, year);
+        if (candidates == null || candidates.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<GrassrootsOrganization> merged = mergeBaselineWithLatestYearData(new ArrayList<>(candidates), year);
+        merged = pruneOrphanCommunities(merged);
+        return sortGrassrootsOrganizations(merged);
+    }
+
+    private List<GrassrootsOrganization> filterGrassrootsByLevelAndPrefix(List<GrassrootsOrganization> organizations,
+                                                                          Integer level,
+                                                                          String prefix) {
+        return organizations.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> level == null || Objects.equals(item.getLevel(), level))
+                .filter(item -> {
+                    if (!StringUtils.hasText(prefix)) {
+                        return true;
+                    }
+                    String code = normalizeText(item.getCode());
+                    return StringUtils.hasText(code) && code.startsWith(prefix);
+                })
+                .collect(Collectors.toList());
+    }
+
     @Override
     public List<GrassrootsOrganization> getTownshipsByCountyId(Long countyId, Integer year) {
         try {
-            // 如果传入的countyId对应年份记录，需要找到对应的基准记录ID
-            // 因为街道表中的county_id存储的是基准记录的ID
-            Long effectiveCountyId = countyId;
-            QueryWrapper<Organization> checkOrg = new QueryWrapper<>();
-            checkOrg.eq("id", countyId);
-            Organization county = organizationMapper.selectOne(checkOrg);
-            if (county != null && county.getYear() != null &&
-                (county.getIsBaseline() == null || county.getIsBaseline() == 0)) {
-                // 这是年份记录，需要找到对应的基准记录ID
-                QueryWrapper<Organization> baselineOrg = new QueryWrapper<>();
-                baselineOrg.eq("code", county.getBaselineCode() != null ? county.getBaselineCode() : county.getCode());
-                baselineOrg.eq("is_baseline", 1);
-                Organization baseline = organizationMapper.selectOne(baselineOrg);
-                if (baseline != null && baseline.getId() != null) {
-                    effectiveCountyId = baseline.getId();
-                    log.info("getTownshipsByCountyId 年份记录映射: countyId={} -> baselineId={}", countyId, effectiveCountyId);
-                }
-            }
-
-            List<GrassrootsOrganization> result = null;
-
-            if (year != null && year > BASELINE_YEAR) {
-                // 先尝试查询指定年份的数据
-                QueryWrapper<GrassrootsOrganization> yearQuery = new QueryWrapper<>();
-                yearQuery.eq("county_id", effectiveCountyId);
-                yearQuery.eq("level", LEVEL_TOWNSHIP);
-                yearQuery.eq("year", year);
-                yearQuery.orderByAsc("code");
-                result = list(yearQuery);
-
-                // 如果指定年份没有数据，尝试从 year-1 向下查到 BASELINE_YEAR
-                if (result == null || result.isEmpty()) {
-                    log.info("未找到{}年的街道数据，尝试从{}向下查找到{}", year, year - 1, BASELINE_YEAR);
-                    for (int checkYear = year - 1; checkYear > BASELINE_YEAR; checkYear--) {
-                        QueryWrapper<GrassrootsOrganization> checkQuery = new QueryWrapper<>();
-                        checkQuery.eq("county_id", effectiveCountyId);
-                        checkQuery.eq("level", LEVEL_TOWNSHIP);
-                        checkQuery.eq("year", checkYear);
-                        checkQuery.orderByAsc("code");
-                        List<GrassrootsOrganization> checkResult = list(checkQuery);
-                        if (checkResult != null && !checkResult.isEmpty()) {
-                            result = checkResult;
-                            log.info("找到{}年的街道数据，共{}条", checkYear, result.size());
-                            break;
-                        }
-                    }
-
-                    // 如果还是没找到，使用底表数据
-                    if (result == null || result.isEmpty()) {
-                        log.info("未找到任何年份的街道数据，使用底表数据");
-                        QueryWrapper<GrassrootsOrganization> baselineQuery = new QueryWrapper<>();
-                        baselineQuery.eq("county_id", effectiveCountyId);
-                        baselineQuery.eq("level", LEVEL_TOWNSHIP);
-                        baselineQuery.eq("is_baseline", 1);
-                        baselineQuery.orderByAsc("code");
-                        result = list(baselineQuery);
-                    }
-                }
-
-                // 如果查询到了数据，需要与底表数据合并
-                if (result != null && !result.isEmpty()) {
-                    QueryWrapper<GrassrootsOrganization> baselineQuery = new QueryWrapper<>();
-                    baselineQuery.eq("county_id", effectiveCountyId);
-                    baselineQuery.eq("level", LEVEL_TOWNSHIP);
-                    baselineQuery.eq("is_baseline", 1);
-                    List<GrassrootsOrganization> baseline = list(baselineQuery);
-                    if (baseline != null && !baseline.isEmpty()) {
-                        result.addAll(baseline);
-                        result = mergeBaselineWithLatestYearData(result, year);
-                    }
-                }
-            } else {
-                // 查询底表数据或使用原有逻辑
-                QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-                queryWrapper.eq("county_id", effectiveCountyId);
-                queryWrapper.eq("level", LEVEL_TOWNSHIP);
-                applyYearRangeCondition(queryWrapper, year);
-                queryWrapper.orderByAsc("code");
-                result = list(queryWrapper);
-                if (year != null && year > BASELINE_YEAR && !result.isEmpty()) {
-                    result = mergeBaselineWithLatestYearData(result, year);
-                }
-            }
-
-            if (result == null) {
-                result = new ArrayList<>();
-            }
-
+            Long effectiveCountyId = resolveEffectiveCountyId(countyId);
+            List<GrassrootsOrganization> result = filterGrassrootsByLevelAndPrefix(
+                    loadEffectiveCountyOrganizations(effectiveCountyId, year), LEVEL_TOWNSHIP, null);
             log.info("getTownshipsByCountyId: countyId={}, year={}, resultSize={}", countyId, year, result.size());
             return result;
         } catch (Exception e) {
@@ -540,30 +559,31 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
     public List<GrassrootsOrganization> getCommunitiesByTownshipId(Long townshipId, Integer year) {
         try {
             GrassrootsOrganization township = (townshipId != null) ? getById(townshipId) : null;
-            Long baselineTownshipId = townshipId;
-            if (township != null && township.getYear() != null && isYearChangeRecord(township)) {
+            if (township == null || !StringUtils.hasText(township.getCode())) {
+                return new ArrayList<>();
+            }
+
+            Long effectiveCountyId = township.getCountyId();
+            if (effectiveCountyId == null && StringUtils.hasText(township.getBaselineCode())) {
                 QueryWrapper<GrassrootsOrganization> baselineTownshipQuery = new QueryWrapper<>();
-                baselineTownshipQuery.eq("code", StringUtils.hasText(township.getBaselineCode()) ? township.getBaselineCode() : township.getCode());
+                baselineTownshipQuery.eq("code", township.getBaselineCode());
                 baselineTownshipQuery.eq("is_baseline", 1);
                 GrassrootsOrganization baselineTownship = getOne(baselineTownshipQuery, false);
-                if (baselineTownship != null && baselineTownship.getId() != null) {
-                    baselineTownshipId = baselineTownship.getId();
+                if (baselineTownship != null) {
+                    effectiveCountyId = baselineTownship.getCountyId();
                 }
             }
 
-            QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-            if (baselineTownshipId != null && !Objects.equals(baselineTownshipId, townshipId)) {
-                queryWrapper.in("parent_id", Arrays.asList(townshipId, baselineTownshipId));
-            } else {
-                queryWrapper.eq("parent_id", townshipId);
+            String townshipCode = normalizeText(township.getCode());
+            List<GrassrootsOrganization> effectiveOrganizations = loadEffectiveCountyOrganizations(effectiveCountyId, year);
+            boolean townshipExists = effectiveOrganizations.stream().anyMatch(item ->
+                    Objects.equals(item.getLevel(), LEVEL_TOWNSHIP) && Objects.equals(normalizeText(item.getCode()), townshipCode));
+            if (!townshipExists) {
+                return new ArrayList<>();
             }
-            queryWrapper.eq("level", LEVEL_COMMUNITY);
-            applyYearRangeCondition(queryWrapper, year);
-            queryWrapper.orderByAsc("code");
-            List<GrassrootsOrganization> result = list(queryWrapper);
-            if (year != null && year > BASELINE_YEAR && !result.isEmpty()) {
-                result = mergeBaselineWithLatestYearData(result, year);
-            }
+
+            List<GrassrootsOrganization> result = filterGrassrootsByLevelAndPrefix(
+                    effectiveOrganizations, LEVEL_COMMUNITY, townshipCode);
             log.info("根据乡镇ID获取社区列表: townshipId={}, year={}, resultSize={}", townshipId, year, result.size());
             return result;
         } catch (Exception e) {
@@ -602,96 +622,18 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
     @Override
     public List<Map<String, Object>> getTreeByCountyId(Long countyId, Integer year) {
         try {
-            // 如果传入的countyId对应年份记录，需要找到对应的基准记录ID
-            // 因为街道表中的county_id存储的是基准记录的ID
-            Long effectiveCountyId = countyId;
-            QueryWrapper<Organization> checkOrg = new QueryWrapper<>();
-            checkOrg.eq("id", countyId);
-            Organization county = organizationMapper.selectOne(checkOrg);
-            if (county != null && county.getYear() != null &&
-                (county.getIsBaseline() == null || county.getIsBaseline() == 0)) {
-                // 这是年份记录，需要找到对应的基准记录ID
-                QueryWrapper<Organization> baselineOrg = new QueryWrapper<>();
-                baselineOrg.eq("code", county.getBaselineCode() != null ? county.getBaselineCode() : county.getCode());
-                baselineOrg.eq("is_baseline", 1);
-                Organization baseline = organizationMapper.selectOne(baselineOrg);
-                if (baseline != null && baseline.getId() != null) {
-                    effectiveCountyId = baseline.getId();
-                    log.info("年份记录映射: countyId={} -> baselineId={}", countyId, effectiveCountyId);
-                }
-            }
-
-            // 查询 grassroots 组织
-            List<GrassrootsOrganization> all = null;
-            List<GrassrootsOrganization> yearRecords = new ArrayList<>();
-            List<GrassrootsOrganization> baselineRecords = new ArrayList<>();
-
-            if (year != null && year > BASELINE_YEAR) {
-                // 先尝试查询指定年份的数据
-                QueryWrapper<GrassrootsOrganization> yearQuery = new QueryWrapper<>();
-                yearQuery.eq("county_id", effectiveCountyId);
-                yearQuery.eq("year", year);
-                yearQuery.orderByAsc("level", "code");
-                all = list(yearQuery);
-                if (all != null && !all.isEmpty()) {
-                    yearRecords = new ArrayList<>(all);
-                }
-
-                // 如果指定年份没有数据，尝试从 year-1 向下查到 BASELINE_YEAR
-                if (all == null || all.isEmpty()) {
-                    log.info("未找到{}年的数据，尝试从{}向下查找到{}", year, year - 1, BASELINE_YEAR);
-                    for (int checkYear = year - 1; checkYear > BASELINE_YEAR; checkYear--) {
-                        QueryWrapper<GrassrootsOrganization> checkQuery = new QueryWrapper<>();
-                        checkQuery.eq("county_id", effectiveCountyId);
-                        checkQuery.eq("year", checkYear);
-                        checkQuery.orderByAsc("level", "code");
-                        List<GrassrootsOrganization> checkResult = list(checkQuery);
-                        if (checkResult != null && !checkResult.isEmpty()) {
-                            all = checkResult;
-                            log.info("找到{}年的数据，共{}条", checkYear, all.size());
-                            break;
-                        }
-                    }
-
-                    // 如果还是没找到，使用底表数据
-                    if (all == null || all.isEmpty()) {
-                        log.info("未找到任何年份数据，使用底表数据");
-                        QueryWrapper<GrassrootsOrganization> baselineQuery = new QueryWrapper<>();
-                        baselineQuery.eq("county_id", effectiveCountyId);
-                        baselineQuery.eq("is_baseline", 1);
-                        baselineQuery.orderByAsc("level", "code");
-                        all = list(baselineQuery);
-                    }
-                }
-
-                // 如果查询到了数据，需要与底表数据合并
-                if (all != null && !all.isEmpty()) {
-                    // 查询底表数据进行合并
-                    QueryWrapper<GrassrootsOrganization> baselineQuery = new QueryWrapper<>();
-                    baselineQuery.eq("county_id", effectiveCountyId);
-                    baselineQuery.eq("is_baseline", 1);
-                    List<GrassrootsOrganization> baseline = list(baselineQuery);
-                    if (baseline != null && !baseline.isEmpty()) {
-                        baselineRecords = new ArrayList<>(baseline);
-                        all.addAll(baseline);
-                        all = mergeBaselineWithLatestYearData(all, year);
-                    }
-                }
-            } else {
-                // 查询底表数据
-                QueryWrapper<GrassrootsOrganization> queryWrapper = new QueryWrapper<>();
-                queryWrapper.eq("county_id", effectiveCountyId);
-                applyYearRangeCondition(queryWrapper, year);
-                queryWrapper.orderByAsc("level", "code");
-                all = list(queryWrapper);
-                if (year != null && year > BASELINE_YEAR && !all.isEmpty()) {
-                    all = mergeBaselineWithLatestYearData(all, year);
-                }
-            }
-
-            if (all == null) {
-                all = new ArrayList<>();
-            }
+            Long effectiveCountyId = resolveEffectiveCountyId(countyId);
+            List<GrassrootsOrganization> candidates = loadCountyCandidates(effectiveCountyId, year);
+            List<GrassrootsOrganization> baselineRecords = candidates.stream()
+                    .filter(Objects::nonNull)
+                    .filter(item -> item.getIsBaseline() != null && item.getIsBaseline() == 1)
+                    .collect(Collectors.toList());
+            List<GrassrootsOrganization> yearRecords = candidates.stream()
+                    .filter(Objects::nonNull)
+                    .filter(item -> year != null && Objects.equals(item.getYear(), year))
+                    .filter(item -> item.getIsBaseline() == null || item.getIsBaseline() == 0)
+                    .collect(Collectors.toList());
+            List<GrassrootsOrganization> all = loadEffectiveCountyOrganizations(effectiveCountyId, year);
 
             log.info("getTreeByCountyId: countyId={}, year={}, 查询结果数={}", countyId, year, all.size());
 

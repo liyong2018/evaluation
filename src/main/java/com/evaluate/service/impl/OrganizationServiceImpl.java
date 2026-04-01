@@ -764,60 +764,40 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
      * 3. 合并基准数据和历史变更记录（最近年份优先）
      */
     private List<Organization> getOrganizationsWithBaseline(Long parentId, Integer maxLevel, Integer year) {
-        QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
-
-        // 权限过滤
         List<String> allowedCodes = getCurrentUserAllowedOrgCodes();
-        if (allowedCodes != null) {
-            if (allowedCodes.isEmpty()) {
-                return new ArrayList<>();
-            }
-            queryWrapper.and(wrapper -> {
-                for (String allowedCode : allowedCodes) {
-                    wrapper.or().likeRight("code", allowedCode);
-                }
-            });
+        if (allowedCodes != null && allowedCodes.isEmpty()) {
+            return new ArrayList<>();
         }
 
-        // 父节点过滤
+        String parentCode = null;
         if (parentId != null) {
             Organization parent = getById(parentId);
             if (parent != null) {
-                queryWrapper.likeRight("code", parent.getCode());
+                parentCode = normalizeText(parent.getCode());
             }
         }
+        final String parentCodeFilter = parentCode;
 
-        // 层级过滤
-        if (maxLevel != null) {
-            queryWrapper.le("level", maxLevel);
-        }
-
-        // 过滤已删除的记录
-        queryWrapper.eq("is_deleted", 0);
-
-        // 年份/基准过滤逻辑
+        List<Organization> organizations;
         if (year != null) {
-            // 查询从目标年份向下所有年份的变更记录 + 基准记录
-            // 这样可以确保中间年份的变更（如2023年的修改）也能被查询出来
-            queryWrapper.and(wrapper -> wrapper
-                    // 基准记录
-                    .eq("is_baseline", 1)
-                    // 或者：年份在目标年份和基准年之间的变更记录
-                    .or(w -> w
-                            .ge("year", 2020)
-                            .le("year", year)
-                            .eq("is_baseline", 0)
-                    )
-            );
             log.info("查询年份: {}, 查询范围: 2020-{}", year, year);
+            organizations = baseMapper.selectUpToYearIncludeDeleted(year);
         } else {
-            // 没有指定年份，只返回基准记录
-            queryWrapper.eq("is_baseline", 1);
+            organizations = baseMapper.selectBaselineIncludeDeleted();
         }
 
-        queryWrapper.orderByDesc("year").orderByAsc("level", "code");
+        organizations = organizations.stream()
+                .filter(Objects::nonNull)
+                .filter(org -> StringUtils.hasText(org.getCode()))
+                .filter(org -> maxLevel == null || (org.getLevel() != null && org.getLevel() <= maxLevel))
+                .filter(org -> !StringUtils.hasText(parentCodeFilter) || org.getCode().startsWith(parentCodeFilter))
+                .filter(org -> allowedCodes == null || allowedCodes.stream().anyMatch(allowed -> org.getCode().startsWith(allowed)))
+                .sorted(Comparator
+                        .comparing(Organization::getYear, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(Organization::getLevel, Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(Organization::getCode, Comparator.nullsLast(String::compareTo)))
+                .collect(Collectors.toList());
 
-        List<Organization> organizations = list(queryWrapper);
         log.info("查询到{}条组织记录（包含基准和变更记录）", organizations.size());
 
         // 如果有年份参数，需要合并数据（按年份顺序合并，最近年份优先）
@@ -967,6 +947,52 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 selectedOrg = baselineOrg;
             }
 
+            // 县级节点如果只是基层同步出来的镜像记录，而该县当年并没有真实基层变更，
+            // 则不应把左侧组织树年份提升到当前年，仍然显示最近真实有效年份。
+            if (selectedOrg != null
+                    && baselineOrg != null
+                    && selectedOrg != baselineOrg
+                    && Objects.equals(selectedOrg.getLevel(), LEVEL_COUNTY)
+                    && selectedOrg.getYear() != null
+                    && selectedOrg.getYear() > 2020) {
+                String dataSource = normalizeText(selectedOrg.getDataSource());
+                boolean derivedFromGrassroots = SOURCE_TOWNSHIP.equals(dataSource) || SOURCE_COMMUNITY.equals(dataSource);
+                boolean hasGrassrootsChange = hasGrassrootsYearChangeForCounty(baselineOrg.getId(), selectedOrg.getYear());
+                if (derivedFromGrassroots && !hasGrassrootsChange) {
+                    selectedOrg = baselineOrg;
+                }
+            }
+
+            // 修复：如果选中的记录 name 字段是代码（name=code），使用基准数据的 name
+            if (selectedOrg != null && baselineOrg != null
+                    && (selectedOrg.getIsBaseline() == null || selectedOrg.getIsBaseline() == 0)) {
+                String selectedName = normalizeText(selectedOrg.getName());
+                String selectedCode = normalizeText(selectedOrg.getCode());
+                String baselineName = normalizeText(baselineOrg.getName());
+                // 如果 name 等于 code 且不等于基准 name，说明 name 字段存储的是代码而不是名称
+                if (selectedCode != null && selectedCode.equals(selectedName)
+                        && baselineName != null && !baselineName.equals(selectedName)) {
+                    // 使用基准数据的 name 字段
+                    selectedOrg.setName(baselineName);
+                    // 同时修复其他名称字段
+                    if (baselineOrg.getProvinceName() != null && !baselineOrg.getProvinceName().equals(selectedOrg.getProvinceName())) {
+                        selectedOrg.setProvinceName(baselineOrg.getProvinceName());
+                    }
+                    if (baselineOrg.getCityName() != null && !baselineOrg.getCityName().equals(selectedOrg.getCityName())) {
+                        selectedOrg.setCityName(baselineOrg.getCityName());
+                    }
+                    if (baselineOrg.getCountyName() != null && !baselineOrg.getCountyName().equals(selectedOrg.getCountyName())) {
+                        selectedOrg.setCountyName(baselineOrg.getCountyName());
+                    }
+                    if (baselineOrg.getTownshipName() != null && !baselineOrg.getTownshipName().equals(selectedOrg.getTownshipName())) {
+                        selectedOrg.setTownshipName(baselineOrg.getTownshipName());
+                    }
+                    if (baselineOrg.getCommunityName() != null && !baselineOrg.getCommunityName().equals(selectedOrg.getCommunityName())) {
+                        selectedOrg.setCommunityName(baselineOrg.getCommunityName());
+                    }
+                }
+            }
+
             if (selectedOrg != null) {
                 mergedMap.put(code, selectedOrg);
             }
@@ -1041,8 +1067,23 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             return false;
         }
 
+        Organization baselineCounty = getById(countyId);
+        Set<Long> candidateCountyIds = new LinkedHashSet<>();
+        candidateCountyIds.add(countyId);
+        if (baselineCounty != null && StringUtils.hasText(baselineCounty.getCode())) {
+            QueryWrapper<Organization> relatedCountyQuery = new QueryWrapper<>();
+            relatedCountyQuery.eq("code", baselineCounty.getCode());
+            relatedCountyQuery.and(wrapper -> wrapper.eq("is_baseline", 1).or().eq("year", requestedYear));
+            List<Organization> relatedCounties = baseMapper.selectList(relatedCountyQuery);
+            for (Organization relatedCounty : relatedCounties) {
+                if (relatedCounty != null && relatedCounty.getId() != null) {
+                    candidateCountyIds.add(relatedCounty.getId());
+                }
+            }
+        }
+
         QueryWrapper<GrassrootsOrganization> yearQuery = new QueryWrapper<>();
-        yearQuery.eq("county_id", countyId);
+        yearQuery.in("county_id", candidateCountyIds);
         yearQuery.eq("year", requestedYear);
         yearQuery.and(w -> w.eq("is_baseline", 0).or().isNull("is_baseline"));
         List<GrassrootsOrganization> yearRecords = grassrootsOrganizationMapper.selectList(yearQuery);
@@ -1051,7 +1092,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         }
 
         QueryWrapper<GrassrootsOrganization> baselineQuery = new QueryWrapper<>();
-        baselineQuery.eq("county_id", countyId);
+        baselineQuery.in("county_id", candidateCountyIds);
         baselineQuery.eq("is_baseline", 1);
         List<GrassrootsOrganization> baselineRecords = grassrootsOrganizationMapper.selectList(baselineQuery);
         Map<String, GrassrootsOrganization> baselineByCode = new HashMap<>();
@@ -1085,6 +1126,17 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             }
         }
         return false;
+    }
+
+    private Long resolveBaselineOrganizationId(String code) {
+        if (!StringUtils.hasText(code)) {
+            return null;
+        }
+        QueryWrapper<Organization> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("code", code.trim());
+        queryWrapper.eq("is_baseline", 1);
+        Organization baseline = baseMapper.selectOne(queryWrapper);
+        return baseline != null ? baseline.getId() : null;
     }
 
     /**
@@ -1756,34 +1808,40 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             sourceYear = 2020; // 底表数据默认为2020年
         }
 
+        // 县级节点如果只是基层同步镜像且当年没有真实基层变更，左侧树应继续显示最近真实有效年份。
+        if (Objects.equals(org.getLevel(), LEVEL_COUNTY) && sourceYear > 2020) {
+            String dataSource = normalizeText(org.getDataSource());
+            boolean derivedFromGrassroots = SOURCE_TOWNSHIP.equals(dataSource) || SOURCE_COMMUNITY.equals(dataSource);
+            if (derivedFromGrassroots) {
+                Long baselineCountyId = resolveBaselineOrganizationId(org.getCode());
+                if (!hasGrassrootsYearChangeForCounty(baselineCountyId, sourceYear)) {
+                    sourceYear = 2020;
+                }
+            }
+        }
+
         // 递归构建子节点
         List<Map<String, Object>> childNodes = buildTreeRecursiveByCode(
                 org.getCode(), codeParentMap, emittedCodes, stack, codeToOrgMap, year);
         if (!childNodes.isEmpty()) {
             node.put("children", childNodes);
-
-            // 更新sourceYear为子节点中最大的年份
-            // 这样父节点会跟随子节点显示最新的数据年份
-            for (Map<String, Object> child : childNodes) {
-                Object childSourceYearObj = child.get("sourceYear");
-                if (childSourceYearObj instanceof Number) {
-                    int childSourceYear = ((Number) childSourceYearObj).intValue();
-                    if (childSourceYear > sourceYear) {
-                        sourceYear = childSourceYear;
-                    }
-                }
-            }
         }
 
-        // 对于区县节点（level=3），仅在当年基层组织有真实变更时提升年份
-        if (org.getLevel() != null && org.getLevel() == LEVEL_COUNTY && year != null && year > 2020) {
-            try {
-                if (hasGrassrootsYearChangeForCounty(org.getId(), year) && year > sourceYear) {
-                    sourceYear = year;
-                }
-            } catch (Exception e) {
-                log.warn("查询区县{}下的基层组织年份失败: {}", org.getCode(), e.getMessage());
-            }
+        // 省/市级节点如果只是基层同步镜像记录，则展示年份应跟随当前实际有效的下级节点。
+        String dataSource = normalizeText(org.getDataSource());
+        boolean derivedFromGrassroots = SOURCE_TOWNSHIP.equals(dataSource) || SOURCE_COMMUNITY.equals(dataSource);
+        if (derivedFromGrassroots
+                && sourceYear > 2020
+                && (Objects.equals(org.getLevel(), LEVEL_PROVINCE) || Objects.equals(org.getLevel(), LEVEL_CITY))
+                && !childNodes.isEmpty()) {
+            int maxChildSourceYear = childNodes.stream()
+                    .map(child -> child.get("sourceYear"))
+                    .filter(Number.class::isInstance)
+                    .map(Number.class::cast)
+                    .mapToInt(Number::intValue)
+                    .max()
+                    .orElse(2020);
+            sourceYear = Math.min(sourceYear, maxChildSourceYear);
         }
 
         node.put("sourceYear", sourceYear);

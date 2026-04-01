@@ -54,4 +54,20 @@ public interface GrassrootsOrganizationMapper extends BaseMapper<GrassrootsOrgan
                                    @Param("provinceName") String provinceName, @Param("cityName") String cityName,
                                    @Param("countyName") String countyName, @Param("townshipName") String townshipName,
                                    @Param("communityName") String communityName);
+
+    /**
+     * 查询某区县下的基准基层组织记录（包含已删除记录）
+     */
+    @Select("SELECT * FROM grassroots_organization WHERE county_id = #{countyId} AND is_baseline = 1")
+    java.util.List<GrassrootsOrganization> selectByCountyIdBaselineIncludeDeleted(@Param("countyId") Long countyId);
+
+    /**
+     * 查询某区县下目标年份及之前的基层组织记录（包含已删除记录）
+     */
+    @Select("SELECT * FROM grassroots_organization " +
+            "WHERE county_id = #{countyId} " +
+            "AND (is_baseline = 1 " +
+            "OR (year >= 2020 AND year <= #{year} AND (is_baseline = 0 OR is_baseline IS NULL)))")
+    java.util.List<GrassrootsOrganization> selectByCountyIdUpToYearIncludeDeleted(@Param("countyId") Long countyId,
+                                                                                   @Param("year") Integer year);
 }

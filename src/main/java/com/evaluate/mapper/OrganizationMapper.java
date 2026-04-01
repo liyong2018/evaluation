@@ -38,4 +38,18 @@ public interface OrganizationMapper extends BaseMapper<Organization> {
      */
     @Update("UPDATE organization SET is_deleted = 0 WHERE code = #{code} AND year = #{year}")
     int markAsUndeletedByCodeAndYear(@Param("code") String code, @Param("year") Integer year);
+
+    /**
+     * 查询所有基准组织记录（包含已删除记录，绕过 @TableLogic）
+     */
+    @Select("SELECT * FROM organization WHERE is_baseline = 1")
+    List<Organization> selectBaselineIncludeDeleted();
+
+    /**
+     * 查询目标年份及之前的组织记录（包含已删除记录，绕过 @TableLogic）
+     */
+    @Select("SELECT * FROM organization " +
+            "WHERE is_baseline = 1 " +
+            "OR (year >= 2020 AND year <= #{year} AND (is_baseline = 0 OR is_baseline IS NULL))")
+    List<Organization> selectUpToYearIncludeDeleted(@Param("year") Integer year);
 }
