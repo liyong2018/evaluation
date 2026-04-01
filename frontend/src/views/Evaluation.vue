@@ -428,16 +428,53 @@ const selectedCounty = computed(() => {
   return counties.value.find(county => county.code === evaluationForm.selectedCounty)
 })
 
+const isAdministrativeCode = (value: unknown) => {
+  return /^\d{6,}$/.test(String(value || '').trim())
+}
+
+const findRegionNodeByCode = (nodes: any[], code: string): any => {
+  for (const node of nodes) {
+    if (node.code === code) return node
+    if (node.children) {
+      const found = findRegionNodeByCode(node.children, code)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+const getSelectedCountyDisplayName = () => {
+  const selectedNode = evaluationForm.orgCode
+    ? findRegionNodeByCode(regionTreeData.value, evaluationForm.orgCode)
+    : null
+  const storedOrg = globalOrganizationStore.selectedOrganization
+
+  const rawCountyNameCandidates = [
+    selectedNode?.level === 3 ? (selectedNode.countyName || selectedNode.name) : '',
+    storedOrg?.level === 3 ? (storedOrg.countyName || storedOrg.name) : '',
+    selectedCounty.value?.name || ''
+  ]
+
+  const countyName = rawCountyNameCandidates.find(name => name && !isAdministrativeCode(name)) || ''
+  const cityName = selectedNode?.cityName || storedOrg?.cityName || evaluationForm.selectedCity || ''
+
+  if (countyName && cityName && !countyName.includes(cityName)) {
+    return `${cityName}${countyName}`
+  }
+
+  return countyName
+}
+
 // 生成评估名称函数
 const generateEvaluationName = () => {
   const year = evaluationForm.year || new Date().getFullYear()
   const model = selectedModel.value
-  const county = selectedCounty.value
+  const countyDisplayName = getSelectedCountyDisplayName()
 
   let name = `${year}年`
 
-  if (county?.name) {
-    name += `${county.name}`
+  if (countyDisplayName) {
+    name += countyDisplayName
   }
 
   if (model?.modelName) {
@@ -1040,18 +1077,7 @@ const handleRegionTreeChange = async (value: string) => {
   }
 
   // 从树形数据中查找选中的节点
-  const findNode = (nodes: any[], code: string): any => {
-    for (const node of nodes) {
-      if (node.code === code) return node
-      if (node.children) {
-        const found = findNode(node.children, code)
-        if (found) return found
-      }
-    }
-    return null
-  }
-
-  const selectedNode = findNode(regionTreeData.value, value)
+  const selectedNode = findRegionNodeByCode(regionTreeData.value, value)
   if (!selectedNode) {
     console.warn('未找到选中的节点:', value)
     return
@@ -1073,14 +1099,19 @@ const handleRegionTreeChange = async (value: string) => {
   } else if (selectedNode.level === 3) {
     evaluationForm.selectedProvince = selectedNode.provinceName || evaluationForm.selectedProvince
     evaluationForm.selectedCity = selectedNode.cityName || evaluationForm.selectedCity
-    evaluationForm.selectedCounty = selectedNode.name
+    evaluationForm.selectedCounty = selectedNode.code
   }
 
   // 根据选择的节点级别保存到全局 store
   const levelInfo = {
     code: selectedNode.code,
     name: selectedNode.name,
-    level: selectedNode.level
+    level: selectedNode.level,
+    provinceName: selectedNode.provinceName,
+    cityName: selectedNode.cityName,
+    countyName: selectedNode.level === 3 ? (selectedNode.countyName || selectedNode.name) : selectedNode.countyName,
+    townshipName: selectedNode.townshipName,
+    communityName: selectedNode.communityName
   }
 
   globalOrganizationStore.setOrganization(levelInfo)
@@ -1226,6 +1257,16 @@ const clearFilters = () => {
 
 // 获取区县名称
 const getCountyName = (code: string) => {
+  const selectedNode = findRegionNodeByCode(regionTreeData.value, code)
+  const countyName = selectedNode?.level === 3 ? (selectedNode.countyName || selectedNode.name) : ''
+
+  if (countyName && !isAdministrativeCode(countyName)) {
+    if (selectedNode?.cityName && !countyName.includes(selectedNode.cityName)) {
+      return `${selectedNode.cityName}${countyName}`
+    }
+    return countyName
+  }
+
   const county = counties.value.find((c: any) => c.code === code)
   return county?.name || code
 }
