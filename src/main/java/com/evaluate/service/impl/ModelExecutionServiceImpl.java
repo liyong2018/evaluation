@@ -99,6 +99,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     private static final String GOVERNMENT_CAPACITY_TABLE = "government_disaster_reduction_capacity_2020";
     private static final String ENTERPRISE_CAPACITY_TABLE = "enterprise_disaster_reduction_capacity_2020";
     private static final String SOCIAL_ORGANIZATION_CAPACITY_TABLE = "social_organization_disaster_reduction_capacity_2020";
+    private static final String FAMILY_MODEL_KEYWORD = "家庭减灾能力";
+    private static final String FAMILY_CAPACITY_TABLE = "family_disaster_reduction_capacity_2020";
     private static final Pattern TRAILING_NUMERIC_MULTIPLIER = Pattern.compile("(?s)^(.*)\\*\\s*([0-9]+(?:\\.[0-9]+)?)\\s*$");
     private static final Pattern WEIGHT_VAR_PATTERN = Pattern.compile("\\bweight_[A-Z0-9_]+\\b");
     private static final Pattern NORM_VAR_PATTERN = Pattern.compile("\\b[A-Za-z_][A-Za-z0-9_]*(?:Norm|Normalized)\\b");
@@ -230,6 +232,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         boolean governmentModel = isGovernmentModel(modelId, model.getModelName());
         boolean enterpriseModel = isEnterpriseModel(modelId, model.getModelName());
         boolean socialOrganizationModel = isSocialOrganizationModel(modelId, model.getModelName());
+        boolean familyModel = isFamilyModel(modelId, model.getModelName());
         List<String> effectiveRegionCodes;
         if (governmentModel) {
             effectiveRegionCodes = resolveGovernmentRegionCodes(regionCodes, year);
@@ -237,6 +240,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             effectiveRegionCodes = resolveEnterpriseRegionCodes(regionCodes, year);
         } else if (socialOrganizationModel) {
             effectiveRegionCodes = resolveSocialOrganizationRegionCodes(regionCodes, year);
+        } else if (familyModel) {
+            effectiveRegionCodes = resolveFamilyRegionCodes(regionCodes, year);
         } else {
             effectiveRegionCodes = new ArrayList<>(regionCodes);
         }
@@ -690,20 +695,23 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         boolean governmentModel = isGovernmentModel(modelId, (String) inputData.get("modelName"));
         boolean enterpriseModel = isEnterpriseModel(modelId, (String) inputData.get("modelName"));
         boolean socialOrganizationModel = isSocialOrganizationModel(modelId, (String) inputData.get("modelName"));
+        boolean familyModel = isFamilyModel(modelId, (String) inputData.get("modelName"));
 
         for (String regionCode : regionCodes) {
             Map<String, Object> regionContext = new HashMap<>(inputData);
             regionContext.put("currentRegionCode", regionCode);
 
             // 根据modelId选择不同的数据源
-            if (governmentModel || enterpriseModel || socialOrganizationModel) {
+            if (governmentModel || enterpriseModel || socialOrganizationModel || familyModel) {
                 Map<String, Map<String, Object>> locationDataMap;
                 if (governmentModel) {
                     locationDataMap = governmentDataMap;
                 } else if (enterpriseModel) {
                     locationDataMap = enterpriseDataMap;
-                } else {
+                } else if (socialOrganizationModel) {
                     locationDataMap = socialOrganizationDataMap;
+                } else {
+                    locationDataMap = null;
                 }
                 Map<String, Object> cachedLocation = locationDataMap != null ? locationDataMap.get(regionCode) : null;
                 if (cachedLocation != null) {
@@ -714,8 +722,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         locationRows = queryGovernmentRows(Collections.singletonList(regionCode), ctxYear);
                     } else if (enterpriseModel) {
                         locationRows = queryEnterpriseRows(Collections.singletonList(regionCode), ctxYear);
-                    } else {
+                    } else if (socialOrganizationModel) {
                         locationRows = querySocialOrganizationRows(Collections.singletonList(regionCode), ctxYear);
+                    } else {
+                        locationRows = queryFamilyRows(Collections.singletonList(regionCode), ctxYear);
                     }
                     if (locationRows != null && !locationRows.isEmpty()) {
                         addMapDataToContext(regionContext, locationRows.get(0));
@@ -2110,6 +2120,61 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         return count != null && count > 0;
     }
 
+    private List<Map<String, Object>> queryFamilyRows(List<String> regionCodes, Integer year) {
+        if (regionCodes == null || regionCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        StringBuilder sql = new StringBuilder("SELECT * FROM " + FAMILY_CAPACITY_TABLE + " WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        List<String> validCodes = regionCodes.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.toList());
+        if (validCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        sql.append(" AND (");
+        for (int i = 0; i < validCodes.size(); i++) {
+            if (i > 0) {
+                sql.append(" OR ");
+            }
+            sql.append("region_code LIKE ?");
+            params.add(validCodes.get(i) + "%");
+        }
+        sql.append(")");
+        sql.append(" ORDER BY region_code ASC");
+        return jdbcTemplate.queryForList(sql.toString(), params.toArray());
+    }
+
+    private List<String> resolveFamilyRegionCodes(List<String> regionCodes, Integer year) {
+        List<Map<String, Object>> rows = queryFamilyRows(regionCodes, year);
+        List<String> resolved = rows.stream()
+                .map(row -> row.get("region_code"))
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+        if (!resolved.isEmpty()) {
+            return resolved;
+        }
+        return regionCodes == null ? Collections.emptyList() : new ArrayList<>(regionCodes);
+    }
+
+    private boolean hasFamilyData(String regionCode, Integer year) {
+        if (!StringUtils.hasText(regionCode)) {
+            return false;
+        }
+        StringBuilder sql = new StringBuilder("SELECT COUNT(1) FROM " + FAMILY_CAPACITY_TABLE + " WHERE region_code LIKE ?");
+        List<Object> params = new ArrayList<>();
+        params.add(regionCode.trim() + "%");
+        
+        Integer count = jdbcTemplate.queryForObject(sql.toString(), Integer.class, params.toArray());
+        return count != null && count > 0;
+    }
+
     private boolean isGovernmentModel(Long modelId, String modelName) {
         if (StringUtils.hasText(modelName) && modelName.contains(GOVERNMENT_MODEL_KEYWORD)) {
             return true;
@@ -2141,6 +2206,17 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
         EvaluationModel model = evaluationModelMapper.selectById(modelId);
         return model != null && StringUtils.hasText(model.getModelName()) && model.getModelName().contains(SOCIAL_ORGANIZATION_MODEL_KEYWORD);
+    }
+
+    private boolean isFamilyModel(Long modelId, String modelName) {
+        if (StringUtils.hasText(modelName) && modelName.contains(FAMILY_MODEL_KEYWORD)) {
+            return true;
+        }
+        if (modelId == null) {
+            return false;
+        }
+        EvaluationModel model = evaluationModelMapper.selectById(modelId);
+        return model != null && StringUtils.hasText(model.getModelName()) && model.getModelName().contains(FAMILY_MODEL_KEYWORD);
     }
 
     /**
@@ -2417,7 +2493,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         boolean governmentModel = isGovernmentModel(modelId, null);
         boolean enterpriseModel = isEnterpriseModel(modelId, null);
         boolean socialOrganizationModel = isSocialOrganizationModel(modelId, null);
-        boolean locationModel = governmentModel || enterpriseModel || socialOrganizationModel;
+        boolean familyModel = isFamilyModel(modelId, null);
+        boolean locationModel = governmentModel || enterpriseModel || socialOrganizationModel || familyModel;
         Map<String, Map<String, String>> governmentLocationByRegion = new HashMap<>();
         if (locationModel && regionCodes != null && !regionCodes.isEmpty()) {
             List<Map<String, Object>> locationRows;
@@ -2425,8 +2502,12 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 locationRows = queryGovernmentRows(regionCodes, year);
             } else if (enterpriseModel) {
                 locationRows = queryEnterpriseRows(regionCodes, year);
-            } else {
+            } else if (socialOrganizationModel) {
                 locationRows = querySocialOrganizationRows(regionCodes, year);
+            } else if (familyModel) {
+                locationRows = queryFamilyRows(regionCodes, year);
+            } else {
+                locationRows = Collections.emptyList();
             }
             for (Map<String, Object> row : locationRows) {
                 Object regionObj = row.get("region_code");
@@ -2796,7 +2877,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         boolean governmentModel = isGovernmentModel(modelId, null);
         boolean enterpriseModel = isEnterpriseModel(modelId, null);
         boolean socialOrganizationModel = isSocialOrganizationModel(modelId, null);
-        boolean locationModel = governmentModel || enterpriseModel || socialOrganizationModel;
+        boolean familyModel = isFamilyModel(modelId, null);
+        boolean locationModel = governmentModel || enterpriseModel || socialOrganizationModel || familyModel;
 
         String stepCode = rawStepResult != null ? toString(rawStepResult.get("stepCode")) : null;
 
@@ -4870,6 +4952,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 boolean governmentModel = isGovernmentModel(modelId, model != null ? model.getModelName() : null);
                 boolean enterpriseModel = isEnterpriseModel(modelId, model != null ? model.getModelName() : null);
                 boolean socialOrganizationModel = isSocialOrganizationModel(modelId, model != null ? model.getModelName() : null);
+                boolean familyModel = isFamilyModel(modelId, model != null ? model.getModelName() : null);
                 for (String regionCode : regionCodes) {
                     if (governmentModel) {
                         if (!hasGovernmentData(regionCode, year)) {

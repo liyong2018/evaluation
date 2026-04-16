@@ -77,6 +77,7 @@
               <el-radio-button label="medical">医疗卫生机构</el-radio-button>
               <el-radio-button label="community">社区数据</el-radio-button>
               <el-radio-button label="township">乡镇数据</el-radio-button>
+              <el-radio-button label="family">家庭数据</el-radio-button>
             </template>
           </el-radio-group>
           <el-tag
@@ -206,8 +207,8 @@
         <!-- 社区/行政村 (医疗机构数据) -->
         <el-table-column v-if="dataType === 'medical'" prop="communityName" label="社区/行政村" width="140" show-overflow-tooltip />
 
-        <!-- 社区(行政村) (社区数据) -->
-        <el-table-column v-if="dataType === 'community'" prop="communityName" label="社区(行政村)" width="160" />
+        <!-- 社区(行政村) (社区数据/家庭数据) -->
+        <el-table-column v-if="dataType === 'community' || dataType === 'family'" prop="communityName" label="社区(行政村)" width="160" />
 
         <!-- 统一社会信用代码 (仅医疗机构数据) -->
         <el-table-column v-if="dataType === 'medical'" prop="unifiedSocialCreditCode" label="统一社会信用代码" width="200" />
@@ -633,7 +634,7 @@ import {
   UploadFilled,
   Refresh
 } from '@element-plus/icons-vue'
-import { surveyDataApi, communityCapacityApi, governmentCapacityApi, enterpriseCapacityApi, socialOrganizationCapacityApi, organizationApi, medicalInstitutionApi, grassrootsOrganizationApi } from '@/api'
+import { surveyDataApi, communityCapacityApi, governmentCapacityApi, enterpriseCapacityApi, socialOrganizationCapacityApi, familyCapacityApi, organizationApi, medicalInstitutionApi, grassrootsOrganizationApi } from '@/api'
 import { useGlobalYearStore } from '@/stores/globalYear'
 import { useUserStore } from '@/stores/user'
 import { useGlobalOrganizationStore } from '@/stores/globalOrganization'
@@ -655,7 +656,7 @@ const userStore = useUserStore()
 const globalOrganizationStore = useGlobalOrganizationStore()
 
 // 响应式数据
-const dataType = ref<'township' | 'community' | 'medical' | 'enterprise' | 'social-organization'>('township')
+const dataType = ref<'township' | 'community' | 'medical' | 'enterprise' | 'social-organization' | 'family'>('township')
 const tableData = ref<any[]>([])
 const governmentColumns = ref<Array<{ prop: string; label: string }>>([])
 const selectedRows = ref<any[]>([])
@@ -1021,6 +1022,8 @@ const getCurrentDataTypeName = () => {
       return '医疗卫生机构表'
     case 'social-organization':
       return '社会组织减灾能力调查表'
+    case 'family':
+      return '家庭减灾能力表'
     default:
       return '未知数据类型'
   }
@@ -1044,6 +1047,8 @@ const getSearchPlaceholder = () => {
       return '搜索社区名称'
     case 'medical':
       return '搜索医疗机构名称'
+    case 'family':
+      return '搜索地区名称或代码'
     default:
       return '请输入搜索关键词'
   }
@@ -1332,7 +1337,7 @@ const getRegionName = (row?: any) => {
 }
 
 // 数据类型切换处理
-const handleDataTypeChange = (newType: 'township' | 'community' | 'medical' | 'enterprise' | 'social-organization') => {
+const handleDataTypeChange = (newType: 'township' | 'community' | 'medical' | 'enterprise' | 'social-organization' | 'family') => {
   console.info('[DataManagement] 切换数据类型:', newType)
   dataType.value = newType
   enforceCityLevelDataType(selectedOrg.value)
@@ -1491,6 +1496,33 @@ const getDataList = async () => {
           pagination.total = response.data?.total || allData.length
         }
       }
+    } else if (dataType.value === 'family') {
+      const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+      response = await familyCapacityApi.getList({
+        page: pagination.currentPage,
+        size: pagination.pageSize,
+        orgCode: normalizedOrgCode || undefined,
+        year: searchForm.year || undefined
+      })
+      if (response.success) {
+        if (response.data && typeof response.data === 'object' && 'records' in response.data) {
+          allData = response.data.records || []
+          if (Array.isArray((response.data as any).columns)) {
+            governmentColumns.value = (response.data as any).columns
+          }
+          pagination.total = response.data.total || 0
+          if (response.data.current) pagination.currentPage = response.data.current
+          if (response.data.pages) {
+            (pagination as any).pages = response.data.pages
+          }
+        } else {
+          allData = response.data || []
+          pagination.total = allData.length
+        }
+      }
+      if (!isCityCapacityMode.value) {
+        governmentColumns.value = []
+      }
     }
 
     if (response.success) {
@@ -1580,6 +1612,14 @@ const handleSearch = async () => {
         const year = searchForm.year || new Date().getFullYear()
         response = await medicalInstitutionApi.getList(year, selectedOrg.value?.code)
       }
+    } else if (dataType.value === 'family') {
+      const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+      response = await familyCapacityApi.getList({
+        page: pagination.currentPage,
+        size: pagination.pageSize,
+        orgCode: normalizedOrgCode || undefined,
+        year: searchForm.year || undefined
+      })
     }
 
     if (response?.success) {
@@ -2247,6 +2287,9 @@ const handleExcelImport = async () => {
     } else if (dataType.value === 'medical') {
       // 导入医疗卫生机构数据
       response = await medicalInstitutionApi.importData(file, searchForm.year)
+    } else if (dataType.value === 'family') {
+      // 导入家庭数据
+      response = await familyCapacityApi.importData(file)
     }
 
     const importResult = getImportResultPayload(response)
@@ -2430,6 +2473,8 @@ const getDataTypeName = (dataType: string): string => {
       return '社区减灾能力数据'
     case 'medical':
       return '医疗卫生机构数据'
+    case 'family':
+      return '家庭减灾能力数据'
     default:
       return '未知数据类型'
   }

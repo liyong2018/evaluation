@@ -528,6 +528,26 @@ export const communityCapacityApi = {
   downloadTemplate: () => request.get('/api/community-capacity/template')
 }
 
+// 家庭减灾能力相关API
+export const familyCapacityApi = {
+  // 导入家庭减灾能力数据
+  importData: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post('/api/family-capacity/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000
+    })
+  },
+  // 获取列表
+  getList: (params: {
+    page?: number;
+    size?: number;
+    orgCode?: string;
+    year?: number;
+  }) => request.get('/api/family-capacity/list', { params })
+}
+
 export const governmentCapacityApi = {
   getList: (params: {
     page?: number;
