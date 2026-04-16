@@ -61,3 +61,4 @@ ngrok.zip
 frontend-dist.tgz
 frontend-dist.zip
 .gitignore
+.venv

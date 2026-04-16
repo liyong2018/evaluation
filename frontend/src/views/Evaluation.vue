@@ -68,16 +68,6 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="数据类型" prop="dataType">
-              <el-radio-group v-model="evaluationForm.dataType" disabled>
-                <el-radio label="township">乡镇数据</el-radio>
-                <el-radio label="community">社区数据</el-radio>
-              </el-radio-group>
-            </el-form-item>
-          </el-col>
-        </el-row>        
-        <el-row :gutter="20">
-          <el-col :span="12">
             <el-form-item label="选择行政区划" prop="orgCode">
               <el-tree-select
                 v-model="evaluationForm.orgCode"
@@ -443,6 +433,33 @@ const findRegionNodeByCode = (nodes: any[], code: string): any => {
   return null
 }
 
+const buildCountyFullName = (provinceName: string, cityName: string, countyName: string) => {
+  const parts: string[] = []
+  const normalizedProvinceName = String(provinceName || '').trim()
+  const normalizedCityName = String(cityName || '').trim()
+  const normalizedCountyName = String(countyName || '').trim()
+
+  if (normalizedProvinceName && !isAdministrativeCode(normalizedProvinceName)) {
+    parts.push(normalizedProvinceName)
+  }
+  if (
+    normalizedCityName &&
+    !isAdministrativeCode(normalizedCityName) &&
+    !parts.some(part => normalizedCityName.includes(part) || part.includes(normalizedCityName))
+  ) {
+    parts.push(normalizedCityName)
+  }
+  if (
+    normalizedCountyName &&
+    !isAdministrativeCode(normalizedCountyName) &&
+    !parts.some(part => normalizedCountyName.includes(part) || part.includes(normalizedCountyName))
+  ) {
+    parts.push(normalizedCountyName)
+  }
+
+  return parts.join('')
+}
+
 const getSelectedCountyDisplayName = () => {
   const selectedNode = evaluationForm.orgCode
     ? findRegionNodeByCode(regionTreeData.value, evaluationForm.orgCode)
@@ -456,13 +473,9 @@ const getSelectedCountyDisplayName = () => {
   ]
 
   const countyName = rawCountyNameCandidates.find(name => name && !isAdministrativeCode(name)) || ''
+  const provinceName = selectedNode?.provinceName || storedOrg?.provinceName || evaluationForm.selectedProvince || ''
   const cityName = selectedNode?.cityName || storedOrg?.cityName || evaluationForm.selectedCity || ''
-
-  if (countyName && cityName && !countyName.includes(cityName)) {
-    return `${cityName}${countyName}`
-  }
-
-  return countyName
+  return buildCountyFullName(provinceName, cityName, countyName)
 }
 
 // 生成评估名称函数
@@ -531,7 +544,10 @@ const currentStepInfo = ref<any>(null)
 const currentCalculationResult = ref<any>(null)
 
 const currentYear = new Date().getFullYear()
-const years = ref<number[]>(Array.from({ length: 6 }, (_, i) => currentYear - i))
+const years = ref<number[]>(Array.from({ length: currentYear - 2020 + 1 }, (_, i) => currentYear - i))
+const GOVERNMENT_MODEL_KEYWORD = '政府减灾能力'
+const ENTERPRISE_MODEL_KEYWORD = '企业减灾能力'
+const SOCIAL_ORGANIZATION_MODEL_KEYWORD = '社会组织减灾能力'
 
 const evaluationForm = reactive<any>({
   name: '',
@@ -561,6 +577,63 @@ const evaluationForm = reactive<any>({
   },
   description: ''
 })
+
+const findGovernmentModel = (year?: number | string) => {
+  const yearText = String(year || '').trim()
+  const candidates = evaluationModels.value.filter((model: any) => {
+    const modelName = String(model?.modelName || '')
+    return modelName.includes(GOVERNMENT_MODEL_KEYWORD)
+  })
+
+  if (!yearText) {
+    return candidates[0] || null
+  }
+
+  const exactMatch = candidates.find((model: any) => {
+    const modelName = String(model?.modelName || '')
+    return modelName.includes(`（${yearText}）`) || modelName.includes(`(${yearText})`) || modelName.includes(yearText)
+  })
+
+  return exactMatch || candidates[0] || null
+}
+
+const findEnterpriseModel = (year?: number | string) => {
+  const yearText = String(year || '').trim()
+  const candidates = evaluationModels.value.filter((model: any) => {
+    const modelName = String(model?.modelName || '')
+    return modelName.includes(ENTERPRISE_MODEL_KEYWORD)
+  })
+
+  if (!yearText) {
+    return candidates[0] || null
+  }
+
+  const exactMatch = candidates.find((model: any) => {
+    const modelName = String(model?.modelName || '')
+    return modelName.includes(`（${yearText}）`) || modelName.includes(`(${yearText})`) || modelName.includes(yearText)
+  })
+
+  return exactMatch || candidates[0] || null
+}
+
+const findSocialOrganizationModel = (year?: number | string) => {
+  const yearText = String(year || '').trim()
+  const candidates = evaluationModels.value.filter((model: any) => {
+    const modelName = String(model?.modelName || '')
+    return modelName.includes(SOCIAL_ORGANIZATION_MODEL_KEYWORD)
+  })
+
+  if (!yearText) {
+    return candidates[0] || null
+  }
+
+  const exactMatch = candidates.find((model: any) => {
+    const modelName = String(model?.modelName || '')
+    return modelName.includes(`（${yearText}）`) || modelName.includes(`(${yearText})`) || modelName.includes(yearText)
+  })
+
+  return exactMatch || candidates[0] || null
+}
 
 const evaluationProgress = reactive({
   visible: false,
@@ -620,9 +693,33 @@ const handleModelChange = async (modelId: number) => {
 
   // 保存当前选择的组织机构信息
   const storedOrg = globalOrganizationStore.selectedOrganization
+  const selectedModel = evaluationModels.value.find((model: any) => model.id === modelId)
+  const selectedModelName = String(selectedModel?.modelName || '')
+  const isCityLevel = Number(storedOrg?.level) === 2
 
   // 根据模型ID自动切换数据类型
-  if (modelId === 3 || modelId === 11) {
+  if (selectedModelName.includes(GOVERNMENT_MODEL_KEYWORD)) {
+    evaluationForm.dataType = 'township'
+    evaluationForm.dataSource = 'REGION'
+    if (isCityLevel) {
+      globalOrganizationStore.setPreferredCapacityModel('government')
+    }
+    console.log('自动切换到政府减灾能力数据源')
+  } else if (selectedModelName.includes(ENTERPRISE_MODEL_KEYWORD)) {
+    evaluationForm.dataType = 'township'
+    evaluationForm.dataSource = 'REGION'
+    if (isCityLevel) {
+      globalOrganizationStore.setPreferredCapacityModel('enterprise')
+    }
+    console.log('自动切换到企业减灾能力数据源')
+  } else if (selectedModelName.includes(SOCIAL_ORGANIZATION_MODEL_KEYWORD)) {
+    evaluationForm.dataType = 'township'
+    evaluationForm.dataSource = 'REGION'
+    if (isCityLevel) {
+      globalOrganizationStore.setPreferredCapacityModel('social-organization')
+    }
+    console.log('自动切换到社会组织减灾能力数据源')
+  } else if (modelId === 3 || modelId === 11) {
     // 乡镇模型：乡镇减灾能力TOPSIS评估模型(3) 或 社区-乡镇减灾能力评估模型(8)
     evaluationForm.dataType = 'township'
     console.log('自动切换到乡镇数据类型')
@@ -1116,9 +1213,17 @@ const handleRegionTreeChange = async (value: string) => {
 
   globalOrganizationStore.setOrganization(levelInfo)
 
+  const selectedModelName = String(selectedModel.value?.modelName || '')
+  const isCapacityModelSelected =
+    selectedModelName.includes(GOVERNMENT_MODEL_KEYWORD) ||
+    selectedModelName.includes(ENTERPRISE_MODEL_KEYWORD) ||
+    selectedModelName.includes(SOCIAL_ORGANIZATION_MODEL_KEYWORD)
+
   // 如果选择的是区县级别（level 3），加载数据
   if (selectedNode.level === 3) {
     await loadCountyData(selectedNode.name, selectedNode.code)
+  } else if (selectedNode.level === 2 && isCapacityModelSelected) {
+    evaluationForm.regions = [selectedNode.code]
   } else {
     console.log('选择的是非区县级别的节点，暂不加载数据')
   }
@@ -1259,12 +1364,11 @@ const clearFilters = () => {
 const getCountyName = (code: string) => {
   const selectedNode = findRegionNodeByCode(regionTreeData.value, code)
   const countyName = selectedNode?.level === 3 ? (selectedNode.countyName || selectedNode.name) : ''
+  const provinceName = selectedNode?.provinceName || ''
+  const cityName = selectedNode?.cityName || ''
 
   if (countyName && !isAdministrativeCode(countyName)) {
-    if (selectedNode?.cityName && !countyName.includes(selectedNode.cityName)) {
-      return `${selectedNode.cityName}${countyName}`
-    }
-    return countyName
+    return buildCountyFullName(provinceName, cityName, countyName)
   }
 
   const county = counties.value.find((c: any) => c.code === code)
@@ -2365,16 +2469,39 @@ const setDefaultValues = async () => {
 
   // 设置默认权重配置为第一项
 
+  const storedOrg = globalOrganizationStore.selectedOrganization
+  const shouldUseCapacityPreset = Number(storedOrg?.level) === 2
+  const preferredCapacityModel = storedOrg?.preferredCapacityModel
+  const targetCapacityModel = shouldUseCapacityPreset
+    ? (
+      preferredCapacityModel === 'enterprise'
+        ? (findEnterpriseModel(evaluationForm.year) || findGovernmentModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year))
+        : preferredCapacityModel === 'social-organization'
+          ? (findSocialOrganizationModel(evaluationForm.year) || findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year))
+          : (findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year))
+    )
+    : null
 
-  // 设置默认评估模型为第一项
-  if (evaluationModels.value.length > 0) {
+  if (targetCapacityModel) {
+    evaluationForm.modelId = targetCapacityModel.id
+    evaluationForm.dataType = 'township'
+    evaluationForm.dataSource = 'REGION'
+  } else if (evaluationModels.value.length > 0) {
     evaluationForm.modelId = evaluationModels.value[0].id
   }
 
   await getRegionTreeData()
+
+  if (storedOrg?.code) {
+    const matchedNode = findRegionNodeByCode(regionTreeData.value, String(storedOrg.code))
+    if (matchedNode) {
+      await handleRegionTreeChange(matchedNode.code)
+      return
+    }
+  }
+
   await getProvinces(false)
 
-  const storedOrg = globalOrganizationStore.selectedOrganization
   if (storedOrg) {
     console.log('从全局 store 恢复组织机构:', storedOrg)
     await restoreOrganizationSelection(storedOrg)

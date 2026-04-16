@@ -45,35 +45,6 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
     @Autowired(required = false)
     private IWeightConfigService weightConfigService;
 
-    private static final Map<String, double[]> CITY_TOWN_COMM_ABS_2025 = buildCityTownCommAbs2025();
-
-    private static Map<String, double[]> buildCityTownCommAbs2025() {
-        Map<String, double[]> map = new HashMap<>();
-        map.put("5101", new double[]{0.18, 0.17});
-        map.put("5103", new double[]{0.18, 0.16});
-        map.put("5104", new double[]{0.17, 0.16});
-        map.put("5105", new double[]{0.17, 0.16});
-        map.put("5106", new double[]{0.18, 0.16});
-        map.put("5107", new double[]{0.17, 0.16});
-        map.put("5108", new double[]{0.17, 0.17});
-        map.put("5109", new double[]{0.17, 0.15});
-        map.put("5110", new double[]{0.17, 0.16});
-        map.put("5111", new double[]{0.17, 0.16});
-        map.put("5113", new double[]{0.17, 0.16});
-        map.put("5114", new double[]{0.18, 0.16});
-        map.put("5115", new double[]{0.17, 0.16});
-        map.put("5116", new double[]{0.18, 0.15});
-        map.put("5117", new double[]{0.18, 0.16});
-        map.put("5118", new double[]{0.18, 0.17});
-        map.put("5119", new double[]{0.18, 0.16});
-        map.put("5120", new double[]{0.17, 0.17});
-        map.put("5132", new double[]{0.17, 0.16});
-        map.put("5133", new double[]{0.16, 0.15});
-        map.put("5134", new double[]{0.17, 0.17});
-        map.put("51", new double[]{0.16, 0.15});
-        return map;
-    }
-
     @Override
     public List<IndicatorWeight> getByConfigId(Long configId) {
         QueryWrapper<IndicatorWeight> wrapper = new QueryWrapper<>();
@@ -471,40 +442,44 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         if (trimmed.length() >= 4) {
             cityCode = trimmed.substring(0, 4);
         }
-        if (StringUtils.hasText(cityCode)) {
-            double[] abs = CITY_TOWN_COMM_ABS_2025.get(cityCode);
-            if (abs != null && abs.length >= 2) {
-                double sum = abs[0] + abs[1];
-                if (sum > 0) {
-                    double[] primary = roundTwoToOne(abs[0] / sum, abs[1] / sum);
-                    town.setWeight(primary[0]);
-                    community.setWeight(primary[1]);
-                    updateById(town);
-                    updateById(community);
-                }
-            }
+        Long cityTownshipConfigId = findConfigIdByModelId(cityCode, year, 3L);
+        Long cityCommunityConfigId = findConfigIdByModelId(cityCode, year, 8L);
+
+        double townshipPrimaryBase = sumWeights(cityTownshipConfigId,
+                "L1_DISASTER_MANAGEMENT", "L1_DISASTER_PREPAREDNESS", "L1_SELF_RESCUE_TRANSFER");
+        double communityPrimaryBase = sumWeights(cityCommunityConfigId,
+                "L1_DISASTER_MANAGEMENT", "L1_DISASTER_PREPAREDNESS", "L1_SELF_RESCUE_TRANSFER");
+        if (townshipPrimaryBase > 0 && communityPrimaryBase > 0) {
+            double[] primary = roundTwoToOne(townshipPrimaryBase, communityPrimaryBase);
+            town.setWeight(primary[0]);
+            community.setWeight(primary[1]);
+            updateById(town);
+            updateById(community);
         }
 
-        Long cityTownshipConfigId = findConfigId(cityCode, year, "乡镇减灾能力评估模型");
-        Long cityCommunityConfigId = findConfigId(cityCode, year, "社区-乡镇能力评估模型");
+        double[] townshipSecondary = resolveThreeWeights(
+                cityTownshipConfigId,
+                new String[]{"L1_DISASTER_MANAGEMENT", "L1_DISASTER_PREPAREDNESS", "L1_SELF_RESCUE_TRANSFER"},
+                new String[]{"L2_TOWNSHIP_DISASTER_MANAGEMENT", "L2_TOWNSHIP_DISASTER_PREPAREDNESS", "L2_TOWNSHIP_SELF_RESCUE_TRANSFER"},
+                configId
+        );
+        if (townshipSecondary != null) {
+            updateSecondaryWeight(configId, "L2_TOWNSHIP_DISASTER_MANAGEMENT", town.getId(), townshipSecondary[0]);
+            updateSecondaryWeight(configId, "L2_TOWNSHIP_DISASTER_PREPAREDNESS", town.getId(), townshipSecondary[1]);
+            updateSecondaryWeight(configId, "L2_TOWNSHIP_SELF_RESCUE_TRANSFER", town.getId(), townshipSecondary[2]);
+        }
 
-        double tMgmt = getWeightOrDefault(cityTownshipConfigId, "L1_DISASTER_MANAGEMENT", 0.33);
-        double tPrep = getWeightOrDefault(cityTownshipConfigId, "L1_DISASTER_PREPAREDNESS", 0.32);
-        double tRescue = getWeightOrDefault(cityTownshipConfigId, "L1_SELF_RESCUE_TRANSFER", 0.35);
-
-        double cMgmt = getWeightOrDefault(cityCommunityConfigId, "L1_DISASTER_MANAGEMENT", 0.32);
-        double cPrep = getWeightOrDefault(cityCommunityConfigId, "L1_DISASTER_PREPAREDNESS", 0.31);
-        double cRescue = getWeightOrDefault(cityCommunityConfigId, "L1_SELF_RESCUE_TRANSFER", 0.37);
-
-        double[] townshipSecondary = roundThreeToOne(tMgmt, tPrep, tRescue);
-        updateSecondaryWeight(configId, "L2_TOWNSHIP_DISASTER_MANAGEMENT", town.getId(), townshipSecondary[0]);
-        updateSecondaryWeight(configId, "L2_TOWNSHIP_DISASTER_PREPAREDNESS", town.getId(), townshipSecondary[1]);
-        updateSecondaryWeight(configId, "L2_TOWNSHIP_SELF_RESCUE_TRANSFER", town.getId(), townshipSecondary[2]);
-
-        double[] communitySecondary = roundThreeToOne(cMgmt, cPrep, cRescue);
-        updateSecondaryWeight(configId, "L2_COMMUNITY_DISASTER_MANAGEMENT", community.getId(), communitySecondary[0]);
-        updateSecondaryWeight(configId, "L2_COMMUNITY_DISASTER_PREPAREDNESS", community.getId(), communitySecondary[1]);
-        updateSecondaryWeight(configId, "L2_COMMUNITY_SELF_RESCUE_TRANSFER", community.getId(), communitySecondary[2]);
+        double[] communitySecondary = resolveThreeWeights(
+                cityCommunityConfigId,
+                new String[]{"L1_DISASTER_MANAGEMENT", "L1_DISASTER_PREPAREDNESS", "L1_SELF_RESCUE_TRANSFER"},
+                new String[]{"L2_COMMUNITY_DISASTER_MANAGEMENT", "L2_COMMUNITY_DISASTER_PREPAREDNESS", "L2_COMMUNITY_SELF_RESCUE_TRANSFER"},
+                configId
+        );
+        if (communitySecondary != null) {
+            updateSecondaryWeight(configId, "L2_COMMUNITY_DISASTER_MANAGEMENT", community.getId(), communitySecondary[0]);
+            updateSecondaryWeight(configId, "L2_COMMUNITY_DISASTER_PREPAREDNESS", community.getId(), communitySecondary[1]);
+            updateSecondaryWeight(configId, "L2_COMMUNITY_SELF_RESCUE_TRANSFER", community.getId(), communitySecondary[2]);
+        }
 
         return true;
     }
@@ -533,30 +508,30 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         return childDeleted + parentDeleted;
     }
 
-    private Long findConfigId(String orgcode, Integer year, String configName) {
-        if (!StringUtils.hasText(orgcode) || year == null || !StringUtils.hasText(configName)) {
+    private Long findConfigIdByModelId(String orgcode, Integer year, Long modelId) {
+        if (!StringUtils.hasText(orgcode) || year == null || modelId == null) {
             return null;
         }
-        Long cfgId = findConfigIdExactYear(orgcode, year, configName);
+        Long cfgId = findConfigIdExactYearByModelId(orgcode, year, modelId);
         if (cfgId != null) {
             return cfgId;
         }
         if (year >= 2023 && year > BASELINE_YEAR) {
-            cfgId = findConfigIdExactYear(orgcode, BASELINE_YEAR, configName);
+            cfgId = findConfigIdExactYearByModelId(orgcode, BASELINE_YEAR, modelId);
             if (cfgId != null) {
                 return cfgId;
             }
         }
-        return findConfigIdYearNull(orgcode, configName);
+        return findConfigIdYearNullByModelId(orgcode, modelId);
     }
 
-    private Long findConfigIdExactYear(String orgcode, Integer year, String configName) {
-        if (!StringUtils.hasText(orgcode) || year == null || !StringUtils.hasText(configName)) {
+    private Long findConfigIdExactYearByModelId(String orgcode, Integer year, Long modelId) {
+        if (!StringUtils.hasText(orgcode) || year == null || modelId == null) {
             return null;
         }
         QueryWrapper<WeightConfig> qw = new QueryWrapper<>();
         qw.eq("orgcode", orgcode.trim());
-        qw.eq("config_name", configName.trim());
+        qw.eq("model_id", modelId);
         qw.eq("is_deleted", 0);
         qw.and(w -> w.eq("year", year).or().isNull("year").apply("YEAR(create_time) = {0}", year));
         qw.orderByDesc("create_time").orderByDesc("id");
@@ -565,13 +540,13 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         return cfg == null ? null : cfg.getId();
     }
 
-    private Long findConfigIdYearNull(String orgcode, String configName) {
-        if (!StringUtils.hasText(orgcode) || !StringUtils.hasText(configName)) {
+    private Long findConfigIdYearNullByModelId(String orgcode, Long modelId) {
+        if (!StringUtils.hasText(orgcode) || modelId == null) {
             return null;
         }
         QueryWrapper<WeightConfig> qw = new QueryWrapper<>();
         qw.eq("orgcode", orgcode.trim());
-        qw.eq("config_name", configName.trim());
+        qw.eq("model_id", modelId);
         qw.eq("is_deleted", 0);
         qw.isNull("year");
         qw.orderByDesc("create_time").orderByDesc("id");
@@ -580,15 +555,50 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         return cfg == null ? null : cfg.getId();
     }
 
-    private double getWeightOrDefault(Long configId, String indicatorCode, double defaultValue) {
+    private Double getWeight(Long configId, String indicatorCode) {
         if (configId == null || !StringUtils.hasText(indicatorCode)) {
-            return defaultValue;
+            return null;
         }
         IndicatorWeight w = getByConfigIdAndCode(configId, indicatorCode.trim());
         if (w == null || w.getWeight() == null) {
-            return defaultValue;
+            return null;
         }
         return w.getWeight();
+    }
+
+    private double sumWeights(Long configId, String... indicatorCodes) {
+        if (configId == null || indicatorCodes == null || indicatorCodes.length == 0) {
+            return 0.0;
+        }
+        double sum = 0.0;
+        for (String indicatorCode : indicatorCodes) {
+            Double value = getWeight(configId, indicatorCode);
+            if (value != null && value > 0) {
+                sum += value;
+            }
+        }
+        return sum;
+    }
+
+    private double[] resolveThreeWeights(Long sourceConfigId, String[] sourceCodes, String[] currentCodes, Long currentConfigId) {
+        if (sourceCodes == null || currentCodes == null || sourceCodes.length != 3 || currentCodes.length != 3) {
+            return null;
+        }
+        double[] values = new double[3];
+        for (int i = 0; i < 3; i++) {
+            Double sourceWeight = getWeight(sourceConfigId, sourceCodes[i]);
+            if (sourceWeight != null && sourceWeight > 0) {
+                values[i] = sourceWeight;
+                continue;
+            }
+            Double currentWeight = getWeight(currentConfigId, currentCodes[i]);
+            values[i] = currentWeight == null ? 0.0 : currentWeight;
+        }
+        double sum = values[0] + values[1] + values[2];
+        if (sum <= 0) {
+            return null;
+        }
+        return roundThreeToOne(values[0], values[1], values[2]);
     }
 
     private void updateSecondaryWeight(Long configId, String code, Long parentId, double weight) {

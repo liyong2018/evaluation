@@ -11,6 +11,7 @@ export interface OrganizationInfo {
   countyName?: string
   townshipName?: string
   communityName?: string
+  preferredCapacityModel?: 'government' | 'enterprise' | 'social-organization'
 }
 
 export const useGlobalOrganizationStore = defineStore('globalOrganization', () => {
@@ -33,12 +34,30 @@ export const useGlobalOrganizationStore = defineStore('globalOrganization', () =
 
   // 设置选中的组织机构
   function setOrganization(org: OrganizationInfo | null) {
-    selectedOrganization.value = org
     if (org) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(org))
+      const mergedOrg: OrganizationInfo = { ...org }
+      if (
+        mergedOrg.preferredCapacityModel === undefined &&
+        selectedOrganization.value?.preferredCapacityModel
+      ) {
+        mergedOrg.preferredCapacityModel = selectedOrganization.value.preferredCapacityModel
+      }
+      selectedOrganization.value = mergedOrg
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedOrg))
     } else {
+      selectedOrganization.value = null
       localStorage.removeItem(STORAGE_KEY)
     }
+  }
+
+  function setPreferredCapacityModel(mode: 'government' | 'enterprise' | 'social-organization' | null) {
+    if (!selectedOrganization.value) return
+    const nextOrg: OrganizationInfo = {
+      ...selectedOrganization.value,
+      preferredCapacityModel: mode ?? undefined
+    }
+    selectedOrganization.value = nextOrg
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextOrg))
   }
 
   // 清空选中的组织机构
@@ -50,6 +69,7 @@ export const useGlobalOrganizationStore = defineStore('globalOrganization', () =
   return {
     selectedOrganization,
     setOrganization,
+    setPreferredCapacityModel,
     clearOrganization
   }
 })

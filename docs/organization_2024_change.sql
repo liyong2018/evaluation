@@ -1,6 +1,6 @@
 -- ============================================
 -- 2024 年乡镇组织机构数据变更 SQL
--- 生成时间：2026-03-12 22:42:24
+-- 生成时间：2026-04-08 16:24:00
 -- 目标年份：2024
 -- 基准年份：2020
 -- ============================================
@@ -226,6 +226,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (148, '510781115', '重华镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511471701', '青龙街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (204, '510311100', '沿滩镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (204, '510311102', '兴隆镇', 4, 2020, '', '', '', '', 1, 0);
@@ -308,6 +310,18 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (116, '513424106', '茨达镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511471702', '锦江镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511471703', '视高街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511471704', '龙马镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511471705', '高家镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511471706', '北斗镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511471707', '贵平镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (174, '510903203', '唐家乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (101, '510822109', '三锅镇', 4, 2020, '', '', '', '', 1, 0);
@@ -350,7 +364,7 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (37, '511903119', '九镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
-  (37, '511903118', '尹家��', 4, 2020, '', '', '', '', 1, 0);
+  (37, '511903118', '尹家镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (152, '510704105', '沉抗镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -381,6 +395,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (152, '510704122', '信义镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (152, '510704121', '小枧镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511072006', '壕子口街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (190, '511503002', '罗龙街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -618,7 +634,7 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (199, '512002004', '管理委员会狮子山街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
-  (199, '512002005', '宝莲街��', 4, 2020, '', '', '', '', 1, 0);
+  (199, '512002005', '宝莲街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (71, '510682116', '湔氐镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -842,6 +858,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (64, '511702003', '朝阳街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510371701', '丹桂街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (64, '511702004', '凤西街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (64, '511702005', '凤北街道', 4, 2020, '', '', '', '', 1, 0);
@@ -850,7 +868,15 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (30, '513223109', '洼底镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510371702', '学苑街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510371703', '板仓街道办事处', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510371704', '红旗街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (30, '513223105', '富顺镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510371705', '高峰街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (30, '513223100', '凤仪镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -871,6 +897,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (137, '510503002', '永宁街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (137, '510503003', '东升街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '513224401', '松潘林业局', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (91, '511602007', '枣山街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -900,7 +928,11 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (96, '511621115', '罗渡镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511672701', '浓溪镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (96, '511621114', '乔家镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511672702', '协兴镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (153, '510725111', '双板镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -952,6 +984,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (96, '511621121', '临溪镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511072110', '交通镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (153, '510725100', '文昌镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (153, '510725103', '黎雅镇', 4, 2020, '', '', '', '', 1, 0);
@@ -973,6 +1007,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (122, '513436231', '洒库乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (153, '510725109', '自强镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511072106', '靖民镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (140, '511402121', '复兴镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -1246,9 +1282,17 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (45, '510106024', '西安路街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510972703', '聚贤镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (59, '510118004', '花源街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (108, '511113101', '金河镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510972704', '会龙镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510972701', '保升镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510972702', '西宁街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (108, '511113100', '永和镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -1428,11 +1472,23 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (154, '511303211', '佛门乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510171019', '正兴街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510171018', '万安街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (82, '513301001', '榆林街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510171024', '太平街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (82, '513301002', '炉城街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (81, '513324100', '呷尔镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510171023', '籍田街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510171022', '新兴街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510171021', '煎茶街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (81, '513324103', '雪洼龙镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -1441,6 +1497,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (81, '513324101', '烟袋镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (81, '513324102', '三垭镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510171025', '永兴街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (161, '511324130', '思德镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -1451,6 +1509,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (81, '513324105', '汤古镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (81, '513324106', '乌拉溪镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510171020', '兴隆街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (154, '511303108', '胜观镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -1504,6 +1564,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (150, '510722115', '景福镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510773701', '创业园街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (150, '510722116', '紫河镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (150, '510722113', '新生镇', 4, 2020, '', '', '', '', 1, 0);
@@ -1554,7 +1616,11 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (97, '510824126', '百利镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173131', '董家埂镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (203, '510321102', '双石镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173132', '海螺镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (203, '510321100', '旭阳镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -1574,9 +1640,15 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (150, '510722137', '芦溪镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173126', '高明镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (150, '510722138', '立新镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173127', '武庙镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (150, '510722135', '刘营镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173128', '壮溪镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (150, '510722136', '灵兴镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -1595,6 +1667,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (203, '510321112', '古文镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (203, '510321113', '河口镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173121', '芦葭镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (203, '510321110', '乐德镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -1817,6 +1891,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (112, '511111106', '葫芦镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (112, '511111100', '沙湾镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511822205', '民建彝族乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (112, '511111101', '嘉农镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -2450,6 +2526,10 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (125, '513427108', '大同镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511572701', '竹海镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511572702', '石海镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (38, '511922101', '沙河镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (104, '511132103', '五渡镇', 4, 2020, '', '', '', '', 1, 0);
@@ -2496,6 +2576,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (154, '511303006', '都京街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173009', '石盘街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (154, '511303005', '青莲街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (154, '511303008', '老君街道', 4, 2020, '', '', '', '', 1, 0);
@@ -2504,17 +2586,29 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (90, '513325100', '河口镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173016', '玉成街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (90, '513325101', '呷拉镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173017', '丹景街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (100, '510802010', '南河街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (90, '513325104', '麻郎措镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173012', '石板凳街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (90, '513325105', '波斯河镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173013', '三岔街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (90, '513325102', '西俄洛镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173014', '草池街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (90, '513325103', '红龙镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173015', '福田街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (173, '510904001', '柔刚街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -2522,7 +2616,11 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (93, '511623110', '九龙镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173010', '养马街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (93, '511623111', '御临镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510173011', '贾家街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (91, '511602208', '彭家乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -2674,6 +2772,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (38, '511922119', '桥亭镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510704400', '四川省新华劳动教育管理所', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (165, '511002003', '城西街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (165, '511002004', '玉溪街道', 4, 2020, '', '', '', '', 1, 0);
@@ -2693,6 +2793,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (38, '511922110', '杨坝镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (38, '511922111', '天池镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '512071103', '临江镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (29, '513201100', '马尔康镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -2785,6 +2887,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (184, '511822104', '新添镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (184, '511822101', '花滩镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '512071100', '雁江镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (102, '510821119', '大两镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -3120,6 +3224,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (131, '513431244', '日哈乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510471701', '金江镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (131, '513431245', '哈甘乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (170, '510411203', '太平乡', 4, 2020, '', '', '', '', 1, 0);
@@ -3420,6 +3526,10 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (76, '513326104', '玉科镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '513225400', '九寨沟国营牧场', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '513225401', '九寨沟风景名胜管理局', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (76, '513326107', '瓦日镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (39, '511923102', '西兴镇', 4, 2020, '', '', '', '', 1, 0);
@@ -3536,6 +3646,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (36, '511902204', '白庙乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510775702', '松垭镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (39, '511923120', '望京镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (63, '511725236', '拱市乡', 4, 2020, '', '', '', '', 1, 0);
@@ -3545,6 +3657,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (39, '511923121', '龙岗镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (39, '511923125', '青云镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510775701', '塘汛街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (39, '511923122', '板庙镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -3568,6 +3682,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (129, '513423223', '大坡蒙古族乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511133108', '民主镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (110, '511133107', '建设镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (110, '511133109', '梅林镇', 4, 2020, '', '', '', '', 1, 0);
@@ -3583,6 +3699,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (149, '510727216', '豆叩羌族乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (89, '513329200', '沙堆乡', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511133100', '民建镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (149, '510727210', '黄羊关藏族乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -3900,6 +4018,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (186, '511502109', '李端镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510772701', '沉抗镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (75, '513323102', '革什扎镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (75, '513323103', '东谷镇', 4, 2020, '', '', '', '', 1, 0);
@@ -3927,6 +4047,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (126, '513428101', '荞窝镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (126, '513428100', '普基镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '512002400', '四川大堰劳动教养管理所', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (23, '513231213', '查理乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -4042,6 +4164,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (58, '510114008', '桂湖街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511671004', '新桥街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (155, '511304109', '大通镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (126, '513428209', '日都迪萨镇', 4, 2020, '', '', '', '', 1, 0);
@@ -4079,6 +4203,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (58, '510114007', '斑竹园街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (155, '511304107', '安平镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511671001', '奎阁街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (76, '513326201', '麻孜乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -4124,11 +4250,17 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (78, '513338201', '徐龙乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511971701', '兴文街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (119, '513425114', '小黑箐镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511971702', '奇章街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (78, '513338205', '八日乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (119, '513425113', '六华镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511971703', '时新街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (78, '513338206', '古学乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -4276,11 +4408,21 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (63, '511725102', '临巴镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510971008', '广德街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510971007', '嘉禾街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510971009', '富源路街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (119, '513425109', '关河镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (119, '513425108', '云甸镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (119, '513425107', '新发镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510824400', '苍溪九龙山自然保护区管理处', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510824401', '苍溪县三溪口森林经营所', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (63, '511725105', '文崇镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -4298,11 +4440,15 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (63, '511725110', '清溪场镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510971013', '九莲街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (63, '511725112', '有庆镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (103, '510811100', '元坝镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (63, '511725111', '宝城镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510971014', '南强街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (103, '510811101', '卫子镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -4367,6 +4513,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (191, '511529210', '屏边彝族乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (191, '511529211', '清平彝族乡', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511771004', '斌郎街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (127, '513401106', '太和镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -4464,6 +4612,14 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (66, '511722122', '塔河镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510172704', '桂溪街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510172703', '石羊街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510172702', '芳草街街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510172701', '肖家河街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (193, '511504003', '赵场街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (193, '511504002', '南岸街道', 4, 2020, '', '', '', '', 1, 0);
@@ -4472,7 +4628,11 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (124, '513422104', '水洛镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510172706', '西园街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (124, '513422105', '列瓦镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510172705', '中和街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (182, '511824002', '新棉街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -4565,6 +4725,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (158, '511323208', '平头乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (188, '511526212', '观斗苗族乡', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '513232400', '白河牧场', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (49, '510182101', '龙门山镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -4784,6 +4946,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (40, '511921128', '烟溪镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511671106', '护安镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (40, '511921121', '三溪镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (40, '511921120', '空山镇', 4, 2020, '', '', '', '', 1, 0);
@@ -4806,9 +4970,21 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (40, '511921118', '新场镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511571703', '双城街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (40, '511921117', '板桥口镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511571704', '宋家镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511571705', '罗龙街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (40, '511921119', '龙凤场镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511571706', '江南镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510671702', '八角井街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510671701', '旌东街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (40, '511921110', '永安镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -4839,6 +5015,12 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (40, '511921108', '沙溪镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (25, '513233205', '阿木乡', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511571701', '白沙湾街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511571702', '沙坪街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511921101', '民胜镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (40, '511921100', '诺江镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -4988,11 +5170,21 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (146, '510726109', '小坝镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511673701', '枣山街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (143, '511425110', '西龙镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511673702', '穿石镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511673703', '红庙办事处', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (143, '511425112', '高台镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (171, '510403100', '格里坪镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510971105', '新桥镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510971109', '北固镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (174, '510903011', '灵泉街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -5050,6 +5242,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (95, '511622108', '赛马镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '512072101', '松涛镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (95, '511622114', '礼安镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (95, '511622113', '万隆镇', 4, 2020, '', '', '', '', 1, 0);
@@ -5106,7 +5300,17 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (193, '511504107', '蕨溪镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510973701', '慈音街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510973704', '科教园管理办', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510973705', '芝溪谷管理办', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (185, '511802110', '多营镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510973702', '灵泉街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510973703', '杨渡街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (193, '511504113', '合什镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -5299,6 +5503,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (120, '513430217', '山江乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (81, '513324209', '子耳彝族乡', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '513429224', '委只洛乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (115, '513429226', '基只乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -5500,6 +5706,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (118, '513426235', '溜姑乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510774701', '四川省科学城春雷街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (201, '510322119', '福善镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (201, '510322117', '兜山镇', 4, 2020, '', '', '', '', 1, 0);
@@ -5563,6 +5771,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (164, '511083002', '金鹅街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (33, '513224221', '下八寨乡', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511071005', '高桥街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (167, '511025125', '陈家镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -5630,7 +5840,11 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (33, '513224203', '安宏乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511771201', '幺塘乡', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (33, '513224201', '十里回族乡', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '511071004', '胜利街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (146, '510726212', '青片乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -5698,6 +5912,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (72, '510623125', '太安镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '512072004', '狮子山街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (72, '510623124', '积金镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (72, '510623110', '龙台镇', 4, 2020, '', '', '', '', 1, 0);
@@ -5747,6 +5963,8 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
   (72, '510623100', '凯江镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (89, '513329100', '如龙镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510171701', '华阳街道', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (89, '513329101', '拉日马镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -6070,7 +6288,7 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (199, '512002108', '小院镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
-  (199, '512002109', '堪��镇', 4, 2020, '', '', '', '', 1, 0);
+  (199, '512002109', '堪嘉镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (61, '511724109', '观音镇', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
@@ -6204,7 +6422,11 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (138, '510524215', '石厢子彝族乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
-  (138, '510524211', '白��苗族乡', 4, 2020, '', '', '', '', 1, 0);
+  (NULL, '510771701', '普明街道', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (NULL, '510771702', '永兴镇', 4, 2020, '', '', '', '', 1, 0);
+INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
+  (138, '510524211', '白腊苗族乡', 4, 2020, '', '', '', '', 1, 0);
 INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`) VALUES
   (138, '510524210', '合乐苗族乡', 4, 2020, '', '', '', '', 1, 0);
 
@@ -6220,603 +6442,415 @@ INSERT INTO `organization` (`parent_id`, `code`, `name`, `level`, `year`, `provi
 
 -- 新增：513301212 - 吉居乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513301212', '吉居乡', 4, 2024, '四川省', '甘孜藏族自治州', '康定市', '吉居乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513301212', '吉居乡', 4, 2024, '四川省', '甘孜藏族自治州', '康定市', '吉居乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513301218 - 孔玉乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513301218', '孔玉乡', 4, 2024, '四川省', '甘孜藏族自治州', '康定市', '孔玉乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513301218', '孔玉乡', 4, 2024, '四川省', '甘孜藏族自治州', '康定市', '孔玉乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：512072701 - 狮子山街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '512072701', '狮子山街道', 4, 2024, '四川省', '资阳市', '资阳高新技术产业园区管理委员会', '狮子山街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '512072701', '狮子山街道', 4, 2024, '四川省', '资阳市', '资阳高新技术产业园区管理委员会', '狮子山街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：512072702 - 松涛镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '512072702', '松涛镇', 4, 2024, '四川省', '资阳市', '资阳高新技术产业园区管理委员会', '松涛镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '512072702', '松涛镇', 4, 2024, '四川省', '资阳市', '资阳高新技术产业园区管理委员会', '松涛镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513301201 - 雅拉乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513301201', '雅拉乡', 4, 2024, '四川省', '甘孜藏族自治州', '康定市', '雅拉乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513301201', '雅拉乡', 4, 2024, '四川省', '甘孜藏族自治州', '康定市', '雅拉乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513301205 - 麦崩乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513301205', '麦崩乡', 4, 2024, '四川省', '甘孜藏族自治州', '康定市', '麦崩乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511471701 - 青龙街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511471701', '青龙街道', 4, 2024, '四川省', '眉山市', '眉山天府新区', '青龙街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511471702 - 锦江镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511471702', '锦江镇', 4, 2024, '四川省', '眉山市', '眉山天府新区', '锦江镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511471703 - 视高街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511471703', '视高街道', 4, 2024, '四川省', '眉山市', '眉山天府新区', '视高街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511471704 - 高家镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511471704', '高家镇', 4, 2024, '四川省', '眉山市', '眉山天府新区', '高家镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511471705 - 贵平镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511471705', '贵平镇', 4, 2024, '四川省', '眉山市', '眉山天府新区', '贵平镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511471706 - 北斗镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511471706', '北斗镇', 4, 2024, '四川省', '眉山市', '眉山天府新区', '北斗镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511471707 - 龙马镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511471707', '龙马镇', 4, 2024, '四川省', '眉山市', '眉山天府新区', '龙马镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513301205', '麦崩乡', 4, 2024, '四川省', '甘孜藏族自治州', '康定市', '麦崩乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173706 - 玉成街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173706', '玉成街道', 4, 2024, '四川省', '成都市', '成都东部新区', '玉成街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173706', '玉成街道', 4, 2024, '四川省', '成都市', '成都东部新区', '玉成街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173707 - 草池街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173707', '草池街道', 4, 2024, '四川省', '成都市', '成都东部新区', '草池街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173707', '草池街道', 4, 2024, '四川省', '成都市', '成都东部新区', '草池街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173708 - 石板凳街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173708', '石板凳街道', 4, 2024, '四川省', '成都市', '成都东部新区', '石板凳街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173708', '石板凳街道', 4, 2024, '四川省', '成都市', '成都东部新区', '石板凳街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173709 - 高明镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173709', '高明镇', 4, 2024, '四川省', '成都市', '成都东部新区', '高明镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173709', '高明镇', 4, 2024, '四川省', '成都市', '成都东部新区', '高明镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173702 - 石盘街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173702', '石盘街道', 4, 2024, '四川省', '成都市', '成都东部新区', '石盘街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173702', '石盘街道', 4, 2024, '四川省', '成都市', '成都东部新区', '石盘街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173703 - 养马街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173703', '养马街道', 4, 2024, '四川省', '成都市', '成都东部新区', '养马街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173703', '养马街道', 4, 2024, '四川省', '成都市', '成都东部新区', '养马街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173704 - 丹景街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173704', '丹景街道', 4, 2024, '四川省', '成都市', '成都东部新区', '丹景街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173704', '丹景街道', 4, 2024, '四川省', '成都市', '成都东部新区', '丹景街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173705 - 福田街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173705', '福田街道', 4, 2024, '四川省', '成都市', '成都东部新区', '福田街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173705', '福田街道', 4, 2024, '四川省', '成都市', '成都东部新区', '福田街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173710 - 武庙镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173710', '武庙镇', 4, 2024, '四川省', '成都市', '成都东部新区', '武庙镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173710', '武庙镇', 4, 2024, '四川省', '成都市', '成都东部新区', '武庙镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173711 - 壮溪镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173711', '壮溪镇', 4, 2024, '四川省', '成都市', '成都东部新区', '壮溪镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173711', '壮溪镇', 4, 2024, '四川省', '成都市', '成都东部新区', '壮溪镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173712 - 海螺镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173712', '海螺镇', 4, 2024, '四川省', '成都市', '成都东部新区', '海螺镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173712', '海螺镇', 4, 2024, '四川省', '成都市', '成都东部新区', '海螺镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173701 - 三岔街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173701', '三岔街道', 4, 2024, '四川省', '成都市', '成都东部新区', '三岔街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173701', '三岔街道', 4, 2024, '四川省', '成都市', '成都东部新区', '三岔街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173713 - 董家埂镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173713', '董家埂镇', 4, 2024, '四川省', '成都市', '成都东部新区', '董家埂镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173713', '董家埂镇', 4, 2024, '四川省', '成都市', '成都东部新区', '董家埂镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510173714 - 芦葭镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510173714', '芦葭镇', 4, 2024, '四川省', '成都市', '成都东部新区', '芦葭镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510173714', '芦葭镇', 4, 2024, '四川省', '成都市', '成都东部新区', '芦葭镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402001 - 城北街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402001', '城北街道', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '城北街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402001', '城北街道', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '城北街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402002 - 城南街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402002', '城南街道', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '城南街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510371701 - 丹桂街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510371701', '丹桂街道', 4, 2024, '四川省', '自贡市', '自贡高新技术产业开发区', '丹桂街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402002', '城南街道', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '城南街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402003 - 古城街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402003', '古城街道', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '古城街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510371702 - 学苑街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510371702', '学苑街道', 4, 2024, '四川省', '自贡市', '自贡高新技术产业开发区', '学苑街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510371703 - 红旗街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510371703', '红旗街道', 4, 2024, '四川省', '自贡市', '自贡高新技术产业开发区', '红旗街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510371704 - 高峰街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510371704', '高峰街道', 4, 2024, '四川省', '自贡市', '自贡高新技术产业开发区', '高峰街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510371705 - 板仓街道办事处
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510371705', '板仓街道办事处', 4, 2024, '四川省', '自贡市', '自贡高新技术产业开发区', '板仓街道办事处', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402003', '古城街道', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '古城街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511621113 - 石垭镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511621113', '石垭镇', 4, 2024, '四川省', '广安市', '岳池县', '石垭镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511621113', '石垭镇', 4, 2024, '四川省', '广安市', '岳池县', '石垭镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511527106 - 大雪山镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511527106', '大雪山镇', 4, 2024, '四川省', '宜宾市', '筠连县', '大雪山镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510972701 - 西宁街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510972701', '西宁街道', 4, 2024, '四川省', '遂宁市', '遂宁高新技术产业园区', '西宁街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510972702 - 保升镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510972702', '保升镇', 4, 2024, '四川省', '遂宁市', '遂宁高新技术产业园区', '保升镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511527106', '大雪山镇', 4, 2024, '四川省', '宜宾市', '筠连县', '大雪山镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511071702 - 胜利街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511071702', '胜利街道', 4, 2024, '四川省', '内江市', '内江高新技术产业开发区', '胜利街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511071702', '胜利街道', 4, 2024, '四川省', '内江市', '内江高新技术产业开发区', '胜利街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511071701 - 高桥街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511071701', '高桥街道', 4, 2024, '四川省', '内江市', '内江高新技术产业开发区', '高桥街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510773701 - 创业园街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510773701', '创业园街道', 4, 2024, '四川省', '绵阳市', '绵阳科技城科教创业园区', '创业园街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511822205 - 民建彝族乡
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511822205', '民建彝族乡', 4, 2024, '四川省', '雅安市', '荥经县', '民建彝族乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511071701', '高桥街道', 4, 2024, '四川省', '内江市', '内江高新技术产业开发区', '高桥街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511072703 - 交通镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511072703', '交通镇', 4, 2024, '四川省', '内江市', '内江经济技术开发区', '交通镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511072703', '交通镇', 4, 2024, '四川省', '内江市', '内江经济技术开发区', '交通镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511072702 - 靖民镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511072702', '靖民镇', 4, 2024, '四川省', '内江市', '内江经济技术开发区', '靖民镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511072702', '靖民镇', 4, 2024, '四川省', '内江市', '内江经济技术开发区', '靖民镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511072701 - 壕子口街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511072701', '壕子口街道', 4, 2024, '四川省', '内江市', '内江经济技术开发区', '壕子口街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511072701', '壕子口街道', 4, 2024, '四川省', '内江市', '内江经济技术开发区', '壕子口街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511171701 - 安谷镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511171701', '安谷镇', 4, 2024, '四川省', '乐山市', '乐山高新区', '安谷镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510704400 - 四川省新华劳动教育管理所
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510704400', '四川省新华劳动教育管理所', 4, 2024, '四川省', '绵阳市', '游仙区', '四川省新华劳动教育管理所', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510471701 - 金江镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510471701', '金江镇', 4, 2024, '四川省', '攀枝花市', '攀枝花钒钛高新区技术产业开发区', '金江镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511171701', '安谷镇', 4, 2024, '四川省', '乐山市', '乐山高新区', '安谷镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511771703 - 幺塘乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511771703', '幺塘乡', 4, 2024, '四川省', '达州市', '达州高新技术产业园区管理委员会', '幺塘乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511771703', '幺塘乡', 4, 2024, '四川省', '达州市', '达州高新技术产业园区管理委员会', '幺塘乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511771704 - 河市镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511771704', '河市镇', 4, 2024, '四川省', '达州市', '达州高新技术产业园区管理委员会', '河市镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511771704', '河市镇', 4, 2024, '四川省', '达州市', '达州高新技术产业园区管理委员会', '河市镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511771701 - 斌郎街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511771701', '斌郎街道', 4, 2024, '四川省', '达州市', '达州高新技术产业园区管理委员会', '斌郎街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511771701', '斌郎街道', 4, 2024, '四川省', '达州市', '达州高新技术产业园区管理委员会', '斌郎街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511771702 - 石板街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511771702', '石板街道', 4, 2024, '四川省', '达州市', '达州高新技术产业园区管理委员会', '石板街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511771702', '石板街道', 4, 2024, '四川省', '达州市', '达州高新技术产业园区管理委员会', '石板街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511771705 - 金垭镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511771705', '金垭镇', 4, 2024, '四川省', '达州市', '达州高新技术产业园区管理委员会', '金垭镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：513225400 - 九寨沟国营牧场
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513225400', '九寨沟国营牧场', 4, 2024, '四川省', '阿坝藏族羌族自治州', '九寨沟县', '九寨沟国营牧场', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：513225401 - 九寨沟风景名胜管理局
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513225401', '九寨沟风景名胜管理局', 4, 2024, '四川省', '阿坝藏族羌族自治州', '九寨沟县', '九寨沟风景名胜管理局', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510775702 - 松垭镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510775702', '松垭镇', 4, 2024, '四川省', '绵阳市', '绵阳经济技术开发区', '松垭镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511771705', '金垭镇', 4, 2024, '四川省', '达州市', '达州高新技术产业园区管理委员会', '金垭镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511403107 - 黄丰镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511403107', '黄丰镇', 4, 2024, '四川省', '眉山市', '彭山区', '黄丰镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511403107', '黄丰镇', 4, 2024, '四川省', '眉山市', '彭山区', '黄丰镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511403103 - 公义镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511403103', '公义镇', 4, 2024, '四川省', '眉山市', '彭山区', '公义镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510775701 - 塘汛街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510775701', '塘汛街道', 4, 2024, '四川省', '绵阳市', '绵阳经济技术开发区', '塘汛街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511133108 - 民主镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511133108', '民主镇', 4, 2024, '四川省', '乐山市', '马边彝族自治县', '民主镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511133100 - 民建镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511133100', '民建镇', 4, 2024, '四川省', '乐山市', '马边彝族自治县', '民建镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511403103', '公义镇', 4, 2024, '四川省', '眉山市', '彭山区', '公义镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722219 - 桃花镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722219', '桃花镇', 4, 2024, '四川省', '达州市', '宣汉县', '桃花镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722219', '桃花镇', 4, 2024, '四川省', '达州市', '宣汉县', '桃花镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722212 - 上峡镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722212', '上峡镇', 4, 2024, '四川省', '达州市', '宣汉县', '上峡镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722212', '上峡镇', 4, 2024, '四川省', '达州市', '宣汉县', '上峡镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722213 - 塔河镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722213', '塔河镇', 4, 2024, '四川省', '达州市', '宣汉县', '塔河镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722213', '塔河镇', 4, 2024, '四川省', '达州市', '宣汉县', '塔河镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722214 - 茶河镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722214', '茶河镇', 4, 2024, '四川省', '达州市', '宣汉县', '茶河镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722214', '茶河镇', 4, 2024, '四川省', '达州市', '宣汉县', '茶河镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722217 - 南坪镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722217', '南坪镇', 4, 2024, '四川省', '达州市', '宣汉县', '南坪镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722217', '南坪镇', 4, 2024, '四川省', '达州市', '宣汉县', '南坪镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722220 - 白马镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722220', '白马镇', 4, 2024, '四川省', '达州市', '宣汉县', '白马镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722220', '白马镇', 4, 2024, '四川省', '达州市', '宣汉县', '白马镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722227 - 厂溪镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722227', '厂溪镇', 4, 2024, '四川省', '达州市', '宣汉县', '厂溪镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722227', '厂溪镇', 4, 2024, '四川省', '达州市', '宣汉县', '厂溪镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722228 - 红峰镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722228', '红峰镇', 4, 2024, '四川省', '达州市', '宣汉县', '红峰镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722228', '红峰镇', 4, 2024, '四川省', '达州市', '宣汉县', '红峰镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722233 - 马渡关镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722233', '马渡关镇', 4, 2024, '四川省', '达州市', '宣汉县', '马渡关镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722233', '马渡关镇', 4, 2024, '四川省', '达州市', '宣汉县', '马渡关镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722236 - 蒲江街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722236', '蒲江街道', 4, 2024, '四川省', '达州市', '宣汉县', '蒲江街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722236', '蒲江街道', 4, 2024, '四川省', '达州市', '宣汉县', '蒲江街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722237 - 东乡街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722237', '东乡街道', 4, 2024, '四川省', '达州市', '宣汉县', '东乡街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722237', '东乡街道', 4, 2024, '四川省', '达州市', '宣汉县', '东乡街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511526109 - 沐滩镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511526109', '沐滩镇', 4, 2024, '四川省', '宜宾市', '珙县', '沐滩镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511526109', '沐滩镇', 4, 2024, '四川省', '宜宾市', '珙县', '沐滩镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510971702 - 九莲街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510971702', '九莲街道', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '九莲街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510971702', '九莲街道', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '九莲街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510971703 - 广德街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510971703', '广德街道', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '广德街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510971703', '广德街道', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '广德街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510971701 - 嘉禾街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510971701', '嘉禾街道', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '嘉禾街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510971701', '嘉禾街道', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '嘉禾街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510971706 - 新桥镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510971706', '新桥镇', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '新桥镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510971706', '新桥镇', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '新桥镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510971707 - 北固镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510971707', '北固镇', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '北固镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510971707', '北固镇', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '北固镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510971704 - 南强街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510971704', '南强街道', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '南强街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510971704', '南强街道', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '南强街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510971705 - 富源路街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510971705', '富源路街道', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '富源路街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510772701 - 沉抗镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510772701', '沉抗镇', 4, 2024, '四川省', '绵阳市', '绵阳市仙海水利风景区', '沉抗镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：512002400 - 四川大堰劳动教养管理所
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '512002400', '四川大堰劳动教养管理所', 4, 2024, '四川省', '资阳市', '雁江区', '四川大堰劳动教养管理所', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510971705', '富源路街道', 4, 2024, '四川省', '遂宁市', '遂宁经济技术开发区', '富源路街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722207 - 庙安镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722207', '庙安镇', 4, 2024, '四川省', '达州市', '宣汉县', '庙安镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510824400 - 苍溪县九龙山自然保护区事务中心
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510824400', '苍溪县九龙山自然保护区事务中心', 4, 2024, '四川省', '广元市', '苍溪县', '苍溪县九龙山自然保护区事务中心', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510824401 - 苍溪县国家森林公园事务中心（苍溪县三溪口国有林场）
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510824401', '苍溪县国家森林公园事务中心（苍溪县三溪口国有林场）', 4, 2024, '四川省', '广元市', '苍溪县', '苍溪县国家森林公园事务中心（苍溪县三溪口国有林场）', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722207', '庙安镇', 4, 2024, '四川省', '达州市', '宣汉县', '庙安镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511722119 - 下八镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511722119', '下八镇', 4, 2024, '四川省', '达州市', '宣汉县', '下八镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510172704 - 芳草街街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510172704', '芳草街街道', 4, 2024, '四川省', '成都市', '成都高新区', '芳草街街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510172703 - 肖家河街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510172703', '肖家河街道', 4, 2024, '四川省', '成都市', '成都高新区', '肖家河街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510172702 - 桂溪街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510172702', '桂溪街道', 4, 2024, '四川省', '成都市', '成都高新区', '桂溪街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510172701 - 石羊街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510172701', '石羊街道', 4, 2024, '四川省', '成都市', '成都高新区', '石羊街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511722119', '下八镇', 4, 2024, '四川省', '达州市', '宣汉县', '下八镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510172707 - 西园街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510172707', '西园街道', 4, 2024, '四川省', '成都市', '成都高新区', '西园街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510172706 - 中和街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510172706', '中和街道', 4, 2024, '四川省', '成都市', '成都高新区', '中和街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510172705 - 合作街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510172705', '合作街道', 4, 2024, '四川省', '成都市', '成都高新区', '合作街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：513232400 - 白河牧场
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513232400', '白河牧场', 4, 2024, '四川省', '阿坝藏族羌族自治州', '若尔盖县', '白河牧场', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510172707', '西园街道', 4, 2024, '四川省', '成都市', '成都高新区', '西园街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：512071701 - 雁江镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '512071701', '雁江镇', 4, 2024, '四川省', '资阳市', '资阳临空经济区管理委员会', '雁江镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '512071701', '雁江镇', 4, 2024, '四川省', '资阳市', '资阳临空经济区管理委员会', '雁江镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：512071702 - 临江镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '512071702', '临江镇', 4, 2024, '四川省', '资阳市', '资阳临空经济区管理委员会', '临江镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510671702 - 八角井街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510671702', '八角井街道', 4, 2024, '四川省', '德阳市', '德阳经济技术开发区', '八角井街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510671701 - 旌东街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510671701', '旌东街道', 4, 2024, '四川省', '德阳市', '德阳经济技术开发区', '旌东街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：511921101 - 民胜镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511921101', '民胜镇', 4, 2024, '四川省', '巴中市', '通江县', '民胜镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '512071702', '临江镇', 4, 2024, '四川省', '资阳市', '资阳临空经济区管理委员会', '临江镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510723002 - 凤灵街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510723002', '凤灵街道', 4, 2024, '四川省', '绵阳市', '盐亭县', '凤灵街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510723002', '凤灵街道', 4, 2024, '四川省', '绵阳市', '盐亭县', '凤灵街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402108 - 云甸镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402108', '云甸镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '云甸镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402108', '云甸镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '云甸镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402109 - 关河镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402109', '关河镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '关河镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402109', '关河镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '关河镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402106 - 绿水镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402106', '绿水镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '绿水镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402106', '绿水镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '绿水镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402107 - 新发镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402107', '新发镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '新发镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402107', '新发镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '新发镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402101 - 鹿厂镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402101', '鹿厂镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '鹿厂镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402101', '鹿厂镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '鹿厂镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402104 - 太平镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402104', '太平镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '太平镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402104', '太平镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '太平镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402105 - 益门镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402105', '益门镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '益门镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402105', '益门镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '益门镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402102 - 黎溪镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402102', '黎溪镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '黎溪镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402102', '黎溪镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '黎溪镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402103 - 通安镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402103', '通安镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '通安镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402103', '通安镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '通安镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402111 - 彰冠镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402111', '彰冠镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '彰冠镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402111', '彰冠镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '彰冠镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402112 - 木古镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402112', '木古镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '木古镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402112', '木古镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '木古镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402113 - 六华镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402113', '六华镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '六华镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402113', '六华镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '六华镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402114 - 小黑箐镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402114', '小黑箐镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '小黑箐镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402114', '小黑箐镇', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '小黑箐镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510726110 - 通泉镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510726110', '通泉镇', 4, 2024, '四川省', '绵阳市', '北川羌族自治县', '通泉镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510726110', '通泉镇', 4, 2024, '四川省', '绵阳市', '北川羌族自治县', '通泉镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511504102 - 观音镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511504102', '观音镇', 4, 2024, '四川省', '宜宾市', '叙州区', '观音镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510973701 - 灵泉街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510973701', '灵泉街道', 4, 2024, '四川省', '遂宁市', '遂宁河东新区', '灵泉街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510973704 - 科教园管理办
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510973704', '科教园管理办', 4, 2024, '四川省', '遂宁市', '遂宁河东新区', '科教园管理办', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510973705 - 芝溪谷管理办
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510973705', '芝溪谷管理办', 4, 2024, '四川省', '遂宁市', '遂宁河东新区', '芝溪谷管理办', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510973702 - 慈音街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510973702', '慈音街道', 4, 2024, '四川省', '遂宁市', '遂宁河东新区', '慈音街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510973703 - 杨渡街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510973703', '杨渡街道', 4, 2024, '四川省', '遂宁市', '遂宁河东新区', '杨渡街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511504102', '观音镇', 4, 2024, '四川省', '宜宾市', '叙州区', '观音镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511504112 - 合什镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511504112', '合什镇', 4, 2024, '四川省', '宜宾市', '叙州区', '合什镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511504112', '合什镇', 4, 2024, '四川省', '宜宾市', '叙州区', '合什镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511504118 - 南广镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511504118', '南广镇', 4, 2024, '四川省', '宜宾市', '叙州区', '南广镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511504118', '南广镇', 4, 2024, '四川省', '宜宾市', '叙州区', '南广镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511772704 - 安仁乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511772704', '安仁乡', 4, 2024, '四川省', '达州市', '达州东部经济开发区', '安仁乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511772704', '安仁乡', 4, 2024, '四川省', '达州市', '达州东部经济开发区', '安仁乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511772703 - 福善镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511772703', '福善镇', 4, 2024, '四川省', '达州市', '达州东部经济开发区', '福善镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511772703', '福善镇', 4, 2024, '四川省', '达州市', '达州东部经济开发区', '福善镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511772702 - 麻柳镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511772702', '麻柳镇', 4, 2024, '四川省', '达州市', '达州东部经济开发区', '麻柳镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511772702', '麻柳镇', 4, 2024, '四川省', '达州市', '达州东部经济开发区', '麻柳镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511772701 - 亭子镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511772701', '亭子镇', 4, 2024, '四川省', '达州市', '达州东部经济开发区', '亭子镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：513429224 - 委只洛乡
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513429224', '委只洛乡', 4, 2024, '四川省', '凉山彝族自治州', '布拖县', '委只洛乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511772701', '亭子镇', 4, 2024, '四川省', '达州市', '达州东部经济开发区', '亭子镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402202 - 内东乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402202', '内东乡', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '内东乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402202', '内东乡', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '内东乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510726207 - 白坭乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510726207', '白坭乡', 4, 2024, '四川省', '绵阳市', '北川羌族自治县', '白坭乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510726207', '白坭乡', 4, 2024, '四川省', '绵阳市', '北川羌族自治县', '白坭乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402219 - 树堡乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402219', '树堡乡', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '树堡乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402219', '树堡乡', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '树堡乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402221 - 新安傣族乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402221', '新安傣族乡', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '新安傣族乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402221', '新安傣族乡', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '新安傣族乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510726215 - 白什乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510726215', '白什乡', 4, 2024, '四川省', '绵阳市', '北川羌族自治县', '白什乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510726215', '白什乡', 4, 2024, '四川省', '绵阳市', '北川羌族自治县', '白什乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：513402234 - 槽元乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '513402234', '槽元乡', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '槽元乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '513402234', '槽元乡', 4, 2024, '四川省', '凉山彝族自治州', '会理市', '槽元乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510171709 - 太平街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510171709', '太平街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '太平街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510171709', '太平街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '太平街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510171708 - 籍田街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510171708', '籍田街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '籍田街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510171708', '籍田街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '籍田街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510171703 - 兴隆街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510171703', '兴隆街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '兴隆街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510171703', '兴隆街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '兴隆街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510171702 - 万安街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510171702', '万安街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '万安街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510171701 - 华阳街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510171701', '华阳街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '华阳街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510171702', '万安街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '万安街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510171707 - 永兴街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510171707', '永兴街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '永兴街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510171707', '永兴街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '永兴街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510171706 - 煎茶街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510171706', '煎茶街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '煎茶街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510171706', '煎茶街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '煎茶街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510171705 - 新兴街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510171705', '新兴街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '新兴街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510171705', '新兴街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '新兴街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510171704 - 正兴街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510171704', '正兴街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '正兴街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510171704', '正兴街道', 4, 2024, '四川省', '成都市', '四川天府新区成都直管区', '正兴街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：510704006 - 四川省科学城春雷街道
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510704006', '四川省科学城春雷街道', 4, 2024, '四川省', '绵阳市', '游仙区', '四川省科学城春雷街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '510704006', '四川省科学城春雷街道', 4, 2024, '四川省', '绵阳市', '游仙区', '四川省科学城春雷街道', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511528203 - 大坝苗族乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511528203', '大坝苗族乡', 4, 2024, '四川省', '宜宾市', '兴文县', '大坝苗族乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511528203', '大坝苗族乡', 4, 2024, '四川省', '宜宾市', '兴文县', '大坝苗族乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511525115 - 落润镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511525115', '落润镇', 4, 2024, '四川省', '宜宾市', '高县', '落润镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511525115', '落润镇', 4, 2024, '四川省', '宜宾市', '高县', '落润镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511525116 - 庆岭镇
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511525116', '庆岭镇', 4, 2024, '四川省', '宜宾市', '高县', '庆岭镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511525116', '庆岭镇', 4, 2024, '四川省', '宜宾市', '高县', '庆岭镇', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- 新增：511504201 - 龙池乡
 INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '511504201', '龙池乡', 4, 2024, '四川省', '宜宾市', '叙州区', '龙池乡', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510771701 - 普明街道
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510771701', '普明街道', 4, 2024, '四川省', '绵阳市', '绵阳高新技术产业开发区', '普明街道', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
-
--- 新增：510771702 - 永兴镇
-INSERT INTO `grassroots_organization` (`county_id`, `parent_id`, `code`, `name`, `level`, `year`, `province_name`, `city_name`, `county_name`, `township_name`, `is_baseline`, `is_deleted`, `create_time`, `update_time`) VALUES
-  (NULL, NULL, '510771702', '永兴镇', 4, 2024, '四川省', '绵阳市', '绵阳高新技术产业开发区', '永兴镇', 0, 0, '2026-03-12 22:42:24', '2026-03-12 22:42:24');
+  (NULL, NULL, '511504201', '龙池乡', 4, 2024, '四川省', '宜宾市', '叙州区', '龙池乡', 0, 0, '2026-04-08 16:24:01', '2026-04-08 16:24:01');
 
 -- ============================================
 -- 2.2 删除数据（2020 年基准有但 GeoJSON 中没有的）
@@ -6840,11 +6874,77 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510704105'
 -- 删除：510704112 - 松垭镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510704112' AND `year` = 2024;
 
+-- 删除：511072006 - 壕子口街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511072006' AND `year` = 2024;
+
 -- 删除：512002004 - 管理委员会狮子山街道
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '512002004' AND `year` = 2024;
 
+-- 删除：513224401 - 松潘林业局
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '513224401' AND `year` = 2024;
+
+-- 删除：511672701 - 浓溪镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511672701' AND `year` = 2024;
+
+-- 删除：511672702 - 协兴镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511672702' AND `year` = 2024;
+
+-- 删除：511072110 - 交通镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511072110' AND `year` = 2024;
+
+-- 删除：511072106 - 靖民镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511072106' AND `year` = 2024;
+
 -- 删除：511527109 - 大雪山镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511527109' AND `year` = 2024;
+
+-- 删除：510972703 - 聚贤镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510972703' AND `year` = 2024;
+
+-- 删除：510972704 - 会龙镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510972704' AND `year` = 2024;
+
+-- 删除：510171019 - 正兴街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510171019' AND `year` = 2024;
+
+-- 删除：510171018 - 万安街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510171018' AND `year` = 2024;
+
+-- 删除：510171024 - 太平街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510171024' AND `year` = 2024;
+
+-- 删除：510171023 - 籍田街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510171023' AND `year` = 2024;
+
+-- 删除：510171022 - 新兴街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510171022' AND `year` = 2024;
+
+-- 删除：510171021 - 煎茶街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510171021' AND `year` = 2024;
+
+-- 删除：510171025 - 永兴街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510171025' AND `year` = 2024;
+
+-- 删除：510171020 - 兴隆街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510171020' AND `year` = 2024;
+
+-- 删除：510173131 - 董家埂镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173131' AND `year` = 2024;
+
+-- 删除：510173132 - 海螺镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173132' AND `year` = 2024;
+
+-- 删除：510173126 - 高明镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173126' AND `year` = 2024;
+
+-- 删除：510173127 - 武庙镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173127' AND `year` = 2024;
+
+-- 删除：510173128 - 壮溪镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173128' AND `year` = 2024;
+
+-- 删除：510173121 - 芦葭镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173121' AND `year` = 2024;
 
 -- 删除：510185132 - 海螺镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510185132' AND `year` = 2024;
@@ -6927,6 +7027,39 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510302006'
 -- 删除：510302009 - 高峰街道
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510302009' AND `year` = 2024;
 
+-- 删除：511572701 - 竹海镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511572701' AND `year` = 2024;
+
+-- 删除：511572702 - 石海镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511572702' AND `year` = 2024;
+
+-- 删除：510173009 - 石盘街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173009' AND `year` = 2024;
+
+-- 删除：510173016 - 玉成街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173016' AND `year` = 2024;
+
+-- 删除：510173017 - 丹景街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173017' AND `year` = 2024;
+
+-- 删除：510173012 - 石板凳街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173012' AND `year` = 2024;
+
+-- 删除：510173013 - 三岔街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173013' AND `year` = 2024;
+
+-- 删除：510173014 - 草池街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173014' AND `year` = 2024;
+
+-- 删除：510173015 - 福田街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173015' AND `year` = 2024;
+
+-- 删除：510173010 - 养马街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173010' AND `year` = 2024;
+
+-- 删除：510173011 - 贾家街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510173011' AND `year` = 2024;
+
 -- 删除：510185016 - 玉成街道
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510185016' AND `year` = 2024;
 
@@ -6957,8 +7090,14 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510185009'
 -- 删除：511002006 - 壕子口街道
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511002006' AND `year` = 2024;
 
+-- 删除：512071103 - 临江镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '512071103' AND `year` = 2024;
+
 -- 删除：510703113 - 永兴镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510703113' AND `year` = 2024;
+
+-- 删除：512071100 - 雁江镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '512071100' AND `year` = 2024;
 
 -- 删除：511011004 - 胜利街道
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511011004' AND `year` = 2024;
@@ -7005,11 +7144,26 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511403121'
 -- 删除：511526108 - 沐滩镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511526108' AND `year` = 2024;
 
+-- 删除：511671004 - 新桥街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511671004' AND `year` = 2024;
+
+-- 删除：511671001 - 奎阁街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511671001' AND `year` = 2024;
+
+-- 删除：511971701 - 兴文街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511971701' AND `year` = 2024;
+
 -- 删除：513425114 - 小黑箐镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '513425114' AND `year` = 2024;
 
+-- 删除：511971702 - 奇章街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511971702' AND `year` = 2024;
+
 -- 删除：513425113 - 六华镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '513425113' AND `year` = 2024;
+
+-- 删除：511971703 - 时新街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511971703' AND `year` = 2024;
 
 -- 删除：513425112 - 木古镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '513425112' AND `year` = 2024;
@@ -7038,6 +7192,15 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '513425102'
 -- 删除：513425101 - 鹿厂镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '513425101' AND `year` = 2024;
 
+-- 删除：510971008 - 广德街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510971008' AND `year` = 2024;
+
+-- 删除：510971007 - 嘉禾街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510971007' AND `year` = 2024;
+
+-- 删除：510971009 - 富源路街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510971009' AND `year` = 2024;
+
 -- 删除：513425109 - 关河镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '513425109' AND `year` = 2024;
 
@@ -7046,6 +7209,15 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '513425108'
 
 -- 删除：513425107 - 新发镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '513425107' AND `year` = 2024;
+
+-- 删除：510971013 - 九莲街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510971013' AND `year` = 2024;
+
+-- 删除：510971014 - 南强街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510971014' AND `year` = 2024;
+
+-- 删除：511771004 - 斌郎街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511771004' AND `year` = 2024;
 
 -- 删除：511722120 - 下八镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511722120' AND `year` = 2024;
@@ -7080,6 +7252,27 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511722132'
 -- 删除：511722133 - 南坪镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511722133' AND `year` = 2024;
 
+-- 删除：511671106 - 护安镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511671106' AND `year` = 2024;
+
+-- 删除：511571703 - 双城街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511571703' AND `year` = 2024;
+
+-- 删除：511571704 - 宋家镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511571704' AND `year` = 2024;
+
+-- 删除：511571705 - 罗龙街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511571705' AND `year` = 2024;
+
+-- 删除：511571706 - 江南镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511571706' AND `year` = 2024;
+
+-- 删除：511571701 - 白沙湾街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511571701' AND `year` = 2024;
+
+-- 删除：511571702 - 沙坪街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511571702' AND `year` = 2024;
+
 -- 删除：511703200 - 石板街道
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511703200' AND `year` = 2024;
 
@@ -7094,6 +7287,21 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511703203'
 
 -- 删除：510726103 - 永昌镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510726103' AND `year` = 2024;
+
+-- 删除：511673701 - 枣山街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511673701' AND `year` = 2024;
+
+-- 删除：511673702 - 穿石镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511673702' AND `year` = 2024;
+
+-- 删除：511673703 - 红庙办事处
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511673703' AND `year` = 2024;
+
+-- 删除：510971105 - 新桥镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510971105' AND `year` = 2024;
+
+-- 删除：510971109 - 北固镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510971109' AND `year` = 2024;
 
 -- 删除：510903011 - 灵泉街道
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510903011' AND `year` = 2024;
@@ -7122,6 +7330,9 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510903009'
 -- 删除：510903007 - 嘉禾街道
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510903007' AND `year` = 2024;
 
+-- 删除：512072101 - 松涛镇
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '512072101' AND `year` = 2024;
+
 -- 删除：511504101 - 南广镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511504101' AND `year` = 2024;
 
@@ -7146,11 +7357,26 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511703101'
 -- 删除：511703102 - 麻柳镇
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511703102' AND `year` = 2024;
 
+-- 删除：510774701 - 四川省科学城春雷街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510774701' AND `year` = 2024;
+
 -- 删除：510726205 - 漩坪乡
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510726205' AND `year` = 2024;
 
 -- 删除：510726208 - 片口乡
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510726208' AND `year` = 2024;
+
+-- 删除：511071005 - 高桥街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511071005' AND `year` = 2024;
+
+-- 删除：511771201 - 幺塘乡
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511771201' AND `year` = 2024;
+
+-- 删除：511071004 - 胜利街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '511071004' AND `year` = 2024;
+
+-- 删除：512072004 - 狮子山街道
+UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '512072004' AND `year` = 2024;
 
 -- 删除：510107064 - 桂溪街道
 UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510107064' AND `year` = 2024;
@@ -7229,203 +7455,257 @@ UPDATE `grassroots_organization` SET `is_deleted` = 1 WHERE `code` = '510116004'
 -- ============================================
 
 -- 变更：512021117 - 镇 -> 镇子镇
-UPDATE `grassroots_organization` SET `name` = '镇子镇', `township_name` = '镇子镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '512021117' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '镇子镇', `township_name` = '镇子镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '512021117' AND `year` = 2024;
 
 -- 变更：513301211 - 呷巴乡 -> 普沙绒乡
-UPDATE `grassroots_organization` SET `name` = '普沙绒乡', `township_name` = '普沙绒乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513301211' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '普沙绒乡', `township_name` = '普沙绒乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513301211' AND `year` = 2024;
 
 -- 变更：513301214 - 孔玉乡 -> 呷巴乡
-UPDATE `grassroots_organization` SET `name` = '呷巴乡', `township_name` = '呷巴乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513301214' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '呷巴乡', `township_name` = '呷巴乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513301214' AND `year` = 2024;
 
 -- 变更：513301208 - 普沙绒乡 -> 捧塔乡
-UPDATE `grassroots_organization` SET `name` = '捧塔乡', `township_name` = '捧塔乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513301208' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '捧塔乡', `township_name` = '捧塔乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513301208' AND `year` = 2024;
+
+-- 变更：511471704 - 龙马镇 -> 高家镇
+UPDATE `grassroots_organization` SET `name` = '高家镇', `township_name` = '高家镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511471704' AND `year` = 2024;
+
+-- 变更：511471705 - 高家镇 -> 贵平镇
+UPDATE `grassroots_organization` SET `name` = '贵平镇', `township_name` = '贵平镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511471705' AND `year` = 2024;
+
+-- 变更：511471707 - 贵平镇 -> 龙马镇
+UPDATE `grassroots_organization` SET `name` = '龙马镇', `township_name` = '龙马镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511471707' AND `year` = 2024;
+
+-- 变更：510371703 - 板仓街道办事处 -> 红旗街道
+UPDATE `grassroots_organization` SET `name` = '红旗街道', `township_name` = '红旗街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510371703' AND `year` = 2024;
+
+-- 变更：510371704 - 红旗街道 -> 高峰街道
+UPDATE `grassroots_organization` SET `name` = '高峰街道', `township_name` = '高峰街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510371704' AND `year` = 2024;
+
+-- 变更：510371705 - 高峰街道 -> 板仓街道办事处
+UPDATE `grassroots_organization` SET `name` = '板仓街道办事处', `township_name` = '板仓街道办事处', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510371705' AND `year` = 2024;
 
 -- 变更：511823209 - 富乡 -> 富乡乡
-UPDATE `grassroots_organization` SET `name` = '富乡乡', `township_name` = '富乡乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511823209' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '富乡乡', `township_name` = '富乡乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511823209' AND `year` = 2024;
 
 -- 变更：511621104 - 镇 -> 镇裕镇
-UPDATE `grassroots_organization` SET `name` = '镇裕镇', `township_name` = '镇裕镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511621104' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '镇裕镇', `township_name` = '镇裕镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511621104' AND `year` = 2024;
 
 -- 变更：510682002 - 皂角街道 -> 雍城街道
-UPDATE `grassroots_organization` SET `name` = '雍城街道', `township_name` = '雍城街道', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510682002' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '雍城街道', `township_name` = '雍城街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510682002' AND `year` = 2024;
 
 -- 变更：511527107 - 镇 -> 镇舟镇
-UPDATE `grassroots_organization` SET `name` = '镇舟镇', `township_name` = '镇舟镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511527107' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '镇舟镇', `township_name` = '镇舟镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511527107' AND `year` = 2024;
+
+-- 变更：510972701 - 保升镇 -> 西宁街道
+UPDATE `grassroots_organization` SET `name` = '西宁街道', `township_name` = '西宁街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510972701' AND `year` = 2024;
+
+-- 变更：510972702 - 西宁街道 -> 保升镇
+UPDATE `grassroots_organization` SET `name` = '保升镇', `township_name` = '保升镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510972702' AND `year` = 2024;
 
 -- 变更：513301001 - 榆林街道 -> 炉城街道
-UPDATE `grassroots_organization` SET `name` = '炉城街道', `township_name` = '炉城街道', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513301001' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '炉城街道', `township_name` = '炉城街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513301001' AND `year` = 2024;
 
 -- 变更：513301002 - 炉城街道 -> 榆林街道
-UPDATE `grassroots_organization` SET `name` = '榆林街道', `township_name` = '榆林街道', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513301002' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '榆林街道', `township_name` = '榆林街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513301002' AND `year` = 2024;
 
 -- 变更：510185112 - 镇 -> 镇金镇
-UPDATE `grassroots_organization` SET `name` = '镇金镇', `township_name` = '镇金镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510185112' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '镇金镇', `township_name` = '镇金镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510185112' AND `year` = 2024;
 
 -- 变更：511123115 - 九井镇九井街道 -> 九井镇
-UPDATE `grassroots_organization` SET `name` = '九井镇', `township_name` = '九井镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511123115' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '九井镇', `township_name` = '九井镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511123115' AND `year` = 2024;
 
 -- 变更：511002105 - 全安镇街道 -> 全安镇
-UPDATE `grassroots_organization` SET `name` = '全安镇', `township_name` = '全安镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511002105' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '全安镇', `township_name` = '全安镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511002105' AND `year` = 2024;
 
 -- 变更：513322102 - 兴隆镇街道 -> 兴隆镇
-UPDATE `grassroots_organization` SET `name` = '兴隆镇', `township_name` = '兴隆镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513322102' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '兴隆镇', `township_name` = '兴隆镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513322102' AND `year` = 2024;
 
 -- 变更：513322101 - 冷碛镇冷碛镇老街道 -> 冷碛镇
-UPDATE `grassroots_organization` SET `name` = '冷碛镇', `township_name` = '冷碛镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513322101' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '冷碛镇', `township_name` = '冷碛镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513322101' AND `year` = 2024;
 
 -- 变更：511681106 - 高兴镇高兴镇街道 -> 高兴镇
-UPDATE `grassroots_organization` SET `name` = '高兴镇', `township_name` = '高兴镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511681106' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '高兴镇', `township_name` = '高兴镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511681106' AND `year` = 2024;
 
 -- 变更：511681105 - 阳和镇阳和镇街道 -> 阳和镇
-UPDATE `grassroots_organization` SET `name` = '阳和镇', `township_name` = '阳和镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511681105' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '阳和镇', `township_name` = '阳和镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511681105' AND `year` = 2024;
 
 -- 变更：511681104 - 明月镇明月镇街道 -> 明月镇
-UPDATE `grassroots_organization` SET `name` = '明月镇', `township_name` = '明月镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511681104' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '明月镇', `township_name` = '明月镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511681104' AND `year` = 2024;
 
 -- 变更：511923114 - 镇 -> 镇龙镇
-UPDATE `grassroots_organization` SET `name` = '镇龙镇', `township_name` = '镇龙镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511923114' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '镇龙镇', `township_name` = '镇龙镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511923114' AND `year` = 2024;
 
 -- 变更：511681103 - 永兴镇永兴镇街道 -> 永兴镇
-UPDATE `grassroots_organization` SET `name` = '永兴镇', `township_name` = '永兴镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511681103' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '永兴镇', `township_name` = '永兴镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511681103' AND `year` = 2024;
 
 -- 变更：511681102 - 禄市镇禄市镇街道 -> 禄市镇
-UPDATE `grassroots_organization` SET `name` = '禄市镇', `township_name` = '禄市镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511681102' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '禄市镇', `township_name` = '禄市镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511681102' AND `year` = 2024;
 
 -- 变更：513224104 - 镇 -> 镇江关镇
-UPDATE `grassroots_organization` SET `name` = '镇江关镇', `township_name` = '镇江关镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513224104' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '镇江关镇', `township_name` = '镇江关镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513224104' AND `year` = 2024;
 
 -- 变更：511133104 - 烟峰镇 -> 下溪镇
-UPDATE `grassroots_organization` SET `name` = '下溪镇', `township_name` = '下溪镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511133104' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '下溪镇', `township_name` = '下溪镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511133104' AND `year` = 2024;
 
 -- 变更：511133102 - 下溪镇 -> 烟峰镇
-UPDATE `grassroots_organization` SET `name` = '烟峰镇', `township_name` = '烟峰镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511133102' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '烟峰镇', `township_name` = '烟峰镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511133102' AND `year` = 2024;
 
 -- 变更：510981110 - 青岗镇街道 -> 青岗镇
-UPDATE `grassroots_organization` SET `name` = '青岗镇', `township_name` = '青岗镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510981110' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '青岗镇', `township_name` = '青岗镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510981110' AND `year` = 2024;
 
 -- 变更：510981112 - 香山镇街道 -> 香山镇
-UPDATE `grassroots_organization` SET `name` = '香山镇', `township_name` = '香山镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510981112' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '香山镇', `township_name` = '香山镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510981112' AND `year` = 2024;
 
 -- 变更：511124113 - 镇 -> 镇阳镇
-UPDATE `grassroots_organization` SET `name` = '镇阳镇', `township_name` = '镇阳镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511124113' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '镇阳镇', `township_name` = '镇阳镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511124113' AND `year` = 2024;
+
+-- 变更：510824400 - 苍溪九龙山自然保护区管理处 -> 苍溪县九龙山自然保护区事务中心
+UPDATE `grassroots_organization` SET `name` = '苍溪县九龙山自然保护区事务中心', `township_name` = '苍溪县九龙山自然保护区事务中心', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510824400' AND `year` = 2024;
+
+-- 变更：510824401 - 苍溪县三溪口森林经营所 -> 苍溪县国家森林公园事务中心（苍溪县三溪口国有林场）
+UPDATE `grassroots_organization` SET `name` = '苍溪县国家森林公园事务中心（苍溪县三溪口国有林场）', `township_name` = '苍溪县国家森林公园事务中心（苍溪县三溪口国有林场）', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510824401' AND `year` = 2024;
+
+-- 变更：510172704 - 桂溪街道 -> 芳草街街道
+UPDATE `grassroots_organization` SET `name` = '芳草街街道', `township_name` = '芳草街街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510172704' AND `year` = 2024;
+
+-- 变更：510172703 - 石羊街道 -> 肖家河街道
+UPDATE `grassroots_organization` SET `name` = '肖家河街道', `township_name` = '肖家河街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510172703' AND `year` = 2024;
+
+-- 变更：510172702 - 芳草街街道 -> 桂溪街道
+UPDATE `grassroots_organization` SET `name` = '桂溪街道', `township_name` = '桂溪街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510172702' AND `year` = 2024;
+
+-- 变更：510172701 - 肖家河街道 -> 石羊街道
+UPDATE `grassroots_organization` SET `name` = '石羊街道', `township_name` = '石羊街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510172701' AND `year` = 2024;
 
 -- 变更：511504003 - 赵场街道 -> 柏溪街道
-UPDATE `grassroots_organization` SET `name` = '柏溪街道', `township_name` = '柏溪街道', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504003' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '柏溪街道', `township_name` = '柏溪街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504003' AND `year` = 2024;
 
 -- 变更：511504002 - 南岸街道 -> 赵场街道
-UPDATE `grassroots_organization` SET `name` = '赵场街道', `township_name` = '赵场街道', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504002' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '赵场街道', `township_name` = '赵场街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504002' AND `year` = 2024;
+
+-- 变更：510172706 - 西园街道 -> 中和街道
+UPDATE `grassroots_organization` SET `name` = '中和街道', `township_name` = '中和街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510172706' AND `year` = 2024;
 
 -- 变更：511504001 - 柏溪街道 -> 南岸街道
-UPDATE `grassroots_organization` SET `name` = '南岸街道', `township_name` = '南岸街道', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504001' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '南岸街道', `township_name` = '南岸街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504001' AND `year` = 2024;
+
+-- 变更：510172705 - 中和街道 -> 合作街道
+UPDATE `grassroots_organization` SET `name` = '合作街道', `township_name` = '合作街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510172705' AND `year` = 2024;
 
 -- 变更：511024109 - 镇 -> 镇西镇
-UPDATE `grassroots_organization` SET `name` = '镇西镇', `township_name` = '镇西镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511024109' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '镇西镇', `township_name` = '镇西镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511024109' AND `year` = 2024;
 
 -- 变更：510726104 - 通泉镇 -> 永安镇
-UPDATE `grassroots_organization` SET `name` = '永安镇', `township_name` = '永安镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726104' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '永安镇', `township_name` = '永安镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726104' AND `year` = 2024;
 
 -- 变更：510726105 - 永安镇 -> 永昌镇
-UPDATE `grassroots_organization` SET `name` = '永昌镇', `township_name` = '永昌镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726105' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '永昌镇', `township_name` = '永昌镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726105' AND `year` = 2024;
 
 -- 变更：510726108 - 陈家坝镇 -> 小坝镇
-UPDATE `grassroots_organization` SET `name` = '小坝镇', `township_name` = '小坝镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726108' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '小坝镇', `township_name` = '小坝镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726108' AND `year` = 2024;
 
 -- 变更：510726109 - 小坝镇 -> 陈家坝镇
-UPDATE `grassroots_organization` SET `name` = '陈家坝镇', `township_name` = '陈家坝镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726109' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '陈家坝镇', `township_name` = '陈家坝镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726109' AND `year` = 2024;
 
 -- 变更：510623214 - 永丰乡街道 -> 永丰乡
-UPDATE `grassroots_organization` SET `name` = '永丰乡', `township_name` = '永丰乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510623214' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '永丰乡', `township_name` = '永丰乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510623214' AND `year` = 2024;
 
 -- 变更：511504106 - 泥溪镇 -> 蕨溪镇
-UPDATE `grassroots_organization` SET `name` = '蕨溪镇', `township_name` = '蕨溪镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504106' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '蕨溪镇', `township_name` = '蕨溪镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504106' AND `year` = 2024;
 
 -- 变更：511504105 - 柳嘉镇 -> 泥溪镇
-UPDATE `grassroots_organization` SET `name` = '泥溪镇', `township_name` = '泥溪镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504105' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '泥溪镇', `township_name` = '泥溪镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504105' AND `year` = 2024;
 
 -- 变更：511504104 - 横江镇 -> 柳嘉镇
-UPDATE `grassroots_organization` SET `name` = '柳嘉镇', `township_name` = '柳嘉镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504104' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '柳嘉镇', `township_name` = '柳嘉镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504104' AND `year` = 2024;
 
 -- 变更：511504103 - 观音镇 -> 横江镇
-UPDATE `grassroots_organization` SET `name` = '横江镇', `township_name` = '横江镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504103' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '横江镇', `township_name` = '横江镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504103' AND `year` = 2024;
 
 -- 变更：511504109 - 高场镇 -> 安边镇
-UPDATE `grassroots_organization` SET `name` = '安边镇', `township_name` = '安边镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504109' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '安边镇', `township_name` = '安边镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504109' AND `year` = 2024;
 
 -- 变更：511504108 - 商州镇 -> 高场镇
-UPDATE `grassroots_organization` SET `name` = '高场镇', `township_name` = '高场镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504108' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '高场镇', `township_name` = '高场镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504108' AND `year` = 2024;
 
 -- 变更：511504107 - 蕨溪镇 -> 商州镇
-UPDATE `grassroots_organization` SET `name` = '商州镇', `township_name` = '商州镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504107' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '商州镇', `township_name` = '商州镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504107' AND `year` = 2024;
+
+-- 变更：510973701 - 慈音街道 -> 灵泉街道
+UPDATE `grassroots_organization` SET `name` = '灵泉街道', `township_name` = '灵泉街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510973701' AND `year` = 2024;
+
+-- 变更：510973702 - 灵泉街道 -> 慈音街道
+UPDATE `grassroots_organization` SET `name` = '慈音街道', `township_name` = '慈音街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510973702' AND `year` = 2024;
 
 -- 变更：511504110 - 安边镇 -> 双龙镇
-UPDATE `grassroots_organization` SET `name` = '双龙镇', `township_name` = '双龙镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504110' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '双龙镇', `township_name` = '双龙镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504110' AND `year` = 2024;
 
 -- 变更：510681002 - 新丰街道 -> 汉州街道
-UPDATE `grassroots_organization` SET `name` = '汉州街道', `township_name` = '汉州街道', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510681002' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '汉州街道', `township_name` = '汉州街道', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510681002' AND `year` = 2024;
 
 -- 变更：511323114 - 兴旺镇街道 -> 兴旺镇
-UPDATE `grassroots_organization` SET `name` = '兴旺镇', `township_name` = '兴旺镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511323114' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '兴旺镇', `township_name` = '兴旺镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511323114' AND `year` = 2024;
 
 -- 变更：511323110 - 杨家镇杨家镇街道 -> 杨家镇
-UPDATE `grassroots_organization` SET `name` = '杨家镇', `township_name` = '杨家镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511323110' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '杨家镇', `township_name` = '杨家镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511323110' AND `year` = 2024;
 
 -- 变更：511323112 - 福德镇街道 -> 福德镇
-UPDATE `grassroots_organization` SET `name` = '福德镇', `township_name` = '福德镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511323112' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '福德镇', `township_name` = '福德镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511323112' AND `year` = 2024;
 
 -- 变更：511323111 - 罗家镇街道 -> 罗家镇
-UPDATE `grassroots_organization` SET `name` = '罗家镇', `township_name` = '罗家镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511323111' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '罗家镇', `township_name` = '罗家镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511323111' AND `year` = 2024;
 
 -- 变更：511323103 - 正源镇街道 -> 正源镇
-UPDATE `grassroots_organization` SET `name` = '正源镇', `township_name` = '正源镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511323103' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '正源镇', `township_name` = '正源镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511323103' AND `year` = 2024;
 
 -- 变更：511323102 - 巨龙镇街道 -> 巨龙镇
-UPDATE `grassroots_organization` SET `name` = '巨龙镇', `township_name` = '巨龙镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511323102' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '巨龙镇', `township_name` = '巨龙镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511323102' AND `year` = 2024;
 
 -- 变更：511323109 - 龙蚕镇街道 -> 龙蚕镇
-UPDATE `grassroots_organization` SET `name` = '龙蚕镇', `township_name` = '龙蚕镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511323109' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '龙蚕镇', `township_name` = '龙蚕镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511323109' AND `year` = 2024;
 
 -- 变更：511323108 - 利溪镇街道 -> 利溪镇
-UPDATE `grassroots_organization` SET `name` = '利溪镇', `township_name` = '利溪镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511323108' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '利溪镇', `township_name` = '利溪镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511323108' AND `year` = 2024;
 
 -- 变更：510726209 - 开坪乡 -> 桃龙藏族乡
-UPDATE `grassroots_organization` SET `name` = '桃龙藏族乡', `township_name` = '桃龙藏族乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726209' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '桃龙藏族乡', `township_name` = '桃龙藏族乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726209' AND `year` = 2024;
 
 -- 变更：510726206 - 白坭乡 -> 漩坪乡
-UPDATE `grassroots_organization` SET `name` = '漩坪乡', `township_name` = '漩坪乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726206' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '漩坪乡', `township_name` = '漩坪乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726206' AND `year` = 2024;
 
 -- 变更：513224207 - 镇 -> 镇坪乡
-UPDATE `grassroots_organization` SET `name` = '镇坪乡', `township_name` = '镇坪乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513224207' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '镇坪乡', `township_name` = '镇坪乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513224207' AND `year` = 2024;
 
 -- 变更：510726212 - 青片乡 -> 坝底乡
-UPDATE `grassroots_organization` SET `name` = '坝底乡', `township_name` = '坝底乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726212' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '坝底乡', `township_name` = '坝底乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726212' AND `year` = 2024;
 
 -- 变更：510726214 - 桃龙藏族乡 -> 马槽乡
-UPDATE `grassroots_organization` SET `name` = '马槽乡', `township_name` = '马槽乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726214' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '马槽乡', `township_name` = '马槽乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726214' AND `year` = 2024;
 
 -- 变更：510726210 - 坝底乡 -> 片口乡
-UPDATE `grassroots_organization` SET `name` = '片口乡', `township_name` = '片口乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726210' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '片口乡', `township_name` = '片口乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726210' AND `year` = 2024;
 
 -- 变更：510726211 - 白什乡 -> 开坪乡
-UPDATE `grassroots_organization` SET `name` = '开坪乡', `township_name` = '开坪乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726211' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '开坪乡', `township_name` = '开坪乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726211' AND `year` = 2024;
 
 -- 变更：510726216 - 马槽乡 -> 青片乡
-UPDATE `grassroots_organization` SET `name` = '青片乡', `township_name` = '青片乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '510726216' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '青片乡', `township_name` = '青片乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '510726216' AND `year` = 2024;
 
 -- 变更：513423104 - 树河镇树河街道 -> 树河镇
-UPDATE `grassroots_organization` SET `name` = '树河镇', `township_name` = '树河镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513423104' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '树河镇', `township_name` = '树河镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513423104' AND `year` = 2024;
 
 -- 变更：513423101 - 卫城镇街道 -> 卫城镇
-UPDATE `grassroots_organization` SET `name` = '卫城镇', `township_name` = '卫城镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513423101' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '卫城镇', `township_name` = '卫城镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513423101' AND `year` = 2024;
 
 -- 变更：513423102 - 梅雨镇街道 -> 梅雨镇
-UPDATE `grassroots_organization` SET `name` = '梅雨镇', `township_name` = '梅雨镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513423102' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '梅雨镇', `township_name` = '梅雨镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513423102' AND `year` = 2024;
 
 -- 变更：513423107 - 泸沽湖镇格姆街道 -> 泸沽湖镇
-UPDATE `grassroots_organization` SET `name` = '泸沽湖镇', `township_name` = '泸沽湖镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513423107' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '泸沽湖镇', `township_name` = '泸沽湖镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513423107' AND `year` = 2024;
 
 -- 变更：513423106 - 平川镇平川街道 -> 平川镇
-UPDATE `grassroots_organization` SET `name` = '平川镇', `township_name` = '平川镇', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '513423106' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '平川镇', `township_name` = '平川镇', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '513423106' AND `year` = 2024;
 
 -- 变更：511504202 - 龙池乡 -> 凤仪乡
-UPDATE `grassroots_organization` SET `name` = '凤仪乡', `township_name` = '凤仪乡', `update_time` = '2026-03-12 22:42:24' WHERE `code` = '511504202' AND `year` = 2024;
+UPDATE `grassroots_organization` SET `name` = '凤仪乡', `township_name` = '凤仪乡', `update_time` = '2026-04-08 16:24:01' WHERE `code` = '511504202' AND `year` = 2024;
 

@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -297,9 +298,9 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                 }
             }
             List<WeightConfig> ordered = new ArrayList<>();
-            Long[] orderedModelIds = new Long[]{3L, 4L, 8L, 11L};
-            for (Long modelId : orderedModelIds) {
-                String modelName = modelIdToName.get(modelId);
+            for (Map.Entry<Long, String> entry : modelIdToName.entrySet()) {
+                Long modelId = entry.getKey();
+                String modelName = entry.getValue();
                 if (!StringUtils.hasText(modelName)) {
                     continue;
                 }
@@ -430,9 +431,9 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
             Integer forcedYear
     ) {
         List<WeightConfig> result = new ArrayList<>();
-        Long[] orderedModelIds = new Long[]{3L, 4L, 8L, 11L};
-        for (Long modelId : orderedModelIds) {
-            String modelName = modelIdToName.get(modelId);
+        for (Map.Entry<Long, String> entry : modelIdToName.entrySet()) {
+            Long modelId = entry.getKey();
+            String modelName = entry.getValue();
             String legacyName = legacyNameByModelId.get(modelId);
             WeightConfig best = null;
             for (String candidateOrg : orgcodeCandidates) {
@@ -447,7 +448,7 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                 // 获取实际数据的年份（配置的原始年份）
                 Integer actualDataYear = best.getYear();
                 Integer effectiveYear = forcedYear != null ? forcedYear : resolveConfigYear(best, fallbackYearForNull);
-                if (modelId != null && modelId.equals(11L)) {
+                if (modelName != null && modelName.contains("综合")) {
                     indicatorWeightService.ensureComprehensiveCountyWeights(best.getId(), best.getOrgcode(), effectiveYear);
                 }
                 WeightConfig view = new WeightConfig();
@@ -545,6 +546,13 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                 continue;
             }
             String name = cfg.getConfigName().trim();
+            if (modelId != null && cfg.getModelId() != null && Objects.equals(modelId, cfg.getModelId())) {
+                long weightCnt = indicatorWeightService.count(new QueryWrapper<IndicatorWeight>().eq("config_id", cfg.getId()));
+                if (weightCnt <= 0) {
+                    continue;
+                }
+                return cfg;
+            }
             int nameScore = scoreNameMatch(modelId, name, modelName, legacyName);
             if (nameScore <= 0) {
                 continue;
@@ -581,64 +589,65 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
         if (StringUtils.hasText(modelName) && n.equals(modelName.trim())) {
             return 3;
         }
-        if (StringUtils.hasText(legacyName) && n.equals(legacyName.trim())) {
-            return 3;
-        }
-
-        String upper = n.toUpperCase();
-        boolean containsTown = upper.contains("乡镇") || upper.contains("街道");
-        boolean containsCommunity = upper.contains("社区");
-        boolean containsVillage = upper.contains("行政村") || upper.contains("社区单元") || upper.contains("乡镇单元");
-        boolean containsComprehensive = upper.contains("综合");
-
-        if (modelId == null) {
+        if (!StringUtils.hasText(modelName)) {
             return 0;
         }
-        if (modelId.equals(3L)) {
-            return (containsTown && !containsCommunity) ? 2 : 0;
+        String[] tokens = modelName.replace("减灾", " ")
+                .replace("能力", " ")
+                .replace("评估", " ")
+                .replace("模型", " ")
+                .replace("权重", " ")
+                .replace("配置", " ")
+                .replace("-", " ")
+                .replace("（", " ")
+                .replace("）", " ")
+                .replace("(", " ")
+                .replace(")", " ")
+                .trim()
+                .split("\\s+");
+        int hit = 0;
+        for (String token : tokens) {
+            if (token != null && token.length() >= 2 && n.contains(token)) {
+                hit++;
+            }
         }
-        if (modelId.equals(4L)) {
-            return (containsCommunity && (upper.contains("行政村") || upper.contains("社区单元"))) ? 2 : 0;
+        if (hit >= 2) {
+            return 2;
         }
-        if (modelId.equals(8L)) {
-            return (containsCommunity && upper.contains("乡镇")) ? 2 : 0;
-        }
-        if (modelId.equals(11L)) {
-            return containsComprehensive ? 2 : 0;
+        if (hit == 1) {
+            return 1;
         }
         return 0;
     }
 
     private Map<Long, String> resolveDefaultModelNames() {
-        Map<Long, String> map = new HashMap<>();
+        QueryWrapper<EvaluationModel> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("status", 1);
+        queryWrapper.orderByAsc("id");
+        List<EvaluationModel> models = evaluationModelMapper.selectList(queryWrapper);
 
-        Long[] modelIds = new Long[]{3L, 4L, 8L, 11L};
-        for (Long modelId : modelIds) {
-            EvaluationModel model = evaluationModelMapper.selectById(modelId);
-            if (model != null && StringUtils.hasText(model.getModelName())) {
-                map.put(modelId, model.getModelName().trim());
-            }
+        Map<Long, String> map = new LinkedHashMap<>();
+        if (models == null || models.isEmpty()) {
+            return map;
         }
 
-        if (!map.containsKey(3L)) map.put(3L, "乡镇减灾能力评估模型");
-        if (!map.containsKey(4L)) map.put(4L, "社区-行政村能力评估模型");
-        if (!map.containsKey(8L)) map.put(8L, "社区-乡镇能力评估模型");
-        if (!map.containsKey(11L)) map.put(11L, "综合减灾能力评估模型");
-
-        Map<Long, String> ordered = new HashMap<>();
-        ordered.put(3L, map.get(3L));
-        ordered.put(4L, map.get(4L));
-        ordered.put(8L, map.get(8L));
-        ordered.put(11L, map.get(11L));
-        return ordered;
+        for (EvaluationModel model : models) {
+            if (model == null || model.getId() == null || !StringUtils.hasText(model.getModelName())) {
+                continue;
+            }
+            String modelName = model.getModelName().trim();
+            if (!modelName.contains("减灾") || !modelName.contains("评估")) {
+                continue;
+            }
+            if (modelName.contains("政府") || modelName.contains("企业") || modelName.contains("社会组织")) {
+                continue;
+            }
+            map.put(model.getId(), modelName);
+        }
+        return map;
     }
 
     private Map<Long, String> resolveLegacyModelNames() {
-        Map<Long, String> map = new HashMap<>();
-        map.put(3L, "乡镇街道权重配置");
-        map.put(4L, "社区-社区单元权重配置");
-        map.put(8L, "社区-乡镇单元权重配置");
-        map.put(11L, "综合模型权重配置");
-        return map;
+        return new HashMap<>();
     }
 }

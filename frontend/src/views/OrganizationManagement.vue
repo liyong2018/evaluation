@@ -286,6 +286,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadProps } from 'element-plus'
 import { Plus, Edit, Delete, OfficeBuilding, MapLocation, Location, Position, House, FolderOpened } from '@element-plus/icons-vue'
@@ -297,6 +298,7 @@ import { useGlobalYearStore } from '@/stores/globalYear'
 // 用户状态
 const userStore = useUserStore()
 const globalYearStore = useGlobalYearStore()
+const route = useRoute()
 
 // 状态管理
 const loading = ref(false)
@@ -1019,6 +1021,14 @@ const saveGrassrootsOrg = async () => {
 
 // 初始化
 onMounted(() => {
+  const q = route.query.year
+  const raw = Array.isArray(q) ? q[0] : q
+  const y = raw != null ? parseInt(String(raw), 10) : NaN
+  if (!isNaN(y) && y >= 2020 && y <= 2030) {
+    treeYear.value = y
+    globalYearStore.setYear(y)
+    return
+  }
   loadOrganizationTree()
 })
 

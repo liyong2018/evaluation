@@ -16,11 +16,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -86,8 +88,17 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     @Qualifier("evaluationTaskExecutor")
     private Executor evaluationTaskExecutor;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private static final String GOVERNMENT_MODEL_KEYWORD = "政府减灾能力";
+    private static final String ENTERPRISE_MODEL_KEYWORD = "企业减灾能力";
+    private static final String SOCIAL_ORGANIZATION_MODEL_KEYWORD = "社会组织减灾能力";
+    private static final String GOVERNMENT_CAPACITY_TABLE = "government_disaster_reduction_capacity_2020";
+    private static final String ENTERPRISE_CAPACITY_TABLE = "enterprise_disaster_reduction_capacity_2020";
+    private static final String SOCIAL_ORGANIZATION_CAPACITY_TABLE = "social_organization_disaster_reduction_capacity_2020";
     private static final Pattern TRAILING_NUMERIC_MULTIPLIER = Pattern.compile("(?s)^(.*)\\*\\s*([0-9]+(?:\\.[0-9]+)?)\\s*$");
     private static final Pattern WEIGHT_VAR_PATTERN = Pattern.compile("\\bweight_[A-Z0-9_]+\\b");
     private static final Pattern NORM_VAR_PATTERN = Pattern.compile("\\b[A-Za-z_][A-Za-z0-9_]*(?:Norm|Normalized)\\b");
@@ -216,7 +227,20 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         Map<String, Object> globalContext = new HashMap<>();
         globalContext.put("modelId", modelId);
         globalContext.put("modelName", model.getModelName());
-        globalContext.put("regionCodes", regionCodes);
+        boolean governmentModel = isGovernmentModel(modelId, model.getModelName());
+        boolean enterpriseModel = isEnterpriseModel(modelId, model.getModelName());
+        boolean socialOrganizationModel = isSocialOrganizationModel(modelId, model.getModelName());
+        List<String> effectiveRegionCodes;
+        if (governmentModel) {
+            effectiveRegionCodes = resolveGovernmentRegionCodes(regionCodes, year);
+        } else if (enterpriseModel) {
+            effectiveRegionCodes = resolveEnterpriseRegionCodes(regionCodes, year);
+        } else if (socialOrganizationModel) {
+            effectiveRegionCodes = resolveSocialOrganizationRegionCodes(regionCodes, year);
+        } else {
+            effectiveRegionCodes = new ArrayList<>(regionCodes);
+        }
+        globalContext.put("regionCodes", effectiveRegionCodes);
         globalContext.put("weightConfigId", resolvedWeightConfigId);
         if (year != null) {
             globalContext.put("year", year);
@@ -229,8 +253,20 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // - Model 8: 社区-乡镇减灾能力评估模型 - 需要社区数据
         // - Model 11: 综合减灾能力评估模型 - 需要乡镇减灾能力评估结果(Model 3)和社区-乡镇减灾能力评估结果(Model 8)
         if (year != null) {
-            for (String regionCode : regionCodes) {
-                if (modelId == 4 || modelId == 8) {
+            for (String regionCode : effectiveRegionCodes) {
+                if (governmentModel) {
+                    if (!hasGovernmentData(regionCode, year)) {
+                        throw new RuntimeException("所选年份无政府减灾能力数据，无法进行政府减灾能力评估");
+                    }
+                } else if (enterpriseModel) {
+                    if (!hasEnterpriseData(regionCode, year)) {
+                        throw new RuntimeException("所选年份无企业减灾能力数据，无法进行企业减灾能力评估");
+                    }
+                } else if (socialOrganizationModel) {
+                    if (!hasSocialOrganizationData(regionCode, year)) {
+                        throw new RuntimeException("所选年份无社会组织减灾能力数据，无法进行社会组织减灾能力评估");
+                    }
+                } else if (modelId == 4 || modelId == 8) {
                     // 社区-行政村/乡镇减灾能力评估模型：检查社区数据
                     QueryWrapper<CommunityDisasterReductionCapacity> q = new QueryWrapper<>();
                     q.eq("region_code", regionCode).eq("year", year);
@@ -269,12 +305,12 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
 
         // 4. 加载基础数据到上下文
-        loadBaseDataToContext(globalContext, regionCodes, resolvedWeightConfigId);
+        loadBaseDataToContext(globalContext, effectiveRegionCodes, resolvedWeightConfigId);
 
         // 5. 按顺序执行每个步骤
         Map<String, Object> stepResults = new HashMap<>();
         Map<Integer, Set<String>> stepOutputParams = new LinkedHashMap<>();  // 记录每个步骤的可能列名称
-        List<String> currentRegionCodes = new ArrayList<>(regionCodes);  // 当前使用的地区代码列表
+        List<String> currentRegionCodes = new ArrayList<>(effectiveRegionCodes);  // 当前使用的地区代码列表
         
         for (ModelStep step : steps) {
             
@@ -296,6 +332,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     // 执行单个步骤
                     stepResult = executeStep(step.getId(), currentRegionCodes, globalContext);
                 }
+                stepResult.put("modelId", modelId);
                 
                 stepResults.put(step.getStepCode(), stepResult);
                 
@@ -385,6 +422,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         if (resolvedOrgCode != null) {
             result.put("orgCode", resolvedOrgCode);
         }
+
+        normalizeGovernmentExecutionResult(result, year);
 
         return result;
     }
@@ -639,13 +678,50 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         @SuppressWarnings("unchecked")
         Map<String, SurveyData> surveyDataMap =
                 (Map<String, SurveyData>) inputData.get("surveyDataMap");
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> governmentDataMap =
+                (Map<String, Map<String, Object>>) inputData.get("governmentDataMap");
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> enterpriseDataMap =
+                (Map<String, Map<String, Object>>) inputData.get("enterpriseDataMap");
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> socialOrganizationDataMap =
+                (Map<String, Map<String, Object>>) inputData.get("socialOrganizationDataMap");
+        boolean governmentModel = isGovernmentModel(modelId, (String) inputData.get("modelName"));
+        boolean enterpriseModel = isEnterpriseModel(modelId, (String) inputData.get("modelName"));
+        boolean socialOrganizationModel = isSocialOrganizationModel(modelId, (String) inputData.get("modelName"));
 
         for (String regionCode : regionCodes) {
             Map<String, Object> regionContext = new HashMap<>(inputData);
             regionContext.put("currentRegionCode", regionCode);
 
             // 根据modelId选择不同的数据源
-            if (modelId != null && (modelId == 4 || modelId == 8)) {
+            if (governmentModel || enterpriseModel || socialOrganizationModel) {
+                Map<String, Map<String, Object>> locationDataMap;
+                if (governmentModel) {
+                    locationDataMap = governmentDataMap;
+                } else if (enterpriseModel) {
+                    locationDataMap = enterpriseDataMap;
+                } else {
+                    locationDataMap = socialOrganizationDataMap;
+                }
+                Map<String, Object> cachedLocation = locationDataMap != null ? locationDataMap.get(regionCode) : null;
+                if (cachedLocation != null) {
+                    addMapDataToContext(regionContext, cachedLocation);
+                } else {
+                    List<Map<String, Object>> locationRows;
+                    if (governmentModel) {
+                        locationRows = queryGovernmentRows(Collections.singletonList(regionCode), ctxYear);
+                    } else if (enterpriseModel) {
+                        locationRows = queryEnterpriseRows(Collections.singletonList(regionCode), ctxYear);
+                    } else {
+                        locationRows = querySocialOrganizationRows(Collections.singletonList(regionCode), ctxYear);
+                    }
+                    if (locationRows != null && !locationRows.isEmpty()) {
+                        addMapDataToContext(regionContext, locationRows.get(0));
+                    }
+                }
+            } else if (modelId != null && (modelId == 4 || modelId == 8)) {
                 // 社区模型(modelId=4)和社区-乡镇模型(modelId=8)：从community_disaster_reduction_capacity表加载数据
                 // 使用selectMaps直接返回Map，key为数据库字段名，可直接匹配算法表达式中的变量名
                 Map<String, Object> cachedCommunity = communityDataMap != null ? communityDataMap.get(regionCode) : null;
@@ -707,6 +783,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
 
+        Map<String, Map<String, Object>> immutableAllRegionContexts = cloneRegionContexts(allRegionContexts);
+
         // 6. 第二遍：为每个地区执行非GRADE算法（支持特殊标记）
         Map<String, Map<String, Object>> regionResults = new LinkedHashMap<>();
         Map<String, String> outputToAlgorithmName = new LinkedHashMap<>();
@@ -729,23 +807,36 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         String params = parts.length > 1 ? parts[1] : "";
 
                         // 调用特殊算法服务
+                        Map<String, Map<String, Object>> allRegionData = "NORMALIZE".equalsIgnoreCase(marker)
+                                ? immutableAllRegionContexts
+                                : allRegionContexts;
                         result = specialAlgorithmService.executeSpecialAlgorithm(
-                                marker, params, regionCode, regionContext, allRegionContexts);
+                                marker, params, regionCode, regionContext, allRegionData);
                         
                         // 确保数值类型转换并格式化为8位小数
                         if (result != null && result instanceof Number) {
                             double doubleValue = ((Number) result).doubleValue();
+                            if (Double.isNaN(doubleValue) || Double.isInfinite(doubleValue)) {
+                                doubleValue = 0.0;
+                            }
                             result = Double.parseDouble(String.format("%.8f", doubleValue));
                         }
                     } else {
-                        String rewrittenExpression = rewriteLegacyWeightExpressionIfNeeded(algorithm, qlExpression);
-                        String normalizedExpression = normalizeWeightVarCodes(rewrittenExpression);
-                        prepareNullVariablesForExpression(normalizedExpression, regionContext);
-                        result = qlExpressService.execute(normalizedExpression, regionContext);
+                        if (shouldApplyGovernmentSecondaryWeighting(step, algorithm, qlExpression, governmentModel)) {
+                            result = applyGovernmentSecondaryWeighting(algorithm, regionContext);
+                        } else {
+                            String rewrittenExpression = rewriteLegacyWeightExpressionIfNeeded(algorithm, qlExpression, regionContext);
+                            String normalizedExpression = normalizeWeightVarCodes(rewrittenExpression);
+                            prepareNullVariablesForExpression(normalizedExpression, regionContext);
+                            result = qlExpressService.execute(normalizedExpression, regionContext);
+                        }
                         
                         // 确保数值类型的结果转换为Double并格式化为8位小数
                         if (result != null && result instanceof Number) {
                             double doubleValue = ((Number) result).doubleValue();
+                            if (Double.isNaN(doubleValue) || Double.isInfinite(doubleValue)) {
+                                doubleValue = 0.0;
+                            }
                             result = Double.parseDouble(String.format("%.8f", doubleValue));
                         }
                     }
@@ -814,6 +905,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         // 格式化GRADE算法结果为8位小数
                         if (result != null && result instanceof Number) {
                             double doubleValue = ((Number) result).doubleValue();
+                            if (Double.isNaN(doubleValue) || Double.isInfinite(doubleValue)) {
+                                doubleValue = 0.0;
+                            }
                             result = Double.parseDouble(String.format("%.8f", doubleValue));
                             log.warn("[执行GRADE算法] result是Number类型，已格式化: {}", result);
                         }
@@ -843,6 +937,90 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         stepResult.put("regionResults", regionResults);
         return stepResult;
+    }
+
+    private Map<String, Map<String, Object>> cloneRegionContexts(Map<String, Map<String, Object>> source) {
+        Map<String, Map<String, Object>> clone = new LinkedHashMap<>();
+        if (source == null || source.isEmpty()) {
+            return clone;
+        }
+        for (Map.Entry<String, Map<String, Object>> entry : source.entrySet()) {
+            Map<String, Object> context = entry.getValue();
+            clone.put(entry.getKey(), context == null ? new HashMap<>() : new HashMap<>(context));
+        }
+        return clone;
+    }
+
+    private boolean shouldApplyGovernmentSecondaryWeighting(ModelStep step, StepAlgorithm algorithm, String expression, boolean governmentModel) {
+        if (!governmentModel || step == null || algorithm == null) {
+            return false;
+        }
+        if (!Objects.equals(step.getStepOrder(), 4)) {
+            return false;
+        }
+        if (expression == null) {
+            return false;
+        }
+        String normalized = expression.replaceAll("\\s+", "");
+        String outputParam = algorithm.getOutputParam();
+        if (!StringUtils.hasText(outputParam)) {
+            return false;
+        }
+        String output = outputParam.trim();
+        return normalized.equals("(" + output + "*1.0)");
+    }
+
+    private Double applyGovernmentSecondaryWeighting(StepAlgorithm algorithm, Map<String, Object> regionContext) {
+        String outputParam = algorithm.getOutputParam() == null ? null : algorithm.getOutputParam().trim();
+        if (!StringUtils.hasText(outputParam)) {
+            return 0.0;
+        }
+        double baseValue = toDouble(regionContext.get(outputParam));
+        double indicatorWeight = resolveIndicatorWeightFromContext(regionContext, outputParam);
+        if (indicatorWeight <= 0.0) {
+            return baseValue;
+        }
+        return baseValue * indicatorWeight;
+    }
+
+    private double resolveIndicatorWeightFromContext(Map<String, Object> regionContext, String indicatorCode) {
+        if (regionContext == null || !StringUtils.hasText(indicatorCode)) {
+            return 0.0;
+        }
+        String trimmed = indicatorCode.trim();
+        List<String> candidateKeys = Arrays.asList(
+                "weight_" + trimmed,
+                "weight_" + trimmed.toUpperCase(Locale.ROOT),
+                "weight_" + trimmed.toLowerCase(Locale.ROOT)
+        );
+        for (String key : candidateKeys) {
+            Object value = regionContext.get(key);
+            double resolved = toDouble(value);
+            if (resolved > 0.0) {
+                return resolved;
+            }
+        }
+
+        Object weightsObj = regionContext.get("weights");
+        if (weightsObj instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> weights = (Map<String, Object>) weightsObj;
+            for (String key : Arrays.asList(trimmed, trimmed.toUpperCase(Locale.ROOT), trimmed.toLowerCase(Locale.ROOT))) {
+                double resolved = toDouble(weights.get(key));
+                if (resolved > 0.0) {
+                    return resolved;
+                }
+            }
+            for (Map.Entry<String, Object> entry : weights.entrySet()) {
+                if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(trimmed)) {
+                    double resolved = toDouble(entry.getValue());
+                    if (resolved > 0.0) {
+                        return resolved;
+                    }
+                }
+            }
+        }
+        return 0.0;
     }
 
     /**
@@ -1155,7 +1333,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         // 根据模型ID判断数据类型和评估区域类型
         if (modelId != null) {
-            if (modelId == 4 || modelId == 8) {
+            if (isGovernmentModel(modelId, (String) context.get("modelName"))) {
+                loadGovernmentBaseData(context, regionCodes, year);
+            } else if (isEnterpriseModel(modelId, (String) context.get("modelName"))) {
+                loadEnterpriseBaseData(context, regionCodes, year);
+            } else if (isSocialOrganizationModel(modelId, (String) context.get("modelName"))) {
+                loadSocialOrganizationBaseData(context, regionCodes, year);
+            } else if (modelId == 4 || modelId == 8) {
                 // 社区级评估模型：加载社区数据并按年份筛选
                 loadCommunityBaseData(context, regionCodes, year);
             } else {
@@ -1169,17 +1353,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         if (weightConfigId != null) {
             return weightConfigId;
         }
-        if (!isModelUsingYearlyWeights(modelId)) {
+        if (modelId == null || year == null || !StringUtils.hasText(orgCode)) {
             return null;
-        }
-        if (modelId == null) {
-            return null;
-        }
-        if (year == null) {
-            throw new RuntimeException("缺少评估年份，无法解析权重配置");
-        }
-        if (!StringUtils.hasText(orgCode)) {
-            throw new RuntimeException("缺少机构代码(orgCode)，无法解析权重配置");
         }
 
         String trimmedOrgCode = orgCode.trim();
@@ -1191,23 +1366,19 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         String desiredConfigName = resolveModelNameForWeightConfig(modelId);
         List<WeightConfig> configs = weightConfigService.getEffectiveModelYearConfigs(trimmedOrgCode, year);
-        WeightConfig matched = findWeightConfigByName(configs, desiredConfigName);
+        WeightConfig matched = findWeightConfig(configs, modelId, desiredConfigName);
 
         if (matched == null) {
             configs = weightConfigService.getOrCreateModelYearConfigs(trimmedOrgCode, year);
-            matched = findWeightConfigByName(configs, desiredConfigName);
+            matched = findWeightConfig(configs, modelId, desiredConfigName);
         }
 
         if (matched == null || matched.getId() == null) {
-            throw new RuntimeException("未找到该模型对应的权重配置: orgCode=" + trimmedOrgCode + ", year=" + year + ", modelId=" + modelId);
+            return null;
         }
 
         putResolvedWeightConfigIdToCache(cacheKey, matched.getId());
         return matched.getId();
-    }
-
-    private boolean isModelUsingYearlyWeights(Long modelId) {
-        return Objects.equals(modelId, 3L) || Objects.equals(modelId, 4L) || Objects.equals(modelId, 8L) || Objects.equals(modelId, 11L);
     }
 
     private String resolveModelNameForWeightConfig(Long modelId) {
@@ -1215,15 +1386,24 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         if (model != null && StringUtils.hasText(model.getModelName())) {
             return model.getModelName().trim();
         }
-        if (Objects.equals(modelId, 3L)) return "乡镇减灾能力评估模型";
-        if (Objects.equals(modelId, 4L)) return "社区-行政村能力评估模型";
-        if (Objects.equals(modelId, 8L)) return "社区-乡镇能力评估模型";
-        if (Objects.equals(modelId, 11L)) return "综合减灾能力评估模型";
-        return String.valueOf(modelId);
+        return null;
     }
 
-    private WeightConfig findWeightConfigByName(List<WeightConfig> configs, String desiredConfigName) {
-        if (configs == null || configs.isEmpty() || !StringUtils.hasText(desiredConfigName)) {
+    private WeightConfig findWeightConfig(List<WeightConfig> configs, Long modelId, String desiredConfigName) {
+        if (configs == null || configs.isEmpty()) {
+            return null;
+        }
+        if (modelId != null) {
+            for (WeightConfig cfg : configs) {
+                if (cfg == null || cfg.getId() == null || cfg.getModelId() == null) {
+                    continue;
+                }
+                if (Objects.equals(cfg.getModelId(), modelId)) {
+                    return cfg;
+                }
+            }
+        }
+        if (!StringUtils.hasText(desiredConfigName)) {
             return null;
         }
         String desired = desiredConfigName.trim();
@@ -1357,37 +1537,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 weightMap.putIfAbsent("L1_MANAGEMENT", weightMap.get("L1_DISASTER_MANAGEMENT"));
                 weightMap.putIfAbsent("L1_PREPARATION", weightMap.get("L1_DISASTER_PREPAREDNESS"));
                 weightMap.putIfAbsent("L1_SELF_RESCUE", weightMap.get("L1_SELF_RESCUE_TRANSFER"));
-            } else {
-                weightMap.put("L1_DISASTER_MANAGEMENT", 0.33);
-                weightMap.put("L1_DISASTER_PREPAREDNESS", 0.32);
-                weightMap.put("L1_SELF_RESCUE_TRANSFER", 0.35);
-                weightMap.putIfAbsent("L1_MANAGEMENT", 0.33);
-                weightMap.putIfAbsent("L1_PREPARATION", 0.32);
-                weightMap.putIfAbsent("L1_SELF_RESCUE", 0.35);
             }
-        }
-
-        double g1 = weightMap.getOrDefault("L2_MANAGEMENT_CAPABILITY", 0.0)
-                + weightMap.getOrDefault("L2_RISK_ASSESSMENT", 0.0)
-                + weightMap.getOrDefault("L2_FUNDING", 0.0);
-        if (g1 == 0.0) {
-            weightMap.put("L2_MANAGEMENT_CAPABILITY", 0.37);
-            weightMap.put("L2_RISK_ASSESSMENT", 0.31);
-            weightMap.put("L2_FUNDING", 0.32);
-        }
-        double g2 = weightMap.getOrDefault("L2_MATERIAL", 0.0)
-                + weightMap.getOrDefault("L2_MEDICAL", 0.0);
-        if (g2 == 0.0) {
-            weightMap.put("L2_MATERIAL", 0.51);
-            weightMap.put("L2_MEDICAL", 0.49);
-        }
-        double g3 = weightMap.getOrDefault("L2_SELF_RESCUE", 0.0)
-                + weightMap.getOrDefault("L2_PUBLIC_AVOIDANCE", 0.0)
-                + weightMap.getOrDefault("L2_RELOCATION", 0.0);
-        if (g3 == 0.0) {
-            weightMap.put("L2_SELF_RESCUE", 0.33);
-            weightMap.put("L2_PUBLIC_AVOIDANCE", 0.33);
-            weightMap.put("L2_RELOCATION", 0.34);
         }
 
         if (!hasExplicitL1) {
@@ -1407,13 +1557,6 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 weightMap.put("L1_MANAGEMENT", weightMap.get("L1_DISASTER_MANAGEMENT"));
                 weightMap.put("L1_PREPARATION", weightMap.get("L1_DISASTER_PREPAREDNESS"));
                 weightMap.put("L1_SELF_RESCUE", weightMap.get("L1_SELF_RESCUE_TRANSFER"));
-            } else {
-                weightMap.put("L1_DISASTER_MANAGEMENT", 0.33);
-                weightMap.put("L1_DISASTER_PREPAREDNESS", 0.32);
-                weightMap.put("L1_SELF_RESCUE_TRANSFER", 0.35);
-                weightMap.put("L1_MANAGEMENT", 0.33);
-                weightMap.put("L1_PREPARATION", 0.32);
-                weightMap.put("L1_SELF_RESCUE", 0.35);
             }
         }
 
@@ -1496,7 +1639,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         return normalized;
     }
 
-    private String rewriteLegacyWeightExpressionIfNeeded(StepAlgorithm algorithm, String expression) {
+    private String rewriteLegacyWeightExpressionIfNeeded(StepAlgorithm algorithm, String expression, Map<String, Object> context) {
         if (expression == null || expression.trim().isEmpty()) {
             return expression;
         }
@@ -1520,7 +1663,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         String baseCode = isWeighted ? code.substring(0, code.length() - "_WEIGHTED".length())
                 : code.substring(0, code.length() - "_SECONDARY".length());
-        String[] codes = resolveWeightIndicatorCodes(baseCode);
+        String[] codes = resolveWeightIndicatorCodes(baseCode, context);
         if (codes == null) {
             return expression;
         }
@@ -1555,7 +1698,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         return current;
     }
 
-    private String[] resolveWeightIndicatorCodes(String baseAlgorithmCode) {
+    private String[] resolveWeightIndicatorCodes(String baseAlgorithmCode, Map<String, Object> context) {
         if (baseAlgorithmCode == null) {
             return null;
         }
@@ -1563,46 +1706,94 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         if (base.isEmpty()) {
             return null;
         }
-
-        String l2;
-        switch (base) {
-            case "MANAGEMENT":
-                l2 = "L2_MANAGEMENT_CAPABILITY";
-                break;
-            case "RISK_ASSESSMENT":
-                l2 = "L2_RISK_ASSESSMENT";
-                break;
-            case "FUNDING":
-                l2 = "L2_FUNDING";
-                break;
-            case "MATERIAL_RESERVE":
-                l2 = "L2_MATERIAL";
-                break;
-            case "MEDICAL_SUPPORT":
-                l2 = "L2_MEDICAL";
-                break;
-            case "SELF_RESCUE":
-                l2 = "L2_SELF_RESCUE";
-                break;
-            case "PUBLIC_AVOIDANCE":
-                l2 = "L2_PUBLIC_AVOIDANCE";
-                break;
-            case "RELOCATION":
-                l2 = "L2_RELOCATION";
-                break;
-            default:
-                return null;
+        List<String> availableWeightCodes = extractWeightCodesFromContext(context);
+        if (availableWeightCodes.isEmpty()) {
+            return null;
         }
-
-        String l1;
-        if ("L2_MATERIAL".equals(l2) || "L2_MEDICAL".equals(l2)) {
-            l1 = "L1_DISASTER_PREPAREDNESS";
-        } else if ("L2_SELF_RESCUE".equals(l2) || "L2_PUBLIC_AVOIDANCE".equals(l2) || "L2_RELOCATION".equals(l2)) {
-            l1 = "L1_SELF_RESCUE_TRANSFER";
-        } else {
-            l1 = "L1_DISASTER_MANAGEMENT";
+        List<String> tokens = extractMatchTokens(base);
+        String l2 = findBestIndicatorCode(availableWeightCodes, "L2_", tokens);
+        if (!StringUtils.hasText(l2)) {
+            return null;
+        }
+        String l1 = findBestIndicatorCode(availableWeightCodes, "L1_", tokens);
+        if (!StringUtils.hasText(l1)) {
+            List<String> l2Tokens = extractMatchTokens(l2);
+            l1 = findBestIndicatorCode(availableWeightCodes, "L1_", l2Tokens);
+        }
+        if (!StringUtils.hasText(l1)) {
+            return null;
         }
         return new String[]{l1, l2};
+    }
+
+    private List<String> extractWeightCodesFromContext(Map<String, Object> context) {
+        if (context == null || context.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> codes = new ArrayList<>();
+        for (String key : context.keySet()) {
+            if (!StringUtils.hasText(key) || !key.startsWith("weight_")) {
+                continue;
+            }
+            String code = key.substring("weight_".length()).trim().toUpperCase(Locale.ROOT);
+            if (StringUtils.hasText(code)) {
+                codes.add(code);
+            }
+        }
+        return codes;
+    }
+
+    private List<String> extractMatchTokens(String value) {
+        if (!StringUtils.hasText(value)) {
+            return Collections.emptyList();
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        String[] parts = normalized.split("_");
+        Set<String> stopWords = new HashSet<>(Arrays.asList(
+                "L1", "L2", "WEIGHTED", "SECONDARY", "CAPABILITY", "SCORE", "TOTAL", "INDEX"
+        ));
+        List<String> tokens = new ArrayList<>();
+        for (String part : parts) {
+            if (!StringUtils.hasText(part)) {
+                continue;
+            }
+            String token = part.trim();
+            if (stopWords.contains(token) || token.length() <= 1) {
+                continue;
+            }
+            tokens.add(token);
+        }
+        return tokens;
+    }
+
+    private String findBestIndicatorCode(List<String> codes, String prefix, List<String> tokens) {
+        if (codes == null || codes.isEmpty() || !StringUtils.hasText(prefix)) {
+            return null;
+        }
+        List<String> candidates = codes.stream()
+                .filter(code -> StringUtils.hasText(code) && code.startsWith(prefix))
+                .collect(Collectors.toList());
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        if (tokens == null || tokens.isEmpty()) {
+            return candidates.get(0);
+        }
+        String best = null;
+        int bestScore = -1;
+        for (String candidate : candidates) {
+            int score = 0;
+            for (String token : tokens) {
+                if (candidate.contains(token)) {
+                    score++;
+                }
+            }
+            if (score > bestScore) {
+                best = candidate;
+                bestScore = score;
+            }
+        }
+        return bestScore > 0 ? best : null;
     }
 
     /**
@@ -1673,32 +1864,328 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         log.info("加载社区基础数据：{} 条记录，年份：{}", communityDataList.size(), year);
     }
 
+    private void loadGovernmentBaseData(Map<String, Object> context, List<String> regionCodes, Integer year) {
+        List<Map<String, Object>> governmentDataList = queryGovernmentRows(regionCodes, year);
+        Map<String, Map<String, Object>> governmentDataMap = new LinkedHashMap<>();
+        for (Map<String, Object> row : governmentDataList) {
+            if (row == null) {
+                continue;
+            }
+            Object regionCodeObj = row.get("region_code");
+            if (regionCodeObj == null) {
+                continue;
+            }
+            String regionCode = String.valueOf(regionCodeObj).trim();
+            if (!regionCode.isEmpty() && !governmentDataMap.containsKey(regionCode)) {
+                governmentDataMap.put(regionCode, row);
+            }
+        }
+        context.put("governmentDataMap", governmentDataMap);
+        log.info("加载政府基础数据：{} 条记录，年份：{}", governmentDataList.size(), year);
+    }
+
+    private void loadEnterpriseBaseData(Map<String, Object> context, List<String> regionCodes, Integer year) {
+        List<Map<String, Object>> enterpriseDataList = queryEnterpriseRows(regionCodes, year);
+        Map<String, Map<String, Object>> enterpriseDataMap = new LinkedHashMap<>();
+        for (Map<String, Object> row : enterpriseDataList) {
+            if (row == null) {
+                continue;
+            }
+            Object regionCodeObj = row.get("region_code");
+            if (regionCodeObj == null) {
+                continue;
+            }
+            String regionCode = String.valueOf(regionCodeObj).trim();
+            if (!regionCode.isEmpty() && !enterpriseDataMap.containsKey(regionCode)) {
+                enterpriseDataMap.put(regionCode, row);
+            }
+        }
+        context.put("enterpriseDataMap", enterpriseDataMap);
+        log.info("加载企业基础数据：{} 条记录，年份：{}", enterpriseDataList.size(), year);
+    }
+
+    private void loadSocialOrganizationBaseData(Map<String, Object> context, List<String> regionCodes, Integer year) {
+        List<Map<String, Object>> socialOrganizationDataList = querySocialOrganizationRows(regionCodes, year);
+        Map<String, Map<String, Object>> socialOrganizationDataMap = new LinkedHashMap<>();
+        for (Map<String, Object> row : socialOrganizationDataList) {
+            if (row == null) {
+                continue;
+            }
+            Object regionCodeObj = row.get("region_code");
+            if (regionCodeObj == null) {
+                continue;
+            }
+            String regionCode = String.valueOf(regionCodeObj).trim();
+            if (!regionCode.isEmpty() && !socialOrganizationDataMap.containsKey(regionCode)) {
+                socialOrganizationDataMap.put(regionCode, row);
+            }
+        }
+        context.put("socialOrganizationDataMap", socialOrganizationDataMap);
+        log.info("加载社会组织基础数据：{} 条记录，年份：{}", socialOrganizationDataList.size(), year);
+    }
+
+    private List<Map<String, Object>> queryGovernmentRows(List<String> regionCodes, Integer year) {
+        if (regionCodes == null || regionCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        StringBuilder sql = new StringBuilder("SELECT * FROM " + GOVERNMENT_CAPACITY_TABLE + " WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        if (year != null) {
+            sql.append(" AND year = ?");
+            params.add(year);
+        }
+        List<String> validCodes = regionCodes.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.toList());
+        if (validCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        sql.append(" AND (");
+        for (int i = 0; i < validCodes.size(); i++) {
+            if (i > 0) {
+                sql.append(" OR ");
+            }
+            sql.append("region_code LIKE ?");
+            params.add(validCodes.get(i) + "%");
+        }
+        sql.append(")");
+        sql.append(" ORDER BY region_code ASC");
+        return jdbcTemplate.queryForList(sql.toString(), params.toArray());
+    }
+
+    private List<String> resolveGovernmentRegionCodes(List<String> regionCodes, Integer year) {
+        List<Map<String, Object>> rows = queryGovernmentRows(regionCodes, year);
+        List<String> resolved = rows.stream()
+                .map(row -> row.get("region_code"))
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+        if (!resolved.isEmpty()) {
+            return resolved;
+        }
+        return regionCodes == null ? Collections.emptyList() : new ArrayList<>(regionCodes);
+    }
+
+    private List<Map<String, Object>> queryEnterpriseRows(List<String> regionCodes, Integer year) {
+        if (regionCodes == null || regionCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        StringBuilder sql = new StringBuilder("SELECT * FROM " + ENTERPRISE_CAPACITY_TABLE + " WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        if (year != null) {
+            sql.append(" AND year = ?");
+            params.add(year);
+        }
+        List<String> validCodes = regionCodes.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.toList());
+        if (validCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        sql.append(" AND (");
+        for (int i = 0; i < validCodes.size(); i++) {
+            if (i > 0) {
+                sql.append(" OR ");
+            }
+            sql.append("region_code LIKE ?");
+            params.add(validCodes.get(i) + "%");
+        }
+        sql.append(")");
+        sql.append(" ORDER BY region_code ASC");
+        return jdbcTemplate.queryForList(sql.toString(), params.toArray());
+    }
+
+    private List<String> resolveEnterpriseRegionCodes(List<String> regionCodes, Integer year) {
+        List<Map<String, Object>> rows = queryEnterpriseRows(regionCodes, year);
+        List<String> resolved = rows.stream()
+                .map(row -> row.get("region_code"))
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+        if (!resolved.isEmpty()) {
+            return resolved;
+        }
+        return regionCodes == null ? Collections.emptyList() : new ArrayList<>(regionCodes);
+    }
+
+    private List<Map<String, Object>> querySocialOrganizationRows(List<String> regionCodes, Integer year) {
+        if (regionCodes == null || regionCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        StringBuilder sql = new StringBuilder("SELECT * FROM " + SOCIAL_ORGANIZATION_CAPACITY_TABLE + " WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        if (year != null) {
+            sql.append(" AND year = ?");
+            params.add(year);
+        }
+        List<String> validCodes = regionCodes.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.toList());
+        if (validCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        sql.append(" AND (");
+        for (int i = 0; i < validCodes.size(); i++) {
+            if (i > 0) {
+                sql.append(" OR ");
+            }
+            sql.append("region_code LIKE ?");
+            params.add(validCodes.get(i) + "%");
+        }
+        sql.append(")");
+        sql.append(" ORDER BY region_code ASC");
+        return jdbcTemplate.queryForList(sql.toString(), params.toArray());
+    }
+
+    private List<String> resolveSocialOrganizationRegionCodes(List<String> regionCodes, Integer year) {
+        List<Map<String, Object>> rows = querySocialOrganizationRows(regionCodes, year);
+        List<String> resolved = rows.stream()
+                .map(row -> row.get("region_code"))
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+        if (!resolved.isEmpty()) {
+            return resolved;
+        }
+        return regionCodes == null ? Collections.emptyList() : new ArrayList<>(regionCodes);
+    }
+
+    private boolean hasGovernmentData(String regionCode, Integer year) {
+        if (!StringUtils.hasText(regionCode)) {
+            return false;
+        }
+        StringBuilder sql = new StringBuilder("SELECT COUNT(1) FROM " + GOVERNMENT_CAPACITY_TABLE + " WHERE region_code LIKE ?");
+        List<Object> params = new ArrayList<>();
+        params.add(regionCode.trim() + "%");
+        if (year != null) {
+            sql.append(" AND year = ?");
+            params.add(year);
+        }
+        Long count = jdbcTemplate.queryForObject(sql.toString(), params.toArray(), Long.class);
+        return count != null && count > 0;
+    }
+
+    private boolean hasEnterpriseData(String regionCode, Integer year) {
+        if (!StringUtils.hasText(regionCode)) {
+            return false;
+        }
+        StringBuilder sql = new StringBuilder("SELECT COUNT(1) FROM " + ENTERPRISE_CAPACITY_TABLE + " WHERE region_code LIKE ?");
+        List<Object> params = new ArrayList<>();
+        params.add(regionCode.trim() + "%");
+        if (year != null) {
+            sql.append(" AND year = ?");
+            params.add(year);
+        }
+        Long count = jdbcTemplate.queryForObject(sql.toString(), params.toArray(), Long.class);
+        return count != null && count > 0;
+    }
+
+    private boolean hasSocialOrganizationData(String regionCode, Integer year) {
+        if (!StringUtils.hasText(regionCode)) {
+            return false;
+        }
+        StringBuilder sql = new StringBuilder("SELECT COUNT(1) FROM " + SOCIAL_ORGANIZATION_CAPACITY_TABLE + " WHERE region_code LIKE ?");
+        List<Object> params = new ArrayList<>();
+        params.add(regionCode.trim() + "%");
+        if (year != null) {
+            sql.append(" AND year = ?");
+            params.add(year);
+        }
+        Long count = jdbcTemplate.queryForObject(sql.toString(), params.toArray(), Long.class);
+        return count != null && count > 0;
+    }
+
+    private boolean isGovernmentModel(Long modelId, String modelName) {
+        if (StringUtils.hasText(modelName) && modelName.contains(GOVERNMENT_MODEL_KEYWORD)) {
+            return true;
+        }
+        if (modelId == null) {
+            return false;
+        }
+        EvaluationModel model = evaluationModelMapper.selectById(modelId);
+        return model != null && StringUtils.hasText(model.getModelName()) && model.getModelName().contains(GOVERNMENT_MODEL_KEYWORD);
+    }
+
+    private boolean isEnterpriseModel(Long modelId, String modelName) {
+        if (StringUtils.hasText(modelName) && modelName.contains(ENTERPRISE_MODEL_KEYWORD)) {
+            return true;
+        }
+        if (modelId == null) {
+            return false;
+        }
+        EvaluationModel model = evaluationModelMapper.selectById(modelId);
+        return model != null && StringUtils.hasText(model.getModelName()) && model.getModelName().contains(ENTERPRISE_MODEL_KEYWORD);
+    }
+
+    private boolean isSocialOrganizationModel(Long modelId, String modelName) {
+        if (StringUtils.hasText(modelName) && modelName.contains(SOCIAL_ORGANIZATION_MODEL_KEYWORD)) {
+            return true;
+        }
+        if (modelId == null) {
+            return false;
+        }
+        EvaluationModel model = evaluationModelMapper.selectById(modelId);
+        return model != null && StringUtils.hasText(model.getModelName()) && model.getModelName().contains(SOCIAL_ORGANIZATION_MODEL_KEYWORD);
+    }
+
     /**
      * 加载前面步骤的输出结果到当前区域上下文
      * 从 globalContext 中提取前面步骤的 regionResults，并将当前区域的输出值添加到上下文
      */
     private void loadPreviousStepOutputs(Map<String, Object> regionContext, String regionCode, Map<String, Object> globalContext) {
-        // 遍历 globalContext 中所有以 "step_" 开头的条目
+        List<Map<String, Object>> orderedStepResults = new ArrayList<>();
         for (Map.Entry<String, Object> entry : globalContext.entrySet()) {
-            if (entry.getKey().startsWith("step_") && entry.getValue() instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
-                
-                // 获取该步骤的 regionResults
-                Object regionResultsObj = stepResult.get("regionResults");
-                if (regionResultsObj instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Map<String, Object>> regionResults = (Map<String, Map<String, Object>>) regionResultsObj;
-                    
-                    // 获取当前区域的输出
-                    Map<String, Object> currentRegionOutputs = regionResults.get(regionCode);
-                    if (currentRegionOutputs != null) {
-                        // 将当前区域的所有输出变量添加到上下文
-                        for (Map.Entry<String, Object> output : currentRegionOutputs.entrySet()) {
-                            regionContext.put(output.getKey(), output.getValue());
-                        }
-                    }
+            if (!entry.getKey().startsWith("step_") || !(entry.getValue() instanceof Map)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
+            orderedStepResults.add(stepResult);
+        }
+
+        orderedStepResults.sort(Comparator.comparingInt(stepResult -> {
+            Object stepOrderObj = stepResult.get("stepOrder");
+            if (stepOrderObj instanceof Number) {
+                return ((Number) stepOrderObj).intValue();
+            }
+            if (stepOrderObj instanceof String) {
+                try {
+                    return Integer.parseInt((String) stepOrderObj);
+                } catch (NumberFormatException ignore) {
+                    return Integer.MAX_VALUE;
                 }
+            }
+            return Integer.MAX_VALUE;
+        }));
+
+        for (Map<String, Object> stepResult : orderedStepResults) {
+            Object regionResultsObj = stepResult.get("regionResults");
+            if (!(regionResultsObj instanceof Map)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Object>> regionResults = (Map<String, Map<String, Object>>) regionResultsObj;
+            Map<String, Object> currentRegionOutputs = regionResults.get(regionCode);
+            if (currentRegionOutputs == null) {
+                continue;
+            }
+            for (Map.Entry<String, Object> output : currentRegionOutputs.entrySet()) {
+                regionContext.put(output.getKey(), output.getValue());
             }
         }
     }
@@ -1927,6 +2414,35 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 modelId = Long.parseLong((String) modelIdObj);
             } catch (NumberFormatException ignore) {}
         }
+        boolean governmentModel = isGovernmentModel(modelId, null);
+        boolean enterpriseModel = isEnterpriseModel(modelId, null);
+        boolean socialOrganizationModel = isSocialOrganizationModel(modelId, null);
+        boolean locationModel = governmentModel || enterpriseModel || socialOrganizationModel;
+        Map<String, Map<String, String>> governmentLocationByRegion = new HashMap<>();
+        if (locationModel && regionCodes != null && !regionCodes.isEmpty()) {
+            List<Map<String, Object>> locationRows;
+            if (governmentModel) {
+                locationRows = queryGovernmentRows(regionCodes, year);
+            } else if (enterpriseModel) {
+                locationRows = queryEnterpriseRows(regionCodes, year);
+            } else {
+                locationRows = querySocialOrganizationRows(regionCodes, year);
+            }
+            for (Map<String, Object> row : locationRows) {
+                Object regionObj = row.get("region_code");
+                if (regionObj == null) {
+                    continue;
+                }
+                String code = String.valueOf(regionObj).trim();
+                if (code.isEmpty()) {
+                    continue;
+                }
+                Map<String, String> location = governmentLocationByRegion.computeIfAbsent(code, k -> new HashMap<>());
+                location.put("provinceName", toString(row.get("province_name")));
+                location.put("cityName", toString(row.get("city_name")));
+                location.put("countyName", toString(row.get("county_name")));
+            }
+        }
         List<Map<String, Object>> tableData = new ArrayList<>();
         
         @SuppressWarnings("unchecked")
@@ -1947,36 +2463,54 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             row.put("regionCode", regionCode);
 
             String regionName = regionCode;
-            QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
-            communityQuery.eq("region_code", regionCode);
-            if (year != null) {
-                communityQuery.eq("year", year);
-            } else {
-                communityQuery.orderByDesc("year");
-            }
-            communityQuery.orderByDesc("create_time");
-            communityQuery.last("LIMIT 1");
-            CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
-            if (communityData != null) {
-                if (communityData.getCommunityName() != null) {
-                    regionName = communityData.getCommunityName();
-                } else if (communityData.getTownshipName() != null) {
-                    regionName = communityData.getTownshipName();
+            if (locationModel) {
+                Map<String, String> location = governmentLocationByRegion.get(regionCode);
+                if (location != null) {
+                    String provinceName = location.get("provinceName");
+                    String cityName = location.get("cityName");
+                    String countyName = location.get("countyName");
+                    if (!isEmptyString(provinceName)) {
+                        row.put("provinceName", provinceName);
+                    }
+                    if (!isEmptyString(cityName)) {
+                        row.put("cityName", cityName);
+                    }
+                    if (!isEmptyString(countyName)) {
+                        regionName = countyName;
+                    }
                 }
             } else {
-                QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
-                surveyQuery.eq("region_code", regionCode);
-                surveyQuery.eq("is_deleted", 0);
+                QueryWrapper<CommunityDisasterReductionCapacity> communityQuery = new QueryWrapper<>();
+                communityQuery.eq("region_code", regionCode);
                 if (year != null) {
-                    surveyQuery.eq("year", year);
+                    communityQuery.eq("year", year);
                 } else {
-                    surveyQuery.orderByDesc("year");
+                    communityQuery.orderByDesc("year");
                 }
-                surveyQuery.orderByDesc("create_time");
-                surveyQuery.last("LIMIT 1");
-                SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
-                if (surveyData != null && surveyData.getTownship() != null) {
-                    regionName = surveyData.getTownship();
+                communityQuery.orderByDesc("create_time");
+                communityQuery.last("LIMIT 1");
+                CommunityDisasterReductionCapacity communityData = communityDataMapper.selectOne(communityQuery);
+                if (communityData != null) {
+                    if (communityData.getCommunityName() != null) {
+                        regionName = communityData.getCommunityName();
+                    } else if (communityData.getTownshipName() != null) {
+                        regionName = communityData.getTownshipName();
+                    }
+                } else {
+                    QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
+                    surveyQuery.eq("region_code", regionCode);
+                    surveyQuery.eq("is_deleted", 0);
+                    if (year != null) {
+                        surveyQuery.eq("year", year);
+                    } else {
+                        surveyQuery.orderByDesc("year");
+                    }
+                    surveyQuery.orderByDesc("create_time");
+                    surveyQuery.last("LIMIT 1");
+                    SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
+                    if (surveyData != null && surveyData.getTownship() != null) {
+                        regionName = surveyData.getTownship();
+                    }
                 }
             }
 
@@ -2000,29 +2534,31 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     isTownship = true;
                 }
 
-                if (isTownship) {
-                    if (!isEmptyString(townshipNameMeta)) {
-                        regionName = townshipNameMeta;
-                    } else if (!isEmptyString(firstCommunityCodeMeta)) {
-                        String name = getTownshipNameByCommunityCode(firstCommunityCodeMeta);
-                        if (!isEmptyString(name)) {
-                            regionName = name;
+                if (!locationModel) {
+                    if (isTownship) {
+                        if (!isEmptyString(townshipNameMeta)) {
+                            regionName = townshipNameMeta;
+                        } else if (!isEmptyString(firstCommunityCodeMeta)) {
+                            String name = getTownshipNameByCommunityCode(firstCommunityCodeMeta);
+                            if (!isEmptyString(name)) {
+                                regionName = name;
+                            }
                         }
-                    }
-                    if (!isEmptyString(regionName)) {
-                        row.put("townshipName", regionName);
-                    }
-                } else {
-                    if (!isEmptyString(communityNameMeta)) {
-                        regionName = communityNameMeta;
-                    } else if (!isEmptyString(townshipNameMeta)) {
-                        regionName = townshipNameMeta;
-                    }
-                    if (!isEmptyString(townshipNameMeta)) {
-                        row.put("townshipName", townshipNameMeta);
-                    }
-                    if (!isEmptyString(communityNameMeta)) {
-                        row.put("communityName", communityNameMeta);
+                        if (!isEmptyString(regionName)) {
+                            row.put("townshipName", regionName);
+                        }
+                    } else {
+                        if (!isEmptyString(communityNameMeta)) {
+                            regionName = communityNameMeta;
+                        } else if (!isEmptyString(townshipNameMeta)) {
+                            regionName = townshipNameMeta;
+                        }
+                        if (!isEmptyString(townshipNameMeta)) {
+                            row.put("townshipName", townshipNameMeta);
+                        }
+                        if (!isEmptyString(communityNameMeta)) {
+                            row.put("communityName", communityNameMeta);
+                        }
                     }
                 }
 
@@ -2051,7 +2587,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
 
             // 对于社区-行政村能力评估模型(modelId=4)，不要覆盖已经设置的社区名称
-            if (isCodeLike(regionName) && (modelId == null || modelId != 4)) {
+            if (!locationModel && isCodeLike(regionName) && (modelId == null || modelId != 4)) {
                 String lookupCode = !isEmptyString(firstCommunityCodeMeta) ? firstCommunityCodeMeta : regionCode;
                 String resolved = getTownshipNameByCommunityCode(lookupCode);
                 if (isEmptyString(resolved)) {
@@ -2064,11 +2600,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
 
             row.put("regionName", regionName);
-            if (!isEmptyString(townshipNameMeta)) {
-                row.put("townshipName", townshipNameMeta);
-            }
-            if (!isEmptyString(communityNameMeta)) {
-                row.put("communityName", communityNameMeta);
+            if (!locationModel) {
+                if (!isEmptyString(townshipNameMeta)) {
+                    row.put("townshipName", townshipNameMeta);
+                }
+                if (!isEmptyString(communityNameMeta)) {
+                    row.put("communityName", communityNameMeta);
+                }
             }
             if (!isEmptyString(firstCommunityCodeMeta)) {
                 row.put("_firstCommunityCode", firstCommunityCodeMeta);
@@ -2128,7 +2666,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         log.info("从 {} 行数据中收集到 {} 个唯一列名", tableData.size(), allColumnNames.size());
 
-        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region", "townshipName", "communityName"));
+        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region", "provinceName", "cityName", "townshipName", "communityName"));
 
         // 创建反向映射：列名 -> 步骤序号
         Map<String, Integer> columnToStepOrder = new HashMap<>();
@@ -2156,7 +2694,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
             Map<String, Object> column = new LinkedHashMap<>();
             column.put("prop", columnName);
-            column.put("label", columnName);
+            column.put("label", getBaseColumnLabel(columnName));
 
             // 设置列宽
             if ("regionCode".equals(columnName)) {
@@ -2244,11 +2782,26 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 ? (Map<String, String>) rawStepResult.getOrDefault("outputToAlgorithmName",
                 rawStepResult.get("outputToFormulaName"))
                 : null;
+        Long modelId = null;
+        Object modelIdObj = rawStepResult != null ? rawStepResult.get("modelId") : null;
+        if (modelIdObj instanceof Number) {
+            modelId = ((Number) modelIdObj).longValue();
+        } else if (modelIdObj instanceof String) {
+            try {
+                modelId = Long.parseLong((String) modelIdObj);
+            } catch (NumberFormatException ignore) {
+                modelId = null;
+            }
+        }
+        boolean governmentModel = isGovernmentModel(modelId, null);
+        boolean enterpriseModel = isEnterpriseModel(modelId, null);
+        boolean socialOrganizationModel = isSocialOrganizationModel(modelId, null);
+        boolean locationModel = governmentModel || enterpriseModel || socialOrganizationModel;
 
         String stepCode = rawStepResult != null ? toString(rawStepResult.get("stepCode")) : null;
 
         Map<String, Object> firstRow = tableData.get(0);
-        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region", "townshipName", "communityName"));
+        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region", "provinceName", "cityName", "townshipName", "communityName"));
 
         for (String columnName : firstRow.keySet()) {
             if (columnName.startsWith("_")) {
@@ -2260,7 +2813,17 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
             String label;
             if (baseColumns.contains(columnName)) {
-                label = getBaseColumnLabel(columnName);
+                if (locationModel) {
+                    if ("regionCode".equals(columnName)) {
+                        label = "行政区代码";
+                    } else if ("regionName".equals(columnName) || "region".equals(columnName)) {
+                        label = "县名称";
+                    } else {
+                        label = getBaseColumnLabel(columnName);
+                    }
+                } else {
+                    label = getBaseColumnLabel(columnName);
+                }
             } else {
                 label = resolveColumnLabel(columnName, stepCode, outputNameMap);
             }
@@ -2926,11 +3489,13 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             return 0.0;
         }
         if (value instanceof Number) {
-            return ((Number) value).doubleValue();
+            double v = ((Number) value).doubleValue();
+            return (Double.isNaN(v) || Double.isInfinite(v)) ? 0.0 : v;
         }
         if (value instanceof String) {
             try {
-                return Double.parseDouble((String) value);
+                double v = Double.parseDouble((String) value);
+                return (Double.isNaN(v) || Double.isInfinite(v)) ? 0.0 : v;
             } catch (NumberFormatException e) {
                 return 0.0;
             }
@@ -3251,22 +3816,28 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     "management_capability_score",
                     "managementCapabilityScore",
                     "disasterMgmtScore",
-                    "disaster_mgmt_score");
+                    "disaster_mgmt_score",
+                    "engineering_rescue_capacity");
             BigDecimal supportScore = getDecimalValueFromMap(outputs,
                     "support_capability_score",
                     "supportCapabilityScore",
                     "disasterPrepScore",
-                    "disaster_prep_score");
+                    "disaster_prep_score",
+                    "insurance_reinsurance_capacity");
             BigDecimal selfRescueScore = getDecimalValueFromMap(outputs,
                     "self_rescue_capability_score",
                     "selfRescueCapabilityScore",
                     "selfRescueScore",
-                    "self_rescue_score");
+                    "self_rescue_score",
+                    "insurance_reinsurance_capacity");
             BigDecimal comprehensiveScore = getDecimalValueFromMap(outputs,
                     "comprehensive_capability_score",
                     "comprehensiveCapabilityScore",
                     "comprehensiveScore",
                     "comprehensive_score");
+            if (comprehensiveScore == null && managementScore != null && supportScore != null) {
+                comprehensiveScore = managementScore.add(supportScore).divide(new BigDecimal("2"), 6, RoundingMode.HALF_UP);
+            }
 
             result.setManagementCapabilityScore(managementScore);
             result.setSupportCapabilityScore(supportScore);
@@ -3278,7 +3849,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     "management_capability_level",
                     "managementCapabilityLevel",
                     "disasterMgmtGrade",
-                    "disaster_mgmt_grade");
+                    "disaster_mgmt_grade",
+                    "engineering_rescue_capacity_level");
             if (managementLevel == null && managementScore != null) {
                 managementLevel = calculateLevelFromScore(managementScore);
             }
@@ -3288,7 +3860,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     "support_capability_level",
                     "supportCapabilityLevel",
                     "disasterPrepGrade",
-                    "disaster_prep_grade");
+                    "disaster_prep_grade",
+                    "insurance_reinsurance_capacity_level");
             if (supportLevel == null && supportScore != null) {
                 supportLevel = calculateLevelFromScore(supportScore);
             }
@@ -3298,7 +3871,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     "self_rescue_capability_level",
                     "selfRescueCapabilityLevel",
                     "selfRescueGrade",
-                    "self_rescue_grade");
+                    "self_rescue_grade",
+                    "insurance_reinsurance_capacity_level");
             if (selfRescueLevel == null && selfRescueScore != null) {
                 selfRescueLevel = calculateLevelFromScore(selfRescueScore);
             }
@@ -3311,6 +3885,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     "comprehensive_grade");
             if (comprehensiveLevel == null && comprehensiveScore != null) {
                 comprehensiveLevel = calculateLevelFromScore(comprehensiveScore);
+            }
+            if (comprehensiveLevel == null) {
+                comprehensiveLevel = supportLevel;
             }
             result.setComprehensiveCapabilityLevel(comprehensiveLevel);
 
@@ -3617,6 +4194,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             case "regionName":
             case "region":
                 return "地区名称";
+            case "provinceName":
+                return "省名称";
+            case "cityName":
+                return "市名称";
             case "townshipName":
                 return "乡镇名称";
             case "communityName":
@@ -3652,6 +4233,511 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         return columnName;
     }
 
+    private void normalizeGovernmentExecutionResult(Map<String, Object> executionResult, Integer year) {
+        if (executionResult == null) {
+            return;
+        }
+        Long modelId = null;
+        Object modelIdObj = executionResult.get("modelId");
+        if (modelIdObj instanceof Number) {
+            modelId = ((Number) modelIdObj).longValue();
+        } else if (modelIdObj instanceof String) {
+            try {
+                modelId = Long.parseLong((String) modelIdObj);
+            } catch (NumberFormatException ignore) {
+                modelId = null;
+            }
+        }
+        String modelName = toString(executionResult.get("modelName"));
+        boolean governmentModel = isGovernmentModel(modelId, modelName);
+        boolean enterpriseModel = isEnterpriseModel(modelId, modelName);
+        if (!governmentModel && !enterpriseModel) {
+            return;
+        }
+        Set<String> regionCodes = new LinkedHashSet<>();
+        Object tableDataObj = executionResult.get("tableData");
+        if (tableDataObj instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> tableData = (List<Map<String, Object>>) tableDataObj;
+            for (Map<String, Object> row : tableData) {
+                if (row == null) {
+                    continue;
+                }
+                String code = toString(row.get("regionCode"));
+                if (!isEmptyString(code)) {
+                    regionCodes.add(code);
+                }
+            }
+        }
+        Object stepResultsObj = executionResult.get("stepResultsList");
+        if (stepResultsObj instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> stepResultsList = (List<Map<String, Object>>) stepResultsObj;
+            for (Map<String, Object> stepResult : stepResultsList) {
+                if (stepResult == null) {
+                    continue;
+                }
+                Object stepTableObj = stepResult.get("tableData");
+                if (!(stepTableObj instanceof List)) {
+                    continue;
+                }
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> stepTable = (List<Map<String, Object>>) stepTableObj;
+                for (Map<String, Object> row : stepTable) {
+                    if (row == null) {
+                        continue;
+                    }
+                    String code = toString(row.get("regionCode"));
+                    if (!isEmptyString(code)) {
+                        regionCodes.add(code);
+                    }
+                }
+            }
+        }
+        if (regionCodes.isEmpty()) {
+            return;
+        }
+        Map<String, Map<String, String>> locationByCode = new HashMap<>();
+        List<Map<String, Object>> locationRows = governmentModel
+                ? queryGovernmentRows(new ArrayList<>(regionCodes), year)
+                : queryEnterpriseRows(new ArrayList<>(regionCodes), year);
+        for (Map<String, Object> row : locationRows) {
+            if (row == null) {
+                continue;
+            }
+            String code = toString(row.get("region_code"));
+            if (isEmptyString(code)) {
+                continue;
+            }
+            Map<String, String> location = new HashMap<>();
+            location.put("provinceName", toString(row.get("province_name")));
+            location.put("cityName", toString(row.get("city_name")));
+            location.put("countyName", toString(row.get("county_name")));
+            locationByCode.put(code, location);
+        }
+        if (tableDataObj instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> tableData = (List<Map<String, Object>>) tableDataObj;
+            normalizeGovernmentTable(tableData, locationByCode);
+        }
+        Object columnsObj = executionResult.get("columns");
+        if (columnsObj instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> columns = (List<Map<String, Object>>) columnsObj;
+            normalizeGovernmentColumns(columns);
+        }
+        if (stepResultsObj instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> stepResultsList = (List<Map<String, Object>>) stepResultsObj;
+            for (Map<String, Object> stepResult : stepResultsList) {
+                if (stepResult == null) {
+                    continue;
+                }
+                Object stepTableObj = stepResult.get("tableData");
+                if (stepTableObj instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> stepTable = (List<Map<String, Object>>) stepTableObj;
+                    normalizeGovernmentTable(stepTable, locationByCode);
+                }
+                Object stepColumnsObj = stepResult.get("columns");
+                if (stepColumnsObj instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> stepColumns = (List<Map<String, Object>>) stepColumnsObj;
+                    normalizeGovernmentColumns(stepColumns);
+                }
+            }
+            if (governmentModel) {
+                recomputeGovernmentStepsByConfiguration(stepResultsList);
+            }
+        }
+    }
+
+    private void normalizeGovernmentTable(List<Map<String, Object>> tableData, Map<String, Map<String, String>> locationByCode) {
+        if (tableData == null) {
+            return;
+        }
+        boolean hasLocationMapping = locationByCode != null && !locationByCode.isEmpty();
+        for (Map<String, Object> row : tableData) {
+            if (row == null) {
+                continue;
+            }
+            if (hasLocationMapping) {
+                String code = toString(row.get("regionCode"));
+                if (!isEmptyString(code)) {
+                    Map<String, String> location = locationByCode.get(code);
+                    if (location != null) {
+                        String provinceName = location.get("provinceName");
+                        String cityName = location.get("cityName");
+                        String countyName = location.get("countyName");
+                        if (!isEmptyString(provinceName)) {
+                            row.put("provinceName", provinceName);
+                        }
+                        if (!isEmptyString(cityName)) {
+                            row.put("cityName", cityName);
+                        }
+                        if (!isEmptyString(countyName)) {
+                            row.put("regionName", countyName);
+                        }
+                    }
+                }
+            }
+            row.remove("townshipName");
+            row.remove("communityName");
+            sanitizeNonFiniteValues(row);
+        }
+    }
+
+    private void sanitizeNonFiniteValues(Map<String, Object> row) {
+        if (row == null || row.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            String key = entry.getKey();
+            if ("regionCode".equals(key) || "provinceName".equals(key) || "cityName".equals(key)
+                    || "regionName".equals(key) || "townshipName".equals(key) || "communityName".equals(key)) {
+                continue;
+            }
+            Object value = entry.getValue();
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof Number) {
+                double numericValue = ((Number) value).doubleValue();
+                if (Double.isNaN(numericValue) || Double.isInfinite(numericValue)) {
+                    entry.setValue(0.0);
+                }
+                continue;
+            }
+            if (value instanceof String) {
+                String stringValue = ((String) value).trim();
+                if (stringValue.isEmpty()) {
+                    continue;
+                }
+                if ("#DIV/0!".equalsIgnoreCase(stringValue) || "NaN".equalsIgnoreCase(stringValue)
+                        || "Infinity".equalsIgnoreCase(stringValue) || "-Infinity".equalsIgnoreCase(stringValue)) {
+                    entry.setValue(0.0);
+                }
+            }
+        }
+    }
+
+    private void recomputeGovernmentStepsByConfiguration(List<Map<String, Object>> stepResultsList) {
+        if (stepResultsList == null || stepResultsList.isEmpty()) {
+            return;
+        }
+        Map<Integer, Map<String, Object>> stepByOrder = new LinkedHashMap<>();
+        for (Map<String, Object> stepResult : stepResultsList) {
+            if (stepResult == null) {
+                continue;
+            }
+            Integer stepOrder = parseStepOrder(stepResult.get("stepOrder"));
+            if (stepOrder == null) {
+                continue;
+            }
+            stepByOrder.put(stepOrder, stepResult);
+        }
+        List<Integer> sortedStepOrders = stepByOrder.keySet().stream()
+                .sorted()
+                .collect(Collectors.toList());
+        for (Integer targetStepOrder : sortedStepOrders) {
+            if (targetStepOrder == null || targetStepOrder <= 4) {
+                continue;
+            }
+            Map<String, Object> sourceStep = stepByOrder.get(targetStepOrder - 1);
+            Map<String, Object> targetStep = stepByOrder.get(targetStepOrder);
+            if (sourceStep == null || targetStep == null) {
+                continue;
+            }
+            Long stepId = parseLongObject(targetStep.get("stepId"));
+            if (stepId == null) {
+                continue;
+            }
+            QueryWrapper<StepAlgorithm> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("step_id", stepId)
+                    .eq("status", 1)
+                    .orderByAsc("algorithm_order");
+            List<StepAlgorithm> stepAlgorithms = stepAlgorithmMapper.selectList(queryWrapper);
+            if (stepAlgorithms == null || stepAlgorithms.isEmpty()) {
+                continue;
+            }
+            recomputeGovernmentStepWithAlgorithms(sourceStep, targetStep, stepAlgorithms, targetStepOrder);
+        }
+    }
+
+    private void recomputeGovernmentStepWithAlgorithms(
+            Map<String, Object> sourceStep,
+            Map<String, Object> targetStep,
+            List<StepAlgorithm> algorithms,
+            Integer targetStepOrder) {
+        if (sourceStep == null || targetStep == null || algorithms == null || algorithms.isEmpty()) {
+            return;
+        }
+        Object sourceTableObj = sourceStep.get("tableData");
+        Object targetTableObj = targetStep.get("tableData");
+        if (!(sourceTableObj instanceof List) || !(targetTableObj instanceof List)) {
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> sourceTable = (List<Map<String, Object>>) sourceTableObj;
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> targetTable = (List<Map<String, Object>>) targetTableObj;
+        if (sourceTable.isEmpty() || targetTable.isEmpty()) {
+            return;
+        }
+        Map<String, Map<String, Object>> sourceByCode = new LinkedHashMap<>();
+        for (Map<String, Object> row : sourceTable) {
+            if (row == null) {
+                continue;
+            }
+            String regionCode = toString(row.get("regionCode"));
+            if (isEmptyString(regionCode)) {
+                continue;
+            }
+            sourceByCode.put(regionCode, row);
+        }
+        if (sourceByCode.isEmpty()) {
+            return;
+        }
+        Map<String, Map<String, Object>> targetByCode = new LinkedHashMap<>();
+        Map<String, Map<String, Object>> allRegionContexts = new LinkedHashMap<>();
+        for (Map<String, Object> targetRow : targetTable) {
+            if (targetRow == null) {
+                continue;
+            }
+            String regionCode = toString(targetRow.get("regionCode"));
+            if (isEmptyString(regionCode)) {
+                continue;
+            }
+            Map<String, Object> sourceRow = sourceByCode.get(regionCode);
+            if (sourceRow == null) {
+                continue;
+            }
+            targetByCode.put(regionCode, targetRow);
+            allRegionContexts.put(regionCode, new LinkedHashMap<>(sourceRow));
+        }
+        if (targetByCode.isEmpty() || allRegionContexts.isEmpty()) {
+            return;
+        }
+        List<StepAlgorithm> nonGradeAlgorithms = new ArrayList<>();
+        List<StepAlgorithm> gradeAlgorithms = new ArrayList<>();
+        for (StepAlgorithm algorithm : algorithms) {
+            if (algorithm == null || isEmptyString(algorithm.getOutputParam()) || isEmptyString(algorithm.getQlExpression())) {
+                continue;
+            }
+            Map<String, String> markerInfo = parseSpecialMarker(algorithm.getQlExpression().trim());
+            if ("GRADE".equalsIgnoreCase(markerInfo.get("marker"))) {
+                gradeAlgorithms.add(algorithm);
+            } else {
+                nonGradeAlgorithms.add(algorithm);
+            }
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, String> outputToAlgorithmName = (Map<String, String>) targetStep.get("outputToAlgorithmName");
+        if (outputToAlgorithmName == null) {
+            outputToAlgorithmName = new LinkedHashMap<>();
+            targetStep.put("outputToAlgorithmName", outputToAlgorithmName);
+        }
+
+        for (String regionCode : targetByCode.keySet()) {
+            Map<String, Object> regionContext = allRegionContexts.get(regionCode);
+            Map<String, Object> targetRow = targetByCode.get(regionCode);
+            for (StepAlgorithm algorithm : nonGradeAlgorithms) {
+                Object result = executeConfiguredAlgorithm(regionCode, regionContext, allRegionContexts, algorithm);
+                String outputParam = algorithm.getOutputParam().trim();
+                regionContext.put(outputParam, result);
+                targetRow.put(outputParam, result);
+                outputToAlgorithmName.put(outputParam, toString(algorithm.getAlgorithmName()));
+            }
+            sanitizeNonFiniteValues(targetRow);
+        }
+
+        if (!gradeAlgorithms.isEmpty()) {
+            Set<String> gradeScoreFields = new LinkedHashSet<>();
+            for (StepAlgorithm algorithm : gradeAlgorithms) {
+                Map<String, String> markerInfo = parseSpecialMarker(algorithm.getQlExpression().trim());
+                String params = markerInfo.get("params");
+                if (!isEmptyString(params)) {
+                    gradeScoreFields.add(params.trim());
+                }
+            }
+            if (!gradeScoreFields.isEmpty()) {
+                Map<String, double[]> gradeStats = buildGradeStats(gradeScoreFields, allRegionContexts);
+                if (!gradeStats.isEmpty()) {
+                    for (Map<String, Object> regionContext : allRegionContexts.values()) {
+                        regionContext.put("gradeStats", gradeStats);
+                    }
+                }
+            }
+            for (String regionCode : targetByCode.keySet()) {
+                Map<String, Object> regionContext = allRegionContexts.get(regionCode);
+                Map<String, Object> targetRow = targetByCode.get(regionCode);
+                for (StepAlgorithm algorithm : gradeAlgorithms) {
+                    Object result = executeConfiguredAlgorithm(regionCode, regionContext, allRegionContexts, algorithm);
+                    String outputParam = algorithm.getOutputParam().trim();
+                    regionContext.put(outputParam, result);
+                    targetRow.put(outputParam, result);
+                    outputToAlgorithmName.put(outputParam, toString(algorithm.getAlgorithmName()));
+                }
+                sanitizeNonFiniteValues(targetRow);
+            }
+        }
+
+        List<Map<String, Object>> refreshedColumns = generateColumnsForStep(targetStep, targetTable, targetStepOrder);
+        targetStep.put("columns", refreshedColumns);
+    }
+
+    private Object executeConfiguredAlgorithm(
+            String regionCode,
+            Map<String, Object> regionContext,
+            Map<String, Map<String, Object>> allRegionContexts,
+            StepAlgorithm algorithm) {
+        String qlExpression = algorithm.getQlExpression();
+        if (isEmptyString(qlExpression)) {
+            return null;
+        }
+        qlExpression = qlExpression.trim();
+        try {
+            Object result;
+            if (qlExpression.startsWith("@")) {
+                Map<String, String> markerInfo = parseSpecialMarker(qlExpression);
+                String marker = markerInfo.getOrDefault("marker", "");
+                String params = markerInfo.getOrDefault("params", "");
+                result = specialAlgorithmService.executeSpecialAlgorithm(
+                        marker, params, regionCode, regionContext, allRegionContexts);
+            } else {
+                String rewrittenExpression = rewriteLegacyWeightExpressionIfNeeded(algorithm, qlExpression, regionContext);
+                String normalizedExpression = normalizeWeightVarCodes(rewrittenExpression);
+                prepareNullVariablesForExpression(normalizedExpression, regionContext);
+                result = qlExpressService.execute(normalizedExpression, regionContext);
+            }
+            if (result instanceof Number) {
+                double numeric = ((Number) result).doubleValue();
+                if (Double.isNaN(numeric) || Double.isInfinite(numeric)) {
+                    numeric = 0.0;
+                }
+                return Double.parseDouble(String.format("%.8f", numeric));
+            }
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("算法 " + algorithm.getAlgorithmName() + " 执行失败: " + e.getMessage(), e);
+        }
+    }
+
+    private Long parseLongObject(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof String) {
+            try {
+                return Long.parseLong(((String) value).trim());
+            } catch (NumberFormatException ignore) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Integer parseStepOrder(Object stepOrderObj) {
+        if (stepOrderObj == null) {
+            return null;
+        }
+        if (stepOrderObj instanceof Number) {
+            return ((Number) stepOrderObj).intValue();
+        }
+        if (stepOrderObj instanceof String) {
+            try {
+                return Integer.parseInt(((String) stepOrderObj).trim());
+            } catch (NumberFormatException ignore) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private void normalizeGovernmentColumns(List<Map<String, Object>> columns) {
+        if (columns == null || columns.isEmpty()) {
+            return;
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        List<Map<String, Object>> normalized = new ArrayList<>();
+        Map<String, Object> regionCodeColumn = null;
+        Map<String, Object> regionNameColumn = null;
+        for (Map<String, Object> column : columns) {
+            if (column == null) {
+                continue;
+            }
+            String prop = toString(column.get("prop"));
+            if (isEmptyString(prop)) {
+                continue;
+            }
+            if ("townshipName".equals(prop) || "communityName".equals(prop)) {
+                continue;
+            }
+            if ("regionCode".equals(prop)) {
+                column.put("label", "行政区代码");
+                regionCodeColumn = column;
+            } else if ("regionName".equals(prop) || "region".equals(prop)) {
+                column.put("label", "县名称");
+                regionNameColumn = column;
+            } else if ("provinceName".equals(prop)) {
+                column.put("label", "省名称");
+            } else if ("cityName".equals(prop)) {
+                column.put("label", "市名称");
+            }
+            if (seen.add(prop)) {
+                normalized.add(column);
+            }
+        }
+        if (!seen.contains("provinceName")) {
+            Map<String, Object> provinceColumn = new LinkedHashMap<>();
+            provinceColumn.put("prop", "provinceName");
+            provinceColumn.put("label", "省名称");
+            provinceColumn.put("width", 120);
+            normalized.add(provinceColumn);
+        }
+        if (!seen.contains("cityName")) {
+            Map<String, Object> cityColumn = new LinkedHashMap<>();
+            cityColumn.put("prop", "cityName");
+            cityColumn.put("label", "市名称");
+            cityColumn.put("width", 120);
+            normalized.add(cityColumn);
+        }
+        if (regionCodeColumn == null) {
+            Map<String, Object> codeColumn = new LinkedHashMap<>();
+            codeColumn.put("prop", "regionCode");
+            codeColumn.put("label", "行政区代码");
+            codeColumn.put("width", 150);
+            normalized.add(0, codeColumn);
+        }
+        if (regionNameColumn == null) {
+            Map<String, Object> countyColumn = new LinkedHashMap<>();
+            countyColumn.put("prop", "regionName");
+            countyColumn.put("label", "县名称");
+            countyColumn.put("width", 120);
+            normalized.add(countyColumn);
+        }
+        List<Map<String, Object>> ordered = new ArrayList<>();
+        for (String baseProp : Arrays.asList("regionCode", "provinceName", "cityName", "regionName")) {
+            for (Map<String, Object> column : normalized) {
+                if (baseProp.equals(toString(column.get("prop")))) {
+                    ordered.add(column);
+                    break;
+                }
+            }
+        }
+        for (Map<String, Object> column : normalized) {
+            String prop = toString(column.get("prop"));
+            if (!"regionCode".equals(prop) && !"provinceName".equals(prop) && !"cityName".equals(prop) && !"regionName".equals(prop)) {
+                ordered.add(column);
+            }
+        }
+        columns.clear();
+        columns.addAll(ordered);
+    }
+
     /**
      * 获取执行记录详情
      *
@@ -3683,6 +4769,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 try {
                     Map<String, Object> executionResult = objectMapper.readValue(
                             resultDetailJson, new TypeReference<Map<String, Object>>() {});
+                    normalizeGovernmentExecutionResult(executionResult, executionRecord.getYear());
                     result.put("executionResult", executionResult);
                 } catch (Exception ignore) {
                 }
@@ -3779,8 +4866,30 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             // - Model 8: 社区-乡镇减灾能力评估模型 - 需要社区数据
             // - Model 11: 综合减灾能力评估模型 - 需要乡镇减灾能力评估结果(Model 3)和社区-乡镇减灾能力评估结果(Model 8)
             if (year != null) {
+                EvaluationModel model = modelId == null ? null : evaluationModelMapper.selectById(modelId);
+                boolean governmentModel = isGovernmentModel(modelId, model != null ? model.getModelName() : null);
+                boolean enterpriseModel = isEnterpriseModel(modelId, model != null ? model.getModelName() : null);
+                boolean socialOrganizationModel = isSocialOrganizationModel(modelId, model != null ? model.getModelName() : null);
                 for (String regionCode : regionCodes) {
-                    if (modelId == 4 || modelId == 8) {
+                    if (governmentModel) {
+                        if (!hasGovernmentData(regionCode, year)) {
+                            result.put("exists", false);
+                            result.put("message", "所选年份无政府减灾能力数据，无法进行政府减灾能力评估");
+                            return result;
+                        }
+                    } else if (enterpriseModel) {
+                        if (!hasEnterpriseData(regionCode, year)) {
+                            result.put("exists", false);
+                            result.put("message", "所选年份无企业减灾能力数据，无法进行企业减灾能力评估");
+                            return result;
+                        }
+                    } else if (socialOrganizationModel) {
+                        if (!hasSocialOrganizationData(regionCode, year)) {
+                            result.put("exists", false);
+                            result.put("message", "所选年份无社会组织减灾能力数据，无法进行社会组织减灾能力评估");
+                            return result;
+                        }
+                    } else if (modelId == 4 || modelId == 8) {
                         // 社区-行政村/乡镇减灾能力评估模型：检查社区数据
                         QueryWrapper<CommunityDisasterReductionCapacity> q = new QueryWrapper<>();
                         q.eq("region_code", regionCode).eq("year", year);

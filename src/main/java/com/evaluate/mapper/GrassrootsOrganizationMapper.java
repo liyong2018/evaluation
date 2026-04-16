@@ -6,6 +6,9 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 基层组织机构 Mapper
  */
@@ -70,4 +73,19 @@ public interface GrassrootsOrganizationMapper extends BaseMapper<GrassrootsOrgan
             "OR (year >= 2020 AND year <= #{year} AND (is_baseline = 0 OR is_baseline IS NULL)))")
     java.util.List<GrassrootsOrganization> selectByCountyIdUpToYearIncludeDeleted(@Param("countyId") Long countyId,
                                                                                    @Param("year") Integer year);
+
+    @Select("SELECT DISTINCT county_id FROM grassroots_organization " +
+            "WHERE county_id IS NOT NULL " +
+            "AND year = #{year} " +
+            "AND (is_baseline = 0 OR is_baseline IS NULL)")
+    List<Long> selectCountyIdsWithYearRecordsIncludeDeleted(@Param("year") Integer year);
+
+    @Select("SELECT county_id AS countyId, MAX(year) AS maxYear FROM grassroots_organization " +
+            "WHERE county_id IS NOT NULL " +
+            "AND year IS NOT NULL " +
+            "AND year > 2020 " +
+            "AND year <= #{year} " +
+            "AND (is_baseline = 0 OR is_baseline IS NULL) " +
+            "GROUP BY county_id")
+    List<Map<String, Object>> selectCountyMaxYearUpToIncludeDeleted(@Param("year") Integer year);
 }

@@ -68,12 +68,19 @@
         <!-- 数据类型切换 -->
         <el-card class="type-switch-card">
           <el-radio-group v-model="dataType" size="large" @change="handleDataTypeChange">
-            <el-radio-button label="medical">医疗卫生机构</el-radio-button>
-            <el-radio-button label="community">社区数据</el-radio-button>
-            <el-radio-button label="township">乡镇数据</el-radio-button>
+            <template v-if="isCityLevelSelected">
+              <el-radio-button label="township">政府减灾能力</el-radio-button>
+              <el-radio-button label="enterprise">企业减灾能力</el-radio-button>
+              <el-radio-button label="social-organization">社会组织减灾能力</el-radio-button>
+            </template>
+            <template v-else>
+              <el-radio-button label="medical">医疗卫生机构</el-radio-button>
+              <el-radio-button label="community">社区数据</el-radio-button>
+              <el-radio-button label="township">乡镇数据</el-radio-button>
+            </template>
           </el-radio-group>
           <el-tag
-            :type="dataType === 'township' ? 'success' : dataType === 'community' ? 'warning' : 'primary'"
+            :type="dataType === 'township' ? 'success' : dataType === 'community' ? 'warning' : dataType === 'enterprise' ? 'info' : dataType === 'social-organization' ? 'danger' : 'primary'"
             style="margin-left: 20px"
           >
             当前: {{ getCurrentDataTypeName() }}
@@ -99,6 +106,7 @@
             <el-col :span="8">
               <div class="toolbar-actions">
                 <el-button
+                  v-if="!isCityCapacityMode"
                   type="danger"
                   plain
                   :loading="loading.deleteAll"
@@ -108,6 +116,7 @@
                   全部删除
                 </el-button>
                 <el-button
+                  v-if="!isCityCapacityMode"
                   type="danger"
                   :disabled="selectedRows.length === 0"
                   :loading="loading.batchDelete"
@@ -116,11 +125,11 @@
                   <el-icon><Delete /></el-icon>
                   批量删除 ({{ selectedRows.length }})
                 </el-button>
-                <el-button v-if="dataType !== 'medical'" type="success" @click="showAddDialog">
+                <el-button v-if="dataType !== 'medical' && !isCityCapacityMode" type="success" @click="showAddDialog">
                   <el-icon><Plus /></el-icon>
                   新增数据
                 </el-button>
-                <el-button type="warning" @click="showImportDialog">
+                <el-button v-if="!isCityCapacityMode" type="warning" @click="showImportDialog">
                   <el-icon><Upload /></el-icon>
                   批量导入
                 </el-button>
@@ -128,7 +137,7 @@
                   <el-icon><Download /></el-icon>
                   下载模板
                 </el-button>
-                <el-button type="info" @click="exportData">
+                <el-button v-if="!isCityCapacityMode" type="info" @click="exportData">
                   <el-icon><Download /></el-icon>
                   导出数据
                 </el-button>
@@ -148,13 +157,21 @@
         :height="500"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="55" />
+        <el-table-column v-if="!isCityCapacityMode" type="selection" width="55" />
+        <el-table-column
+          v-for="column in cityGovernmentColumns"
+          :key="column.prop"
+          :prop="column.prop"
+          :label="column.label"
+          min-width="160"
+          show-overflow-tooltip
+        />
 
         <!-- 医疗卫生机构名称 (仅医疗机构数据 - 放在最前面) -->
         <el-table-column v-if="dataType === 'medical'" prop="institutionName" label="医疗机构名称" width="200" show-overflow-tooltip />
 
         <!-- 区域名称 (仅乡镇数据显示) -->
-        <el-table-column v-if="dataType === 'township'" label="区域名称" width="160">
+        <el-table-column v-if="dataType === 'township' && !isCityCapacityMode" label="区域名称" width="160">
           <template #default="{ row }">
             {{ getRegionName(row) }}
           </template>
@@ -162,25 +179,25 @@
 
         <!-- ========== 乡镇/社区数据列 ========== -->
         <!-- 省份 -->
-        <el-table-column label="省份" width="100">
+        <el-table-column v-if="!isCityCapacityMode" label="省份" width="100">
           <template #default="{ row }">
             {{ getFieldValue(row, 'province') }}
           </template>
         </el-table-column>
         <!-- 市 -->
-        <el-table-column label="市/州" width="100">
+        <el-table-column v-if="!isCityCapacityMode" label="市/州" width="100">
           <template #default="{ row }">
             {{ getFieldValue(row, 'city') }}
           </template>
         </el-table-column>
         <!-- 县 -->
-        <el-table-column label="区/县/市" width="100">
+        <el-table-column v-if="!isCityCapacityMode" label="区/县/市" width="100">
           <template #default="{ row }">
             {{ getFieldValue(row, 'county') }}
           </template>
         </el-table-column>
         <!-- 乡镇 -->
-        <el-table-column label="街道/乡镇" width="120">
+        <el-table-column v-if="!isCityCapacityMode" label="街道/乡镇" width="120">
           <template #default="{ row }">
             {{ getFieldValue(row, 'township') }}
           </template>
@@ -213,7 +230,7 @@
 
         <!-- ========== 乡镇数据列 ========== -->
         <!-- 管理人员 (仅乡镇数据) -->
-        <el-table-column v-if="dataType === 'township'" prop="managementStaff" label="管理人员" width="160" />
+        <el-table-column v-if="dataType === 'township' && !isCityCapacityMode" prop="managementStaff" label="管理人员" width="160" />
 
         <!-- ========== 社区数据列 ========== -->
         <!-- 应急预案 -->
@@ -243,28 +260,28 @@
 
         <!-- ========== 乡镇/社区数据列 ========== -->
         <!-- 人口数量 -->
-        <el-table-column label="人口数量" width="100" v-if="dataType !== 'medical'">
+        <el-table-column label="人口数量" width="100" v-if="dataType !== 'medical' && !isCityCapacityMode">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.population : row.residentPopulation }}
           </template>
         </el-table-column>
 
         <!-- 风险评估 (仅乡镇数据) -->
-        <el-table-column v-if="dataType === 'township'" prop="riskAssessment" label="风险评估" width="140">
+        <el-table-column v-if="dataType === 'township' && !isCityCapacityMode" prop="riskAssessment" label="风险评估" width="140">
           <template #default="{ row }">
             {{ formatYesNo(row.riskAssessment) }}
           </template>
         </el-table-column>
 
         <!-- 资金投入(万元) -->
-        <el-table-column v-if="dataType !== 'medical'" prop="fundingAmount" label="资金投入(万元)" width="140">
+        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" prop="fundingAmount" label="资金投入(万元)" width="140">
           <template #default="{ row }">
             <span v-if="dataType === 'township'">{{ formatDecimal(row.fundingAmount) }}</span>
             <span v-else>{{ formatDecimal(row.lastYearFundingAmount) }}</span>
           </template>
         </el-table-column>
         <!-- 物资价值(万元) -->
-        <el-table-column v-if="dataType !== 'medical'" prop="materialValue" label="物资价值(万元)" width="140">
+        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" prop="materialValue" label="物资价值(万元)" width="140">
           <template #default="{ row }">
             <span v-if="dataType === 'township'">{{ formatDecimal(row.materialValue) }}</span>
             <span v-else>{{ formatDecimal(row.materialsEquipmentValue) }}</span>
@@ -275,27 +292,27 @@
         <el-table-column v-if="dataType === 'community'" prop="medicalServiceCount" label="医疗服务点数" width="110" />
 
         <!-- 医院床位 -->
-        <el-table-column v-if="dataType === 'township'" prop="hospitalBeds" label="医院床位" width="100" />
+        <el-table-column v-if="dataType === 'township' && !isCityCapacityMode" prop="hospitalBeds" label="医院床位" width="100" />
 
         <!-- 消防员数量 (仅乡镇数据) -->
-        <el-table-column v-if="dataType === 'township'" prop="firefighters" label="消防员数量" width="100" />
+        <el-table-column v-if="dataType === 'township' && !isCityCapacityMode" prop="firefighters" label="消防员数量" width="100" />
 
         <!-- 志愿者人数 -->
-        <el-table-column v-if="dataType !== 'medical'" label="志愿者人数" width="100">
+        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" label="志愿者人数" width="100">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.volunteers : row.registeredVolunteerCount }}
           </template>
         </el-table-column>
 
         <!-- 民兵预备役 -->
-        <el-table-column v-if="dataType !== 'medical'" label="民兵预备役" width="100">
+        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" label="民兵预备役" width="100">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.militiaReserve : row.militiaReserveCount }}
           </template>
         </el-table-column>
 
         <!-- 培训参与人次 -->
-        <el-table-column v-if="dataType !== 'medical'" label="培训参与人次" width="130">
+        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" label="培训参与人次" width="130">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.trainingParticipants : row.lastYearTrainingParticipants }}
           </template>
@@ -305,7 +322,7 @@
         <el-table-column v-if="dataType === 'community'" prop="lastYearDrillParticipants" label="演练参与人次" width="120" />
 
         <!-- 避难场所容量 -->
-        <el-table-column v-if="dataType !== 'medical'" label="避难场所容量" width="120">
+        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" label="避难场所容量" width="120">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.shelterCapacity : row.emergencyShelterCapacity }}
           </template>
@@ -314,7 +331,7 @@
         <!-- 在岗职工人数 (仅医疗机构数据) -->
         <el-table-column v-if="dataType === 'medical'" prop="totalStaff" label="在岗职工人数" width="120" />
         <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column v-if="!isCityCapacityMode" label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="showEditDialog(row)">
               <el-icon><Edit /></el-icon>
@@ -616,7 +633,7 @@ import {
   UploadFilled,
   Refresh
 } from '@element-plus/icons-vue'
-import { surveyDataApi, communityCapacityApi, organizationApi, medicalInstitutionApi, grassrootsOrganizationApi } from '@/api'
+import { surveyDataApi, communityCapacityApi, governmentCapacityApi, enterpriseCapacityApi, socialOrganizationCapacityApi, organizationApi, medicalInstitutionApi, grassrootsOrganizationApi } from '@/api'
 import { useGlobalYearStore } from '@/stores/globalYear'
 import { useUserStore } from '@/stores/user'
 import { useGlobalOrganizationStore } from '@/stores/globalOrganization'
@@ -638,8 +655,9 @@ const userStore = useUserStore()
 const globalOrganizationStore = useGlobalOrganizationStore()
 
 // 响应式数据
-const dataType = ref<'township' | 'community' | 'medical'>('medical')  // 数据类型：township(乡镇)、community(社区) 或 medical(医疗机构)
+const dataType = ref<'township' | 'community' | 'medical' | 'enterprise' | 'social-organization'>('township')
 const tableData = ref<any[]>([])
+const governmentColumns = ref<Array<{ prop: string; label: string }>>([])
 const selectedRows = ref<any[]>([])
 // 代码->名称映射表（一次性从后端加载）
 const regionNameMap = ref<Record<string, string>>({})
@@ -691,6 +709,45 @@ const normalizeOrgCode = (code?: string | number | null) => {
   const trimmed = raw.replace(/0+$/, '')
   return trimmed || raw
 }
+
+const getOrgLevel = (org: any) => {
+  const level = Number(org?.level)
+  return Number.isFinite(level) ? level : -1
+}
+
+const enforceCityLevelDataType = (org: any) => {
+  if (getOrgLevel(org) === 2 && dataType.value !== 'township' && dataType.value !== 'enterprise' && dataType.value !== 'social-organization') {
+    dataType.value = 'township'
+    ElMessage.info('市级机构默认查询政府减灾能力（现场调查）数据')
+  }
+  if (getOrgLevel(org) !== 2 && dataType.value === 'enterprise') {
+    dataType.value = 'township'
+  }
+}
+
+const syncPreferredCapacityModel = (org?: any) => {
+  const level = getOrgLevel(org ?? selectedOrg.value)
+  if (level !== 2) {
+    globalOrganizationStore.setPreferredCapacityModel(null)
+    return
+  }
+  if (dataType.value === 'enterprise') {
+    globalOrganizationStore.setPreferredCapacityModel('enterprise')
+    return
+  }
+  if (dataType.value === 'social-organization') {
+    globalOrganizationStore.setPreferredCapacityModel('social-organization')
+    return
+  }
+  globalOrganizationStore.setPreferredCapacityModel('government')
+}
+
+const isCityLevelSelected = computed(() => getOrgLevel(selectedOrg.value) === 2)
+const isCityGovernmentMode = computed(() => isCityLevelSelected.value && dataType.value === 'township')
+const isCityEnterpriseMode = computed(() => isCityLevelSelected.value && dataType.value === 'enterprise')
+const isCitySocialOrganizationMode = computed(() => isCityLevelSelected.value && dataType.value === 'social-organization')
+const isCityCapacityMode = computed(() => isCityGovernmentMode.value || isCityEnterpriseMode.value || isCitySocialOrganizationMode.value)
+const cityGovernmentColumns = computed(() => (isCityCapacityMode.value ? governmentColumns.value : []))
 
 // 年份选项（用于主筛选）
 const yearOptions = ref<number[]>([])
@@ -858,6 +915,13 @@ const getOrganizationList = async () => {
         targetOrg = findOrgNodeByCode(organizationList.value, stored.code)
         if (targetOrg) {
           console.log('从全局 store 恢复组织机构:', targetOrg)
+          if (getOrgLevel(targetOrg) === 2) {
+            if (stored.preferredCapacityModel === 'enterprise') {
+              dataType.value = 'enterprise'
+            } else if (stored.preferredCapacityModel === 'social-organization') {
+              dataType.value = 'social-organization'
+            }
+          }
         }
       }
 
@@ -866,6 +930,7 @@ const getOrganizationList = async () => {
         await selectFirstOrganization()
       } else {
         selectedOrg.value = targetOrg
+        enforceCityLevelDataType(targetOrg)
         await nextTick()
         orgTreeRef.value?.setCurrentKey(targetOrg.code)
         // 同步到全局 store
@@ -874,6 +939,7 @@ const getOrganizationList = async () => {
           name: targetOrg.name,
           level: targetOrg.level
         })
+        syncPreferredCapacityModel(targetOrg)
         getDataList()
       }
     }
@@ -903,6 +969,7 @@ const selectFirstOrganization = async () => {
     name: firstOrg.name,
     level: firstOrg.level
   })
+  syncPreferredCapacityModel(firstOrg)
   // 加载数据
   getDataList()
 }
@@ -916,6 +983,7 @@ const refreshOrganizations = () => {
 const handleOrgNodeClick = (data: any) => {
   console.log('选中组织机构:', data)
   selectedOrg.value = data
+  enforceCityLevelDataType(data)
   // 保存到全局 store（包含完整信息）
   globalOrganizationStore.setOrganization({
     code: data.code,
@@ -927,6 +995,7 @@ const handleOrgNodeClick = (data: any) => {
     townshipName: data.townshipName,
     communityName: data.communityName
   })
+  syncPreferredCapacityModel(data)
   // 清空搜索关键字，保留年份过滤
   searchForm.keyword = ''
   getDataList()
@@ -934,6 +1003,15 @@ const handleOrgNodeClick = (data: any) => {
 
 // 获取当前数据类型名称
 const getCurrentDataTypeName = () => {
+  if (isCityGovernmentMode.value) {
+    return '政府减灾能力调查表'
+  }
+  if (isCityEnterpriseMode.value) {
+    return '企业减灾能力调查表'
+  }
+  if (isCitySocialOrganizationMode.value) {
+    return '社会组织减灾能力调查表'
+  }
   switch (dataType.value) {
     case 'township':
       return '乡镇数据表'
@@ -941,6 +1019,8 @@ const getCurrentDataTypeName = () => {
       return '社区数据表'
     case 'medical':
       return '医疗卫生机构表'
+    case 'social-organization':
+      return '社会组织减灾能力调查表'
     default:
       return '未知数据类型'
   }
@@ -948,6 +1028,15 @@ const getCurrentDataTypeName = () => {
 
 // 获取搜索框占位符
 const getSearchPlaceholder = () => {
+  if (isCityGovernmentMode.value) {
+    return '当前为市级政府减灾能力调查表数据'
+  }
+  if (isCityEnterpriseMode.value) {
+    return '当前为市级企业减灾能力调查表数据'
+  }
+  if (isCitySocialOrganizationMode.value) {
+    return '当前为市级社会组织减灾能力调查表数据'
+  }
   switch (dataType.value) {
     case 'township':
       return '搜索地区名称或代码'
@@ -1069,7 +1158,7 @@ const cacheNameWithCode = (code: string, name: string) => {
 }
 
 const preloadOrgCodeNameMap = async (rows: any[]) => {
-  if ((dataType.value !== 'township' && dataType.value !== 'community' && dataType.value !== 'medical') || !rows?.length) return
+  if ((dataType.value !== 'township' && dataType.value !== 'community' && dataType.value !== 'medical' && dataType.value !== 'enterprise') || !rows?.length) return
   const queue = [...organizationList.value]
   while (queue.length > 0) {
     const node = queue.shift()
@@ -1226,7 +1315,14 @@ const getRegionName = (row?: any) => {
   // 回退顺序：映射 -> 行内字段 -> 原始代码 -> '-'
   if (mapped) return mapped
   if (dataType.value === 'township') {
+    if (isCityGovernmentMode.value) {
+      return row?.countyName || row?.cityName || row?.provinceName || key || '-'
+    }
     return row?.township || row?.county || row?.city || row?.province || key || '-'
+  } else if (dataType.value === 'enterprise') {
+    return row?.countyName || row?.cityName || row?.provinceName || key || '-'
+  } else if (dataType.value === 'social-organization') {
+    return row?.countyName || row?.cityName || row?.provinceName || key || '-'
   } else if (dataType.value === 'community') {
     return row?.communityName || row?.townshipName || row?.countyName || row?.cityName || row?.provinceName || key || '-'
   } else if (dataType.value === 'medical') {
@@ -1236,14 +1332,17 @@ const getRegionName = (row?: any) => {
 }
 
 // 数据类型切换处理
-const handleDataTypeChange = (newType: 'township' | 'community' | 'medical') => {
+const handleDataTypeChange = (newType: 'township' | 'community' | 'medical' | 'enterprise' | 'social-organization') => {
   console.info('[DataManagement] 切换数据类型:', newType)
   dataType.value = newType
+  enforceCityLevelDataType(selectedOrg.value)
+  syncPreferredCapacityModel(selectedOrg.value)
   // 清空搜索条件和表格数据（但保留用户选择的年份）
   searchForm.keyword = ''
   searchForm.selectedRegion = null
   // searchForm.year 保持用户选择的值，不重置
   tableData.value = []
+  governmentColumns.value = []
   regionSelectOptions.value = []
   // 重新加载数据
   getDataList()
@@ -1257,29 +1356,96 @@ const getDataList = async () => {
     let allData: any[] = []
 
     if (dataType.value === 'township') {
-      // 乡镇数据 - 使用分页查询
       const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
-      response = await surveyDataApi.getAll({
-        year: searchForm.year || undefined,
-        orgCode: normalizedOrgCode,
-        page: pagination.currentPage,
-        pageSize: pagination.pageSize
-      })
+      if (isCityGovernmentMode.value) {
+        response = await governmentCapacityApi.getList({
+          page: pagination.currentPage,
+          size: pagination.pageSize,
+          orgCode: normalizedOrgCode || undefined,
+          year: searchForm.year || undefined
+        })
+      } else {
+        response = await surveyDataApi.getAll({
+          year: searchForm.year || undefined,
+          orgCode: normalizedOrgCode,
+          page: pagination.currentPage,
+          pageSize: pagination.pageSize
+        })
+      }
       if (response.success) {
-        // 新的分页返回格式：{ records: [], total: 0, current: 1, pages: 0, size: 50 }
         if (response.data && typeof response.data === 'object' && 'records' in response.data) {
           allData = response.data.records || []
+          if (isCityGovernmentMode.value && Array.isArray((response.data as any).columns)) {
+            governmentColumns.value = (response.data as any).columns
+          } else if (!isCityCapacityMode.value) {
+            governmentColumns.value = []
+          }
           pagination.total = response.data.total || 0
-          // 后端返回的分页信息
           if (response.data.current) pagination.currentPage = response.data.current
           if (response.data.pages) {
             (pagination as any).pages = response.data.pages
           }
         } else {
-          // 兼容旧格式（直接返回数组）
+          allData = response.data || []
+          if (!isCityCapacityMode.value) {
+            governmentColumns.value = []
+          }
+          pagination.total = allData.length
+        }
+      }
+    } else if (dataType.value === 'enterprise') {
+      const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+      response = await enterpriseCapacityApi.getList({
+        page: pagination.currentPage,
+        size: pagination.pageSize,
+        orgCode: normalizedOrgCode || undefined,
+        year: searchForm.year || undefined
+      })
+      if (response.success) {
+        if (response.data && typeof response.data === 'object' && 'records' in response.data) {
+          allData = response.data.records || []
+          if (Array.isArray((response.data as any).columns)) {
+            governmentColumns.value = (response.data as any).columns
+          }
+          pagination.total = response.data.total || 0
+          if (response.data.current) pagination.currentPage = response.data.current
+          if (response.data.pages) {
+            (pagination as any).pages = response.data.pages
+          }
+        } else {
           allData = response.data || []
           pagination.total = allData.length
         }
+      }
+      if (!isCityCapacityMode.value) {
+        governmentColumns.value = []
+      }
+    } else if (dataType.value === 'social-organization') {
+      const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+      response = await socialOrganizationCapacityApi.getList({
+        page: pagination.currentPage,
+        size: pagination.pageSize,
+        orgCode: normalizedOrgCode || undefined,
+        year: searchForm.year || undefined
+      })
+      if (response.success) {
+        if (response.data && typeof response.data === 'object' && 'records' in response.data) {
+          allData = response.data.records || []
+          if (Array.isArray((response.data as any).columns)) {
+            governmentColumns.value = (response.data as any).columns
+          }
+          pagination.total = response.data.total || 0
+          if (response.data.current) pagination.currentPage = response.data.current
+          if (response.data.pages) {
+            (pagination as any).pages = response.data.pages
+          }
+        } else {
+          allData = response.data || []
+          pagination.total = allData.length
+        }
+      }
+      if (!isCityCapacityMode.value) {
+        governmentColumns.value = []
       }
     } else if (dataType.value === 'community') {
       // 社区数据 - 使用分页查询
@@ -1338,7 +1504,9 @@ const getDataList = async () => {
           if (!code) continue
           let name = ''
           if (dataType.value === 'township') {
-            name = row.township || row.county || row.city || row.province || code
+            name = isCityGovernmentMode.value
+              ? (row.countyName || row.cityName || row.provinceName || code)
+              : (row.township || row.county || row.city || row.province || code)
           } else if (dataType.value === 'community') {
             name = row.communityName || row.townshipName || row.countyName || row.cityName || row.provinceName || code
           }
@@ -1368,6 +1536,10 @@ const handleSearch = async () => {
   await getOrganizationList()
 
   if (!searchForm.keyword && !searchForm.selectedRegion) {
+    getDataList()
+    return
+  }
+  if (isCityCapacityMode.value) {
     getDataList()
     return
   }
@@ -2216,7 +2388,8 @@ const exportData = async () => {
           return
         }
 
-        blob = new Blob([byteArray], {
+        const normalizedByteArray = new Uint8Array(Array.from(byteArray))
+        blob = new Blob([normalizedByteArray], {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         })
         fileName = `调查数据_${new Date().toISOString().slice(0, 10)}.xlsx`

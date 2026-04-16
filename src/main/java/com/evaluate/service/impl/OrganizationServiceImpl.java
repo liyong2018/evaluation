@@ -756,6 +756,38 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         }
     }
 
+    private Map<Long, Integer> resolveCountyIdToLatestGrassrootsYear(Integer year) {
+        if (year == null || year <= 2020) {
+            return Collections.emptyMap();
+        }
+        try {
+            List<Map<String, Object>> rows = grassrootsOrganizationMapper.selectCountyMaxYearUpToIncludeDeleted(year);
+            if (rows == null || rows.isEmpty()) {
+                return Collections.emptyMap();
+            }
+            Map<Long, Integer> result = new HashMap<>();
+            for (Map<String, Object> row : rows) {
+                if (row == null) {
+                    continue;
+                }
+                Object countyIdRaw = row.get("countyId");
+                Object maxYearRaw = row.get("maxYear");
+                if (!(countyIdRaw instanceof Number) || !(maxYearRaw instanceof Number)) {
+                    continue;
+                }
+                long countyId = ((Number) countyIdRaw).longValue();
+                int maxYear = ((Number) maxYearRaw).intValue();
+                if (countyId > 0 && maxYear > 2020) {
+                    result.put(countyId, maxYear);
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("查询基层年度变更区县失败: year={}", year, e);
+            return Collections.emptyMap();
+        }
+    }
+
     /**
      * 获取组织机构（含增量存储逻辑）
      * 查询策略：
@@ -1677,6 +1709,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         }
 
         List<Organization> deduped = deduplicateOrganizationsByCode(organizations);
+        Map<Long, Integer> countyIdToLatestGrassrootsYear = resolveCountyIdToLatestGrassrootsYear(year);
 
         // 使用基于代码的父子关系映射，而不是基于ID的映射
         // 行政区划代码具有层级结构：省(2位) -> 市(4位) -> 县(6位) -> 乡镇(9位) -> 社区(12位)
@@ -1712,7 +1745,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                     .filter(o -> o.getId().equals(parentId))
                     .findFirst().orElse(null);
             if (parentOrg != null) {
-                return buildTreeRecursiveByCode(parentOrg.getCode(), codeParentMap, emittedCodes, stack, codeToOrgMap, year);
+                return buildTreeRecursiveByCode(parentOrg.getCode(), codeParentMap, emittedCodes, stack, codeToOrgMap, year, countyIdToLatestGrassrootsYear);
             }
             return new ArrayList<>();
         } else {
@@ -1727,7 +1760,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 }
                 emittedCodes.add(normalizedCode);
 
-                Map<String, Object> node = buildNode(root, codeParentMap, emittedCodes, stack, codeToOrgMap, year);
+                Map<String, Object> node = buildNode(root, codeParentMap, emittedCodes, stack, codeToOrgMap, year, countyIdToLatestGrassrootsYear);
                 result.add(node);
             }
 
@@ -1788,7 +1821,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                                           Set<String> emittedCodes,
                                           Set<String> stack,
                                           Map<String, Organization> codeToOrgMap,
-                                          Integer year) {
+                                          Integer year,
+                                          Map<Long, Integer> countyIdToLatestGrassrootsYear) {
         Map<String, Object> node = new HashMap<>();
         node.put("id", org.getId());
         node.put("parentId", org.getParentId());
@@ -1809,12 +1843,24 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         }
 
         // 县级节点如果只是基层同步镜像且当年没有真实基层变更，左侧树应继续显示最近真实有效年份。
-        if (Objects.equals(org.getLevel(), LEVEL_COUNTY) && sourceYear > 2020) {
+        boolean hasGrassrootsChangeAtTargetYear = false;
+        if (Objects.equals(org.getLevel(), LEVEL_COUNTY) && year != null && year > 2020) {
+            Long baselineCountyId = resolveBaselineOrganizationId(org.getCode());
+            Integer latestGrassrootsYear = baselineCountyId != null && countyIdToLatestGrassrootsYear != null
+                    ? countyIdToLatestGrassrootsYear.get(baselineCountyId)
+                    : null;
+            hasGrassrootsChangeAtTargetYear = latestGrassrootsYear != null && latestGrassrootsYear > 2020;
+            if (hasGrassrootsChangeAtTargetYear) {
+                sourceYear = latestGrassrootsYear;
+                node.put("changeType", "基层变更");
+            }
+        }
+        if (Objects.equals(org.getLevel(), LEVEL_COUNTY) && sourceYear != null && sourceYear > 2020) {
             String dataSource = normalizeText(org.getDataSource());
             boolean derivedFromGrassroots = SOURCE_TOWNSHIP.equals(dataSource) || SOURCE_COMMUNITY.equals(dataSource);
             if (derivedFromGrassroots) {
                 Long baselineCountyId = resolveBaselineOrganizationId(org.getCode());
-                if (!hasGrassrootsYearChangeForCounty(baselineCountyId, sourceYear)) {
+                if (!hasGrassrootsChangeAtTargetYear && !hasGrassrootsYearChangeForCounty(baselineCountyId, sourceYear)) {
                     sourceYear = 2020;
                 }
             }
@@ -1822,7 +1868,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
 
         // 递归构建子节点
         List<Map<String, Object>> childNodes = buildTreeRecursiveByCode(
-                org.getCode(), codeParentMap, emittedCodes, stack, codeToOrgMap, year);
+                org.getCode(), codeParentMap, emittedCodes, stack, codeToOrgMap, year, countyIdToLatestGrassrootsYear);
         if (!childNodes.isEmpty()) {
             node.put("children", childNodes);
         }
@@ -1831,7 +1877,6 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         String dataSource = normalizeText(org.getDataSource());
         boolean derivedFromGrassroots = SOURCE_TOWNSHIP.equals(dataSource) || SOURCE_COMMUNITY.equals(dataSource);
         if (derivedFromGrassroots
-                && sourceYear > 2020
                 && (Objects.equals(org.getLevel(), LEVEL_PROVINCE) || Objects.equals(org.getLevel(), LEVEL_CITY))
                 && !childNodes.isEmpty()) {
             int maxChildSourceYear = childNodes.stream()
@@ -1841,7 +1886,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                     .mapToInt(Number::intValue)
                     .max()
                     .orElse(2020);
-            sourceYear = Math.min(sourceYear, maxChildSourceYear);
+            sourceYear = year != null ? Math.min(year, maxChildSourceYear) : maxChildSourceYear;
         }
 
         node.put("sourceYear", sourceYear);
@@ -1858,7 +1903,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             Set<String> emittedCodes,
             Set<String> stack,
             Map<String, Organization> codeToOrgMap,
-            Integer year
+            Integer year,
+            Map<Long, Integer> countyIdToLatestGrassrootsYear
     ) {
         if (parentCode == null) {
             return new ArrayList<>();
@@ -1899,7 +1945,7 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
                 }
                 emittedCodes.add(normalizedCode);
 
-                Map<String, Object> node = buildNode(org, codeParentMap, emittedCodes, stack, codeToOrgMap, year);
+                Map<String, Object> node = buildNode(org, codeParentMap, emittedCodes, stack, codeToOrgMap, year, countyIdToLatestGrassrootsYear);
                 result.add(node);
             }
 

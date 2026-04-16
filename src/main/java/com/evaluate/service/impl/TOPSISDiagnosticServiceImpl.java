@@ -35,17 +35,12 @@ public class TOPSISDiagnosticServiceImpl implements TOPSISDiagnosticService {
     
     @Override
     public TOPSISDiagnosticReport diagnose(Long modelId, List<String> regionCodes, Long weightConfigId) {
-        log.info("开始诊断TOPSIS计算问题 - 模型ID: {}, 区域数量: {}, 权重配置ID: {}", 
-                modelId, regionCodes.size(), weightConfigId);
-        
-        long startTime = System.currentTimeMillis();
+        int regionSize = regionCodes == null ? 0 : regionCodes.size();
+        log.info("开始诊断TOPSIS计算问题 - 模型ID: {}, 区域数量: {}, 权重配置ID: {}",
+                modelId, regionSize, weightConfigId);
         
         try {
-            // TODO: 从数据库获取定权数据
-            // 这里暂时使用模拟数据进行诊断逻辑验证
-            Map<String, Map<String, Double>> mockWeightedData = generateMockWeightedData(regionCodes);
-            
-            return diagnoseWeightedData(mockWeightedData, modelId, "step4");
+            throw new IllegalStateException("当前接口不再生成模拟数据，请传入真实定权数据调用 diagnoseWeightedData");
             
         } catch (Exception e) {
             log.error("诊断TOPSIS计算问题时发生异常", e);
@@ -542,22 +537,5 @@ public class TOPSISDiagnosticServiceImpl implements TOPSISDiagnosticService {
         stats.put("count", (double) values.size());
         
         return stats;
-    }
-    
-    /**
-     * 生成模拟定权数据用于测试
-     */
-    private Map<String, Map<String, Double>> generateMockWeightedData(List<String> regionCodes) {
-        Map<String, Map<String, Double>> mockData = new HashMap<>();
-        
-        for (String regionCode : regionCodes) {
-            Map<String, Double> regionData = new HashMap<>();
-            regionData.put("indicator1", Math.random() * 100);
-            regionData.put("indicator2", Math.random() * 100);
-            regionData.put("indicator3", Math.random() * 100);
-            mockData.put(regionCode, regionData);
-        }
-        
-        return mockData;
     }
 }

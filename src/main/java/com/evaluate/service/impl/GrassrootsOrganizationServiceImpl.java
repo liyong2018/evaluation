@@ -155,15 +155,19 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         }
 
         Map<String, GrassrootsOrganization> mergedByCode = new HashMap<>();
-        // 首先添加所有基准记录
+        // 首先添加所有基准记录（如果最新有效记录为删除标记，则不展示）
         for (Map.Entry<String, GrassrootsOrganization> entry : baselineByCode.entrySet()) {
-            mergedByCode.put(entry.getKey(), entry.getValue());
+            String code = entry.getKey();
+            if (deletedCodes.contains(code)) {
+                continue;
+            }
+            mergedByCode.put(code, entry.getValue());
         }
 
-        // 然后用年份记录覆盖（排除已删除的记录）
+        // 然后用年份记录覆盖（排除已删除的记录：最新年份已删除则不展示）
         for (Map.Entry<String, GrassrootsOrganization> entry : latestYearByCode.entrySet()) {
             String code = entry.getKey();
-            // 如果该记录被标记为删除，跳过（保留基准记录）
+            // 如果该记录被标记为删除，跳过（并且基准记录已在上一步剔除）
             if (deletedCodes.contains(code)) {
                 continue;
             }
@@ -284,7 +288,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         return BASELINE_YEAR;
     }
 
-    private Map<String, String> buildChangeTypeMap(List<GrassrootsOrganization> baselineList,
+    private Map<String, String> buildChangeTypeMap(List<GrassrootsOrganization> prevEffectiveList,
                                                    List<GrassrootsOrganization> yearList,
                                                    Integer requestedYear) {
         Map<String, String> changeTypeMap = new HashMap<>();
@@ -294,11 +298,11 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         if (yearList == null || yearList.isEmpty()) {
             return changeTypeMap;
         }
-        Map<String, GrassrootsOrganization> baselineByCode = new HashMap<>();
-        if (baselineList != null) {
-            for (GrassrootsOrganization baseline : baselineList) {
-                if (baseline != null && StringUtils.hasText(baseline.getCode())) {
-                    baselineByCode.put(baseline.getCode(), baseline);
+        Map<String, GrassrootsOrganization> prevByCode = new HashMap<>();
+        if (prevEffectiveList != null) {
+            for (GrassrootsOrganization prev : prevEffectiveList) {
+                if (prev != null && StringUtils.hasText(prev.getCode())) {
+                    prevByCode.put(prev.getCode(), prev);
                 }
             }
         }
@@ -314,21 +318,14 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             }
             String code = yearRecord.getCode();
             if (yearRecord.getIsDeleted() != null && yearRecord.getIsDeleted() == 1) {
-                changeTypeMap.put(code, "删除");
                 continue;
             }
-            GrassrootsOrganization baseline = baselineByCode.get(code);
-            if (baseline == null && StringUtils.hasText(yearRecord.getBaselineCode())) {
-                baseline = baselineByCode.get(yearRecord.getBaselineCode());
-            }
-            if (baseline == null) {
-                baseline = findBaselineBySameName(baselineList, yearRecord);
-            }
-            if (baseline == null) {
+            GrassrootsOrganization prev = prevByCode.get(code);
+            if (prev == null) {
                 changeTypeMap.put(code, "新增");
                 continue;
             }
-            if (!Objects.equals(baseline.getCode(), yearRecord.getCode()) || !isSameAsBaseline(baseline, yearRecord)) {
+            if (!Objects.equals(prev.getCode(), yearRecord.getCode()) || !isSameAsBaseline(prev, yearRecord)) {
                 changeTypeMap.put(code, "更新");
             }
         }
@@ -624,10 +621,6 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         try {
             Long effectiveCountyId = resolveEffectiveCountyId(countyId);
             List<GrassrootsOrganization> candidates = loadCountyCandidates(effectiveCountyId, year);
-            List<GrassrootsOrganization> baselineRecords = candidates.stream()
-                    .filter(Objects::nonNull)
-                    .filter(item -> item.getIsBaseline() != null && item.getIsBaseline() == 1)
-                    .collect(Collectors.toList());
             List<GrassrootsOrganization> yearRecords = candidates.stream()
                     .filter(Objects::nonNull)
                     .filter(item -> year != null && Objects.equals(item.getYear(), year))
@@ -637,7 +630,12 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
 
             log.info("getTreeByCountyId: countyId={}, year={}, 查询结果数={}", countyId, year, all.size());
 
-            Map<String, String> changeTypeMap = buildChangeTypeMap(baselineRecords, yearRecords, year);
+            List<GrassrootsOrganization> prevEffective = null;
+            if (year != null && year > BASELINE_YEAR) {
+                Integer prevYear = year - 1;
+                prevEffective = loadEffectiveCountyOrganizations(effectiveCountyId, Math.max(prevYear, BASELINE_YEAR));
+            }
+            Map<String, String> changeTypeMap = buildChangeTypeMap(prevEffective, yearRecords, year);
 
             // 构建完整的树形结构，不需要传递parentId（null表示构建整棵树）
             // countyId已经用于过滤数据，不需要再传递给buildTree
@@ -1591,6 +1589,21 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 org.getCode(), codeParentMap, codeToOrgMap, changeTypeMap, requestedYear);
         if (!childNodes.isEmpty()) {
             node.put("children", childNodes);
+        }
+        if (!childNodes.isEmpty()) {
+            int maxChildSourceYear = childNodes.stream()
+                    .map(child -> child.get("sourceYear"))
+                    .filter(Number.class::isInstance)
+                    .map(Number.class::cast)
+                    .mapToInt(Number::intValue)
+                    .max()
+                    .orElse(2020);
+            int current = sourceYear != null ? sourceYear : 2020;
+            int candidate = Math.max(current, maxChildSourceYear);
+            if (requestedYear != null) {
+                candidate = Math.min(requestedYear, candidate);
+            }
+            sourceYear = candidate;
         }
         node.put("sourceYear", sourceYear);
 

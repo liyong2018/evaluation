@@ -528,6 +528,34 @@ export const communityCapacityApi = {
   downloadTemplate: () => request.get('/api/community-capacity/template')
 }
 
+export const governmentCapacityApi = {
+  getList: (params: {
+    page?: number;
+    size?: number;
+    orgCode?: string;
+    year?: number;
+  }) => request.get('/api/government-capacity/list', { params })
+}
+
+export const enterpriseCapacityApi = {
+  getList: (params: {
+    page?: number;
+    size?: number;
+    orgCode?: string;
+    year?: number;
+  }) => request.get('/api/enterprise-capacity/list', { params })
+}
+
+// 社会组织减灾能力相关API
+export const socialOrganizationCapacityApi = {
+  getList: (params: {
+    page?: number;
+    size?: number;
+    orgCode?: string;
+    year?: number;
+  }) => request.get('/api/social-organization-capacity/list', { params })
+}
+
 // 医疗卫生机构相关API
 export const medicalInstitutionApi = {
   // 导入医疗卫生机构数据
