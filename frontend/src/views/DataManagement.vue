@@ -200,7 +200,7 @@
         <!-- 乡镇 -->
         <el-table-column v-if="!isCityCapacityMode" label="街道/乡镇" width="120">
           <template #default="{ row }">
-            {{ getFieldValue(row, 'township') }}
+            {{ dataType === 'family' ? getFieldValue(row, 'town') : getFieldValue(row, 'township') }}
           </template>
         </el-table-column>
 
@@ -208,7 +208,11 @@
         <el-table-column v-if="dataType === 'medical'" prop="communityName" label="社区/行政村" width="140" show-overflow-tooltip />
 
         <!-- 社区(行政村) (社区数据/家庭数据) -->
-        <el-table-column v-if="dataType === 'community' || dataType === 'family'" prop="communityName" label="社区(行政村)" width="160" />
+        <el-table-column v-if="dataType === 'community' || dataType === 'family'" label="社区(行政村)" width="160">
+          <template #default="{ row }">
+            {{ dataType === 'family' ? row.villageName : row.communityName }}
+          </template>
+        </el-table-column>
 
         <!-- 统一社会信用代码 (仅医疗机构数据) -->
         <el-table-column v-if="dataType === 'medical'" prop="unifiedSocialCreditCode" label="统一社会信用代码" width="200" />
@@ -259,9 +263,16 @@
           </template>
         </el-table-column>
 
+        <!-- ========== 家庭数据列 ========== -->
+        <el-table-column v-if="dataType === 'family'" prop="totalPeople" label="家庭总人数" width="120" />
+        <el-table-column v-if="dataType === 'family'" prop="age0To10Count" label="0-10岁人数" width="120" />
+        <el-table-column v-if="dataType === 'family'" prop="age65PlusCount" label="65岁以上人数" width="130" />
+        <el-table-column v-if="dataType === 'family'" prop="disabledCount" label="残障人数" width="100" />
+        <el-table-column v-if="dataType === 'family'" prop="chronicDiseaseCount" label="慢性病人数" width="120" />
+
         <!-- ========== 乡镇/社区数据列 ========== -->
         <!-- 人口数量 -->
-        <el-table-column label="人口数量" width="100" v-if="dataType !== 'medical' && !isCityCapacityMode">
+        <el-table-column label="人口数量" width="100" v-if="dataType !== 'medical' && dataType !== 'family' && !isCityCapacityMode">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.population : row.residentPopulation }}
           </template>
@@ -275,14 +286,14 @@
         </el-table-column>
 
         <!-- 资金投入(万元) -->
-        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" prop="fundingAmount" label="资金投入(万元)" width="140">
+        <el-table-column v-if="dataType !== 'medical' && dataType !== 'family' && !isCityCapacityMode" prop="fundingAmount" label="资金投入(万元)" width="140">
           <template #default="{ row }">
             <span v-if="dataType === 'township'">{{ formatDecimal(row.fundingAmount) }}</span>
             <span v-else>{{ formatDecimal(row.lastYearFundingAmount) }}</span>
           </template>
         </el-table-column>
         <!-- 物资价值(万元) -->
-        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" prop="materialValue" label="物资价值(万元)" width="140">
+        <el-table-column v-if="dataType !== 'medical' && dataType !== 'family' && !isCityCapacityMode" prop="materialValue" label="物资价值(万元)" width="140">
           <template #default="{ row }">
             <span v-if="dataType === 'township'">{{ formatDecimal(row.materialValue) }}</span>
             <span v-else>{{ formatDecimal(row.materialsEquipmentValue) }}</span>
@@ -299,21 +310,21 @@
         <el-table-column v-if="dataType === 'township' && !isCityCapacityMode" prop="firefighters" label="消防员数量" width="100" />
 
         <!-- 志愿者人数 -->
-        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" label="志愿者人数" width="100">
+        <el-table-column v-if="dataType !== 'medical' && dataType !== 'family' && !isCityCapacityMode" label="志愿者人数" width="100">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.volunteers : row.registeredVolunteerCount }}
           </template>
         </el-table-column>
 
         <!-- 民兵预备役 -->
-        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" label="民兵预备役" width="100">
+        <el-table-column v-if="dataType !== 'medical' && dataType !== 'family' && !isCityCapacityMode" label="民兵预备役" width="100">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.militiaReserve : row.militiaReserveCount }}
           </template>
         </el-table-column>
 
         <!-- 培训参与人次 -->
-        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" label="培训参与人次" width="130">
+        <el-table-column v-if="dataType !== 'medical' && dataType !== 'family' && !isCityCapacityMode" label="培训参与人次" width="130">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.trainingParticipants : row.lastYearTrainingParticipants }}
           </template>
@@ -323,7 +334,7 @@
         <el-table-column v-if="dataType === 'community'" prop="lastYearDrillParticipants" label="演练参与人次" width="120" />
 
         <!-- 避难场所容量 -->
-        <el-table-column v-if="dataType !== 'medical' && !isCityCapacityMode" label="避难场所容量" width="120">
+        <el-table-column v-if="dataType !== 'medical' && dataType !== 'family' && !isCityCapacityMode" label="避难场所容量" width="120">
           <template #default="{ row }">
             {{ dataType === 'township' ? row.shelterCapacity : row.emergencyShelterCapacity }}
           </template>

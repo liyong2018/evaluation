@@ -548,6 +548,7 @@ const years = ref<number[]>(Array.from({ length: currentYear - 2020 + 1 }, (_, i
 const GOVERNMENT_MODEL_KEYWORD = '政府减灾能力'
 const ENTERPRISE_MODEL_KEYWORD = '企业减灾能力'
 const SOCIAL_ORGANIZATION_MODEL_KEYWORD = '社会组织减灾能力'
+const FAMILY_MODEL_KEYWORD = '家庭减灾能力'
 
 const evaluationForm = reactive<any>({
   name: '',
@@ -583,6 +584,25 @@ const findGovernmentModel = (year?: number | string) => {
   const candidates = evaluationModels.value.filter((model: any) => {
     const modelName = String(model?.modelName || '')
     return modelName.includes(GOVERNMENT_MODEL_KEYWORD)
+  })
+
+  if (!yearText) {
+    return candidates[0] || null
+  }
+
+  const exactMatch = candidates.find((model: any) => {
+    const modelName = String(model?.modelName || '')
+    return modelName.includes(`（${yearText}）`) || modelName.includes(`(${yearText})`) || modelName.includes(yearText)
+  })
+
+  return exactMatch || candidates[0] || null
+}
+
+const findFamilyModel = (year?: number | string) => {
+  const yearText = String(year || '').trim()
+  const candidates = evaluationModels.value.filter((model: any) => {
+    const modelName = String(model?.modelName || '')
+    return modelName.includes(FAMILY_MODEL_KEYWORD)
   })
 
   if (!yearText) {
@@ -719,6 +739,13 @@ const handleModelChange = async (modelId: number) => {
       globalOrganizationStore.setPreferredCapacityModel('social-organization')
     }
     console.log('自动切换到社会组织减灾能力数据源')
+  } else if (selectedModelName.includes(FAMILY_MODEL_KEYWORD)) {
+    evaluationForm.dataType = 'family'
+    evaluationForm.dataSource = 'REGION'
+    if (isCityLevel) {
+      globalOrganizationStore.setPreferredCapacityModel('family')
+    }
+    console.log('自动切换到家庭减灾能力数据源')
   } else if (modelId === 3 || modelId === 11) {
     // 乡镇模型：乡镇减灾能力TOPSIS评估模型(3) 或 社区-乡镇减灾能力评估模型(8)
     evaluationForm.dataType = 'township'
@@ -1217,7 +1244,8 @@ const handleRegionTreeChange = async (value: string) => {
   const isCapacityModelSelected =
     selectedModelName.includes(GOVERNMENT_MODEL_KEYWORD) ||
     selectedModelName.includes(ENTERPRISE_MODEL_KEYWORD) ||
-    selectedModelName.includes(SOCIAL_ORGANIZATION_MODEL_KEYWORD)
+    selectedModelName.includes(SOCIAL_ORGANIZATION_MODEL_KEYWORD) ||
+    selectedModelName.includes(FAMILY_MODEL_KEYWORD)
 
   // 如果选择的是区县级别（level 3），加载数据
   if (selectedNode.level === 3) {
@@ -2475,10 +2503,12 @@ const setDefaultValues = async () => {
   const targetCapacityModel = shouldUseCapacityPreset
     ? (
       preferredCapacityModel === 'enterprise'
-        ? (findEnterpriseModel(evaluationForm.year) || findGovernmentModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year))
+        ? (findEnterpriseModel(evaluationForm.year) || findGovernmentModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year) || findFamilyModel(evaluationForm.year))
         : preferredCapacityModel === 'social-organization'
-          ? (findSocialOrganizationModel(evaluationForm.year) || findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year))
-          : (findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year))
+          ? (findSocialOrganizationModel(evaluationForm.year) || findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findFamilyModel(evaluationForm.year))
+          : preferredCapacityModel === 'family'
+            ? (findFamilyModel(evaluationForm.year) || findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year))
+            : (findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year) || findFamilyModel(evaluationForm.year))
     )
     : null
 
