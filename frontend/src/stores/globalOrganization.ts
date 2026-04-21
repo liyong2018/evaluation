@@ -11,26 +11,24 @@ export interface OrganizationInfo {
   countyName?: string
   townshipName?: string
   communityName?: string
-  preferredCapacityModel?: 'government' | 'enterprise' | 'social-organization'
+  preferredCapacityModel?: 'government' | 'enterprise' | 'social-organization' | 'family' | 'community' | 'township'
 }
 
 export const useGlobalOrganizationStore = defineStore('globalOrganization', () => {
   // 从 localStorage 读取选中的组织机构
   const STORAGE_KEY = 'evaluation_selected_organization'
 
-  const getStoredOrganization = (): OrganizationInfo | null => {
+  const selectedOrganization = ref<OrganizationInfo | null>((() => {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       try {
         return JSON.parse(stored)
       } catch (e) {
-        console.warn('Failed to parse stored organization:', e)
+        console.error('Failed to parse stored organization:', e)
       }
     }
     return null
-  }
-
-  const selectedOrganization = ref<OrganizationInfo | null>(getStoredOrganization())
+  })())
 
   // 设置选中的组织机构
   function setOrganization(org: OrganizationInfo | null) {
@@ -50,7 +48,7 @@ export const useGlobalOrganizationStore = defineStore('globalOrganization', () =
     }
   }
 
-  function setPreferredCapacityModel(mode: 'government' | 'enterprise' | 'social-organization' | null) {
+  function setPreferredCapacityModel(mode: 'government' | 'enterprise' | 'social-organization' | 'family' | 'community' | 'township' | null) {
     if (!selectedOrganization.value) return
     const nextOrg: OrganizationInfo = {
       ...selectedOrganization.value,

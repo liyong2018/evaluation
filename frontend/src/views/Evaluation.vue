@@ -750,8 +750,8 @@ const handleModelChange = async (modelId: number) => {
     // 乡镇模型：乡镇减灾能力TOPSIS评估模型(3) 或 社区-乡镇减灾能力评估模型(8)
     evaluationForm.dataType = 'township'
     console.log('自动切换到乡镇数据类型')
-  } else if (modelId === 4 || modelId === 8) {
-    // 社区模型：社区减灾能力TOPSIS评估模型(4) 或 区县减灾能力综合评估模型(11)
+  } else if (modelId === 4 || modelId === 8 || modelId === 17) {
+    // 社区模型：社区减灾能力TOPSIS评估模型(4) 或 社区-乡镇减灾能力评估模型(8) 或 社区-区县减灾能力评估模型(17)
     evaluationForm.dataType = 'community'
     console.log('自动切换到社区数据类型')
   }
@@ -771,6 +771,10 @@ const handleModelChange = async (modelId: number) => {
   if (storedOrg && (storedOrg.provinceName || storedOrg.name)) {
     console.log('恢复组织机构选择:', storedOrg)
     await restoreOrganizationSelection(storedOrg)
+  }
+
+  if (evaluationForm.orgCode) {
+    await handleRegionTreeChange(evaluationForm.orgCode)
   }
 }
 
@@ -873,7 +877,7 @@ const getProvinces = async (autoSelect = true) => {
         }
       }
 
-      // 如果没有找到匹配的省份，使用默认的第一条
+        // 如果没有找到匹配的省份，使用默认的第一条
       if (!targetProvinceName && provinces.value.length > 0) {
         targetProvinceName = provinces.value[0].name
       }
@@ -1241,16 +1245,11 @@ const handleRegionTreeChange = async (value: string) => {
   globalOrganizationStore.setOrganization(levelInfo)
 
   const selectedModelName = String(selectedModel.value?.modelName || '')
-  const isCapacityModelSelected =
-    selectedModelName.includes(GOVERNMENT_MODEL_KEYWORD) ||
-    selectedModelName.includes(ENTERPRISE_MODEL_KEYWORD) ||
-    selectedModelName.includes(SOCIAL_ORGANIZATION_MODEL_KEYWORD) ||
-    selectedModelName.includes(FAMILY_MODEL_KEYWORD)
 
   // 如果选择的是区县级别（level 3），加载数据
   if (selectedNode.level === 3) {
     await loadCountyData(selectedNode.name, selectedNode.code)
-  } else if (selectedNode.level === 2 && isCapacityModelSelected) {
+  } else if (selectedNode.level === 2) {
     evaluationForm.regions = [selectedNode.code]
   } else {
     console.log('选择的是非区县级别的节点，暂不加载数据')
@@ -1390,6 +1389,10 @@ const clearFilters = () => {
 
 // 获取区县名称
 const getCountyName = (code: string) => {
+  if (!code) return ''
+  // 1. 如果传进来的是汉字，直接返回
+  if (!isAdministrativeCode(code)) return code
+
   const selectedNode = findRegionNodeByCode(regionTreeData.value, code)
   const countyName = selectedNode?.level === 3 ? (selectedNode.countyName || selectedNode.name) : ''
   const provinceName = selectedNode?.provinceName || ''
@@ -1399,7 +1402,7 @@ const getCountyName = (code: string) => {
     return buildCountyFullName(provinceName, cityName, countyName)
   }
 
-  const county = counties.value.find((c: any) => c.code === code)
+  const county = counties.value.find((c: any) => c.code === code || (c.code && String(c.code).startsWith(code)))
   return county?.name || code
 }
 
@@ -2498,7 +2501,7 @@ const setDefaultValues = async () => {
   // 设置默认权重配置为第一项
 
   const storedOrg = globalOrganizationStore.selectedOrganization
-  const shouldUseCapacityPreset = Number(storedOrg?.level) === 2
+  const shouldUseCapacityPreset = Number(storedOrg?.level) === 2 || Number(storedOrg?.level) === 3
   const preferredCapacityModel = storedOrg?.preferredCapacityModel
   const targetCapacityModel = shouldUseCapacityPreset
     ? (
@@ -2508,13 +2511,23 @@ const setDefaultValues = async () => {
           ? (findSocialOrganizationModel(evaluationForm.year) || findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findFamilyModel(evaluationForm.year))
           : preferredCapacityModel === 'family'
             ? (findFamilyModel(evaluationForm.year) || findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year))
-            : (findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year) || findFamilyModel(evaluationForm.year))
+            : preferredCapacityModel === 'community'
+              ? (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 4) || evaluationModels.value.find((m: any) => m.id === 8))
+            : preferredCapacityModel === 'township'
+              ? (Number(storedOrg?.level) === 2 ? (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 3)) : (evaluationModels.value.find((m: any) => m.id === 3) || evaluationModels.value.find((m: any) => m.id === 11)))
+              : (findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year) || findFamilyModel(evaluationForm.year))
     )
     : null
 
   if (targetCapacityModel) {
     evaluationForm.modelId = targetCapacityModel.id
-    evaluationForm.dataType = 'township'
+    if (preferredCapacityModel === 'community' || targetCapacityModel.id === 17 || targetCapacityModel.id === 4 || targetCapacityModel.id === 8) {
+      evaluationForm.dataType = 'community'
+    } else if (preferredCapacityModel === 'family') {
+      evaluationForm.dataType = 'family'
+    } else {
+      evaluationForm.dataType = 'township'
+    }
     evaluationForm.dataSource = 'REGION'
   } else if (evaluationModels.value.length > 0) {
     evaluationForm.modelId = evaluationModels.value[0].id
