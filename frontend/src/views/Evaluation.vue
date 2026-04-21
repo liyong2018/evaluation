@@ -2514,7 +2514,7 @@ const setDefaultValues = async () => {
             : preferredCapacityModel === 'community'
               ? (Number(storedOrg?.level) === 2 ? (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 4)) : (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 4) || evaluationModels.value.find((m: any) => m.id === 8)))
             : preferredCapacityModel === 'township'
-              ? (evaluationModels.value.find((m: any) => m.id === 3) || evaluationModels.value.find((m: any) => m.id === 11))
+              ? (Number(storedOrg?.level) === 2 ? (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 3)) : (evaluationModels.value.find((m: any) => m.id === 3) || evaluationModels.value.find((m: any) => m.id === 11)))
               : (findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year) || findFamilyModel(evaluationForm.year))
     )
     : null
