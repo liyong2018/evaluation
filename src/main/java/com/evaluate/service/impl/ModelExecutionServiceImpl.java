@@ -242,6 +242,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             effectiveRegionCodes = resolveSocialOrganizationRegionCodes(regionCodes, year);
         } else if (familyModel) {
             effectiveRegionCodes = resolveFamilyRegionCodes(regionCodes, year);
+        } else if (modelId == 4 || modelId == 8 || modelId == 17) {
+            effectiveRegionCodes = resolveCommunityRegionCodes(regionCodes, year);
+        } else if (modelId == 19) {
+            effectiveRegionCodes = resolveTownshipCountyUnitRegionCodes(regionCodes, year);
         } else {
             effectiveRegionCodes = new ArrayList<>(regionCodes);
         }
@@ -270,6 +274,14 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 } else if (socialOrganizationModel) {
                     if (!hasSocialOrganizationData(regionCode, year)) {
                         throw new RuntimeException("所选年份无社会组织减灾能力数据，无法进行社会组织减灾能力评估");
+                    }
+                } else if (modelId == 19 || modelId == 17) {
+                    // 模型19和17均使用市级的乡镇数据（survey_data表）
+                    QueryWrapper<SurveyData> q = new QueryWrapper<>();
+                    q.eq("region_code", regionCode).eq("year", year);
+                    SurveyData exists = surveyDataMapper.selectOne(q);
+                    if (exists == null) {
+                        throw new RuntimeException("所选年份无乡镇数据，无法进行当前评估模型");
                     }
                 } else if (modelId == 4 || modelId == 8) {
                     // 社区-行政村/乡镇减灾能力评估模型：检查社区数据
@@ -731,8 +743,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         addMapDataToContext(regionContext, locationRows.get(0));
                     }
                 }
-            } else if (modelId != null && (modelId == 4 || modelId == 8)) {
-                // 社区模型(modelId=4)和社区-乡镇模型(modelId=8)：从community_disaster_reduction_capacity表加载数据
+            } else if (modelId != null && (modelId == 4 || modelId == 8 || modelId == 17)) {
+                // 社区模型(modelId=4/8/17)：从community_disaster_reduction_capacity表加载数据
                 // 使用selectMaps直接返回Map，key为数据库字段名，可直接匹配算法表达式中的变量名
                 Map<String, Object> cachedCommunity = communityDataMap != null ? communityDataMap.get(regionCode) : null;
                 if (cachedCommunity != null) {
@@ -1349,7 +1361,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 loadEnterpriseBaseData(context, regionCodes, year);
             } else if (isSocialOrganizationModel(modelId, (String) context.get("modelName"))) {
                 loadSocialOrganizationBaseData(context, regionCodes, year);
-            } else if (modelId == 4 || modelId == 8) {
+            } else if (modelId == 4 || modelId == 8 || modelId == 17) {
                 // 社区级评估模型：加载社区数据并按年份筛选
                 loadCommunityBaseData(context, regionCodes, year);
             } else {
@@ -4970,6 +4982,15 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                         if (!hasSocialOrganizationData(regionCode, year)) {
                             result.put("exists", false);
                             result.put("message", "所选年份无社会组织减灾能力数据，无法进行社会组织减灾能力评估");
+                            return result;
+                        }
+                    } else if (modelId == 19 || modelId == 17) {
+                        QueryWrapper<SurveyData> q = new QueryWrapper<>();
+                        q.eq("region_code", regionCode).eq("year", year);
+                        SurveyData exists = surveyDataMapper.selectOne(q);
+                        if (exists == null) {
+                            result.put("exists", false);
+                            result.put("message", "所选年份无乡镇数据，无法进行当前评估模型");
                             return result;
                         }
                     } else if (modelId == 4 || modelId == 8) {
