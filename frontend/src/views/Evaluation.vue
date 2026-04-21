@@ -2512,9 +2512,9 @@ const setDefaultValues = async () => {
           : preferredCapacityModel === 'family'
             ? (findFamilyModel(evaluationForm.year) || findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year))
             : preferredCapacityModel === 'community'
-              ? (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 4) || evaluationModels.value.find((m: any) => m.id === 8))
+              ? (Number(storedOrg?.level) === 2 ? (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 4)) : (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 4) || evaluationModels.value.find((m: any) => m.id === 8)))
             : preferredCapacityModel === 'township'
-              ? (Number(storedOrg?.level) === 2 ? (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 3)) : (evaluationModels.value.find((m: any) => m.id === 3) || evaluationModels.value.find((m: any) => m.id === 11)))
+              ? (evaluationModels.value.find((m: any) => m.id === 3) || evaluationModels.value.find((m: any) => m.id === 11))
               : (findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year) || findFamilyModel(evaluationForm.year))
     )
     : null
