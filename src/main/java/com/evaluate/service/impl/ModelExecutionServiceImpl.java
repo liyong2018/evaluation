@@ -97,6 +97,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     private static final String ENTERPRISE_MODEL_KEYWORD = "企业减灾能力";
     private static final String SOCIAL_ORGANIZATION_MODEL_KEYWORD = "社会组织减灾能力";
     private static final String GOVERNMENT_CAPACITY_TABLE = "government_disaster_reduction_capacity_2020";
+    private static final String FIREFIGHTER_CONFIG_TABLE = "firefighter_config";
     private static final String ENTERPRISE_CAPACITY_TABLE = "enterprise_disaster_reduction_capacity_2020";
     private static final String SOCIAL_ORGANIZATION_CAPACITY_TABLE = "social_organization_disaster_reduction_capacity_2020";
     private static final String FAMILY_MODEL_KEYWORD = "家庭减灾能力";
@@ -2159,6 +2160,74 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         return jdbcTemplate.queryForList(sql.toString(), params.toArray());
     }
 
+    private List<String> resolveCommunityRegionCodes(List<String> regionCodes, Integer year) {
+        if (regionCodes == null || regionCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        StringBuilder sql = new StringBuilder("SELECT DISTINCT region_code FROM community_disaster_reduction_capacity WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        sql.append(" AND (");
+        for (int i = 0; i < regionCodes.size(); i++) {
+            sql.append("region_code LIKE ?");
+            params.add(regionCodes.get(i).trim() + "%");
+            if (i < regionCodes.size() - 1) {
+                sql.append(" OR ");
+            }
+        }
+        sql.append(")");
+        if (year != null) {
+            sql.append(" AND year = ?");
+            params.add(year);
+        }
+        
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql.toString(), params.toArray());
+        List<String> resolved = rows.stream()
+                .map(row -> row.get("region_code"))
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .collect(Collectors.toList());
+        if (!resolved.isEmpty()) {
+            return resolved;
+        }
+        return new ArrayList<>(regionCodes);
+    }
+
+    private List<String> resolveTownshipCountyUnitRegionCodes(List<String> regionCodes, Integer year) {
+        if (regionCodes == null || regionCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        StringBuilder sql = new StringBuilder("SELECT DISTINCT region_code FROM survey_data WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        sql.append(" AND (");
+        for (int i = 0; i < regionCodes.size(); i++) {
+            sql.append("region_code LIKE ?");
+            params.add(regionCodes.get(i).trim() + "%");
+            if (i < regionCodes.size() - 1) {
+                sql.append(" OR ");
+            }
+        }
+        sql.append(")");
+        if (year != null) {
+            sql.append(" AND year = ?");
+            params.add(year);
+        }
+        
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql.toString(), params.toArray());
+        List<String> resolved = rows.stream()
+                .map(row -> row.get("region_code"))
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .collect(Collectors.toList());
+        if (!resolved.isEmpty()) {
+            return resolved;
+        }
+        return new ArrayList<>(regionCodes);
+    }
+
     private List<String> resolveFamilyRegionCodes(List<String> regionCodes, Integer year) {
         List<Map<String, Object>> rows = queryFamilyRows(regionCodes, year);
         List<String> resolved = rows.stream()
@@ -2329,7 +2398,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 消防员（驼峰和下划线两种命名）- 处理null值
         Integer firefighters = surveyData.getFirefighters();
         context.put("firefighters", firefighters != null ? firefighters : 0);
-        context.put(" firefighter_count", firefighters != null ? firefighters : 0);
+        context.put("firefighter_count", firefighters != null ? firefighters : 0);
 
         // 志愿者（驼峰和下划线两种命名）- 处理null值
         Integer volunteers = surveyData.getVolunteers();
@@ -2610,25 +2679,49 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             Map<String, Object> outputs = regionResults.get(regionCode);
             String townshipNameMeta = null;
             String communityNameMeta = null;
+            String countyNameMeta = null;
             String firstCommunityCodeMeta = null;
+            String firstTownshipCodeMeta = null;
             boolean isTownship = false;
+            boolean isCounty = false;
 
             if (outputs != null) {
                 townshipNameMeta = toString(outputs.get("_townshipName"));
                 communityNameMeta = toString(outputs.get("_communityName"));
+                countyNameMeta = toString(outputs.get("_countyName"));
                 firstCommunityCodeMeta = toString(outputs.get("_firstCommunityCode"));
-                Object flag = outputs.get("_isTownship");
-                if (flag instanceof Boolean) {
-                    isTownship = (Boolean) flag;
-                } else if (flag != null) {
-                    isTownship = "true".equalsIgnoreCase(flag.toString());
+                firstTownshipCodeMeta = toString(outputs.get("_firstTownshipCode"));
+                
+                Object flagTownship = outputs.get("_isTownship");
+                if (flagTownship instanceof Boolean) {
+                    isTownship = (Boolean) flagTownship;
+                } else if (flagTownship != null) {
+                    isTownship = "true".equalsIgnoreCase(flagTownship.toString());
                 }
                 if (!isTownship && outputs.containsKey("_townshipRegionCode")) {
                     isTownship = true;
                 }
+                
+                Object flagCounty = outputs.get("_isCounty");
+                if (flagCounty instanceof Boolean) {
+                    isCounty = (Boolean) flagCounty;
+                } else if (flagCounty != null) {
+                    isCounty = "true".equalsIgnoreCase(flagCounty.toString());
+                }
+                if (!isCounty && outputs.containsKey("_countyRegionCode")) {
+                    isCounty = true;
+                }
 
                 if (!locationModel) {
-                    if (isTownship) {
+                    if (isCounty) {
+                        if (!isEmptyString(countyNameMeta)) {
+                            regionName = countyNameMeta;
+                        }
+                        if (!isEmptyString(regionName)) {
+                            row.put("regionName", regionName);
+                            row.put("countyName", regionName);
+                        }
+                    } else if (isTownship) {
                         if (!isEmptyString(townshipNameMeta)) {
                             regionName = townshipNameMeta;
                         } else if (!isEmptyString(firstCommunityCodeMeta)) {
@@ -2759,7 +2852,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
         log.info("从 {} 行数据中收集到 {} 个唯一列名", tableData.size(), allColumnNames.size());
 
-        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region", "provinceName", "cityName", "townshipName", "communityName"));
+        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region", "provinceName", "cityName", "countyName", "townshipName", "communityName"));
 
         // 创建反向映射：列名 -> 步骤序号
         Map<String, Integer> columnToStepOrder = new HashMap<>();
@@ -2834,9 +2927,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         
         // 从第一行数据提取所有列名
         Map<String, Object> firstRow = tableData.get(0);
-        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region"));
-        
-        
+        Set<String> baseColumns = new HashSet<>(Arrays.asList(
+            "regionCode", "regionName", "region", "provinceName", "cityName", "countyName", "townshipName", "communityName"
+        ));
+
         for (String columnName : firstRow.keySet()) {
             Map<String, Object> column = new LinkedHashMap<>();
             column.put("prop", columnName);
@@ -2895,7 +2989,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         String stepCode = rawStepResult != null ? toString(rawStepResult.get("stepCode")) : null;
 
         Map<String, Object> firstRow = tableData.get(0);
-        Set<String> baseColumns = new HashSet<>(Arrays.asList("regionCode", "regionName", "region", "provinceName", "cityName", "townshipName", "communityName"));
+        Set<String> baseColumns = new HashSet<>(Arrays.asList(
+            "regionCode", "regionName", "region", "provinceName", "cityName", "countyName", "townshipName", "communityName"
+        ));
 
         for (String columnName : firstRow.keySet()) {
             if (columnName.startsWith("_")) {
@@ -2960,6 +3056,9 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         } else if (modelId == 8) {
             // 社区-乡镇评估模型：将社区数据聚合到乡镇级别
             return executeTownshipAggregation(stepId, regionCodes, inputData);
+        } else if (modelId == 19) {
+            // 乡镇-区县评估模型：将乡镇数据聚合到区县级别
+            return executeCountyAggregation(stepId, regionCodes, inputData);
         } else {
             log.warn("不支持的模型ID进行聚合: {}", modelId);
             return new HashMap<>();
@@ -2978,6 +3077,178 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     private Map<String, Object> executeCommunityAggregation(Long stepId, List<String> regionCodes, Map<String, Object> inputData) {
         // 直接调用现有的乡镇聚合逻辑
         return executeTownshipAggregation(stepId, regionCodes, inputData);
+    }
+
+    private Map<String, Object> executeCountyAggregation(Long stepId, List<String> regionCodes, Map<String, Object> inputData) {
+        log.info("开始执行区县聚合, stepId={}, regionCodes.size={}", stepId, regionCodes.size());
+
+        Integer year = (Integer) inputData.get("year");
+
+        ModelStep step = modelStepMapper.selectById(stepId);
+        if (step == null || step.getStatus() == 0) {
+            throw new RuntimeException("步骤不存在或已禁用");
+        }
+        
+        QueryWrapper<StepAlgorithm> algorithmQuery = new QueryWrapper<>();
+        algorithmQuery.eq("step_id", stepId)
+                .eq("status", 1)
+                .orderByAsc("algorithm_order");
+        List<StepAlgorithm> algorithms = stepAlgorithmMapper.selectList(algorithmQuery);
+
+        if (algorithms == null || algorithms.isEmpty()) {
+            return new HashMap<>();
+        }
+        
+        Map<String, List<Map<String, Object>>> countyGroups = new LinkedHashMap<>();
+        Map<String, String> countyToFirstRegionCode = new HashMap<>();
+        
+        for (String regionCode : regionCodes) {
+            QueryWrapper<SurveyData> surveyQuery = new QueryWrapper<>();
+            surveyQuery.eq("region_code", regionCode);
+            surveyQuery.eq("is_deleted", 0);
+            if (year != null) {
+                surveyQuery.eq("year", year);
+            } else {
+                surveyQuery.orderByDesc("year");
+            }
+            surveyQuery.orderByDesc("create_time");
+            surveyQuery.last("LIMIT 1");
+            SurveyData surveyData = surveyDataMapper.selectOne(surveyQuery);
+
+            if (surveyData == null) {
+                continue;
+            }
+
+            String countyName = surveyData.getCounty();
+            if (countyName == null || countyName.isEmpty()) {
+                continue;
+            }
+            
+            Map<String, Object> townshipContext = new HashMap<>();
+            townshipContext.put("currentRegionCode", regionCode);
+            addSurveyDataToContext(townshipContext, surveyData);
+            
+            for (Map.Entry<String, Object> entry : inputData.entrySet()) {
+                String key = entry.getKey();
+                if (key.startsWith("step_")) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Map<String, Object>> regionResults = 
+                            (Map<String, Map<String, Object>>) stepResult.get("regionResults");
+                    
+                    if (regionResults != null && regionResults.containsKey(regionCode)) {
+                        Map<String, Object> outputs = regionResults.get(regionCode);
+                        townshipContext.putAll(outputs);
+                    }
+                }
+            }
+            
+            countyGroups.computeIfAbsent(countyName, k -> new ArrayList<>()).add(townshipContext);
+            countyToFirstRegionCode.putIfAbsent(countyName, regionCode);
+        }
+        
+        log.info("按区县分组完成，共 {} 个区县", countyGroups.size());
+        
+        Map<String, Map<String, Object>> countyResults = new LinkedHashMap<>();
+        Map<String, String> outputToAlgorithmName = new LinkedHashMap<>();
+        
+        for (Map.Entry<String, List<Map<String, Object>>> entry : countyGroups.entrySet()) {
+            String countyName = entry.getKey();
+            List<Map<String, Object>> townships = entry.getValue();
+            int townshipCount = townships.size();
+            String firstTownshipCode = countyToFirstRegionCode.get(countyName);
+            String countyRegionCode = firstTownshipCode != null && firstTownshipCode.length() >= 6
+                    ? firstTownshipCode.substring(0, 6) : "COUNTY_" + countyName;
+            double countyPopulation = resolveCountyPopulation(countyRegionCode, countyName, year, townships);
+            double countyHospitalBeds = resolveCountyHospitalBeds(countyRegionCode, year, townships);
+            double countyFirefighterCount = resolveCountyFirefighterCount(countyRegionCode, townships);
+            
+            log.info("处理区县: {}, 乡镇数量: {}, 区县人口口径: {}, 区县床位口径: {}, 消防员口径: {}",
+                    countyName, townshipCount, countyPopulation, countyHospitalBeds, countyFirefighterCount);
+
+            Map<String, Object> countyOutput = new LinkedHashMap<>();
+
+            for (StepAlgorithm algorithm : algorithms) {
+                String qlExpression = algorithm.getQlExpression();
+                String outputParam = algorithm.getOutputParam();
+                String inputParams = algorithm.getInputParams();
+
+                if (outputParam == null || outputParam.isEmpty()) {
+                    continue;
+                }
+                String cleanedOutputParam = outputParam.trim();
+
+                double result;
+                if (qlExpression != null && (
+                        qlExpression.contains("SUM(")
+                                || qlExpression.contains("countyPopulation")
+                                || qlExpression.contains("county_population")
+                                || qlExpression.contains("countyHospitalBeds")
+                                || qlExpression.contains("county_hospital_beds")
+                                || qlExpression.contains("countyFirefighterCount")
+                                || qlExpression.contains("county_firefighter_count")
+                                || qlExpression.contains("townshipCount")
+                                || qlExpression.contains("communityCount"))) {
+                    Map<String, Double> expressionVariables = new HashMap<>();
+                    expressionVariables.put("communityCount", (double) townshipCount);
+                    expressionVariables.put("townshipCount", (double) townshipCount);
+                    expressionVariables.put("countyPopulation", countyPopulation);
+                    expressionVariables.put("county_population", countyPopulation);
+                    expressionVariables.put("countyHospitalBeds", countyHospitalBeds);
+                    expressionVariables.put("county_hospital_beds", countyHospitalBeds);
+                    expressionVariables.put("countyFirefighterCount", countyFirefighterCount);
+                    expressionVariables.put("county_firefighter_count", countyFirefighterCount);
+                    result = calculateAggregationExpression(qlExpression, townships, townshipCount, expressionVariables);
+                } else {
+                    String inputField = null;
+                    if (inputParams != null && !inputParams.isEmpty()) {
+                        inputField = inputParams.split(",")[0].trim();
+                    } else {
+                        inputField = qlExpression != null ? qlExpression.trim() : null;
+                    }
+
+                    if (inputField == null || inputField.isEmpty()) {
+                        continue;
+                    }
+
+                    double sum = 0.0;
+                    int validCount = 0;
+                    for (Map<String, Object> township : townships) {
+                        Object value = township.get(inputField);
+                        if (value != null) {
+                            double doubleValue = toDouble(value);
+                            sum += doubleValue;
+                            validCount++;
+                        }
+                    }
+                    result = validCount > 0 ? sum / townshipCount : 0.0;
+                }
+
+                result = Double.parseDouble(String.format("%.8f", result));
+
+                countyOutput.put(cleanedOutputParam, result);
+                String algorithmName = algorithm.getAlgorithmName();
+                outputToAlgorithmName.put(cleanedOutputParam, algorithmName != null ? algorithmName.trim() : null);
+            }
+
+            countyResults.put(countyRegionCode, countyOutput);
+            
+            countyOutput.put("_countyName", countyName);
+            countyOutput.put("_firstTownshipCode", firstTownshipCode);
+            countyOutput.put("_countyRegionCode", countyRegionCode);
+            countyOutput.put("_isCounty", true);
+        }
+        
+        Map<String, Object> stepResult = new HashMap<>();
+        stepResult.put("stepId", stepId);
+        stepResult.put("stepName", step.getStepName());
+        stepResult.put("stepCode", step.getStepCode());
+        stepResult.put("stepOrder", step.getStepOrder());
+        stepResult.put("regionResults", countyResults);
+        stepResult.put("outputToAlgorithmName", outputToAlgorithmName);
+        
+        return stepResult;
     }
 
     /**
@@ -3415,6 +3686,14 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
      * @return 计算结果
      */
     private double calculateAggregationExpression(String expression, List<Map<String, Object>> communities, int communityCount) {
+        return calculateAggregationExpression(expression, communities, communityCount, null);
+    }
+
+    private double calculateAggregationExpression(
+            String expression,
+            List<Map<String, Object>> communities,
+            int communityCount,
+            Map<String, Double> variables) {
         try {
             // 1. 使用正则表达式找出所有SUM(字段名)
             java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("SUM\\(([^)]+)\\)");
@@ -3443,6 +3722,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
                 for (Map<String, Object> community : communities) {
                     Object value = community.get(fieldName);
+                    
                     log.debug("社区字段值: {} = {}", fieldName, value);
                     if (value != null) {
                         sum += toDouble(value);
@@ -3460,6 +3740,15 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
             // 4. 替换communityCount为实际的社区数量
             processedExpression = processedExpression.replace("communityCount", String.valueOf(communityCount));
+            processedExpression = processedExpression.replace("townshipCount", String.valueOf(communityCount));
+            if (variables != null && !variables.isEmpty()) {
+                for (Map.Entry<String, Double> entry : variables.entrySet()) {
+                    if (entry.getKey() == null || entry.getValue() == null) {
+                        continue;
+                    }
+                    processedExpression = processedExpression.replace(entry.getKey(), String.valueOf(entry.getValue()));
+                }
+            }
 
             // 5. 使用QLExpress计算最终结果
             Object result = qlExpressService.execute(processedExpression, new HashMap<>());
@@ -3473,6 +3762,132 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             log.error("计算聚合表达式失败: expression={}, error={}", expression, e.getMessage(), e);
             return 0.0;
         }
+    }
+
+    private double resolveCountyPopulation(
+            String countyRegionCode,
+            String countyName,
+            Integer year,
+            List<Map<String, Object>> townshipContexts) {
+        // 口径优先：政府区县能力表中的区县总人口
+        if (StringUtils.hasText(countyRegionCode) && countyRegionCode.matches("\\d{6,}")) {
+            List<Object> params = new ArrayList<>();
+            StringBuilder sql = new StringBuilder("SELECT population FROM ")
+                    .append(GOVERNMENT_CAPACITY_TABLE)
+                    .append(" WHERE region_code LIKE ?");
+            params.add(countyRegionCode.substring(0, 6) + "%");
+            if (year != null) {
+                sql.append(" AND year = ?");
+                params.add(year);
+            }
+            sql.append(" ORDER BY year DESC LIMIT 1");
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql.toString(), params.toArray());
+            if (!rows.isEmpty()) {
+                Object populationObj = rows.get(0).get("population");
+                double population = toDouble(populationObj);
+                if (population > 0.0) {
+                    return population;
+                }
+            }
+        }
+
+        // 回退1：按区县名称在 survey_data 取 max(population)（避免简单累加导致口径膨胀）
+        if (StringUtils.hasText(countyName)) {
+            List<Object> params = new ArrayList<>();
+            StringBuilder sql = new StringBuilder("SELECT MAX(population) AS population FROM survey_data WHERE county = ? AND is_deleted = 0");
+            params.add(countyName);
+            if (year != null) {
+                sql.append(" AND year = ?");
+                params.add(year);
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql.toString(), params.toArray());
+            if (!rows.isEmpty()) {
+                Object populationObj = rows.get(0).get("population");
+                double population = toDouble(populationObj);
+                if (population > 0.0) {
+                    return population;
+                }
+            }
+        }
+
+        // 回退2：保持旧行为（乡镇人口求和）
+        double sumPopulation = 0.0;
+        if (townshipContexts != null) {
+            for (Map<String, Object> townshipContext : townshipContexts) {
+                if (townshipContext == null) {
+                    continue;
+                }
+                sumPopulation += toDouble(townshipContext.get("population"));
+            }
+        }
+        return sumPopulation > 0.0 ? sumPopulation : 1.0;
+    }
+
+    private double resolveCountyHospitalBeds(
+            String countyRegionCode,
+            Integer year,
+            List<Map<String, Object>> townshipContexts) {
+        // 口径优先：政府区县能力表中的区县总床位
+        if (StringUtils.hasText(countyRegionCode) && countyRegionCode.matches("\\d{6,}")) {
+            List<Object> params = new ArrayList<>();
+            StringBuilder sql = new StringBuilder("SELECT hospital_beds FROM ")
+                    .append(GOVERNMENT_CAPACITY_TABLE)
+                    .append(" WHERE region_code LIKE ?");
+            params.add(countyRegionCode.substring(0, 6) + "%");
+            if (year != null) {
+                sql.append(" AND year = ?");
+                params.add(year);
+            }
+            sql.append(" ORDER BY year DESC LIMIT 1");
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql.toString(), params.toArray());
+            if (!rows.isEmpty()) {
+                double beds = toDouble(rows.get(0).get("hospital_beds"));
+                if (beds > 0.0) {
+                    return beds;
+                }
+            }
+        }
+
+        // 回退：保持旧行为（乡镇床位求和）
+        double sumBeds = 0.0;
+        if (townshipContexts != null) {
+            for (Map<String, Object> townshipContext : townshipContexts) {
+                if (townshipContext == null) {
+                    continue;
+                }
+                sumBeds += toDouble(townshipContext.get("hospital_beds"));
+            }
+        }
+        return sumBeds;
+    }
+
+    private double resolveCountyFirefighterCount(
+            String countyRegionCode,
+            List<Map<String, Object>> townshipContexts) {
+        // 口径优先：消防员配置表汇总
+        if (StringUtils.hasText(countyRegionCode) && countyRegionCode.matches("\\d{6,}")) {
+            String sql = "SELECT COALESCE(SUM(firefighter_count),0) AS firefighter_count FROM "
+                    + FIREFIGHTER_CONFIG_TABLE + " WHERE region_code LIKE ? AND status = 1";
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, countyRegionCode.substring(0, 6) + "%");
+            if (!rows.isEmpty()) {
+                double firefighters = toDouble(rows.get(0).get("firefighter_count"));
+                if (firefighters > 0.0) {
+                    return firefighters;
+                }
+            }
+        }
+
+        // 回退：保持旧行为（乡镇消防员求和）
+        double sumFirefighters = 0.0;
+        if (townshipContexts != null) {
+            for (Map<String, Object> townshipContext : townshipContexts) {
+                if (townshipContext == null) {
+                    continue;
+                }
+                sumFirefighters += toDouble(townshipContext.get("firefighters"));
+            }
+        }
+        return sumFirefighters;
     }
 
     /**
@@ -4292,6 +4707,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 return "省名称";
             case "cityName":
                 return "市名称";
+            case "countyName":
+                return "区县名称";
             case "townshipName":
                 return "乡镇名称";
             case "communityName":
