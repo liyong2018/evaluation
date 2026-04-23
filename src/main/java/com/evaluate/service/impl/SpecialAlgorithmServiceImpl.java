@@ -2,11 +2,16 @@ package com.evaluate.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.evaluate.entity.EvaluationResult;
+import com.evaluate.entity.ModelExecutionRecord;
 import com.evaluate.mapper.EvaluationResultMapper;
+import com.evaluate.mapper.ModelExecutionRecordMapper;
 import com.evaluate.service.SpecialAlgorithmService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -23,6 +28,14 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
 
     @Autowired
     private EvaluationResultMapper evaluationResultMapper;
+    @Autowired
+    private ModelExecutionRecordMapper modelExecutionRecordMapper;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private static final String SOCIAL_ORGANIZATION_CAPACITY_TABLE = "social_organization_disaster_reduction_capacity_2020";
 
     @Override
     public Object executeSpecialAlgorithm(
@@ -75,31 +88,125 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         // 解析参数
         Map<String, String> paramMap = parseParams(params);
         String modelIdStr = paramMap.get("modelId");
+        String modelKey = paramMap.get("modelKey");
+        String stepCode = paramMap.get("stepCode");
         String fieldName = paramMap.get("field");
 
-        if (modelIdStr == null || fieldName == null) {
-            log.error("[LOAD_EVAL_RESULT] 参数不完整: modelId={}, field={}", modelIdStr, fieldName);
+        // 2020市级综合模型口径：社会组织4列取社会组织基础数据按“指标赋值+向量归一化+二级定权(0.25)”结果
+        if ("socialOrganization".equals(modelKey)
+                && "indicator_assignment".equalsIgnoreCase(stepCode)
+                && fieldName != null) {
+            Double socialStep1Weighted = loadSocialOrganizationWeightedIndicator(fieldName, currentRegionCode, regionContext);
+            if (socialStep1Weighted != null) {
+                return socialStep1Weighted;
+            }
+        }
+
+        Long modelId = null;
+        if (modelIdStr != null && !modelIdStr.trim().isEmpty()) {
+            modelId = Long.parseLong(modelIdStr);
+        } else if (modelKey != null && !modelKey.trim().isEmpty()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Long> sourceModelIds = (Map<String, Long>) regionContext.get("sourceModelIds");
+            if (sourceModelIds != null) {
+                modelId = sourceModelIds.get(modelKey.trim());
+            }
+        }
+
+        if (modelId == null || fieldName == null) {
+            // 2020市级综合模型兜底：社会组织模型未配置时，直接从社会组织基础表读取一级指标
+            if ("socialOrganization".equals(modelKey) && fieldName != null) {
+                Double fallbackValue = loadSocialOrganizationFallback(fieldName, currentRegionCode, parseInteger(regionContext.get("year")));
+                if (fallbackValue != null) {
+                    return fallbackValue;
+                }
+            }
+            log.error("[LOAD_EVAL_RESULT] 参数不完整: modelId={}, modelKey={}, field={}", modelIdStr, modelKey, fieldName);
             return 0.0;
         }
 
-        Long modelId = Long.parseLong(modelIdStr);
+        Integer year = parseInteger(regionContext.get("year"));
+        String orgCode = toString(regionContext.get("orgCode"));
+        List<String> candidateRegionCodes = resolveCandidateRegionCodes(currentRegionCode, modelKey);
 
-        // 从数据库查询评估结果
-        QueryWrapper<EvaluationResult> query = new QueryWrapper<>();
-        query.eq("evaluation_model_id", modelId)
-             .eq("region_code", currentRegionCode)
-             .orderByDesc("id")  // 获取最新记录
-             .last("LIMIT 1");
+        EvaluationResult result;
+        if (year != null) {
+            result = null;
+            for (String candidateRegionCode : candidateRegionCodes) {
+                result = evaluationResultMapper.selectLatestByModelYearOrgCodeAndRegionCode(modelId, year, orgCode, candidateRegionCode);
+                if (result != null) {
+                    break;
+                }
+            }
+        } else {
+            // 兼容无年份上下文的旧模型执行
+            result = null;
+            for (String candidateRegionCode : candidateRegionCodes) {
+                QueryWrapper<EvaluationResult> query = new QueryWrapper<>();
+                query.eq("evaluation_model_id", modelId)
+                        .eq("region_code", candidateRegionCode)
+                        .orderByDesc("id")
+                        .last("LIMIT 1");
+                result = evaluationResultMapper.selectOne(query);
+                if (result != null) {
+                    break;
+                }
+            }
+        }
 
-        EvaluationResult result = evaluationResultMapper.selectOne(query);
+        if (result == null && year != null) {
+            // 二次兜底：按execution_record反查同年份同地区最新结果
+            QueryWrapper<ModelExecutionRecord> recordQuery = new QueryWrapper<>();
+            recordQuery.eq("model_id", modelId)
+                    .eq("year", year)
+                    .orderByDesc("end_time")
+                    .orderByDesc("id");
+            if (orgCode != null && !orgCode.trim().isEmpty()) {
+                recordQuery.eq("org_code", orgCode.trim());
+            }
+            recordQuery.last("LIMIT 1");
+            ModelExecutionRecord latestRecord = modelExecutionRecordMapper.selectOne(recordQuery);
+            if (latestRecord != null) {
+                for (String candidateRegionCode : candidateRegionCodes) {
+                    QueryWrapper<EvaluationResult> fallback = new QueryWrapper<>();
+                    fallback.eq("execution_record_id", latestRecord.getId())
+                            .eq("region_code", candidateRegionCode)
+                            .orderByDesc("id")
+                            .last("LIMIT 1");
+                    result = evaluationResultMapper.selectOne(fallback);
+                    if (result != null) {
+                        break;
+                    }
+                }
+            }
+        }
 
         if (result == null) {
-            log.warn("[LOAD_EVAL_RESULT] 未找到评估结果: modelId={}, regionCode={}", modelId, currentRegionCode);
+            if ("socialOrganization".equals(modelKey)) {
+                Double fallbackValue = loadSocialOrganizationFallback(fieldName, currentRegionCode, year);
+                if (fallbackValue != null) {
+                    return fallbackValue;
+                }
+            }
+            log.warn("[LOAD_EVAL_RESULT] 未找到评估结果: modelId={}, year={}, orgCode={}, regionCode={}",
+                    modelId, year, orgCode, currentRegionCode);
             return 0.0;
         }
 
         // 根据字段名提取值
-        Double value = extractFieldValue(result, fieldName);
+        Double value = null;
+        // 指定stepCode时，优先从execution detail按步骤和字段精确取值（2020综合模型口径）
+        if (stepCode != null && !stepCode.trim().isEmpty()) {
+            value = loadFromExecutionDetail(modelId, modelKey, stepCode, fieldName, year, orgCode, currentRegionCode);
+        } else {
+            value = extractFieldValue(result, fieldName);
+            if (value == null) {
+                value = loadFromExecutionDetail(modelId, modelKey, null, fieldName, year, orgCode, currentRegionCode);
+            }
+        }
+        if (value == null) {
+            value = 0.0;
+        }
 
         if (log.isDebugEnabled()) {
             log.debug("[LOAD_EVAL_RESULT] 加载成功: modelId={}, region={}, field={}, value={}",
@@ -145,11 +252,397 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
                 bdValue = result.getComprehensiveCapabilityScore();
                 break;
             default:
-                log.warn("未知的字段名: {}", fieldName);
-                return 0.0;
+                return null;
+        }
+        return bdValue != null ? bdValue.doubleValue() : null;
+    }
+
+    private Double loadFromExecutionDetail(Long modelId,
+                                           String modelKey,
+                                           String stepCode,
+                                           String fieldName,
+                                           Integer year,
+                                           String orgCode,
+                                           String currentRegionCode) {
+        try {
+            QueryWrapper<ModelExecutionRecord> recordQuery = new QueryWrapper<>();
+            recordQuery.eq("model_id", modelId);
+            recordQuery.eq("execution_status", "SUCCESS");
+            if (year != null) {
+                recordQuery.eq("year", year);
+            }
+            if (orgCode != null && !orgCode.trim().isEmpty()) {
+                recordQuery.eq("org_code", orgCode.trim());
+            }
+            recordQuery.orderByDesc("end_time").orderByDesc("id").last("LIMIT 1");
+            ModelExecutionRecord record = modelExecutionRecordMapper.selectOne(recordQuery);
+            if (record == null || record.getResultDetail() == null) {
+                return null;
+            }
+
+            JsonNode root = objectMapper.readTree(record.getResultDetail());
+            JsonNode steps = root.path("stepResultsList");
+            if (!steps.isArray()) {
+                return null;
+            }
+
+            String targetRegionCode = normalizeRegionCodeByModelKey(currentRegionCode, modelKey);
+            for (JsonNode step : steps) {
+                if (stepCode != null && !stepCode.trim().isEmpty()) {
+                    String currentStepCode = step.path("stepCode").asText("");
+                    if (!stepCode.trim().equalsIgnoreCase(currentStepCode)) {
+                        continue;
+                    }
+                }
+                JsonNode regionNode = findRegionNode(step.path("regionResults"), targetRegionCode);
+                if (regionNode == null || regionNode.isMissingNode()) {
+                    continue;
+                }
+                // 优先直接按字段名取值
+                Double direct = nodeToDouble(regionNode.get(fieldName));
+                if (direct != null) {
+                    return direct;
+                }
+                Double byModelKey = extractByModelKey(modelKey, fieldName, regionNode);
+                if (byModelKey != null) {
+                    return byModelKey;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[LOAD_EVAL_RESULT] 解析执行明细失败: modelId={}, modelKey={}, field={}, region={}, error={}",
+                    modelId, modelKey, fieldName, currentRegionCode, e.getMessage());
+        }
+        return null;
+    }
+
+    private JsonNode findRegionNode(JsonNode regionResults, String regionCode) {
+        if (regionResults == null || !regionResults.isObject() || regionCode == null || regionCode.trim().isEmpty()) {
+            return null;
+        }
+        String normalized = regionCode.trim();
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(normalized);
+        if (normalized.length() == 6) {
+            candidates.add(normalized + "000");
+            candidates.add(normalized + "000000");
+        } else if (normalized.length() == 9) {
+            candidates.add(normalized + "000");
+            candidates.add(normalized.substring(0, 6));
+        } else if (normalized.length() == 12) {
+            candidates.add(normalized.substring(0, 9));
+            candidates.add(normalized.substring(0, 6));
+        }
+        for (String candidate : candidates) {
+            JsonNode node = regionResults.get(candidate);
+            if (node != null && !node.isMissingNode()) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private Double extractByModelKey(String modelKey, String fieldName, JsonNode regionNode) {
+        if ("government".equals(modelKey)) {
+            return extractGovernmentScore(fieldName, regionNode);
+        }
+        if ("enterprise".equals(modelKey) || "socialOrganization".equals(modelKey)) {
+            return extractEnterpriseScore(fieldName, regionNode);
+        }
+        if ("family".equals(modelKey)) {
+            switch (fieldName) {
+                case "family_vulnerability_score":
+                    return nodeToDouble(regionNode.get("l1_vul_score"));
+                case "family_material_score":
+                    return nodeToDouble(regionNode.get("l1_mat_score"));
+                case "family_information_score":
+                    return nodeToDouble(regionNode.get("l1_info_score"));
+                case "family_self_rescue_score":
+                    return nodeToDouble(regionNode.get("l1_self_score"));
+                default:
+                    return null;
+            }
+        }
+        return null;
+    }
+
+    private Double extractGovernmentScore(String fieldName, JsonNode regionNode) {
+        switch (fieldName) {
+            case "management_capability":
+            case "gov_management_score":
+                return nodeToDouble(regionNode.get("management_capability"));
+            case "engineering_defense_capability":
+            case "gov_engineering_score":
+                return nodeToDouble(regionNode.get("engineering_defense_capability"));
+            case "monitoring_warning_capability":
+            case "gov_monitoring_score":
+                return nodeToDouble(regionNode.get("monitoring_warning_capability"));
+            case "material_reserve_capability":
+            case "gov_material_score":
+                return nodeToDouble(regionNode.get("material_reserve_capability"));
+            case "professional_rescue_capability":
+            case "gov_rescue_team_score":
+                return nodeToDouble(regionNode.get("professional_rescue_capability"));
+            case "relocation_resettlement_capability":
+            case "gov_relocation_score":
+                return nodeToDouble(regionNode.get("relocation_resettlement_capability"));
+            default:
+                return null;
+        }
+    }
+
+    private Double extractEnterpriseScore(String fieldName, JsonNode regionNode) {
+        Double engineering = nodeToDouble(regionNode.get("engineering_rescue_capacity"));
+        Double insurance = nodeToDouble(regionNode.get("insurance_reinsurance_capacity"));
+        switch (fieldName) {
+            case "engineering_rescue_capacity":
+            case "management_capability_score":
+                return engineering;
+            case "insurance_reinsurance_capacity":
+            case "support_capability_score":
+                return insurance;
+            case "self_rescue_capability_score":
+                return engineering;
+            case "comprehensive_capability_score":
+                return insurance;
+            default:
+                return null;
+        }
+    }
+
+    private String normalizeRegionCodeByModelKey(String currentRegionCode, String modelKey) {
+        if (currentRegionCode == null) {
+            return null;
+        }
+        String normalized = currentRegionCode.trim();
+        if (normalized.length() > 6) {
+            return normalized.substring(0, 6);
+        }
+        return normalized;
+    }
+
+    private Double nodeToDouble(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        if (node.isNumber()) {
+            return node.doubleValue();
+        }
+        try {
+            return Double.parseDouble(node.asText().trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private List<String> resolveCandidateRegionCodes(String currentRegionCode, String modelKey) {
+        if (currentRegionCode == null || currentRegionCode.trim().isEmpty()) {
+            return Collections.singletonList(currentRegionCode);
+        }
+        String normalized = currentRegionCode.trim();
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(normalized);
+
+        if ("communityCountyUnit".equals(modelKey)) {
+            if (normalized.length() == 6) {
+                candidates.add(normalized + "000");
+            } else if (normalized.length() > 6) {
+                candidates.add(normalized.substring(0, 6));
+            }
+        } else if (normalized.length() > 6) {
+            candidates.add(normalized.substring(0, 6));
         }
 
-        return bdValue != null ? bdValue.doubleValue() : 0.0;
+        return new ArrayList<>(candidates);
+    }
+
+    private Double loadSocialOrganizationFallback(String fieldName, String currentRegionCode, Integer year) {
+        if (currentRegionCode == null || currentRegionCode.trim().isEmpty()) {
+            return null;
+        }
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT emergency_equipment_material_value, passenger_vehicle_count, freight_vehicle_count, ");
+        sql.append("special_operation_vehicle_count, last_year_science_education_audience, population ");
+        sql.append("FROM ").append(SOCIAL_ORGANIZATION_CAPACITY_TABLE).append(" WHERE region_code LIKE ? ");
+        List<Object> params = new ArrayList<>();
+        params.add(currentRegionCode.trim() + "%");
+        if (year != null) {
+            sql.append("AND year = ? ");
+            params.add(year);
+        }
+        sql.append("ORDER BY CHAR_LENGTH(region_code) DESC, id DESC LIMIT 1");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql.toString(), params.toArray());
+        if (rows == null || rows.isEmpty()) {
+            return null;
+        }
+
+        Map<String, Object> row = rows.get(0);
+        double material = toDoubleValue(row.get("emergency_equipment_material_value"));
+        double passenger = toDoubleValue(row.get("passenger_vehicle_count"));
+        double freight = toDoubleValue(row.get("freight_vehicle_count"));
+        double special = toDoubleValue(row.get("special_operation_vehicle_count"));
+        double audience = toDoubleValue(row.get("last_year_science_education_audience"));
+        double population = toDoubleValue(row.get("population"));
+
+        switch (fieldName) {
+            case "management_capability_score":
+                return material;
+            case "support_capability_score":
+                return passenger + freight;
+            case "self_rescue_capability_score":
+                return special;
+            case "comprehensive_capability_score":
+                return population > 0 ? (audience / population) : audience;
+            default:
+                return null;
+        }
+    }
+
+    private Double loadSocialOrganizationWeightedIndicator(String fieldName,
+                                                           String currentRegionCode,
+                                                           Map<String, Object> regionContext) {
+        Integer year = parseInteger(regionContext.get("year"));
+        String current = normalizeCountyCode(currentRegionCode);
+        if (year == null || current == null) {
+            return null;
+        }
+
+        List<String> regionCodes = extractRegionCodesFromContext(regionContext);
+        if (regionCodes.isEmpty()) {
+            return null;
+        }
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT region_code, population, emergency_equipment_material_value, ");
+        sql.append("passenger_vehicle_count, freight_vehicle_count, special_operation_vehicle_count, ");
+        sql.append("last_year_science_education_audience ");
+        sql.append("FROM ").append(SOCIAL_ORGANIZATION_CAPACITY_TABLE).append(" ");
+        sql.append("WHERE year = ? AND region_code IN (");
+        for (int i = 0; i < regionCodes.size(); i++) {
+            if (i > 0) {
+                sql.append(",");
+            }
+            sql.append("?");
+        }
+        sql.append(")");
+
+        List<Object> params = new ArrayList<>();
+        params.add(year);
+        params.addAll(regionCodes);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql.toString(), params.toArray());
+        if (rows == null || rows.isEmpty()) {
+            return null;
+        }
+
+        Map<String, Double> metricByRegion = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            String region = normalizeCountyCode(toString(row.get("region_code")));
+            if (region == null) {
+                continue;
+            }
+            double population = toDoubleValue(row.get("population"));
+            if (population <= 0) {
+                metricByRegion.put(region, 0.0);
+                continue;
+            }
+            double value;
+            switch (fieldName) {
+                case "large_excavator_owning_rate":
+                    value = toDoubleValue(row.get("emergency_equipment_material_value")) / population;
+                    break;
+                case "large_truck_crane_owning_rate":
+                    value = (toDoubleValue(row.get("passenger_vehicle_count"))
+                            + toDoubleValue(row.get("freight_vehicle_count"))) / population * 10000.0;
+                    break;
+                case "large_loader_owning_rate":
+                    value = toDoubleValue(row.get("special_operation_vehicle_count")) / population * 10000.0;
+                    break;
+                case "disaster_insurance_claim_capacity":
+                    value = toDoubleValue(row.get("last_year_science_education_audience")) / population;
+                    break;
+                default:
+                    return null;
+            }
+            metricByRegion.put(region, value);
+        }
+
+        if (!metricByRegion.containsKey(current)) {
+            return 0.0;
+        }
+
+        double normBase = 0.0;
+        for (Double val : metricByRegion.values()) {
+            if (val != null) {
+                normBase += val * val;
+            }
+        }
+        normBase = Math.sqrt(normBase);
+        if (normBase <= 0.0) {
+            return 0.0;
+        }
+
+        double normalized = metricByRegion.getOrDefault(current, 0.0) / normBase;
+        return normalized * 0.25;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> extractRegionCodesFromContext(Map<String, Object> regionContext) {
+        Object raw = regionContext.get("regionCodes");
+        if (!(raw instanceof List)) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        for (Object item : (List<Object>) raw) {
+            String code = normalizeCountyCode(toString(item));
+            if (code != null) {
+                set.add(code);
+            }
+        }
+        return new ArrayList<>(set);
+    }
+
+    private String normalizeCountyCode(String code) {
+        if (code == null || code.trim().isEmpty()) {
+            return null;
+        }
+        String trimmed = code.trim();
+        if (trimmed.length() >= 6) {
+            return trimmed.substring(0, 6);
+        }
+        return trimmed;
+    }
+
+    private Integer parseInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.toString().trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String toString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String s = value.toString();
+        return s == null ? null : s.trim();
+    }
+
+    private double toDoubleValue(Object value) {
+        if (value == null) {
+            return 0.0;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        try {
+            return Double.parseDouble(value.toString().trim());
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 
     @Override
@@ -421,6 +914,10 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         // 5. 计算TOPSIS得分：D- / (D+ + D-)
         double denominator = dPositive + dNegative;
         if (denominator == 0) {
+            // 所有方案在该指标上完全一致时，D+=D-=0，按无差异满分处理
+            if (Math.abs(dPositive) < 1e-12 && Math.abs(dNegative) < 1e-12) {
+                return 1.0;
+            }
             return 0.0;
         }
         

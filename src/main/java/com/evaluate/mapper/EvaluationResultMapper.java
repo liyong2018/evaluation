@@ -76,4 +76,18 @@ public interface EvaluationResultMapper extends BaseMapper<EvaluationResult> {
     List<EvaluationResult> selectByModelIdAndYearAndOrgCode(@Param("modelId") Long modelId,
                                                           @Param("year") Integer year,
                                                           @Param("orgCode") String orgCode);
+
+    /**
+     * 根据模型ID、年份、组织机构和地区代码查询最新评估结果
+     *
+     * @param modelId 模型ID
+     * @param year 年份
+     * @param orgCode 组织机构代码
+     * @param regionCode 地区代码
+     * @return 最新评估结果
+     */
+    EvaluationResult selectLatestByModelYearOrgCodeAndRegionCode(@Param("modelId") Long modelId,
+                                                                  @Param("year") Integer year,
+                                                                  @Param("orgCode") String orgCode,
+                                                                  @Param("regionCode") String regionCode);
 }

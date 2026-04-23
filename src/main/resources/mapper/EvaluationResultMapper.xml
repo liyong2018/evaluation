@@ -125,6 +125,30 @@
         ORDER BY er.create_time DESC
     </select>
 
+    <!-- 根据模型ID、年份、组织机构和地区代码查询最新评估结果 -->
+    <select id="selectLatestByModelYearOrgCodeAndRegionCode" resultMap="BaseResultMap">
+        SELECT
+        er.id, er.region_code, er.region_name, er.management_capability_score, er.support_capability_score,
+        er.self_rescue_capability_score, er.comprehensive_capability_score, er.management_capability_level,
+        er.support_capability_level, er.self_rescue_capability_level, er.comprehensive_capability_level,
+        er.evaluation_model_id, er.data_source, er.execution_record_id, er.org_code, er.create_by, er.create_time,
+        er.update_by, er.update_time, er.is_deleted
+        FROM evaluation_result er
+        INNER JOIN model_execution_record mer ON er.execution_record_id = mer.id
+        WHERE er.evaluation_model_id = #{modelId}
+        AND mer.year = #{year}
+        AND er.region_code = #{regionCode}
+        AND (
+            (#{orgCode} IS NULL OR #{orgCode} = '')
+            OR (mer.org_code = #{orgCode})
+            OR (er.org_code = #{orgCode})
+            OR (er.region_code LIKE CONCAT(#{orgCode}, '%'))
+        )
+        AND er.is_deleted = 0
+        ORDER BY COALESCE(mer.end_time, mer.start_time, er.create_time) DESC, er.id DESC
+        LIMIT 1
+    </select>
+
     <!-- 物理删除：根据执行记录ID删除评估结果（绕过逻辑删除） -->
     <delete id="deletePhysicalByExecutionRecordId">
         DELETE FROM evaluation_result

@@ -746,8 +746,8 @@ const handleModelChange = async (modelId: number) => {
       globalOrganizationStore.setPreferredCapacityModel('family')
     }
     console.log('自动切换到家庭减灾能力数据源')
-  } else if (modelId === 3 || modelId === 11 || modelId === 19) {
-    // 乡镇模型：乡镇减灾能力TOPSIS评估模型(3) 或 综合减灾能力评估模型(11) 或 乡镇（街道）减灾能力（区县单元）评估模型(19)
+  } else if (modelId === 3 || modelId === 11 || modelId === 19 || modelId === 20) {
+    // 乡镇模型：乡镇减灾能力TOPSIS评估模型(3) 或 综合减灾能力评估模型(11/20) 或 乡镇（街道）减灾能力（区县单元）评估模型(19)
     evaluationForm.dataType = 'township'
     console.log('自动切换到乡镇数据类型')
   } else if (modelId === 4 || modelId === 8 || modelId === 17) {
@@ -2514,7 +2514,7 @@ const setDefaultValues = async () => {
             : preferredCapacityModel === 'community'
               ? (Number(storedOrg?.level) === 2 ? (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 4)) : (evaluationModels.value.find((m: any) => m.id === 17) || evaluationModels.value.find((m: any) => m.id === 4) || evaluationModels.value.find((m: any) => m.id === 8)))
             : preferredCapacityModel === 'township'
-              ? (Number(storedOrg?.level) === 2 ? (evaluationModels.value.find((m: any) => m.id === 19) || evaluationModels.value.find((m: any) => m.id === 3)) : (evaluationModels.value.find((m: any) => m.id === 3) || evaluationModels.value.find((m: any) => m.id === 11)))
+              ? (Number(storedOrg?.level) === 2 ? (evaluationModels.value.find((m: any) => m.id === 19) || evaluationModels.value.find((m: any) => m.id === 20) || evaluationModels.value.find((m: any) => m.id === 3)) : (evaluationModels.value.find((m: any) => m.id === 20) || evaluationModels.value.find((m: any) => m.id === 3) || evaluationModels.value.find((m: any) => m.id === 11)))
               : (findGovernmentModel(evaluationForm.year) || findEnterpriseModel(evaluationForm.year) || findSocialOrganizationModel(evaluationForm.year) || findFamilyModel(evaluationForm.year))
     )
     : null
