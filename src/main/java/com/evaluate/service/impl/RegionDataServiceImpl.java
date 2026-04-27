@@ -298,10 +298,10 @@ public class RegionDataServiceImpl implements IRegionDataService {
     @Override
     public List<?> getDataByCounty(String dataType, String provinceName, String cityName, String countyName, Integer year) {
         if ("community".equals(dataType)) {
-            // 从社区数据表获取数据
+            // 从社区数据表获取数据，兼容名称和代码两种格式
             QueryWrapper<CommunityDisasterReductionCapacity> wrapper = new QueryWrapper<>();
-            wrapper.eq("province_name", provinceName);
-            wrapper.eq("city_name", cityName);
+            wrapper.and(w -> w.eq("province_name", provinceName).or().eq("province_name", resolveRegionCode(provinceName)));
+            wrapper.and(w -> w.eq("city_name", cityName).or().eq("city_name", resolveRegionCode(cityName)));
             wrapper.eq("county_name", countyName);
             if (year != null) {
                 wrapper.eq("year", year);
@@ -310,10 +310,10 @@ public class RegionDataServiceImpl implements IRegionDataService {
 
             return communityCapacityMapper.selectList(wrapper);
         } else {
-            // 从调查数据表获取数据
+            // 从调查数据表获取数据，兼容名称和代码两种格式
             QueryWrapper<SurveyData> wrapper = new QueryWrapper<>();
-            wrapper.eq("province", provinceName);
-            wrapper.eq("city", cityName);
+            wrapper.and(w -> w.eq("province", provinceName).or().eq("province", resolveRegionCode(provinceName)));
+            wrapper.and(w -> w.eq("city", cityName).or().eq("city", resolveRegionCode(cityName)));
             wrapper.eq("county", countyName);
             if (year != null) {
                 wrapper.eq("year", year);
@@ -322,5 +322,32 @@ public class RegionDataServiceImpl implements IRegionDataService {
 
             return surveyDataMapper.selectList(wrapper);
         }
+    }
+
+    /**
+     * 将行政区划名称转换为对应的代码（如 四川省->510000, 乐山市->511100）
+     * 如果输入已经是代码格式则直接返回
+     */
+    private String resolveRegionCode(String nameOrCode) {
+        if (nameOrCode == null || nameOrCode.matches("^\\d+$")) {
+            return nameOrCode;
+        }
+        // 从 organization 表查找代码
+        try {
+            QueryWrapper<Organization> query = new QueryWrapper<>();
+            query.eq("name", nameOrCode);
+            query.select("code");
+            query.last("LIMIT 1");
+            List<Map<String, Object>> rows = organizationMapper.selectMaps(query);
+            if (rows != null && !rows.isEmpty()) {
+                Object code = rows.get(0).get("code");
+                if (code != null) {
+                    return String.valueOf(code);
+                }
+            }
+        } catch (Exception e) {
+            // fallback: return original value
+        }
+        return nameOrCode;
     }
 }

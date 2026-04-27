@@ -502,6 +502,7 @@ const generateEvaluationName = () => {
 // 响应式数据
 const evaluationFormRef = ref<FormInstance>()
 const evaluationModels = ref<any[]>([])
+const allActiveModels = ref<any[]>([])
 const regionTreeData = ref<any[]>([])
 const evaluationHistory = ref<any>({ records: [], total: 0, current: 1, size: 10, pages: 0 })
 const previewData = ref<any[]>([])
@@ -691,13 +692,30 @@ const getRegionTreeData = async () => {
   }
 }
 
+// 根据组织层级过滤模型（区县级只显示"区县-"前缀的模型，市州级只显示"市州-"前缀的模型）
+const filterModelsByOrgLevel = (models: any[], orgLevel: number | undefined) => {
+  if (!orgLevel) return models
+  if (orgLevel === 2) {
+    return models.filter((m: any) => String(m.modelName).startsWith('市州'))
+  }
+  if (orgLevel === 3) {
+    return models.filter((m: any) => String(m.modelName).startsWith('区县'))
+  }
+  return models
+}
+
+const applyModelFilter = () => {
+  const storedOrg = globalOrganizationStore.selectedOrganization
+  evaluationModels.value = filterModelsByOrgLevel(allActiveModels.value, Number(storedOrg?.level))
+}
+
 // 获取评估模型列表
 const getEvaluationModels = async () => {
   try {
     const response = await modelManagementApi.getAllModels()
     if (response.success) {
-      // 只显示启用的模型
-      evaluationModels.value = (response.data || []).filter((model: any) => model.status === 1)
+      allActiveModels.value = (response.data || []).filter((model: any) => model.status === 1)
+      applyModelFilter()
     } else {
       ElMessage.error(response.message || '获取评估模型失败')
     }
@@ -1017,43 +1035,55 @@ const handleCityChange = async (cityName: string) => {
 
         if (storedOrg) {
           console.log('尝试从全局 store 恢复区县, storedOrg:', storedOrg)
-          const rawCode = storedOrg.code != null ? String(storedOrg.code) : ''
-          const countyCodeToMatch = /^\d{6,}/.test(rawCode) ? rawCode.substring(0, 6) : rawCode
-          const countyNameToMatch = storedOrg.countyName || storedOrg.name
 
-          if (countyCodeToMatch) {
-            const matchedByCode = counties.value.find((c: any) => {
-              const cCode = c?.code != null ? String(c.code) : ''
-              const cCode6 = /^\d{6,}/.test(cCode) ? cCode.substring(0, 6) : cCode
-              return cCode6 === countyCodeToMatch
-            })
-            if (matchedByCode) {
-              targetCountyCode = matchedByCode.code
-              console.log('从全局 store 恢复区县(按code):', targetCountyCode)
+          // 市级组织(level=2)不需要匹配区县，只用城市code作为orgCode即可
+          const orgLevel = storedOrg.level
+          if (orgLevel === 2) {
+            console.log('组织为市级(level=2)，不需要匹配区县，直接使用城市级别')
+            // 直接用城市的code设置orgCode
+            const rawCode = storedOrg.code != null ? String(storedOrg.code) : ''
+            if (rawCode) {
+              evaluationForm.orgCode = rawCode
+              console.log('市级组织直接设置orgCode:', rawCode)
             }
-          }
+          } else {
+            // 区县级组织(level=3或无level)才做区县匹配
+            const rawCode = storedOrg.code != null ? String(storedOrg.code) : ''
+            const countyCodeToMatch = /^\d{6,}/.test(rawCode) ? rawCode.substring(0, 6) : rawCode
+            const countyNameToMatch = storedOrg.countyName || storedOrg.name
 
-          if (!targetCountyCode && countyNameToMatch) {
-            console.log('要匹配的区县名称:', countyNameToMatch, '可用区县列表:', counties.value.map((c: any) => c.name))
-            // 更健壮的名称匹配逻辑
-            const normalizedMatch = countyNameToMatch.trim()
-            const matchedByName = counties.value.find((c: any) => {
-              const cName = String(c.name || '').trim()
-              return cName === normalizedMatch ||
-                     normalizedMatch.includes(cName) ||
-                     cName.includes(normalizedMatch)
-            })
-            if (matchedByName) {
-              targetCountyCode = matchedByName.code
-              console.log('从全局 store 恢复区县(按name):', matchedByName.name, 'code:', targetCountyCode)
-            } else {
-              console.warn('未找到匹配的区县:', countyNameToMatch)
+            if (countyCodeToMatch) {
+              const matchedByCode = counties.value.find((c: any) => {
+                const cCode = c?.code != null ? String(c.code) : ''
+                const cCode6 = /^\d{6,}/.test(cCode) ? cCode.substring(0, 6) : cCode
+                return cCode6 === countyCodeToMatch
+              })
+              if (matchedByCode) {
+                targetCountyCode = matchedByCode.code
+                console.log('从全局 store 恢复区县(按code):', targetCountyCode)
+              }
             }
-          }
 
-          // 如果还是没有找到匹配的区县，不要使用默认的第一条，而是保持空选择让用户手动选择
-          if (!targetCountyCode) {
-            console.warn('无法从全局 store 恢复区县，需要用户手动选择')
+            if (!targetCountyCode && countyNameToMatch) {
+              console.log('要匹配的区县名称:', countyNameToMatch, '可用区县列表:', counties.value.map((c: any) => c.name))
+              const normalizedMatch = countyNameToMatch.trim()
+              const matchedByName = counties.value.find((c: any) => {
+                const cName = String(c.name || '').trim()
+                return cName === normalizedMatch ||
+                       normalizedMatch.includes(cName) ||
+                       cName.includes(normalizedMatch)
+              })
+              if (matchedByName) {
+                targetCountyCode = matchedByName.code
+                console.log('从全局 store 恢复区县(按name):', matchedByName.name, 'code:', targetCountyCode)
+              } else {
+                console.warn('未找到匹配的区县:', countyNameToMatch)
+              }
+            }
+
+            if (!targetCountyCode) {
+              console.warn('无法从全局 store 恢复区县，需要用户手动选择')
+            }
           }
         }
 
@@ -1061,6 +1091,9 @@ const handleCityChange = async (cityName: string) => {
           evaluationForm.selectedCounty = targetCountyCode
           // 触发区县变化事件以加载数据
           await handleCountyChange(targetCountyCode)
+        } else if (evaluationForm.orgCode) {
+          // 市级组织已设置orgCode但无区县选择，直接加载地区树
+          await handleRegionTreeChange(evaluationForm.orgCode)
         }
       } else {
         console.error('区县列表API返回错误:', response.code, response.message)
@@ -1164,13 +1197,19 @@ const handleCountyChange = async (countyCode: string) => {
         }
 
         // 将数据转换为regions格式用于评估
-        evaluationForm.regions = evaluationForm.countyData.map((item: any) => {
-          if (evaluationForm.dataType === 'community') {
-            return item.regionCode || `${item.provinceName}_${item.cityName}_${item.countyName}_${item.communityName}`
-          } else {
-            return item.regionCode || `${item.province}_${item.city}_${item.county}_${item.township}`
-          }
-        })
+        if (evaluationForm.countyData.length > 0) {
+          evaluationForm.regions = evaluationForm.countyData.map((item: any) => {
+            if (evaluationForm.dataType === 'community') {
+              return item.regionCode || `${item.provinceName}_${item.cityName}_${item.countyName}_${item.communityName}`
+            } else {
+              return item.regionCode || `${item.province}_${item.city}_${item.county}_${item.township}`
+            }
+          })
+        } else {
+          // 区县无基础数据时，仍设置 regions 让后端给出准确错误信息
+          evaluationForm.regions = [evaluationForm.orgCode]
+          ElMessage.warning(`${countyName}在所选年份暂无${evaluationForm.dataType === 'community' ? '社区' : '乡镇'}基础数据`)
+        }
         console.log('获取到县数据:', {
           county: countyName,
           countyCode: extractedCountyCode,
@@ -1179,7 +1218,9 @@ const handleCountyChange = async (countyCode: string) => {
           dataCount: evaluationForm.countyData.length,
           regions: evaluationForm.regions
         })
-        ElMessage.success(`成功获取${countyName}的${evaluationForm.dataType === 'community' ? '社区' : '乡镇'}数据，共${evaluationForm.countyData.length}条`)
+        if (evaluationForm.countyData.length > 0) {
+          ElMessage.success(`成功获取${countyName}的${evaluationForm.dataType === 'community' ? '社区' : '乡镇'}数据，共${evaluationForm.countyData.length}条`)
+        }
       } else {
         ElMessage.error(response.message || '获取县数据失败')
       }
@@ -1288,24 +1329,28 @@ const loadCountyData = async (countyName: string, countyCode: string) => {
       evaluationForm.countyData = response.data || []
       console.log('返回的县数据样本:', evaluationForm.countyData[0])
 
-      // 从县数据中提取区县代码（取 regionCode 的前6位，如 511425001 -> 511425）
       if (evaluationForm.countyData.length > 0) {
+        // 从县数据中提取区县代码（取 regionCode 的前6位，如 511425001 -> 511425）
         const firstItem: any = (evaluationForm.countyData as any[])[0]
         if (firstItem.regionCode) {
           evaluationForm.orgCode = firstItem.regionCode.substring(0, 6)
         }
+
+        // 将数据转换为regions格式用于评估
+        evaluationForm.regions = evaluationForm.countyData.map((item: any) => {
+          if (evaluationForm.dataType === 'community') {
+            return item.regionCode || `${item.provinceName}_${item.cityName}_${item.countyName}_${item.communityName}`
+          } else {
+            return item.regionCode || item.townshipName
+          }
+        })
+
+        ElMessage.success(`成功获取${countyName}的${evaluationForm.dataType === 'community' ? '社区' : '乡镇'}数据，共${evaluationForm.countyData.length}条`)
+      } else {
+        // 区县无基础数据时，仍设置 regions 让后端给出准确错误信息
+        evaluationForm.regions = [evaluationForm.orgCode]
+        ElMessage.warning(`${countyName}在所选年份暂无${evaluationForm.dataType === 'community' ? '社区' : '乡镇'}基础数据`)
       }
-
-      // 将数据转换为regions格式用于评估
-      evaluationForm.regions = evaluationForm.countyData.map((item: any) => {
-        if (evaluationForm.dataType === 'community') {
-          return item.regionCode || `${item.provinceName}_${item.cityName}_${item.countyName}_${item.communityName}`
-        } else {
-          return item.regionCode || item.townshipName
-        }
-      })
-
-      ElMessage.success(`成功获取${countyName}的${evaluationForm.dataType === 'community' ? '社区' : '乡镇'}数据，共${evaluationForm.countyData.length}条`)
     }
   } catch (error) {
     console.error('获取县数据失败:', error)
@@ -2562,6 +2607,18 @@ onMounted(() => {
   // 设置默认值
   setDefaultValues()
 })
+
+// 组织层级变化时重新过滤模型列表
+watch(
+  () => globalOrganizationStore.selectedOrganization?.level,
+  () => {
+    applyModelFilter()
+    // 如果当前选中的模型不在过滤后的列表中，清除选择
+    if (evaluationForm.modelId && !evaluationModels.value.find((m: any) => m.id === evaluationForm.modelId)) {
+      evaluationForm.modelId = undefined
+    }
+  }
+)
 
 // 监听评估表单变化，自动更新筛选条件
 watch(

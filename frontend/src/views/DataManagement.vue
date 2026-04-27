@@ -79,7 +79,6 @@
             </template>
             <template v-else>
               <el-radio-button label="township">乡镇数据</el-radio-button>
-              <el-radio-button label="family">家庭减灾能力</el-radio-button>
               <el-radio-button label="medical">医疗卫生机构</el-radio-button>
               <el-radio-button label="community">社区数据</el-radio-button>
             </template>

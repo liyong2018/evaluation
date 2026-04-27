@@ -139,6 +139,67 @@ public class ModelManagementController {
     }
 
     /**
+     * 更新模型
+     */
+    @PutMapping("/models/{modelId}")
+    public Map<String, Object> updateModel(@PathVariable Long modelId, @RequestBody Map<String, Object> request) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            EvaluationModel model = evaluationModelMapper.selectById(modelId);
+            if (model == null) {
+                result.put("success", false);
+                result.put("message", "模型不存在");
+                return result;
+            }
+
+            if (request.containsKey("modelName")) model.setModelName((String) request.get("modelName"));
+            if (request.containsKey("modelCode")) model.setModelCode((String) request.get("modelCode"));
+            if (request.containsKey("description")) model.setDescription((String) request.get("description"));
+            if (request.containsKey("version")) model.setVersion((String) request.get("version"));
+            if (request.containsKey("modelType")) model.setModelType((String) request.get("modelType"));
+            if (request.containsKey("dataSourceType")) model.setDataSourceType((String) request.get("dataSourceType"));
+            if (request.containsKey("aggregationType")) model.setAggregationType((String) request.get("aggregationType"));
+
+            evaluationModelMapper.updateById(model);
+
+            result.put("success", true);
+            result.put("data", model);
+            result.put("message", "模型更新成功");
+        } catch (Exception e) {
+            log.error("更新模型失败", e);
+            result.put("success", false);
+            result.put("message", e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 删除模型
+     */
+    @DeleteMapping("/models/{modelId}")
+    public Map<String, Object> deleteModel(@PathVariable Long modelId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            EvaluationModel model = evaluationModelMapper.selectById(modelId);
+            if (model == null) {
+                result.put("success", false);
+                result.put("message", "模型不存在");
+                return result;
+            }
+            model.setStatus(0);
+            evaluationModelMapper.updateById(model);
+
+            result.put("success", true);
+            result.put("message", "模型删除成功");
+        } catch (Exception e) {
+            log.error("删除模型失败", e);
+            result.put("success", false);
+            result.put("message", e.getMessage());
+        }
+        return result;
+    }
+
+    /**
      * 为模型添加步骤
      */
     @PostMapping("/models/{modelId}/steps")

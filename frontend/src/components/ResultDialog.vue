@@ -55,11 +55,11 @@
                 <el-button size="small" @click="unselectGroupColumns(group.key)">取消该组</el-button>
               </div>
               <div class="column-checkboxes">
-                <el-checkbox-group v-model="visibleColumns">
+                  <el-checkbox-group v-model="visibleColumns">
                   <el-checkbox 
                     v-for="column in group.columns" 
                     :key="column.prop"
-                    :label="column.prop"
+                    :value="column.prop"
                     :disabled="column.prop === 'regionCode' || column.prop === 'regionName'"
                   >
                     {{ column.label }}
@@ -182,7 +182,7 @@
                   <el-checkbox 
                     v-for="column in group.columns" 
                     :key="column.prop"
-                    :label="column.prop"
+                    :value="column.prop"
                     :disabled="column.prop === 'regionCode' || column.prop === 'regionName'"
                   >
                     {{ column.label }}
@@ -634,7 +634,10 @@ const filteredColumns = computed(() => {
       if (visibleSet.has(c.prop)) ordered.push(c)
     })
   })
-  return ordered
+  if (ordered.length > 0) {
+    return ordered
+  }
+  return allColumns.value
 })
 
 const isTownshipRow = (row: Record<string, any>): boolean => {
@@ -746,6 +749,25 @@ watch(
     }
   },
   { deep: true, immediate: true }
+)
+
+watch(
+  () => [selectedStepOrder.value, currentStepData.value?.stepOrder, currentStepData.value?.columns?.length, currentStepData.value?.tableData?.length],
+  () => {
+    if (!props.resultData?.isMultiStep) {
+      return
+    }
+    nextTick(() => {
+      const currentProps = new Set(allColumns.value.map(col => col.prop))
+      const stillVisible = visibleColumns.value.filter(prop => currentProps.has(prop))
+      if (allColumns.value.length > 0 && stillVisible.length === 0) {
+        visibleColumns.value = allColumns.value.map(col => col.prop)
+        selectedGroupKey.value = SELECT_ALL_KEY
+        console.log('✓ 多步骤列兜底恢复：当前步骤列已重建', visibleColumns.value.length)
+      }
+    })
+  },
+  { deep: true }
 )
 
 // 监听visible变化

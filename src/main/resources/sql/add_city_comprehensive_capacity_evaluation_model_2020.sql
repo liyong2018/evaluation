@@ -52,10 +52,10 @@ INSERT INTO step_algorithm (step_id, algorithm_name, algorithm_code, algorithm_o
 (@step1_id, '社区（区县单元）-灾害备灾能力', 'LOAD_COMM_PREP', 17, '@LOAD_EVAL_RESULT:modelKey=communityCountyUnit,stepCode=CAPABILITY_GRADE,field=support_capability_score', '{}', 'community_preparedness', '', 1),
 (@step1_id, '社区（区县单元）-自救转移能力', 'LOAD_COMM_SELF', 18, '@LOAD_EVAL_RESULT:modelKey=communityCountyUnit,stepCode=CAPABILITY_GRADE,field=self_rescue_capability_score', '{}', 'community_self_rescue', '', 1),
 
-(@step1_id, '家庭-脆弱性', 'LOAD_FAM_VULN', 19, '@LOAD_EVAL_RESULT:modelKey=family,stepCode=score_and_grade,field=l1_vul_score', '{}', 'family_vulnerability', '', 1),
-(@step1_id, '家庭-防灾物资储备能力', 'LOAD_FAM_MATERIAL', 20, '@LOAD_EVAL_RESULT:modelKey=family,stepCode=score_and_grade,field=l1_mat_score', '{}', 'family_material', '', 1),
-(@step1_id, '家庭-灾害信息获取能力', 'LOAD_FAM_INFO', 21, '@LOAD_EVAL_RESULT:modelKey=family,stepCode=score_and_grade,field=l1_info_score', '{}', 'family_information', '', 1),
-(@step1_id, '家庭-灾害自救互救能力', 'LOAD_FAM_SELF', 22, '@LOAD_EVAL_RESULT:modelKey=family,stepCode=score_and_grade,field=l1_self_score', '{}', 'family_self_rescue', '', 1);
+(@step1_id, '家庭-脆弱性', 'LOAD_FAM_VULN', 19, '@LOAD_EVAL_RESULT:modelKey=family,stepCode=topsis_grading,field=l1_vul_score', '{}', 'family_vulnerability', '', 1),
+(@step1_id, '家庭-防灾物资储备能力', 'LOAD_FAM_MATERIAL', 20, '@LOAD_EVAL_RESULT:modelKey=family,stepCode=topsis_grading,field=l1_mat_score', '{}', 'family_material', '', 1),
+(@step1_id, '家庭-灾害信息获取能力', 'LOAD_FAM_INFO', 21, '@LOAD_EVAL_RESULT:modelKey=family,stepCode=topsis_grading,field=l1_info_score', '{}', 'family_information', '', 1),
+(@step1_id, '家庭-灾害自救互救能力', 'LOAD_FAM_SELF', 22, '@LOAD_EVAL_RESULT:modelKey=family,stepCode=topsis_grading,field=l1_self_score', '{}', 'family_self_rescue', '', 1);
 
 -- 5) Step2: 归一化
 INSERT INTO step_algorithm (step_id, algorithm_name, algorithm_code, algorithm_order, ql_expression, input_params, output_param, description, status) VALUES

@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMapper, IndicatorWeight> implements IIndicatorWeightService {
 
     private static final int BASELINE_YEAR = 2020;
+    private static final Map<Long, List<String>> LEGACY_CONFIG_NAMES_BY_MODEL_ID = createLegacyConfigNamesByModelId();
 
     @Autowired
     private WeightConfigMapper weightConfigMapper;
@@ -805,7 +806,9 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
             orgcodeCandidates.add(trimmed.substring(0, 6));
         }
 
-        // 优先使用 modelId 查找
+        List<String> configNameCandidates = resolveConfigNameCandidates(modelId, configName);
+
+        // 优先使用 modelId 查找，但需要在候选中挑出指标更完整且名称更匹配的配置
         if (modelId != null) {
             for (String candidateOrgcode : orgcodeCandidates) {
                 QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
@@ -813,32 +816,27 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
                 queryWrapper.eq("model_id", modelId);
                 queryWrapper.eq("is_deleted", 0);
                 queryWrapper.eq("year", BASELINE_YEAR);
-                queryWrapper.last("LIMIT 1");
+                queryWrapper.orderByDesc("create_time");
 
-                WeightConfig config = weightConfigMapper.selectOne(queryWrapper);
-                if (config != null && config.getId() != null) {
-                    List<IndicatorWeight> weights = getByConfigId(config.getId());
-                    if (!weights.isEmpty()) {
-                        Map<String, IndicatorWeight> weightMap = new HashMap<>();
-                        for (IndicatorWeight w : weights) {
-                            if (w.getIndicatorCode() != null) {
-                                weightMap.put(w.getIndicatorCode(), w);
-                            }
-                        }
-                        log.info("找到基准表数据（通过modelId）: orgcode={}, modelId={}, weightCount={}",
-                                orgcode, modelId, weightMap.size());
+                List<WeightConfig> configs = weightConfigMapper.selectList(queryWrapper);
+                WeightConfig bestConfig = pickBestBaselineConfig(configs, configNameCandidates);
+                if (bestConfig != null && bestConfig.getId() != null) {
+                    Map<String, IndicatorWeight> weightMap = toWeightMap(getByConfigId(bestConfig.getId()));
+                    if (!weightMap.isEmpty()) {
+                        log.info("找到基准表数据（通过modelId）: orgcode={}, modelId={}, configName={}, weightCount={}",
+                                orgcode, modelId, bestConfig.getConfigName(), weightMap.size());
                         return weightMap;
                     }
                 }
             }
         }
 
-        // 备用：使用 configName 查找（向后兼容）
-        if (StringUtils.hasText(configName)) {
+        // 备用：使用 configName 查找（向后兼容，支持新旧模型名）
+        for (String candidateName : configNameCandidates) {
             for (String candidateOrgcode : orgcodeCandidates) {
                 QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
                 queryWrapper.eq("orgcode", candidateOrgcode);
-                queryWrapper.eq("config_name", configName.trim());
+                queryWrapper.eq("config_name", candidateName);
                 queryWrapper.eq("is_deleted", 0);
                 queryWrapper.eq("year", BASELINE_YEAR);
                 queryWrapper.last("LIMIT 1");
@@ -847,14 +845,9 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
                 if (config != null && config.getId() != null) {
                     List<IndicatorWeight> weights = getByConfigId(config.getId());
                     if (!weights.isEmpty()) {
-                        Map<String, IndicatorWeight> weightMap = new HashMap<>();
-                        for (IndicatorWeight w : weights) {
-                            if (w.getIndicatorCode() != null) {
-                                weightMap.put(w.getIndicatorCode(), w);
-                            }
-                        }
+                        Map<String, IndicatorWeight> weightMap = toWeightMap(weights);
                         log.info("找到基准表数据（通过configName）: orgcode={}, configName={}, weightCount={}",
-                                orgcode, configName, weightMap.size());
+                                orgcode, candidateName, weightMap.size());
                         return weightMap;
                     }
                 }
@@ -876,18 +869,38 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         // 获取当前配置的指标结构
         List<IndicatorWeight> templateWeights = getByConfigId(configId);
 
+        Map<String, IndicatorWeight> baselineWeights = findBaselineWeightsByOrgcode(orgcode, modelId, configName);
+        Map<String, IndicatorWeight> mergedTemplates = new LinkedHashMap<>();
+        for (IndicatorWeight template : sortWeights(templateWeights)) {
+            if (template == null || !StringUtils.hasText(template.getIndicatorCode())) {
+                continue;
+            }
+            mergedTemplates.put(template.getIndicatorCode().trim(), copyTemplateWeight(template));
+        }
+
         // 如果当前配置没有指标结构，尝试从基准数据中获取模板
-        if (templateWeights.isEmpty()) {
+        if (mergedTemplates.isEmpty() && !baselineWeights.isEmpty()) {
             log.warn("配置ID {} 没有指标结构，尝试从基准数据获取模板", configId);
-            Map<String, IndicatorWeight> baselineWeights = findBaselineWeightsByOrgcode(orgcode, modelId, configName);
-            if (!baselineWeights.isEmpty()) {
-                templateWeights = new ArrayList<>(baselineWeights.values());
-                // 按sort_order排序
-                templateWeights.sort(Comparator.comparing(IndicatorWeight::getSortOrder));
+            for (IndicatorWeight baseline : sortWeights(new ArrayList<>(baselineWeights.values()))) {
+                if (baseline == null || !StringUtils.hasText(baseline.getIndicatorCode())) {
+                    continue;
+                }
+                mergedTemplates.put(baseline.getIndicatorCode().trim(), copyTemplateWeight(baseline));
             }
         }
 
-        if (templateWeights.isEmpty()) {
+        // 当前模板缺失的指标代码，补齐自2020基准表，确保执行链路能拿到完整权重
+        if (!baselineWeights.isEmpty()) {
+            for (IndicatorWeight baseline : sortWeights(new ArrayList<>(baselineWeights.values()))) {
+                if (baseline == null || !StringUtils.hasText(baseline.getIndicatorCode())) {
+                    continue;
+                }
+                String code = baseline.getIndicatorCode().trim();
+                mergedTemplates.putIfAbsent(code, copyTemplateWeight(baseline));
+            }
+        }
+
+        if (mergedTemplates.isEmpty()) {
             log.warn("未找到指标结构: configId={}, orgcode={}, modelId={}, configName={}", configId, orgcode, modelId, configName);
             return new ArrayList<>();
         }
@@ -895,21 +908,10 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         // 1. 首先查找专家打分数据（按年份从新到旧）
         Map<String, Double> expertWeights = findExpertScoresByOrgcodeAndYear(orgcode, requestedYear, modelId, configName);
 
-        // 2. 如果专家打分数据不足，查找基准表数据（区县→市级→省级）
-        Map<String, IndicatorWeight> baselineWeights = findBaselineWeightsByOrgcode(orgcode, modelId, configName);
-
         // 3. 构建结果，应用继承逻辑
         List<IndicatorWeight> result = new ArrayList<>();
-        for (IndicatorWeight template : templateWeights) {
-            IndicatorWeight weight = new IndicatorWeight();
-            weight.setId(template.getId());
-            weight.setConfigId(template.getConfigId());
-            weight.setIndicatorCode(template.getIndicatorCode());
-            weight.setIndicatorName(template.getIndicatorName());
-            weight.setIndicatorLevel(template.getIndicatorLevel());
-            weight.setParentId(template.getParentId());
-            weight.setSortOrder(template.getSortOrder());
-            weight.setCreateTime(template.getCreateTime());
+        for (IndicatorWeight template : mergedTemplates.values()) {
+            IndicatorWeight weight = copyTemplateWeight(template);
 
             String code = template.getIndicatorCode();
             Double finalWeight = null;
@@ -926,6 +928,125 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         }
 
         return result;
+    }
+
+    private static Map<Long, List<String>> createLegacyConfigNamesByModelId() {
+        Map<Long, List<String>> mapping = new HashMap<>();
+        mapping.put(4L, Arrays.asList(
+                "社区-行政村能力评估模型",
+                "区县-社区（行政村）减灾能力（社区单元）评估"
+        ));
+        mapping.put(8L, Arrays.asList(
+                "社区-乡镇能力评估模型",
+                "区县-社区（行政村）减灾能力（乡镇单元）评估"
+        ));
+        mapping.put(11L, Arrays.asList(
+                "综合减灾能力评估模型",
+                "区县综合减灾能力评估"
+        ));
+        return mapping;
+    }
+
+    private List<String> resolveConfigNameCandidates(Long modelId, String configName) {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        if (StringUtils.hasText(configName)) {
+            names.add(configName.trim());
+        }
+        if (modelId != null) {
+            List<String> legacyNames = LEGACY_CONFIG_NAMES_BY_MODEL_ID.get(modelId);
+            if (legacyNames != null) {
+                for (String legacyName : legacyNames) {
+                    if (StringUtils.hasText(legacyName)) {
+                        names.add(legacyName.trim());
+                    }
+                }
+            }
+        }
+        return new ArrayList<>(names);
+    }
+
+    private Map<String, IndicatorWeight> toWeightMap(List<IndicatorWeight> weights) {
+        Map<String, IndicatorWeight> weightMap = new HashMap<>();
+        if (weights == null || weights.isEmpty()) {
+            return weightMap;
+        }
+        for (IndicatorWeight weight : weights) {
+            if (weight == null || !StringUtils.hasText(weight.getIndicatorCode())) {
+                continue;
+            }
+            weightMap.put(weight.getIndicatorCode().trim(), weight);
+        }
+        return weightMap;
+    }
+
+    private List<IndicatorWeight> sortWeights(List<IndicatorWeight> weights) {
+        if (weights == null || weights.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<IndicatorWeight> sorted = new ArrayList<>(weights);
+        sorted.sort(Comparator
+                .comparing((IndicatorWeight item) -> item.getIndicatorLevel() == null ? Integer.MAX_VALUE : item.getIndicatorLevel())
+                .thenComparing(item -> item.getSortOrder() == null ? Integer.MAX_VALUE : item.getSortOrder())
+                .thenComparing(item -> item.getId() == null ? Long.MAX_VALUE : item.getId()));
+        return sorted;
+    }
+
+    private IndicatorWeight copyTemplateWeight(IndicatorWeight source) {
+        IndicatorWeight target = new IndicatorWeight();
+        target.setId(source.getId());
+        target.setConfigId(source.getConfigId());
+        target.setIndicatorCode(source.getIndicatorCode());
+        target.setIndicatorName(source.getIndicatorName());
+        target.setIndicatorLevel(source.getIndicatorLevel());
+        target.setParentId(source.getParentId());
+        target.setSortOrder(source.getSortOrder());
+        target.setCreateTime(source.getCreateTime());
+        target.setWeight(source.getWeight());
+        return target;
+    }
+
+    private WeightConfig pickBestBaselineConfig(List<WeightConfig> configs, List<String> configNameCandidates) {
+        if (configs == null || configs.isEmpty()) {
+            return null;
+        }
+
+        WeightConfig best = null;
+        int bestNameScore = -1;
+        int bestWeightCount = -1;
+
+        for (WeightConfig config : configs) {
+            if (config == null || config.getId() == null) {
+                continue;
+            }
+
+            int nameScore = 0;
+            if (StringUtils.hasText(config.getConfigName()) && configNameCandidates != null) {
+                String name = config.getConfigName().trim();
+                for (String candidate : configNameCandidates) {
+                    if (StringUtils.hasText(candidate) && name.equals(candidate.trim())) {
+                        nameScore = 2;
+                        break;
+                    }
+                    if (StringUtils.hasText(candidate) && name.contains(candidate.trim())) {
+                        nameScore = Math.max(nameScore, 1);
+                    }
+                }
+            }
+
+            int weightCount = getByConfigId(config.getId()).size();
+            if (best == null
+                    || nameScore > bestNameScore
+                    || (nameScore == bestNameScore && weightCount > bestWeightCount)
+                    || (nameScore == bestNameScore && weightCount == bestWeightCount
+                    && config.getCreateTime() != null
+                    && (best.getCreateTime() == null || config.getCreateTime().isAfter(best.getCreateTime())))) {
+                best = config;
+                bestNameScore = nameScore;
+                bestWeightCount = weightCount;
+            }
+        }
+
+        return best;
     }
 
 }

@@ -36,6 +36,24 @@ public class EvaluationModel {
     private String modelCode;
 
     /**
+     * 模型类型(GOVERNMENT/ENTERPRISE/SOCIAL_ORGANIZATION/FAMILY/COMMUNITY_DIRECT/COMMUNITY_TOWNSHIP/COMMUNITY_COUNTY_UNIT/TOWNSHIP_COUNTY_UNIT/LEGACY_COMPREHENSIVE/CITY_COMPREHENSIVE_2020/LEGACY_TOWNSHIP)
+     */
+    @TableField("model_type")
+    private String modelType;
+
+    /**
+     * 数据源类型(government_table/enterprise_table/social_organization_table/family_table/community_table/survey_table/comprehensive_result)
+     */
+    @TableField("data_source_type")
+    private String dataSourceType;
+
+    /**
+     * 聚合类型(direct_community/township_aggregation/county_aggregation/none)
+     */
+    @TableField("aggregation_type")
+    private String aggregationType;
+
+    /**
      * 模型描述
      */
     @TableField("description")

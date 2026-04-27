@@ -287,30 +287,46 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             }
 
             String targetRegionCode = normalizeRegionCodeByModelKey(currentRegionCode, modelKey);
-            for (JsonNode step : steps) {
-                if (stepCode != null && !stepCode.trim().isEmpty()) {
-                    String currentStepCode = step.path("stepCode").asText("");
-                    if (!stepCode.trim().equalsIgnoreCase(currentStepCode)) {
-                        continue;
-                    }
-                }
-                JsonNode regionNode = findRegionNode(step.path("regionResults"), targetRegionCode);
-                if (regionNode == null || regionNode.isMissingNode()) {
-                    continue;
-                }
-                // 优先直接按字段名取值
-                Double direct = nodeToDouble(regionNode.get(fieldName));
-                if (direct != null) {
-                    return direct;
-                }
-                Double byModelKey = extractByModelKey(modelKey, fieldName, regionNode);
-                if (byModelKey != null) {
-                    return byModelKey;
-                }
+            Double matched = findValueInStepResults(steps, targetRegionCode, modelKey, fieldName, stepCode);
+            if (matched != null) {
+                return matched;
             }
+            // 兼容口径：步骤编码变更（例如 family: score_and_grade -> topsis_grading）时，放宽为跨步骤按字段兜底匹配
+            return findValueInStepResults(steps, targetRegionCode, modelKey, fieldName, null);
         } catch (Exception e) {
             log.warn("[LOAD_EVAL_RESULT] 解析执行明细失败: modelId={}, modelKey={}, field={}, region={}, error={}",
                     modelId, modelKey, fieldName, currentRegionCode, e.getMessage());
+        }
+        return null;
+    }
+
+    private Double findValueInStepResults(JsonNode steps,
+                                          String targetRegionCode,
+                                          String modelKey,
+                                          String fieldName,
+                                          String stepCodeFilter) {
+        if (steps == null || !steps.isArray()) {
+            return null;
+        }
+        for (JsonNode step : steps) {
+            if (stepCodeFilter != null && !stepCodeFilter.trim().isEmpty()) {
+                String currentStepCode = step.path("stepCode").asText("");
+                if (!stepCodeFilter.trim().equalsIgnoreCase(currentStepCode)) {
+                    continue;
+                }
+            }
+            JsonNode regionNode = findRegionNode(step.path("regionResults"), targetRegionCode);
+            if (regionNode == null || regionNode.isMissingNode()) {
+                continue;
+            }
+            Double direct = nodeToDouble(regionNode.get(fieldName));
+            if (direct != null) {
+                return direct;
+            }
+            Double byModelKey = extractByModelKey(modelKey, fieldName, regionNode);
+            if (byModelKey != null) {
+                return byModelKey;
+            }
         }
         return null;
     }

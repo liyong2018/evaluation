@@ -165,7 +165,7 @@ graph TD
 - **权限与用户**：`sys_user`、`sys_role`、`sys_menu`（以及若干关联表，详见初始化脚本）
 - **组织机构**：`organization`、`grassroots_organization`、`organization_boundary`
 - **基础数据**：`survey_data`、`region_data`、`community_disaster_reduction_capacity`、`medical_institution`、`firefighter_config`
-- **模型配置**：`evaluation_model`、`model_step`、`step_algorithm`、`field_mapping_config`
+- **模型配置**：`evaluation_model`、`model_step`、`step_algorithm`
 - **权重配置**：`weight_config`、`indicator_weight`、`indicator_weight_score`
 - **执行与结果**：`model_execution_record`、`evaluation_result`、`primary_indicator_result`、`secondary_indicator_result`、`report`
 

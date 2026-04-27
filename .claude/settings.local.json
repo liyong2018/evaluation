@@ -72,7 +72,18 @@
       "Bash(docker rm:*)",
       "WebSearch",
       "Bash(npm install:*)",
-      "Bash(claude mcp:*)"
+      "Bash(claude mcp:*)",
+      "Bash(export http_proxy=http://127.0.0.1:1087)",
+      "Bash(export https_proxy=http://127.0.0.1:1087)",
+      "Bash(export all_proxy=socks5://127.0.0.1:1080)",
+      "Bash(scutil --proxy)",
+      "Bash(networksetup -getwebproxy Wi-Fi)",
+      "Bash(networksetup -getsecurewebproxy Wi-Fi)",
+      "Bash(networksetup -getsocksfirewallproxy Wi-Fi)",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f'id={m[\\\\\"id\\\\\"]}, name={m[\\\\\"modelName\\\\\"]}'\\) for m in data.get\\('records',data\\) if '家庭' in m.get\\('modelName',''\\)]\")",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f'id={m[\\\\\"id\\\\\"]}, name={m.get\\(\\\\\"modelName\\\\\",\\\\\"\\\\\"\\)}'\\) for m in \\(data if isinstance\\(data,list\\) else data.get\\('records',data.get\\('data',[]\\)\\)\\)]\")",
+      "Bash(python3 -c ' *)"
     ],
     "deny": [],
     "ask": []

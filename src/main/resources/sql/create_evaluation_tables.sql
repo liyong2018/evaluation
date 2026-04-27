@@ -60,20 +60,6 @@ CREATE TABLE `step_algorithm` (
     INDEX `idx_algorithm_order` (`algorithm_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='步骤算法表';
 
--- 评估表
-DROP TABLE IF EXISTS `evaluation`;
-CREATE TABLE `evaluation` (
-    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    `survey_id` BIGINT DEFAULT NULL COMMENT '调查数据ID',
-    `algorithm_id` BIGINT DEFAULT NULL COMMENT '算法ID',
-    `weight_config_id` BIGINT DEFAULT NULL COMMENT '权重配置ID',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    `is_deleted` TINYINT DEFAULT 0 COMMENT '是否删除(0-未删除，1-已删除)',
-    INDEX `idx_survey_id` (`survey_id`),
-    INDEX `idx_is_deleted` (`is_deleted`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='评估表';
-
 -- 评估结果表
 DROP TABLE IF EXISTS `evaluation_result`;
 CREATE TABLE `evaluation_result` (
@@ -122,58 +108,6 @@ CREATE TABLE `model_execution_record` (
     INDEX `idx_model_id` (`model_id`),
     INDEX `idx_execution_code` (`execution_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型执行记录表';
-
--- 一级指标结果表
-DROP TABLE IF EXISTS `primary_indicator_result`;
-CREATE TABLE `primary_indicator_result` (
-    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    `survey_id` BIGINT DEFAULT NULL COMMENT '调查数据ID',
-    `algorithm_id` BIGINT DEFAULT NULL COMMENT '算法配置ID',
-    `weight_config_id` BIGINT DEFAULT NULL COMMENT '权重配置ID',
-    `evaluation_id` BIGINT DEFAULT NULL COMMENT '评估记录ID',
-    `secondary_result_id` BIGINT DEFAULT NULL COMMENT '二级指标结果ID',
-    `level1_management` DOUBLE DEFAULT 0 COMMENT '灾害管理能力',
-    `level1_preparation` DOUBLE DEFAULT 0 COMMENT '灾害备灾能力',
-    `level1_self_rescue` DOUBLE DEFAULT 0 COMMENT '自救转移能力',
-    `management_grade` VARCHAR(20) DEFAULT '' COMMENT '灾害管理能力分级',
-    `preparation_grade` VARCHAR(20) DEFAULT '' COMMENT '灾害备灾能力分级',
-    `self_rescue_grade` VARCHAR(20) DEFAULT '' COMMENT '自救转移能力分级',
-    `overall_capability` DOUBLE DEFAULT 0 COMMENT '综合减灾能力数值',
-    `overall_grade` VARCHAR(20) DEFAULT '' COMMENT '综合减灾能力分级',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    `is_deleted` TINYINT DEFAULT 0 COMMENT '是否删除(0-未删除，1-已删除)',
-    INDEX `idx_survey_id` (`survey_id`),
-    INDEX `idx_evaluation_id` (`evaluation_id`),
-    INDEX `idx_is_deleted` (`is_deleted`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='一级指标结果表';
-
--- 二级指标结果表
-DROP TABLE IF EXISTS `secondary_indicator_result`;
-CREATE TABLE `secondary_indicator_result` (
-    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    `survey_data_id` BIGINT DEFAULT NULL COMMENT '调查数据ID',
-    `config_id` BIGINT DEFAULT NULL COMMENT '配置ID',
-    `management_capability` DOUBLE DEFAULT 0 COMMENT '管理能力',
-    `risk_assessment_capability` DOUBLE DEFAULT 0 COMMENT '风险评估能力',
-    `funding_capability` DOUBLE DEFAULT 0 COMMENT '资金保障能力',
-    `material_capability` DOUBLE DEFAULT 0 COMMENT '物资保障能力',
-    `medical_capability` DOUBLE DEFAULT 0 COMMENT '医疗救护能力',
-    `self_rescue_capability` DOUBLE DEFAULT 0 COMMENT '自救互救能力',
-    `public_avoidance_capability` DOUBLE DEFAULT 0 COMMENT '公众避险能力',
-    `relocation_capability` DOUBLE DEFAULT 0 COMMENT '转移安置能力',
-    `management_normalized` DOUBLE DEFAULT 0 COMMENT '管理能力归一化值',
-    `risk_assessment_normalized` DOUBLE DEFAULT 0 COMMENT '风险评估能力归一化值',
-    `funding_normalized` DOUBLE DEFAULT 0 COMMENT '资金保障能力归一化值',
-    `material_normalized` DOUBLE DEFAULT 0 COMMENT '物资保障能力归一化值',
-    `medical_normalized` DOUBLE DEFAULT 0 COMMENT '医疗救护能力归一化值',
-    `self_rescue_normalized` DOUBLE DEFAULT 0 COMMENT '自救互救能力归一化值',
-    `public_avoidance_normalized` DOUBLE DEFAULT 0 COMMENT '公众避险能力归一化值',
-    `relocation_normalized` DOUBLE DEFAULT 0 COMMENT '转移安置能力归一化值',
-    `calculate_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '计算时间',
-    INDEX `idx_survey_data_id` (`survey_data_id`),
-    INDEX `idx_config_id` (`config_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='二级指标结果表';
 
 -- 社区减灾能力表
 DROP TABLE IF EXISTS `community_disaster_reduction_capacity`;
@@ -281,24 +215,4 @@ CREATE TABLE `report` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报告表';
 
 -- 字段映射配置表
-DROP TABLE IF EXISTS `field_mapping_config`;
-CREATE TABLE `field_mapping_config` (
-    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    `model_id` BIGINT DEFAULT NULL COMMENT '评估模型ID',
-    `algorithm_output_field` VARCHAR(100) DEFAULT '' COMMENT '算法输出字段名',
-    `database_field` VARCHAR(100) DEFAULT '' COMMENT '数据库字段名',
-    `field_type` VARCHAR(20) DEFAULT '' COMMENT '字段类型：SCORE-分数，LEVEL-等级',
-    `field_category` VARCHAR(50) DEFAULT '' COMMENT '字段分类：MANAGEMENT-管理能力，SUPPORT-支持能力，SELF_RESCUE-自救能力，COMPREHENSIVE-综合能力',
-    `description` VARCHAR(500) DEFAULT '' COMMENT '字段描述',
-    `is_active` TINYINT DEFAULT 1 COMMENT '是否启用：1-启用，0-禁用',
-    `sort_order` INT DEFAULT 0 COMMENT '排序顺序',
-    `create_by` VARCHAR(50) DEFAULT '' COMMENT '创建人',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_by` VARCHAR(50) DEFAULT '' COMMENT '更新人',
-    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    `is_deleted` TINYINT DEFAULT 0 COMMENT '是否删除：1-已删除，0-未删除',
-    INDEX `idx_model_id` (`model_id`),
-    INDEX `idx_is_active` (`is_active`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='字段映射配置表';
-
 SET FOREIGN_KEY_CHECKS = 1;
