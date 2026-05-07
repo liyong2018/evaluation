@@ -1873,11 +1873,8 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
             node.put("children", childNodes);
         }
 
-        // 省/市级节点如果只是基层同步镜像记录，则展示年份应跟随当前实际有效的下级节点。
-        String dataSource = normalizeText(org.getDataSource());
-        boolean derivedFromGrassroots = SOURCE_TOWNSHIP.equals(dataSource) || SOURCE_COMMUNITY.equals(dataSource);
-        if (derivedFromGrassroots
-                && (Objects.equals(org.getLevel(), LEVEL_PROVINCE) || Objects.equals(org.getLevel(), LEVEL_CITY))
+        // 父级节点的展示年份应跟随下级的最新有效变更年份。
+        if ((Objects.equals(org.getLevel(), LEVEL_PROVINCE) || Objects.equals(org.getLevel(), LEVEL_CITY))
                 && !childNodes.isEmpty()) {
             int maxChildSourceYear = childNodes.stream()
                     .map(child -> child.get("sourceYear"))

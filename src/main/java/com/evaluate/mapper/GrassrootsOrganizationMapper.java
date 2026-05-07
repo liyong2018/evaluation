@@ -86,6 +86,7 @@ public interface GrassrootsOrganizationMapper extends BaseMapper<GrassrootsOrgan
             "AND year > 2020 " +
             "AND year <= #{year} " +
             "AND (is_baseline = 0 OR is_baseline IS NULL) " +
+            "AND is_deleted = 0 " +
             "GROUP BY county_id")
     List<Map<String, Object>> selectCountyMaxYearUpToIncludeDeleted(@Param("year") Integer year);
 }

@@ -158,10 +158,14 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         // 首先添加所有基准记录（如果最新有效记录为删除标记，则不展示）
         for (Map.Entry<String, GrassrootsOrganization> entry : baselineByCode.entrySet()) {
             String code = entry.getKey();
+            GrassrootsOrganization baseline = entry.getValue();
+            if (baseline != null && baseline.getIsDeleted() != null && baseline.getIsDeleted() == 1) {
+                continue;
+            }
             if (deletedCodes.contains(code)) {
                 continue;
             }
-            mergedByCode.put(code, entry.getValue());
+            mergedByCode.put(code, baseline);
         }
 
         // 然后用年份记录覆盖（排除已删除的记录：最新年份已删除则不展示）

@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.lang.Integer;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 调查数据控制器
@@ -236,10 +238,18 @@ public class SurveyDataController {
     }
 
     @GetMapping("/export/all")
-    public Result<byte[]> exportAllSurveyData() {
+    public Result<byte[]> exportAllSurveyData(@RequestParam(required = false) String ids) {
         try {
             log.info("开始导出所有调查数据");
-            byte[] data = surveyDataService.exportAllToExcel();
+            List<Long> idList = null;
+            if (ids != null && !ids.trim().isEmpty()) {
+                idList = Arrays.stream(ids.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(Long::parseLong)
+                        .collect(Collectors.toList());
+            }
+            byte[] data = surveyDataService.exportAllToExcel(idList);
             log.info("导出完成，文件大小: {} 字节", data != null ? data.length : 0);
             if (data == null || data.length == 0) {
                 log.warn("导出的文件数据为空");

@@ -143,7 +143,7 @@
                 </el-button>
                 <el-button v-if="!isCityCapacityMode || isCityGovernmentMode || isCityEnterpriseMode || isCitySocialOrganizationMode || isCityFamilyMode || isCityCommunityMode || isCityMedicalMode" type="info" @click="exportData">
                   <el-icon><Download /></el-icon>
-                  导出数据
+                  {{ selectedRows.length > 0 ? `导出选中 (${selectedRows.length})` : '导出数据' }}
                 </el-button>
               </div>
             </el-col>
@@ -2551,22 +2551,43 @@ const downloadTemplate = async () => {
 }
 
 // 导出数据
+const buildExportFileName = () => {
+  const orgPart = selectedOrg.value
+    ? `${selectedOrg.value.name}${selectedOrg.value.code}`
+    : '全部数据'
+  const typeNameMap: Record<string, string> = {
+    'township': '乡镇数据',
+    'community': '社区数据',
+    'medical': '医疗卫生机构数据',
+    'family': '家庭数据',
+    'government': '政府减灾能力数据',
+    'enterprise': '企业减灾能力数据',
+    'social-organization': '社会组织减灾能力数据'
+  }
+  const dataTypePart = typeNameMap[dataType.value] || '数据'
+  const year = searchForm.year || new Date().getFullYear()
+  return `${orgPart}-${dataTypePart}-${year}.xlsx`
+}
+
 const exportData = async () => {
   try {
     let response
     const year = searchForm.year || new Date().getFullYear()
+    // 如果有选中行，只导出选中的数据
+    const selectedIds = selectedRows.value.length > 0
+      ? selectedRows.value.map((row: any) => row.id)
+      : undefined
+
     if (dataType.value === 'medical') {
-      // 导出医疗卫生机构数据
-      response = await medicalInstitutionApi.exportData(year)
+      response = await medicalInstitutionApi.exportData(year, selectedIds)
     } else if (dataType.value === 'government') {
-      response = await governmentCapacityApi.exportData(year)
+      response = await governmentCapacityApi.exportData(year, selectedIds)
     } else if (dataType.value === 'enterprise') {
-      response = await enterpriseCapacityApi.exportData(year)
+      response = await enterpriseCapacityApi.exportData(year, selectedIds)
     } else if (dataType.value === 'social-organization') {
-      response = await socialOrganizationCapacityApi.exportData(year)
+      response = await socialOrganizationCapacityApi.exportData(year, selectedIds)
     } else {
-      // 导出其他类型数据
-      response = await surveyDataApi.exportData()
+      response = await surveyDataApi.exportData(selectedIds)
     }
 
     console.log('导出响应:', response)
@@ -2580,19 +2601,14 @@ const exportData = async () => {
       blob = blobData instanceof Blob ? blobData : new Blob([blobData], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       })
-      fileName = `医疗卫生机构数据_${searchForm.year || new Date().getFullYear()}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      fileName = buildExportFileName()
     } else if (['government', 'enterprise', 'social-organization'].includes(dataType.value)) {
       // 政府/企业/社会组织减灾能力数据导出 - 返回 blob
       const blobData = response.data || response
       blob = blobData instanceof Blob ? blobData : new Blob([blobData], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       })
-      const typeNameMap: Record<string, string> = {
-        'government': '政府减灾能力',
-        'enterprise': '企业减灾能力',
-        'social-organization': '社会组织减灾能力'
-      }
-      fileName = `${typeNameMap[dataType.value]}数据_${year}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      fileName = buildExportFileName()
     } else {
       // 其他类型数据导出 - 需要处理响应格式
       if (response && response.success && response.data) {
@@ -2635,7 +2651,7 @@ const exportData = async () => {
         blob = new Blob([normalizedByteArray], {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         })
-        fileName = `调查数据_${new Date().toISOString().slice(0, 10)}.xlsx`
+        fileName = buildExportFileName()
       } else {
         console.error('导出失败，响应:', response)
         ElMessage.error(response?.message || '导出失败：响应数据为空')

@@ -282,7 +282,8 @@ public class SocialOrganizationDisasterReductionCapacityController {
     @GetMapping("/export")
     public ResponseEntity<byte[]> exportData(
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) String orgCode) {
+            @RequestParam(required = false) String orgCode,
+            @RequestParam(required = false) String ids) {
         try {
             StringBuilder where = new StringBuilder(" WHERE 1=1 ");
             List<Object> params = new ArrayList<>();
@@ -293,6 +294,16 @@ public class SocialOrganizationDisasterReductionCapacityController {
             if (StringUtils.hasText(orgCode)) {
                 where.append(" AND region_code LIKE ? ");
                 params.add(orgCode.trim() + "%");
+            }
+            if (StringUtils.hasText(ids)) {
+                String[] idArr = ids.split(",");
+                where.append(" AND id IN (");
+                for (int i = 0; i < idArr.length; i++) {
+                    if (i > 0) where.append(",");
+                    where.append("?");
+                    params.add(Long.parseLong(idArr[i].trim()));
+                }
+                where.append(") ");
             }
             List<String> dataColumns = buildDisplayColumns();
             String selectColumns = String.join(", ", dataColumns);

@@ -18,10 +18,12 @@ import org.springframework.util.StringUtils;
 import javax.servlet.http.HttpServletResponse;
 import java.lang.Integer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 医疗卫生机构数据管理控制器
@@ -779,13 +781,22 @@ public class MedicalInstitutionController {
     @GetMapping("/export")
     public void exportMedicalInstitutionData(
             @RequestParam Integer year,
+            @RequestParam(required = false) String ids,
             HttpServletResponse response) {
         try {
             if (!isServiceAvailable()) {
                 log.warn("医疗卫生机构服务未注入，无法导出数据");
                 throw new RuntimeException("服务暂时不可用，请稍后重试");
             }
-            medicalInstitutionService.exportMedicalInstitutionData(year, response);
+            List<Long> idList = null;
+            if (ids != null && !ids.trim().isEmpty()) {
+                idList = Arrays.stream(ids.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(Long::parseLong)
+                        .collect(Collectors.toList());
+            }
+            medicalInstitutionService.exportMedicalInstitutionData(year, response, idList);
         } catch (Exception e) {
             log.error("导出医疗卫生机构数据失败", e);
             throw new RuntimeException("导出失败：" + e.getMessage());

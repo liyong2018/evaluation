@@ -10,6 +10,7 @@ import com.evaluate.mapper.GrassrootsOrganizationMapper;
 import com.evaluate.mapper.MedicalInstitutionMapper;
 import com.evaluate.service.IGrassrootsOrganizationService;
 import com.evaluate.service.IMedicalInstitutionService;
+import com.evaluate.util.ChengduFunctionalDistrictCodeMapper;
 import com.evaluate.util.GpkgUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
@@ -160,6 +161,7 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                     }
 
                     medicalInstitution.setYear(year);
+                    applyChengduFunctionalDistrictMapping(medicalInstitution, year);
 
                     medicalInstitutions.add(medicalInstitution);
 
@@ -370,8 +372,10 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
 
                     // 从地址中解析省市区信息
                     applyNamesFromAddress(medicalInstitution);
+                    applyChengduFunctionalDistrictMapping(medicalInstitution, year);
 
                     checkAddressParsing(medicalInstitution, result, i + 1, year, importLookupCache);
+                    applyChengduFunctionalDistrictMapping(medicalInstitution, year);
 
                     medicalInstitutions.add(medicalInstitution);
 
@@ -1227,9 +1231,14 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
     }
 
     @Override
-    public void exportMedicalInstitutionData(Integer year, HttpServletResponse response) {
+    public void exportMedicalInstitutionData(Integer year, HttpServletResponse response, List<Long> ids) {
         try {
             List<MedicalInstitution> medicalInstitutions = getMedicalInstitutionByYear(year, null);
+            if (ids != null && !ids.isEmpty()) {
+                medicalInstitutions = medicalInstitutions.stream()
+                        .filter(inst -> ids.contains(inst.getId()))
+                        .collect(java.util.stream.Collectors.toList());
+            }
 
             XSSFWorkbook workbook = new XSSFWorkbook();
             Sheet sheet = workbook.createSheet("医疗卫生机构数据");
@@ -1748,6 +1757,7 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
             String finalOrgCode = resolveOrgCode(data.getOrgCode(), townshipCodeFromFxpc,
                 data.getInstitutionName(), data.getProvince(), data.getCity(), data.getCounty());
             data.setOrgCode(finalOrgCode);
+            applyChengduFunctionalDistrictMapping(data, year);
 
             // 存储备用乡镇代码，用于后续乡镇名称识别
             if (StringUtils.hasText(townshipCodeFromFxpc)) {
@@ -1764,6 +1774,7 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
                         townshipNameFromFxpc, data.getInstitutionName());
                     data.setTownshipName(townshipNameFromFxpc);
                     data.setTownship(townshipNameFromFxpc);
+                    applyChengduFunctionalDistrictMapping(data, year);
                 } else {
                     log.warn("通过 fxpc_xzqhbmd_sjgl 未找到乡镇：code={}, 机构={}, 省={}/{}/{}",
                         townshipCodeFromFxpc, data.getInstitutionName(),
@@ -1844,6 +1855,29 @@ public class MedicalInstitutionServiceImpl extends ServiceImpl<MedicalInstitutio
         }
 
         return result;
+    }
+
+    private void applyChengduFunctionalDistrictMapping(MedicalInstitution data, Integer year) {
+        if (data == null || year == null || year < 2025) {
+            return;
+        }
+        String lookupCode = StringUtils.hasText(data.getOrgCode()) ? data.getOrgCode() : data.getTownshipCodeFromFxpc();
+        ChengduFunctionalDistrictCodeMapper.Mapping mapping =
+                ChengduFunctionalDistrictCodeMapper.findByAnyCode(lookupCode);
+        if (mapping == null) {
+            return;
+        }
+
+        data.setOrgCode(ChengduFunctionalDistrictCodeMapper.normalizeCode(lookupCode));
+        data.setProvince("四川省");
+        data.setProvinceName("四川省");
+        String cityName = mapping.getCountyCode().startsWith("5103") ? "自贡市" : "成都市";
+        data.setCity(cityName);
+        data.setCityName(cityName);
+        data.setCounty(mapping.getCountyName());
+        data.setCountyName(mapping.getCountyName());
+        data.setTownship(mapping.getTownshipName());
+        data.setTownshipName(mapping.getTownshipName());
     }
 
     /**

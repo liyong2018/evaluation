@@ -67,7 +67,7 @@ public interface IMedicalInstitutionService extends IService<MedicalInstitution>
      * @param year 年份
      * @param response HTTP响应
      */
-    void exportMedicalInstitutionData(Integer year, HttpServletResponse response);
+    void exportMedicalInstitutionData(Integer year, HttpServletResponse response, List<Long> ids);
 
     /**
      * 下载导入模板

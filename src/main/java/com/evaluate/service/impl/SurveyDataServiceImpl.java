@@ -13,6 +13,7 @@ import com.evaluate.service.ISurveyDataService;
 import com.evaluate.service.IFirefighterConfigService;
 import com.evaluate.service.IVolunteerMilitiaService;
 import com.evaluate.service.IMedicalInstitutionService;
+import com.evaluate.util.ChengduFunctionalDistrictCodeMapper;
 import com.evaluate.util.GpkgUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
@@ -293,6 +294,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                     SurveyData data = parseRowToSurveyData(row, year, i, isCodeHeaderExcel, columnIndexMap);
                     if (data != null) {
                         data.setYear(year);
+                        applyFunctionalDistrictMapping(data, year);
                         dataList.add(data);
                         validRowCount++;
                     }
@@ -425,6 +427,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
                 if (isTownshipRowEmpty(data)) {
                     return null;
                 }
+                applyFunctionalDistrictMapping(data, year);
                 setEnhancedDataFromConfig(data, year);
                 return data;
             }
@@ -632,6 +635,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             log.debug("消防员数量解析 - 行: {}, 使用列: {}, 值: {}", rowNumber, firefighterColumn, data.getFirefightersCount());
 
             // 使用新的数据源设置志愿者、民兵预备役、医院床位数据（消防员已从Excel读取，不再覆盖）
+            applyFunctionalDistrictMapping(data, year);
             setEnhancedDataFromConfig(data, year);
 
             return data;
@@ -1173,8 +1177,13 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
     }
 
     @Override
-    public byte[] exportAllToExcel() {
-        List<SurveyData> dataList = list();
+    public byte[] exportAllToExcel(List<Long> ids) {
+        List<SurveyData> dataList;
+        if (ids != null && !ids.isEmpty()) {
+            dataList = listByIds(ids);
+        } else {
+            dataList = list();
+        }
 
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("调查数据");
@@ -1719,6 +1728,7 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
             }
 
             // 使用配置数据源设置消防员、志愿者、民兵预备役和医院床位数据
+            applyFunctionalDistrictMapping(data, year);
             setEnhancedDataFromConfig(data, year);
 
             return data;
@@ -1796,6 +1806,27 @@ public class SurveyDataServiceImpl extends ServiceImpl<SurveyDataMapper, SurveyD
         } catch (Exception e) {
             log.warn("设置字段值失败: {} = {}", fieldName, value);
         }
+    }
+
+    private void applyFunctionalDistrictMapping(SurveyData data, Integer year) {
+        if (data == null || year == null || year < 2025) {
+            return;
+        }
+        ChengduFunctionalDistrictCodeMapper.Mapping mapping =
+                ChengduFunctionalDistrictCodeMapper.findByAnyCode(data.getRegionCode());
+        if (mapping == null) {
+            return;
+        }
+
+        data.setRegionCode(ChengduFunctionalDistrictCodeMapper.normalizeCode(data.getRegionCode()));
+        data.setProvince("四川省");
+        if (mapping.getCountyCode().startsWith("5103")) {
+            data.setCity("自贡市");
+        } else {
+            data.setCity("成都市");
+        }
+        data.setCounty(mapping.getCountyName());
+        data.setTownship(mapping.getTownshipName());
     }
 
     /**

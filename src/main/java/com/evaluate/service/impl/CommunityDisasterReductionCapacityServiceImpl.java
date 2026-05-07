@@ -10,6 +10,7 @@ import com.evaluate.entity.Organization;
 import com.evaluate.mapper.CommunityDisasterReductionCapacityMapper;
 import com.evaluate.service.ICommunityDisasterReductionCapacityService;
 import com.evaluate.service.IOrganizationService;
+import com.evaluate.util.ChengduFunctionalDistrictCodeMapper;
 import com.evaluate.util.ExcelUtil;
 import com.evaluate.util.GpkgUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -523,6 +524,7 @@ public class CommunityDisasterReductionCapacityServiceImpl
                 CommunityDisasterReductionCapacity data = parseRowToCommunityData(row, isCodeHeaderExcel, columnIndexMap);
                 if (data != null) {
                     data.setYear(year);
+                    applyChengduFunctionalDistrictMapping(data, year);
                     dataList.add(data);
                 } else {
                     errorMessages.add(String.format("第%d行：数据解析失败", i + 1));
@@ -1134,6 +1136,7 @@ public class CommunityDisasterReductionCapacityServiceImpl
             }
 
             normalizeCommunityDivisionFields(data, feature, year, orgNameCache);
+            applyChengduFunctionalDistrictMapping(data, year);
 
             return data;
         } catch (Exception e) {
@@ -1253,6 +1256,23 @@ public class CommunityDisasterReductionCapacityServiceImpl
                 || isCodeLike(data.getProvinceName()) || isCodeLike(data.getCityName()) || isCodeLike(data.getCountyName()) || isCodeLike(data.getTownshipName())) {
             parseAddressToProvinceCityCounty(data, data.getCommunityAddress());
         }
+    }
+
+    private void applyChengduFunctionalDistrictMapping(CommunityDisasterReductionCapacity data, Integer year) {
+        if (data == null || year == null || year < 2025) {
+            return;
+        }
+        ChengduFunctionalDistrictCodeMapper.Mapping mapping =
+                ChengduFunctionalDistrictCodeMapper.findByAnyCode(data.getRegionCode());
+        if (mapping == null) {
+            return;
+        }
+
+        data.setRegionCode(ChengduFunctionalDistrictCodeMapper.normalizeCode(data.getRegionCode()));
+        data.setProvinceName("四川省");
+        data.setCityName(mapping.getCountyCode().startsWith("5103") ? "自贡市" : "成都市");
+        data.setCountyName(mapping.getCountyName());
+        data.setTownshipName(mapping.getTownshipName());
     }
 
     private boolean isCommunityRowEmpty(CommunityDisasterReductionCapacity data) {

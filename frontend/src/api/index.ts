@@ -95,7 +95,9 @@ export const surveyDataApi = {
   },
 
   // 导出Excel文件
-  exportData: () => request.get('/api/survey-data/export/all')
+  exportData: (ids?: number[]) => request.get('/api/survey-data/export/all', {
+    params: ids && ids.length > 0 ? { ids: ids.join(',') } : {}
+  })
 }
 
 // 权重配置相关API
@@ -568,9 +570,9 @@ export const governmentCapacityApi = {
       timeout: 300000
     })
   },
-  exportData: (year?: number) =>
+  exportData: (year?: number, ids?: number[]) =>
     request.get('/api/government-capacity/export', {
-      params: { year },
+      params: { year, ...(ids && ids.length > 0 ? { ids: ids.join(',') } : {}) },
       responseType: 'blob'
     })
 }
@@ -595,9 +597,9 @@ export const enterpriseCapacityApi = {
       timeout: 300000
     })
   },
-  exportData: (year?: number) =>
+  exportData: (year?: number, ids?: number[]) =>
     request.get('/api/enterprise-capacity/export', {
-      params: { year },
+      params: { year, ...(ids && ids.length > 0 ? { ids: ids.join(',') } : {}) },
       responseType: 'blob'
     })
 }
@@ -623,9 +625,9 @@ export const socialOrganizationCapacityApi = {
       timeout: 300000
     })
   },
-  exportData: (year?: number) =>
+  exportData: (year?: number, ids?: number[]) =>
     request.get('/api/social-organization-capacity/export', {
-      params: { year },
+      params: { year, ...(ids && ids.length > 0 ? { ids: ids.join(',') } : {}) },
       responseType: 'blob'
     })
 }
@@ -699,8 +701,8 @@ export const medicalInstitutionApi = {
     request.delete('/api/medical-institution/delete-by-year-org', { params: { year, orgCode } }),
 
   // 导出医疗卫生机构数据
-  exportData: (year: number) => request.get('/api/medical-institution/export', {
-    params: { year },
+  exportData: (year: number, ids?: number[]) => request.get('/api/medical-institution/export', {
+    params: { year, ...(ids && ids.length > 0 ? { ids: ids.join(',') } : {}) },
     responseType: 'blob'
   }),
 
