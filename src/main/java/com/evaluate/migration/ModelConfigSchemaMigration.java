@@ -33,6 +33,7 @@ public class ModelConfigSchemaMigration implements ApplicationRunner {
             createModelExecutionStrategyTable();
             seedModelTypeData();
             seedModelDependencyData();
+            seedGradeRuleData();
             log.info("ModelConfigSchemaMigration completed successfully");
         } catch (Exception e) {
             log.error("ModelConfigSchemaMigration failed: {}", e.getMessage(), e);
@@ -164,5 +165,29 @@ public class ModelConfigSchemaMigration implements ApplicationRunner {
                 + "(20, 'communityCountyUnit', NULL, '社区,区县单元', NULL, 'append_000', 17, NULL, 5),"
                 + "(20, 'family', NULL, '家庭减灾能力', NULL, 'truncate_to_county', NULL, 'family_disaster_reduction_capacity_2020', 6)");
         log.info("model_dependency data seeded successfully");
+    }
+
+    private void seedGradeRuleData() {
+        String defaultThresholds = "["
+                + "{\"min\":0.8,\"level\":\"强\"},"
+                + "{\"min\":0.6,\"level\":\"较强\"},"
+                + "{\"min\":0.4,\"level\":\"中等\"},"
+                + "{\"min\":0.2,\"level\":\"较弱\"},"
+                + "{\"min\":0,\"level\":\"弱\"}"
+                + "]";
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM model_execution_strategy WHERE strategy_type = 'grade_rule' AND strategy_key = 'fallback_thresholds'",
+                Integer.class);
+        if (count != null && count > 0) {
+            log.info("grade_rule fallback thresholds already seeded, skipping");
+            return;
+        }
+        log.info("Seeding grade_rule fallback threshold data...");
+        jdbcTemplate.update("INSERT INTO model_execution_strategy "
+                        + "(model_id, strategy_type, strategy_key, strategy_value, sort_order, status) "
+                        + "SELECT id, 'grade_rule', 'fallback_thresholds', ?, 1, 1 "
+                        + "FROM evaluation_model WHERE status = 1",
+                defaultThresholds);
+        log.info("grade_rule fallback threshold data seeded successfully");
     }
 }

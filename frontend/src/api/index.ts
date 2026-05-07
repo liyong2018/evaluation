@@ -554,7 +554,25 @@ export const governmentCapacityApi = {
     size?: number;
     orgCode?: string;
     year?: number;
-  }) => request.get('/api/government-capacity/list', { params })
+  }) => request.get('/api/government-capacity/list', { params }),
+  delete: (id: number) => request.delete(`/api/government-capacity/${id}`),
+  batchDelete: (ids: number[]) => request.delete('/api/government-capacity/batch', { data: ids }),
+  deleteAllByYearOrg: (year: number, orgCode?: string) =>
+    request.delete('/api/government-capacity/delete-by-year-org', { params: { year, orgCode } }),
+  importData: (file: File, year: number) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('year', year.toString())
+    return request.post('/api/government-capacity/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000
+    })
+  },
+  exportData: (year?: number) =>
+    request.get('/api/government-capacity/export', {
+      params: { year },
+      responseType: 'blob'
+    })
 }
 
 export const enterpriseCapacityApi = {
@@ -563,7 +581,25 @@ export const enterpriseCapacityApi = {
     size?: number;
     orgCode?: string;
     year?: number;
-  }) => request.get('/api/enterprise-capacity/list', { params })
+  }) => request.get('/api/enterprise-capacity/list', { params }),
+  delete: (id: number) => request.delete(`/api/enterprise-capacity/${id}`),
+  batchDelete: (ids: number[]) => request.delete('/api/enterprise-capacity/batch', { data: ids }),
+  deleteAllByYearOrg: (year: number, orgCode?: string) =>
+    request.delete('/api/enterprise-capacity/delete-by-year-org', { params: { year, orgCode } }),
+  importData: (file: File, year: number) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('year', year.toString())
+    return request.post('/api/enterprise-capacity/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000
+    })
+  },
+  exportData: (year?: number) =>
+    request.get('/api/enterprise-capacity/export', {
+      params: { year },
+      responseType: 'blob'
+    })
 }
 
 // 社会组织减灾能力相关API
@@ -573,7 +609,25 @@ export const socialOrganizationCapacityApi = {
     size?: number;
     orgCode?: string;
     year?: number;
-  }) => request.get('/api/social-organization-capacity/list', { params })
+  }) => request.get('/api/social-organization-capacity/list', { params }),
+  delete: (id: number) => request.delete(`/api/social-organization-capacity/${id}`),
+  batchDelete: (ids: number[]) => request.delete('/api/social-organization-capacity/batch', { data: ids }),
+  deleteAllByYearOrg: (year: number, orgCode?: string) =>
+    request.delete('/api/social-organization-capacity/delete-by-year-org', { params: { year, orgCode } }),
+  importData: (file: File, year: number) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('year', year.toString())
+    return request.post('/api/social-organization-capacity/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000
+    })
+  },
+  exportData: (year?: number) =>
+    request.get('/api/social-organization-capacity/export', {
+      params: { year },
+      responseType: 'blob'
+    })
 }
 
 // 医疗卫生机构相关API

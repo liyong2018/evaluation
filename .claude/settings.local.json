@@ -83,7 +83,8 @@
       "Bash(python3 -m json.tool)",
       "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f'id={m[\\\\\"id\\\\\"]}, name={m[\\\\\"modelName\\\\\"]}'\\) for m in data.get\\('records',data\\) if '家庭' in m.get\\('modelName',''\\)]\")",
       "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f'id={m[\\\\\"id\\\\\"]}, name={m.get\\(\\\\\"modelName\\\\\",\\\\\"\\\\\"\\)}'\\) for m in \\(data if isinstance\\(data,list\\) else data.get\\('records',data.get\\('data',[]\\)\\)\\)]\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(brew list *)"
     ],
     "deny": [],
     "ask": []

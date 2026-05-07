@@ -110,7 +110,7 @@
             <el-col :span="8">
               <div class="toolbar-actions">
                 <el-button
-                  v-if="!isCityCapacityMode || isCityFamilyMode || isCityCommunityMode || isCityMedicalMode"
+                  v-if="!isCityCapacityMode || isCityGovernmentMode || isCityEnterpriseMode || isCitySocialOrganizationMode || isCityFamilyMode || isCityCommunityMode || isCityMedicalMode"
                   type="danger"
                   plain
                   :loading="loading.deleteAll"
@@ -120,7 +120,7 @@
                   全部删除
                 </el-button>
                 <el-button
-                  v-if="!isCityCapacityMode || isCityFamilyMode || isCityCommunityMode || isCityMedicalMode"
+                  v-if="!isCityCapacityMode || isCityGovernmentMode || isCityEnterpriseMode || isCitySocialOrganizationMode || isCityFamilyMode || isCityCommunityMode || isCityMedicalMode"
                   type="danger"
                   :disabled="selectedRows.length === 0"
                   :loading="loading.batchDelete"
@@ -129,11 +129,11 @@
                   <el-icon><Delete /></el-icon>
                   批量删除 ({{ selectedRows.length }})
                 </el-button>
-                <el-button v-if="(dataType !== 'medical' && !isCityCapacityMode) || isCityFamilyMode || isCityCommunityMode" type="success" @click="showAddDialog">
+                <el-button v-if="(dataType !== 'medical' && !isCityCapacityMode) || isCityGovernmentMode || isCityEnterpriseMode || isCitySocialOrganizationMode || isCityFamilyMode || isCityCommunityMode" type="success" @click="showAddDialog">
                   <el-icon><Plus /></el-icon>
                   新增数据
                 </el-button>
-                <el-button v-if="!isCityCapacityMode || isCityFamilyMode || isCityCommunityMode || isCityMedicalMode" type="warning" @click="showImportDialog">
+                <el-button v-if="!isCityCapacityMode || isCityGovernmentMode || isCityEnterpriseMode || isCitySocialOrganizationMode || isCityFamilyMode || isCityCommunityMode || isCityMedicalMode" type="warning" @click="showImportDialog">
                   <el-icon><Upload /></el-icon>
                   批量导入
                 </el-button>
@@ -141,7 +141,7 @@
                   <el-icon><Download /></el-icon>
                   下载模板
                 </el-button>
-                <el-button v-if="!isCityCapacityMode || isCityFamilyMode || isCityCommunityMode || isCityMedicalMode" type="info" @click="exportData">
+                <el-button v-if="!isCityCapacityMode || isCityGovernmentMode || isCityEnterpriseMode || isCitySocialOrganizationMode || isCityFamilyMode || isCityCommunityMode || isCityMedicalMode" type="info" @click="exportData">
                   <el-icon><Download /></el-icon>
                   导出数据
                 </el-button>
@@ -161,7 +161,7 @@
         :height="500"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column v-if="!isCityCapacityMode || isCityFamilyMode" type="selection" width="55" />
+        <el-table-column v-if="!isCityCapacityMode || isCityGovernmentMode || isCityEnterpriseMode || isCitySocialOrganizationMode || isCityFamilyMode" type="selection" width="55" />
         <el-table-column
           v-for="column in cityGovernmentColumns"
           :key="column.prop"
@@ -376,7 +376,7 @@
         <!-- 在岗职工人数 (仅医疗机构数据) -->
         <el-table-column v-if="dataType === 'medical'" prop="totalStaff" label="在岗职工人数" width="120" />
         <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column v-if="!isCityCapacityMode || isCityFamilyMode" label="操作" width="200" fixed="right">
+        <el-table-column v-if="!isCityCapacityMode || isCityGovernmentMode || isCityEnterpriseMode || isCitySocialOrganizationMode || isCityFamilyMode" label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="showEditDialog(row)">
               <el-icon><Edit /></el-icon>
@@ -2031,6 +2031,12 @@ const handleDelete = async (row: any) => {
       response = await medicalInstitutionApi.delete(row.id)
     } else if (dataType.value === 'family') {
       response = await familyCapacityApi.delete(row.id)
+    } else if (dataType.value === 'government') {
+      response = await governmentCapacityApi.delete(row.id)
+    } else if (dataType.value === 'enterprise') {
+      response = await enterpriseCapacityApi.delete(row.id)
+    } else if (dataType.value === 'social-organization') {
+      response = await socialOrganizationCapacityApi.delete(row.id)
     } else {
       // 默认为乡镇数据
       response = await surveyDataApi.delete(row.id)
@@ -2085,6 +2091,12 @@ const handleBatchDelete = async () => {
     } else if (dataType.value === 'family') {
       // 家庭减灾能力数据批量删除
       response = await familyCapacityApi.batchDelete(ids)
+    } else if (dataType.value === 'government') {
+      response = await governmentCapacityApi.batchDelete(ids)
+    } else if (dataType.value === 'enterprise') {
+      response = await enterpriseCapacityApi.batchDelete(ids)
+    } else if (dataType.value === 'social-organization') {
+      response = await socialOrganizationCapacityApi.batchDelete(ids)
     }
 
     if (response.success) {
@@ -2113,7 +2125,16 @@ const handleDeleteAll = async () => {
 
   const year = searchForm.year
   const orgCode = selectedOrg.value ? normalizeOrgCode(selectedOrg.value.code) : undefined
-  const dataTypeText = dataType.value === 'township' ? '乡镇评估数据' : dataType.value === 'community' ? '社区减灾能力数据' : dataType.value === 'family' ? '家庭减灾能力数据' : '医疗卫生机构数据'
+  const dataTypeTextMap: Record<string, string> = {
+    township: '乡镇评估数据',
+    community: '社区减灾能力数据',
+    family: '家庭减灾能力数据',
+    medical: '医疗卫生机构数据',
+    government: '政府减灾能力数据',
+    enterprise: '企业减灾能力数据',
+    'social-organization': '社会组织减灾能力数据'
+  }
+  const dataTypeText = dataTypeTextMap[dataType.value] || '数据'
   const orgText = orgCode ? `和组织机构【${selectedOrg.value?.name}】` : ''
 
   try {
@@ -2145,6 +2166,12 @@ const handleDeleteAll = async () => {
       response = await medicalInstitutionApi.deleteAllByYearOrg(year, orgCode)
     } else if (dataType.value === 'family') {
       response = await familyCapacityApi.deleteAllByYearOrg(year, orgCode)
+    } else if (dataType.value === 'government') {
+      response = await governmentCapacityApi.deleteAllByYearOrg(year, orgCode)
+    } else if (dataType.value === 'enterprise') {
+      response = await enterpriseCapacityApi.deleteAllByYearOrg(year, orgCode)
+    } else if (dataType.value === 'social-organization') {
+      response = await socialOrganizationCapacityApi.deleteAllByYearOrg(year, orgCode)
     }
 
     if (response.success || response.data !== undefined) {
@@ -2439,6 +2466,12 @@ const handleExcelImport = async () => {
     } else if (dataType.value === 'family') {
       // 导入家庭数据
       response = await familyCapacityApi.importData(file, searchForm.year || new Date().getFullYear())
+    } else if (dataType.value === 'government') {
+      response = await governmentCapacityApi.importData(file, searchForm.year || new Date().getFullYear())
+    } else if (dataType.value === 'enterprise') {
+      response = await enterpriseCapacityApi.importData(file, searchForm.year || new Date().getFullYear())
+    } else if (dataType.value === 'social-organization') {
+      response = await socialOrganizationCapacityApi.importData(file, searchForm.year || new Date().getFullYear())
     }
 
     const importResult = getImportResultPayload(response)
@@ -2521,10 +2554,16 @@ const downloadTemplate = async () => {
 const exportData = async () => {
   try {
     let response
+    const year = searchForm.year || new Date().getFullYear()
     if (dataType.value === 'medical') {
       // 导出医疗卫生机构数据
-      const year = searchForm.year || new Date().getFullYear()
       response = await medicalInstitutionApi.exportData(year)
+    } else if (dataType.value === 'government') {
+      response = await governmentCapacityApi.exportData(year)
+    } else if (dataType.value === 'enterprise') {
+      response = await enterpriseCapacityApi.exportData(year)
+    } else if (dataType.value === 'social-organization') {
+      response = await socialOrganizationCapacityApi.exportData(year)
     } else {
       // 导出其他类型数据
       response = await surveyDataApi.exportData()
@@ -2542,6 +2581,18 @@ const exportData = async () => {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       })
       fileName = `医疗卫生机构数据_${searchForm.year || new Date().getFullYear()}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    } else if (['government', 'enterprise', 'social-organization'].includes(dataType.value)) {
+      // 政府/企业/社会组织减灾能力数据导出 - 返回 blob
+      const blobData = response.data || response
+      blob = blobData instanceof Blob ? blobData : new Blob([blobData], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
+      const typeNameMap: Record<string, string> = {
+        'government': '政府减灾能力',
+        'enterprise': '企业减灾能力',
+        'social-organization': '社会组织减灾能力'
+      }
+      fileName = `${typeNameMap[dataType.value]}数据_${year}_${new Date().toISOString().slice(0, 10)}.xlsx`
     } else {
       // 其他类型数据导出 - 需要处理响应格式
       if (response && response.success && response.data) {

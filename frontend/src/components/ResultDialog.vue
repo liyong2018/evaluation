@@ -83,7 +83,7 @@
           <h4>一级指标权重计算</h4>
           <div class="table-container">
             <el-table
-              :data="resultData.table1Data"
+              :data="sortedTable1Data"
               border
               stripe
               size="small"
@@ -110,7 +110,7 @@
           <h4>乡镇减灾能力权重计算</h4>
           <div class="table-container">
             <el-table
-              :data="resultData.table2Data"
+              :data="sortedTable2Data"
               border
               stripe
               size="small"
@@ -621,7 +621,12 @@ const currentStepData = computed(() => {
     hasTableData: !!stepResult.tableData,
     tableDataLength: stepResult.tableData?.length
   })
-  
+
+  // 按行政区划代码升序排序
+  if (Array.isArray(stepResult.tableData)) {
+    return { ...stepResult, tableData: sortByRegionCode(stepResult.tableData) }
+  }
+
   return stepResult
 })
 
@@ -640,6 +645,15 @@ const filteredColumns = computed(() => {
   return allColumns.value
 })
 
+const sortByRegionCode = (data: any[]): any[] => {
+  if (!Array.isArray(data) || data.length === 0) return data
+  return [...data].sort((a, b) => {
+    const codeA = String(a.regionCode ?? a.orgCode ?? a.地区代码 ?? '')
+    const codeB = String(b.regionCode ?? b.orgCode ?? b.地区代码 ?? '')
+    return codeA.localeCompare(codeB, 'zh-CN', { numeric: true })
+  })
+}
+
 const isTownshipRow = (row: Record<string, any>): boolean => {
   if (!row) return false
   const flag = row._isTownship
@@ -652,13 +666,21 @@ const isTownshipRow = (row: Record<string, any>): boolean => {
   return '_firstCommunityCode' in row && row._firstCommunityCode !== undefined && row._firstCommunityCode !== null
 }
 
-// 过滤后的表格数据（根据当前分组控制社区/乡镇）
+const sortedTable1Data = computed(() => {
+  return sortByRegionCode(props.resultData?.table1Data || [])
+})
+
+const sortedTable2Data = computed(() => {
+  return sortByRegionCode(props.resultData?.table2Data || [])
+})
+
+// 过滤后的表格数据（根据当前分组控制社区/乡镇，按行政区划代码升序排序）
 const filteredTableData = computed(() => {
   if (!props.resultData || !Array.isArray(props.resultData.tableData)) {
     return []
   }
 
-  const data = props.resultData.tableData
+  let data = props.resultData.tableData
 
   if (!props.resultData.isMultiStep) {
     const key = selectedGroupKey.value
@@ -666,18 +688,16 @@ const filteredTableData = computed(() => {
       const stepOrder = Number(key.replace('step_', ''))
       if (!Number.isNaN(stepOrder)) {
         if (stepOrder === 1) {
-          // 步骤1：仅展示社区（无乡镇标记）
-          return data.filter(row => !isTownshipRow(row))
+          data = data.filter(row => !isTownshipRow(row))
         }
         if (stepOrder > 1) {
-          // 其他步骤：仅展示乡镇聚合数据
-          return data.filter(row => isTownshipRow(row))
+          data = data.filter(row => isTownshipRow(row))
         }
       }
     }
   }
 
-  return data
+  return sortByRegionCode(data)
 })
 
 // 监听props变化
@@ -1085,7 +1105,7 @@ const exportResults = () => {
       const steps = Array.isArray(props.resultData.stepResults) ? props.resultData.stepResults : []
       steps.forEach((step, idx) => {
         const sheetName = sanitizeSheetName(step.stepName || `步骤${step.stepOrder ?? idx + 1}`)
-        const tableData = Array.isArray(step.tableData) ? step.tableData : []
+        const tableData = sortByRegionCode(Array.isArray(step.tableData) ? step.tableData : [])
         const columns = Array.isArray(step.columns) && step.columns.length > 0
           ? step.columns.map((c: any) => ({ prop: c.prop, label: c.label ?? c.prop }))
           : buildColumnsFromTableData(tableData)
@@ -1093,14 +1113,14 @@ const exportResults = () => {
       })
     } else if (props.resultData.isDualTable) {
       const t1Cols = Array.isArray(props.resultData.table1Columns) ? props.resultData.table1Columns.map((c: any) => ({ prop: c.prop, label: c.label ?? c.prop })) : []
-      const t1Data = Array.isArray(props.resultData.table1Data) ? props.resultData.table1Data : []
+      const t1Data = sortByRegionCode(Array.isArray(props.resultData.table1Data) ? props.resultData.table1Data : [])
       appendTableSheet(wb, sanitizeSheetName('一级指标权重计算'), t1Cols.length ? t1Cols : buildColumnsFromTableData(t1Data), t1Data)
 
       const t2Cols = Array.isArray(props.resultData.table2Columns) ? props.resultData.table2Columns.map((c: any) => ({ prop: c.prop, label: c.label ?? c.prop })) : []
-      const t2Data = Array.isArray(props.resultData.table2Data) ? props.resultData.table2Data : []
+      const t2Data = sortByRegionCode(Array.isArray(props.resultData.table2Data) ? props.resultData.table2Data : [])
       appendTableSheet(wb, sanitizeSheetName('乡镇减灾能力权重计算'), t2Cols.length ? t2Cols : buildColumnsFromTableData(t2Data), t2Data)
     } else {
-      const tableData = Array.isArray(props.resultData.tableData) ? props.resultData.tableData : []
+      const tableData = sortByRegionCode(Array.isArray(props.resultData.tableData) ? props.resultData.tableData : [])
       const columns = Array.isArray(props.resultData.columns) && props.resultData.columns.length > 0
         ? props.resultData.columns.map((c: any) => ({ prop: c.prop, label: c.label ?? c.prop }))
         : buildColumnsFromTableData(tableData)

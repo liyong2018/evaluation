@@ -144,16 +144,6 @@
           <p>{{ evaluationProgress.message }}</p>
           <p v-if="evaluationProgress.detail">{{ evaluationProgress.detail }}</p>
         </div>
-        <div class="progress-actions" v-if="evaluationProgress.status === 'success'">
-          <el-button type="primary" @click="viewResults">
-            <el-icon><View /></el-icon>
-            查看结果
-          </el-button>
-          <el-button type="success" @click="downloadReport">
-            <el-icon><Download /></el-icon>
-            下载报告
-          </el-button>
-        </div>
       </div>
     </el-card>
 

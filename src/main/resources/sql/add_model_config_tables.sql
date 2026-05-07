@@ -183,3 +183,14 @@ INSERT INTO `model_execution_strategy` (`model_id`, `strategy_type`, `strategy_k
 (11, 'data_validation', 'dependency_models', '{"legacyTownship": 3, "communityTownship": 8}', '综合减灾能力评估需要乡镇减灾能力评估结果和社区-乡镇减灾能力评估结果', 2),
 -- 2020综合模型(20)：依赖前置模型结果(通过model_dependency配置)
 (20, 'data_validation', 'check_type', 'model_dependency', NULL, 1);
+
+-- 兜底等级阈值配置：替代代码中的 0.8/0.6/0.4/0.2 固定分级
+INSERT INTO `model_execution_strategy` (`model_id`, `strategy_type`, `strategy_key`, `strategy_value`, `sort_order`, `status`)
+SELECT `id`,
+       'grade_rule',
+       'fallback_thresholds',
+       '[{"min":0.8,"level":"强"},{"min":0.6,"level":"较强"},{"min":0.4,"level":"中等"},{"min":0.2,"level":"较弱"},{"min":0,"level":"弱"}]',
+       1,
+       1
+FROM `evaluation_model`
+WHERE `status` = 1;
