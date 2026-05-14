@@ -718,6 +718,11 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     communityDataMap, surveyDataMap, governmentDataMap, enterpriseDataMap,
                     socialOrganizationDataMap, familyDataMap);
 
+            // 模型20（市级综合减灾能力）按区域解析权重，确保每个城市使用自己的权重配置
+            if (cityComprehensive2020Model) {
+                resolvePerRegionWeights(regionContext, regionCode, ctxYear);
+            }
+
             // 再加载前面步骤的输出结果（计算结果），这样会覆盖原始数据中的同名字段
             loadPreviousStepOutputs(regionContext, regionCode, inputData);
 
@@ -1594,6 +1599,32 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 return false;
             }
             return createdAt.plus(ttl).isBefore(now);
+        }
+    }
+
+    /**
+     * 为模型20按区域解析权重：每个城市使用自己的权重配置。
+     * 组织机构层级回退：区县 → 所属市级 → 省级
+     * 年份回退：所选年份 → 2020基准
+     */
+    private void resolvePerRegionWeights(Map<String, Object> regionContext, String regionCode, Integer year) {
+        String weightOrgcode = regionCode;
+        if (weightOrgcode != null && weightOrgcode.length() > 4) {
+            weightOrgcode = weightOrgcode.substring(0, 4);
+        }
+
+        Long modelId = (Long) regionContext.get("modelId");
+        String modelName = (String) regionContext.get("modelName");
+
+        Long regionWeightConfigId = resolveWeightConfigIdIfNeeded(modelId, null, year, weightOrgcode);
+        if (regionWeightConfigId == null) {
+            return;
+        }
+
+        Map<String, Double> weightMap = getWeightMapCached(regionWeightConfigId, weightOrgcode, year, modelId, modelName);
+        regionContext.put("weights", weightMap);
+        for (Map.Entry<String, Double> entry : weightMap.entrySet()) {
+            regionContext.put("weight_" + entry.getKey(), entry.getValue() == null ? 0.0 : entry.getValue());
         }
     }
 

@@ -220,7 +220,7 @@
     <el-dialog
       v-model="dialogVisible.weightEditor"
       :title="`编辑权重 - ${currentWeightConfig?.configName || ''}`"
-      width="1100px"
+      width="1200px"
       :close-on-click-modal="false"
     >
       <el-card class="weight-editor-card" shadow="never">
@@ -663,12 +663,46 @@ const modelDefinitions = [
   { modelId: 3, modelName: '乡镇减灾能力评估模型' },
   { modelId: 4, modelName: '社区-行政村能力评估模型' },
   { modelId: 8, modelName: '社区-乡镇能力评估模型' },
-  { modelId: 11, modelName: '综合减灾能力评估模型' }
+  { modelId: 11, modelName: '综合减灾能力评估模型' },
+  { modelId: 17, modelName: '市州-社区（行政村）减灾能力（区县单元）评估' },
+  { modelId: 19, modelName: '市州-乡镇（街道）减灾能力（区县单元）评估' },
+  { modelId: 20, modelName: '2020年市级综合减灾能力评估模型' }
 ]
 
 const tempWeightCache = reactive<Record<string, any[]>>({})
 
-const buildDefaultWeightTemplate = () => {
+const buildDefaultWeightTemplate = (modelId?: number) => {
+  // 乡镇/社区（乡镇单元）模型（modelId 3, 8）: 队伍管理能力
+  // 社区（社区单元 modelId=4）和 社区（乡镇单元 modelId=8）都使用社区指标结构
+  if (modelId === 4 || modelId === 8) {
+    return [
+      { id: 'L1_DISASTER_MANAGEMENT', indicatorCode: 'L1_DISASTER_MANAGEMENT', indicatorName: '灾害管理能力', indicatorLevel: 1, parentId: null, weight: 0 },
+      { id: 'L1_DISASTER_PREPAREDNESS', indicatorCode: 'L1_DISASTER_PREPAREDNESS', indicatorName: '灾害备灾能力', indicatorLevel: 1, parentId: null, weight: 0 },
+      { id: 'L1_SELF_RESCUE_TRANSFER', indicatorCode: 'L1_SELF_RESCUE_TRANSFER', indicatorName: '自救转移能力', indicatorLevel: 1, parentId: null, weight: 0 },
+      { id: 'L2_PLAN_CONSTRUCTION', indicatorCode: 'L2_PLAN_CONSTRUCTION', indicatorName: '预案建设能力', indicatorLevel: 2, parentId: 'L1_DISASTER_MANAGEMENT', weight: 0 },
+      { id: 'L2_HAZARD_INSPECTION', indicatorCode: 'L2_HAZARD_INSPECTION', indicatorName: '隐患排查能力', indicatorLevel: 2, parentId: 'L1_DISASTER_MANAGEMENT', weight: 0 },
+      { id: 'L2_RISK_ASSESSMENT', indicatorCode: 'L2_RISK_ASSESSMENT', indicatorName: '风险评估能力', indicatorLevel: 2, parentId: 'L1_DISASTER_MANAGEMENT', weight: 0 },
+      { id: 'L2_FUNDING', indicatorCode: 'L2_FUNDING', indicatorName: '财政投入能力', indicatorLevel: 2, parentId: 'L1_DISASTER_MANAGEMENT', weight: 0 },
+      { id: 'L2_MATERIAL', indicatorCode: 'L2_MATERIAL', indicatorName: '物资储备能力', indicatorLevel: 2, parentId: 'L1_DISASTER_PREPAREDNESS', weight: 0 },
+      { id: 'L2_MEDICAL', indicatorCode: 'L2_MEDICAL', indicatorName: '医疗保障能力', indicatorLevel: 2, parentId: 'L1_DISASTER_PREPAREDNESS', weight: 0 },
+      { id: 'L2_SELF_RESCUE', indicatorCode: 'L2_SELF_RESCUE', indicatorName: '自救互救能力', indicatorLevel: 2, parentId: 'L1_SELF_RESCUE_TRANSFER', weight: 0 },
+      { id: 'L2_PUBLIC_AVOIDANCE', indicatorCode: 'L2_PUBLIC_AVOIDANCE', indicatorName: '公众避险能力', indicatorLevel: 2, parentId: 'L1_SELF_RESCUE_TRANSFER', weight: 0 },
+      { id: 'L2_RELOCATION', indicatorCode: 'L2_RELOCATION', indicatorName: '转移安置能力', indicatorLevel: 2, parentId: 'L1_SELF_RESCUE_TRANSFER', weight: 0 }
+    ]
+  }
+  if (modelId === 11) {
+    return [
+      { id: 'L1_TOWNSHIP', indicatorCode: 'L1_TOWNSHIP', indicatorName: '乡镇减灾能力', indicatorLevel: 1, parentId: null, weight: 0 },
+      { id: 'L1_COMMUNITY', indicatorCode: 'L1_COMMUNITY', indicatorName: '社区减灾能力', indicatorLevel: 1, parentId: null, weight: 0 },
+      { id: 'L2_TOWNSHIP_DISASTER_MANAGEMENT', indicatorCode: 'L2_TOWNSHIP_DISASTER_MANAGEMENT', indicatorName: '乡镇-灾害管理能力', indicatorLevel: 2, parentId: 'L1_TOWNSHIP', weight: 0 },
+      { id: 'L2_TOWNSHIP_DISASTER_PREPAREDNESS', indicatorCode: 'L2_TOWNSHIP_DISASTER_PREPAREDNESS', indicatorName: '乡镇-灾害备灾能力', indicatorLevel: 2, parentId: 'L1_TOWNSHIP', weight: 0 },
+      { id: 'L2_TOWNSHIP_SELF_RESCUE_TRANSFER', indicatorCode: 'L2_TOWNSHIP_SELF_RESCUE_TRANSFER', indicatorName: '乡镇-自救转移能力', indicatorLevel: 2, parentId: 'L1_TOWNSHIP', weight: 0 },
+      { id: 'L2_COMMUNITY_DISASTER_MANAGEMENT', indicatorCode: 'L2_COMMUNITY_DISASTER_MANAGEMENT', indicatorName: '社区-灾害管理能力', indicatorLevel: 2, parentId: 'L1_COMMUNITY', weight: 0 },
+      { id: 'L2_COMMUNITY_DISASTER_PREPAREDNESS', indicatorCode: 'L2_COMMUNITY_DISASTER_PREPAREDNESS', indicatorName: '社区-灾害备灾能力', indicatorLevel: 2, parentId: 'L1_COMMUNITY', weight: 0 },
+      { id: 'L2_COMMUNITY_SELF_RESCUE_TRANSFER', indicatorCode: 'L2_COMMUNITY_SELF_RESCUE_TRANSFER', indicatorName: '社区-自救转移能力', indicatorLevel: 2, parentId: 'L1_COMMUNITY', weight: 0 }
+    ]
+  }
+  // 默认: 乡镇/社区（乡镇单元）模型 (modelId 3, 8)
   return [
     { id: 'L1_DISASTER_MANAGEMENT', indicatorCode: 'L1_DISASTER_MANAGEMENT', indicatorName: '灾害管理能力', indicatorLevel: 1, parentId: null, weight: 0 },
     { id: 'L1_DISASTER_PREPAREDNESS', indicatorCode: 'L1_DISASTER_PREPAREDNESS', indicatorName: '灾害备灾能力', indicatorLevel: 1, parentId: null, weight: 0 },
@@ -698,9 +732,9 @@ const buildTempConfigList = (orgcode: string, year: number) => {
   }))
 }
 
-const getOrInitTempWeights = (tempKey: string) => {
+const getOrInitTempWeights = (tempKey: string, modelId?: number) => {
   if (!tempWeightCache[tempKey]) {
-    tempWeightCache[tempKey] = buildDefaultWeightTemplate()
+    tempWeightCache[tempKey] = buildDefaultWeightTemplate(modelId)
   }
   return JSON.parse(JSON.stringify(tempWeightCache[tempKey]))
 }
@@ -959,7 +993,7 @@ const getConfigList = async () => {
     console.log('权重配置API响应:', response)
     if (response.success) {
       const list = response.data || []
-      configList.value = list.length ? list : buildTempConfigList(orgcode, orgYear.value)
+      configList.value = list
       console.log('权重配置列表（已过滤）:', configList.value)
     } else {
       ElMessage.error(response.message || '获取配置列表失败')
@@ -976,7 +1010,7 @@ const openWeightEditor = async (row: any) => {
   currentWeightConfig.value = row
   if (row?._temp) {
     selectedConfigId.value = null
-    weightList.value = getOrInitTempWeights(row._tempKey)
+    weightList.value = getOrInitTempWeights(row._tempKey, row._modelId)
   } else {
     selectedConfigId.value = row.id
     await loadIndicatorWeights()
@@ -1884,7 +1918,7 @@ onMounted(() => {
 
 /* 树形结构样式 */
 .tree-container {
-  padding: 20px;
+  padding: 10px 32px 10px 12px;
   background: linear-gradient(to bottom, #fafbfc, #ffffff);
   border-radius: 8px;
 }
@@ -1895,24 +1929,23 @@ onMounted(() => {
 
 .tree-node {
   width: 100%;
-  padding: 12px 0;
+  padding: 4px 0;
 }
 
 .node-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
-  height: 30px;
-  padding: 14px 16px;
+  padding: 8px 16px;
   border: 1px solid #e8eef5;
   border-radius: 8px;
   background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  margin: 12px 0;
+  margin: 4px 0;
   transition: all 0.3s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   position: relative;
   overflow: hidden;
+  gap: 12px;
 }
 
 .node-content::before {
@@ -1940,8 +1973,7 @@ onMounted(() => {
 .node-info {
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex: 1;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -1951,11 +1983,9 @@ onMounted(() => {
   font-weight: 600;
   color: #409eff;
   background: rgba(64, 158, 255, 0.1);
-  padding: 4px 10px;
+  padding: 2px 6px;
   border-radius: 4px;
   border: 1px solid rgba(64, 158, 255, 0.2);
-  min-width: 100px;
-  text-align: center;
   white-space: nowrap;
 }
 
@@ -1966,21 +1996,21 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 300px;
 }
 
 .level-tag {
-  margin-left: 8px;
+  margin-left: 4px;
   font-size: 12px;
   font-weight: 600;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .node-weight {
-  margin: 0 20px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .node-weight::before {
@@ -1991,7 +2021,7 @@ onMounted(() => {
 }
 
 .weight-input {
-  width: 130px;
+  width: 110px;
 }
 
 .weight-input :deep(.el-input__wrapper) {
@@ -2448,7 +2478,7 @@ onMounted(() => {
 }
 
 .score-weight-tree .weight-input {
-  width: 130px;
+  width: 110px;
 }
 
 .score-weight-tree .weight-input :deep(.el-input__wrapper) {

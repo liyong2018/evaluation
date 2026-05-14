@@ -81,7 +81,7 @@ public class EnterpriseDisasterReductionCapacityController {
             listParams.add(pageSize);
 
             List<Map<String, Object>> records = jdbcTemplate.queryForList(
-                    "SELECT " + selectColumns + " FROM " + TABLE_NAME + where +
+                    "SELECT id, " + selectColumns + " FROM " + TABLE_NAME + where +
                             " ORDER BY region_code ASC LIMIT ?, ?",
                     listParams.toArray()
             );

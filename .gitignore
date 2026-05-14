@@ -76,5 +76,5 @@ update_checkDataExists.py
 update_execute.py
 update_methods.py
 update_script.py
-
+/export_sample/
 *.xlsx

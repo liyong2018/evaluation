@@ -527,7 +527,14 @@ export const communityCapacityApi = {
     request.delete('/api/community-capacity/delete-by-year-org', { params: { year, orgCode } }),
 
   // 下载导入模板
-  downloadTemplate: () => request.get('/api/community-capacity/template')
+  downloadTemplate: () => request.get('/api/community-capacity/template'),
+
+  // 导出社区减灾能力数据
+  exportData: (year?: number, orgCode?: string, ids?: number[]) =>
+    request.get('/api/community-capacity/export', {
+      params: { year, orgCode, ...(ids && ids.length > 0 ? { ids: ids.join(',') } : {}) },
+      responseType: 'blob'
+    })
 }
 
 // 家庭减灾能力相关API
@@ -547,7 +554,14 @@ export const familyCapacityApi = {
     size?: number;
     orgCode?: string;
     year?: number;
-  }) => request.get('/api/family-capacity/list', { params })
+  }) => request.get('/api/family-capacity/list', { params }),
+
+  // 导出家庭减灾能力数据
+  exportData: (year?: number, orgCode?: string, ids?: number[]) =>
+    request.get('/api/family-capacity/export', {
+      params: { year, orgCode, ...(ids && ids.length > 0 ? { ids: ids.join(',') } : {}) },
+      responseType: 'blob'
+    })
 }
 
 export const governmentCapacityApi = {

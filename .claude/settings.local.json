@@ -84,9 +84,18 @@
       "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f'id={m[\\\\\"id\\\\\"]}, name={m[\\\\\"modelName\\\\\"]}'\\) for m in data.get\\('records',data\\) if '家庭' in m.get\\('modelName',''\\)]\")",
       "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f'id={m[\\\\\"id\\\\\"]}, name={m.get\\(\\\\\"modelName\\\\\",\\\\\"\\\\\"\\)}'\\) for m in \\(data if isinstance\\(data,list\\) else data.get\\('records',data.get\\('data',[]\\)\\)\\)]\")",
       "Bash(python3 -c ' *)",
-      "Bash(brew list *)"
+      "Bash(brew list *)",
+      "Bash(npx vite *)",
+      "Bash(python3 -c \"import openpyxl; print\\('openpyxl OK'\\)\")",
+      "Bash(python3 -c \"import pymysql; print\\('pymysql OK'\\)\")",
+      "Bash(python3 export_sample_data.py)",
+      "Bash(rm -f /Users/lql/Documents/data/Evaluation/evaluation/export_sample/*.xlsx && python3 export_sample_data.py)",
+      "Bash(grep -E \"\\\\.\\(sql|md|txt\\)$\")"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "/Users/lql/Documents/data/Evaluation/evaluation/export_sample"
+    ]
   }
 }

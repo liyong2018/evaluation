@@ -6,14 +6,22 @@ import com.evaluate.entity.CommunityDisasterReductionCapacity;
 import com.evaluate.service.ICommunityDisasterReductionCapacityService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.lang.Integer;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 社区行政村减灾能力控制器
@@ -247,6 +255,96 @@ public class CommunityDisasterReductionCapacityController {
         } catch (Exception e) {
             log.error("导入GPKG文件失败", e);
             return Result.error("导入失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 导出社区减灾能力数据
+     */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportData(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String orgCode,
+            @RequestParam(required = false) String ids) {
+        try {
+            List<Long> idList = null;
+            if (ids != null && !ids.trim().isEmpty()) {
+                idList = Arrays.stream(ids.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(Long::parseLong)
+                        .collect(Collectors.toList());
+            }
+
+            List<CommunityDisasterReductionCapacity> dataList;
+            if (idList != null && !idList.isEmpty()) {
+                dataList = communityDisasterReductionCapacityService.listByIds(idList);
+            } else {
+                com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<CommunityDisasterReductionCapacity> qw =
+                        new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
+                if (year != null) {
+                    qw.eq("year", year);
+                }
+                if (StringUtils.hasText(orgCode)) {
+                    qw.likeRight("region_code", orgCode.trim());
+                }
+                qw.orderByAsc("region_code");
+                dataList = communityDisasterReductionCapacityService.list(qw);
+            }
+
+            try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
+                 ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+                org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("社区减灾能力数据");
+
+                String[] headers = {
+                    "行政区代码", "省名称", "市名称", "县名称", "乡镇名称", "社区(行政村)名称",
+                    "应急预案", "弱势人群清单", "地质灾害隐患点清单", "灾害类地图",
+                    "常住人口", "资金投入(万元)", "物资价值(万元)", "医疗服务点数",
+                    "民兵预备役", "志愿者人数", "培训参与人次", "演练参与人次", "避难场所容量",
+                    "数据年份"
+                };
+                org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+                for (int i = 0; i < headers.length; i++) {
+                    headerRow.createCell(i).setCellValue(headers[i]);
+                }
+
+                for (int r = 0; r < dataList.size(); r++) {
+                    CommunityDisasterReductionCapacity item = dataList.get(r);
+                    org.apache.poi.ss.usermodel.Row row = sheet.createRow(r + 1);
+                    int c = 0;
+                    row.createCell(c++).setCellValue(item.getRegionCode() != null ? item.getRegionCode() : "");
+                    row.createCell(c++).setCellValue(item.getProvinceName() != null ? item.getProvinceName() : "");
+                    row.createCell(c++).setCellValue(item.getCityName() != null ? item.getCityName() : "");
+                    row.createCell(c++).setCellValue(item.getCountyName() != null ? item.getCountyName() : "");
+                    row.createCell(c++).setCellValue(item.getTownshipName() != null ? item.getTownshipName() : "");
+                    row.createCell(c++).setCellValue(item.getCommunityName() != null ? item.getCommunityName() : "");
+                    row.createCell(c++).setCellValue(item.getHasEmergencyPlan() != null ? item.getHasEmergencyPlan() : "");
+                    row.createCell(c++).setCellValue(item.getHasVulnerableGroupsList() != null ? item.getHasVulnerableGroupsList() : "");
+                    row.createCell(c++).setCellValue(item.getHasDisasterPointsList() != null ? item.getHasDisasterPointsList() : "");
+                    row.createCell(c++).setCellValue(item.getHasDisasterMap() != null ? item.getHasDisasterMap() : "");
+                    row.createCell(c++).setCellValue(item.getResidentPopulation() != null ? item.getResidentPopulation() : 0);
+                    row.createCell(c++).setCellValue(item.getLastYearFundingAmount() != null ? item.getLastYearFundingAmount().doubleValue() : 0);
+                    row.createCell(c++).setCellValue(item.getMaterialsEquipmentValue() != null ? item.getMaterialsEquipmentValue().doubleValue() : 0);
+                    row.createCell(c++).setCellValue(item.getMedicalServiceCount() != null ? item.getMedicalServiceCount() : 0);
+                    row.createCell(c++).setCellValue(item.getMilitiaReserveCount() != null ? item.getMilitiaReserveCount() : 0);
+                    row.createCell(c++).setCellValue(item.getRegisteredVolunteerCount() != null ? item.getRegisteredVolunteerCount() : 0);
+                    row.createCell(c++).setCellValue(item.getLastYearTrainingParticipants() != null ? item.getLastYearTrainingParticipants() : 0);
+                    row.createCell(c++).setCellValue(item.getLastYearDrillParticipants() != null ? item.getLastYearDrillParticipants() : 0);
+                    row.createCell(c++).setCellValue(item.getEmergencyShelterCapacity() != null ? item.getEmergencyShelterCapacity() : 0);
+                    row.createCell(c++).setCellValue(item.getYear() != null ? item.getYear() : 0);
+                }
+
+                workbook.write(bos);
+                byte[] bytes = bos.toByteArray();
+                String fileName = URLEncoder.encode("社区减灾能力数据.xlsx", StandardCharsets.UTF_8);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + fileName)
+                        .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                        .body(bytes);
+            }
+        } catch (Exception e) {
+            log.error("导出社区减灾能力数据失败", e);
+            return ResponseEntity.internalServerError().build();
         }
     }
 }

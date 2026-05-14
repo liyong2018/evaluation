@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 
 /**
  * 指标权重服务实现类
- * 
+ *
  * @author System
  * @since 2024-01-01
  */
@@ -93,7 +93,7 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         if (weightList == null || weightList.isEmpty()) {
             return false;
         }
-        
+
         // 验证数据
         for (IndicatorWeight weight : weightList) {
             if (!validateIndicatorWeight(weight)) {
@@ -101,7 +101,7 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
                 return false;
             }
         }
-        
+
         return saveBatch(weightList);
     }
 
@@ -111,7 +111,7 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         if (weightList == null || weightList.isEmpty()) {
             return false;
         }
-        
+
         return updateBatchById(weightList);
     }
 
@@ -140,7 +140,7 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         if (sourceWeights.isEmpty()) {
             return true; // 源配置没有权重数据，复制成功
         }
-        
+
         List<IndicatorWeight> targetWeights = new ArrayList<>();
         for (IndicatorWeight source : sourceWeights) {
             IndicatorWeight target = new IndicatorWeight();
@@ -152,10 +152,10 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
             target.setParentId(source.getParentId());
             target.setSortOrder(source.getSortOrder());
             target.setCreateTime(LocalDateTime.now());
-            
+
             targetWeights.add(target);
         }
-        
+
         return batchSave(targetWeights);
     }
 
@@ -170,6 +170,11 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         if (cfg != null && StringUtils.hasText(cfg.getConfigName()) && cfg.getConfigName().contains("综合")) {
             return initDefaultComprehensiveWeights(configId);
         }
+
+        // 社区模型 modelId=4（社区单元）和 modelId=8（乡镇单元）都使用社区指标结构
+        boolean isCommunityModel = cfg != null &&
+                (cfg.getModelId() != null && (cfg.getModelId() == 4L || cfg.getModelId() == 8L)
+                || (StringUtils.hasText(cfg.getConfigName()) && cfg.getConfigName().contains("社区")));
 
         deleteByConfigId(configId);
 
@@ -187,12 +192,15 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         p1.setCreateTime(now);
         primaryWeights.add(p1);
 
+        double disasterPreparednessWeight = isCommunityModel ? 0.30 : 0.31;
+        double selfRescueTransferWeight = isCommunityModel ? 0.37 : 0.36;
+
         IndicatorWeight p2 = new IndicatorWeight();
         p2.setConfigId(configId);
         p2.setIndicatorCode("L1_DISASTER_PREPAREDNESS");
         p2.setIndicatorName("灾害备灾能力");
         p2.setIndicatorLevel(1);
-        p2.setWeight(0.32);
+        p2.setWeight(disasterPreparednessWeight);
         p2.setSortOrder(2);
         p2.setCreateTime(now);
         primaryWeights.add(p2);
@@ -202,7 +210,7 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         p3.setIndicatorCode("L1_SELF_RESCUE_TRANSFER");
         p3.setIndicatorName("自救转移能力");
         p3.setIndicatorLevel(1);
-        p3.setWeight(0.35);
+        p3.setWeight(selfRescueTransferWeight);
         p3.setSortOrder(3);
         p3.setCreateTime(now);
         primaryWeights.add(p3);
@@ -219,16 +227,25 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
 
         List<IndicatorWeight> secondaryWeights = new ArrayList<>();
 
-        secondaryWeights.add(buildSecondary(configId, "L2_MANAGEMENT_CAPABILITY", "队伍管理能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.37, 1, now));
-        secondaryWeights.add(buildSecondary(configId, "L2_RISK_ASSESSMENT", "风险评估能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.31, 2, now));
-        secondaryWeights.add(buildSecondary(configId, "L2_FUNDING", "财政投入能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.32, 3, now));
+        if (isCommunityModel) {
+            // 社区（社区单元）指标: 预案建设能力 + 隐患排查能力 + 风险评估 + 财政投入
+            secondaryWeights.add(buildSecondary(configId, "L2_PLAN_CONSTRUCTION", "预案建设能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.25, 1, now));
+            secondaryWeights.add(buildSecondary(configId, "L2_HAZARD_INSPECTION", "隐患排查能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.27, 2, now));
+            secondaryWeights.add(buildSecondary(configId, "L2_RISK_ASSESSMENT", "风险评估能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.24, 3, now));
+            secondaryWeights.add(buildSecondary(configId, "L2_FUNDING", "财政投入能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.24, 4, now));
+        } else {
+            // 乡镇/社区（乡镇单元）指标: 队伍管理能力 + 风险评估 + 财政投入
+            secondaryWeights.add(buildSecondary(configId, "L2_MANAGEMENT_CAPABILITY", "队伍管理能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.34, 1, now));
+            secondaryWeights.add(buildSecondary(configId, "L2_RISK_ASSESSMENT", "风险评估能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.31, 2, now));
+            secondaryWeights.add(buildSecondary(configId, "L2_FUNDING", "财政投入能力", parentIdMap.get("L1_DISASTER_MANAGEMENT"), 0.35, 3, now));
+        }
 
-        secondaryWeights.add(buildSecondary(configId, "L2_MATERIAL", "物资储备能力", parentIdMap.get("L1_DISASTER_PREPAREDNESS"), 0.51, 4, now));
-        secondaryWeights.add(buildSecondary(configId, "L2_MEDICAL", "医疗保障能力", parentIdMap.get("L1_DISASTER_PREPAREDNESS"), 0.49, 5, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_MATERIAL", "物资储备能力", parentIdMap.get("L1_DISASTER_PREPAREDNESS"), isCommunityModel ? 0.51 : 0.50, 5, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_MEDICAL", "医疗保障能力", parentIdMap.get("L1_DISASTER_PREPAREDNESS"), isCommunityModel ? 0.49 : 0.50, 6, now));
 
-        secondaryWeights.add(buildSecondary(configId, "L2_SELF_RESCUE", "自救互救能力", parentIdMap.get("L1_SELF_RESCUE_TRANSFER"), 0.33, 6, now));
-        secondaryWeights.add(buildSecondary(configId, "L2_PUBLIC_AVOIDANCE", "公众避险能力", parentIdMap.get("L1_SELF_RESCUE_TRANSFER"), 0.33, 7, now));
-        secondaryWeights.add(buildSecondary(configId, "L2_RELOCATION", "转移安置能力", parentIdMap.get("L1_SELF_RESCUE_TRANSFER"), 0.34, 8, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_SELF_RESCUE", "自救互救能力", parentIdMap.get("L1_SELF_RESCUE_TRANSFER"), isCommunityModel ? 0.35 : 0.34, 7, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_PUBLIC_AVOIDANCE", "公众避险能力", parentIdMap.get("L1_SELF_RESCUE_TRANSFER"), isCommunityModel ? 0.34 : 0.33, 8, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_RELOCATION", "转移安置能力", parentIdMap.get("L1_SELF_RESCUE_TRANSFER"), isCommunityModel ? 0.31 : 0.33, 9, now));
 
         return saveBatch(secondaryWeights);
     }
@@ -243,7 +260,7 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         town.setIndicatorCode("L1_TOWNSHIP");
         town.setIndicatorName("乡镇");
         town.setIndicatorLevel(1);
-        town.setWeight(0.53);
+        town.setWeight(16.0 / 31);
         town.setSortOrder(1);
         town.setCreateTime(now);
 
@@ -252,7 +269,7 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         community.setIndicatorCode("L1_COMMUNITY");
         community.setIndicatorName("社区");
         community.setIndicatorLevel(1);
-        community.setWeight(0.47);
+        community.setWeight(15.0 / 31);
         community.setSortOrder(2);
         community.setCreateTime(now);
 
@@ -263,11 +280,11 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
 
         List<IndicatorWeight> secondaryWeights = new ArrayList<>();
         secondaryWeights.add(buildSecondary(configId, "L2_TOWNSHIP_DISASTER_MANAGEMENT", "灾害管理能力", town.getId(), 0.33, 1, now));
-        secondaryWeights.add(buildSecondary(configId, "L2_TOWNSHIP_DISASTER_PREPAREDNESS", "灾害备灾能力", town.getId(), 0.32, 2, now));
-        secondaryWeights.add(buildSecondary(configId, "L2_TOWNSHIP_SELF_RESCUE_TRANSFER", "自救转移能力", town.getId(), 0.35, 3, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_TOWNSHIP_DISASTER_PREPAREDNESS", "灾害备灾能力", town.getId(), 0.31, 2, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_TOWNSHIP_SELF_RESCUE_TRANSFER", "自救转移能力", town.getId(), 0.36, 3, now));
 
-        secondaryWeights.add(buildSecondary(configId, "L2_COMMUNITY_DISASTER_MANAGEMENT", "灾害管理能力", community.getId(), 0.32, 4, now));
-        secondaryWeights.add(buildSecondary(configId, "L2_COMMUNITY_DISASTER_PREPAREDNESS", "灾害备灾能力", community.getId(), 0.31, 5, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_COMMUNITY_DISASTER_MANAGEMENT", "灾害管理能力", community.getId(), 0.33, 4, now));
+        secondaryWeights.add(buildSecondary(configId, "L2_COMMUNITY_DISASTER_PREPAREDNESS", "灾害备灾能力", community.getId(), 0.30, 5, now));
         secondaryWeights.add(buildSecondary(configId, "L2_COMMUNITY_SELF_RESCUE_TRANSFER", "自救转移能力", community.getId(), 0.37, 6, now));
 
         return saveBatch(secondaryWeights);
@@ -289,52 +306,52 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
     @Override
     public boolean validateWeightIntegrity(Long configId) {
         List<IndicatorWeight> weights = getByConfigId(configId);
-        
+
         // 检查一级指标权重总和是否为1
         List<IndicatorWeight> primaryWeights = weights.stream()
             .filter(w -> w.getIndicatorLevel() == 1)
             .collect(Collectors.toList());
-        
+
         double primarySum = primaryWeights.stream()
             .mapToDouble(IndicatorWeight::getWeight)
             .sum();
-        
+
         if (Math.abs(primarySum - 1.0) > 0.001) {
             log.warn("一级指标权重总和不为1: {}", primarySum);
             return false;
         }
-        
+
         // 检查每个一级指标下的二级指标权重总和是否为1
         for (IndicatorWeight primary : primaryWeights) {
             List<IndicatorWeight> secondaryWeights = weights.stream()
                 .filter(w -> w.getIndicatorLevel() == 2 && Objects.equals(w.getParentId(), primary.getId()))
                 .collect(Collectors.toList());
-            
+
             if (!secondaryWeights.isEmpty()) {
                 double secondarySum = secondaryWeights.stream()
                     .mapToDouble(IndicatorWeight::getWeight)
                     .sum();
-                
+
                 if (Math.abs(secondarySum - 1.0) > 0.001) {
                     log.warn("二级指标权重总和不为1, 一级指标: {}, 权重总和: {}", primary.getIndicatorName(), secondarySum);
                     return false;
                 }
             }
         }
-        
+
         return true;
     }
 
     @Override
     public Map<String, Object> getWeightStatistics(Long configId) {
         List<IndicatorWeight> weights = getByConfigId(configId);
-        
+
         Map<String, Object> statistics = new HashMap<>();
         statistics.put("totalCount", weights.size());
         statistics.put("primaryCount", weights.stream().filter(w -> w.getIndicatorLevel() == 1).count());
         statistics.put("secondaryCount", weights.stream().filter(w -> w.getIndicatorLevel() == 2).count());
         statistics.put("isValid", validateWeightIntegrity(configId));
-        
+
         return statistics;
     }
 
@@ -345,7 +362,7 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
             log.error("指标权重验证失败: {}", indicatorWeight);
             return false;
         }
-        
+
         return updateById(indicatorWeight);
     }
 
@@ -356,16 +373,16 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
             log.error("指标权重验证失败: {}", indicatorWeight);
             return false;
         }
-        
+
         // 检查指标代码是否重复
         IndicatorWeight existing = getByConfigIdAndCode(indicatorWeight.getConfigId(), indicatorWeight.getIndicatorCode());
         if (existing != null) {
             log.error("指标代码已存在: {}", indicatorWeight.getIndicatorCode());
             return false;
         }
-        
+
         indicatorWeight.setCreateTime(LocalDateTime.now());
-        
+
         return save(indicatorWeight);
     }
 
@@ -380,7 +397,7 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
         if (indicatorWeight == null) {
             return false;
         }
-        
+
         // 验证必填字段
         if (indicatorWeight.getConfigId() == null ||
             !StringUtils.hasText(indicatorWeight.getIndicatorCode()) ||
@@ -389,22 +406,22 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
             indicatorWeight.getWeight() == null) {
             return false;
         }
-        
+
         // 验证指标级别
         if (indicatorWeight.getIndicatorLevel() != 1 && indicatorWeight.getIndicatorLevel() != 2) {
             return false;
         }
-        
+
         // 验证权重值范围
         if (indicatorWeight.getWeight() < 0 || indicatorWeight.getWeight() > 1) {
             return false;
         }
-        
+
         // 验证二级指标必须有父指标
         if (indicatorWeight.getIndicatorLevel() == 2 && indicatorWeight.getParentId() == null) {
             return false;
         }
-        
+
         return true;
     }
 
@@ -439,24 +456,15 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
             }
         }
 
-        String cityCode = null;
-        if (trimmed.length() >= 4) {
-            cityCode = trimmed.substring(0, 4);
-        }
+        String cityCode = resolveCityOrgcode(trimmed);
+        double[] primary = resolveCountyComprehensivePrimaryWeights(cityCode, year);
+        town.setWeight(primary[0]);
+        community.setWeight(primary[1]);
+        updateById(town);
+        updateById(community);
+
         Long cityTownshipConfigId = findConfigIdByModelId(cityCode, year, 3L);
         Long cityCommunityConfigId = findConfigIdByModelId(cityCode, year, 8L);
-
-        double townshipPrimaryBase = sumWeights(cityTownshipConfigId,
-                "L1_DISASTER_MANAGEMENT", "L1_DISASTER_PREPAREDNESS", "L1_SELF_RESCUE_TRANSFER");
-        double communityPrimaryBase = sumWeights(cityCommunityConfigId,
-                "L1_DISASTER_MANAGEMENT", "L1_DISASTER_PREPAREDNESS", "L1_SELF_RESCUE_TRANSFER");
-        if (townshipPrimaryBase > 0 && communityPrimaryBase > 0) {
-            double[] primary = roundTwoToOne(townshipPrimaryBase, communityPrimaryBase);
-            town.setWeight(primary[0]);
-            community.setWeight(primary[1]);
-            updateById(town);
-            updateById(community);
-        }
 
         double[] townshipSecondary = resolveThreeWeights(
                 cityTownshipConfigId,
@@ -565,6 +573,31 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
             return null;
         }
         return w.getWeight();
+    }
+
+    private String resolveCityOrgcode(String orgcode) {
+        if (!StringUtils.hasText(orgcode)) {
+            return orgcode;
+        }
+        String trimmed = orgcode.trim();
+        if (trimmed.length() >= 4) {
+            return trimmed.substring(0, 4);
+        }
+        return trimmed;
+    }
+
+    private double[] resolveCountyComprehensivePrimaryWeights(String cityCode, Integer year) {
+        Long cityComprehensiveConfigId = findConfigIdByModelId(cityCode, year, 20L);
+        Double cityTownshipWeight = getWeight(cityComprehensiveConfigId, "L1_TOWNSHIP");
+        Double cityCommunityWeight = getWeight(cityComprehensiveConfigId, "L1_COMMUNITY");
+        if (cityTownshipWeight == null || cityCommunityWeight == null
+                || cityTownshipWeight <= 0 || cityCommunityWeight <= 0) {
+            throw new IllegalStateException("市级综合权重缺少乡镇或社区一级指标权重: orgcode=" + cityCode
+                    + ", year=" + year + ", configId=" + cityComprehensiveConfigId);
+        }
+
+        double total = cityTownshipWeight + cityCommunityWeight;
+        return new double[]{cityTownshipWeight / total, cityCommunityWeight / total};
     }
 
     private double sumWeights(Long configId, String... indicatorCodes) {
@@ -789,22 +822,7 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
             return new HashMap<>();
         }
 
-        // 层级查找：区县 → 市级 → 省级
-        List<String> orgcodeCandidates = new ArrayList<>();
-        String trimmed = orgcode.trim();
-
-        // 市级（4位）- 先添加市级，因为基准数据主要是市级
-        if (trimmed.length() >= 4) {
-            orgcodeCandidates.add(trimmed.substring(0, 4));
-        }
-        // 省级（2位）
-        if (trimmed.length() >= 2) {
-            orgcodeCandidates.add(trimmed.substring(0, 2));
-        }
-        // 区县级（6位）- 只有在区县有自己数据时才使用
-        if (trimmed.length() >= 6) {
-            orgcodeCandidates.add(trimmed.substring(0, 6));
-        }
+        List<String> orgcodeCandidates = resolveBaselineOrgcodeCandidates(orgcode);
 
         List<String> configNameCandidates = resolveConfigNameCandidates(modelId, configName);
 
@@ -871,11 +889,14 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
 
         Map<String, IndicatorWeight> baselineWeights = findBaselineWeightsByOrgcode(orgcode, modelId, configName);
         Map<String, IndicatorWeight> mergedTemplates = new LinkedHashMap<>();
+        Set<String> currentTemplateCodes = new HashSet<>();
         for (IndicatorWeight template : sortWeights(templateWeights)) {
             if (template == null || !StringUtils.hasText(template.getIndicatorCode())) {
                 continue;
             }
-            mergedTemplates.put(template.getIndicatorCode().trim(), copyTemplateWeight(template));
+            String code = template.getIndicatorCode().trim();
+            mergedTemplates.put(code, copyTemplateWeight(template));
+            currentTemplateCodes.add(code);
         }
 
         // 如果当前配置没有指标结构，尝试从基准数据中获取模板
@@ -907,6 +928,12 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
 
         // 1. 首先查找专家打分数据（按年份从新到旧）
         Map<String, Double> expertWeights = findExpertScoresByOrgcodeAndYear(orgcode, requestedYear, modelId, configName);
+        Map<String, Double> derivedWeights = new HashMap<>();
+        if (modelId != null && modelId.equals(11L)) {
+            double[] primary = resolveCountyComprehensivePrimaryWeights(resolveCityOrgcode(orgcode), requestedYear);
+            derivedWeights.put("L1_TOWNSHIP", primary[0]);
+            derivedWeights.put("L1_COMMUNITY", primary[1]);
+        }
 
         // 3. 构建结果，应用继承逻辑
         List<IndicatorWeight> result = new ArrayList<>();
@@ -916,18 +943,49 @@ public class IndicatorWeightServiceImpl extends ServiceImpl<IndicatorWeightMappe
             String code = template.getIndicatorCode();
             Double finalWeight = null;
 
-            // 优先级：专家打分 > 基准表
-            if (expertWeights.containsKey(code)) {
+            // 优先级：区县综合动态派生 > 专家打分 > 当前有效配置 > 2020基准兜底
+            if (derivedWeights.containsKey(code)) {
+                finalWeight = derivedWeights.get(code);
+            } else if (expertWeights.containsKey(code)) {
                 finalWeight = expertWeights.get(code);
+            } else if (currentTemplateCodes.contains(code) && template.getWeight() != null) {
+                finalWeight = template.getWeight();
             } else if (baselineWeights.containsKey(code) && baselineWeights.get(code).getWeight() != null) {
                 finalWeight = baselineWeights.get(code).getWeight();
             }
 
-            weight.setWeight(finalWeight != null ? finalWeight : 0.0);
+            weight.setWeight(finalWeight != null ? finalWeight : weight.getWeight());
             result.add(weight);
         }
 
         return result;
+    }
+
+    static List<String> resolveBaselineOrgcodeCandidates(String orgcode) {
+        List<String> candidates = new ArrayList<>();
+        if (!StringUtils.hasText(orgcode)) {
+            return candidates;
+        }
+        String trimmed = orgcode.trim();
+        if (trimmed.length() >= 6) {
+            candidates.add(trimmed.substring(0, 6));
+        }
+        if (trimmed.length() >= 4) {
+            String cityCode = trimmed.substring(0, 4);
+            if (!candidates.contains(cityCode)) {
+                candidates.add(cityCode);
+            }
+        }
+        if (trimmed.length() >= 2) {
+            String provinceCode = trimmed.substring(0, 2);
+            if (!candidates.contains(provinceCode)) {
+                candidates.add(provinceCode);
+            }
+        }
+        if (candidates.isEmpty()) {
+            candidates.add(trimmed);
+        }
+        return candidates;
     }
 
     private static Map<Long, List<String>> createLegacyConfigNamesByModelId() {

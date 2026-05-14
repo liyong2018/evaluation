@@ -2586,6 +2586,12 @@ const exportData = async () => {
       response = await enterpriseCapacityApi.exportData(year, selectedIds)
     } else if (dataType.value === 'social-organization') {
       response = await socialOrganizationCapacityApi.exportData(year, selectedIds)
+    } else if (dataType.value === 'community') {
+      const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+      response = await communityCapacityApi.exportData(year, normalizedOrgCode || undefined, selectedIds)
+    } else if (dataType.value === 'family') {
+      const normalizedOrgCode = normalizeOrgCode(selectedOrg.value?.code)
+      response = await familyCapacityApi.exportData(year, normalizedOrgCode || undefined, selectedIds)
     } else {
       response = await surveyDataApi.exportData(selectedIds)
     }
@@ -2602,7 +2608,7 @@ const exportData = async () => {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       })
       fileName = buildExportFileName()
-    } else if (['government', 'enterprise', 'social-organization'].includes(dataType.value)) {
+    } else if (['government', 'enterprise', 'social-organization', 'community', 'family'].includes(dataType.value)) {
       // 政府/企业/社会组织减灾能力数据导出 - 返回 blob
       const blobData = response.data || response
       blob = blobData instanceof Blob ? blobData : new Blob([blobData], {

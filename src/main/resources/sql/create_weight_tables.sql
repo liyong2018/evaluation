@@ -29,7 +29,7 @@ CREATE TABLE `indicator_weight` (
     `indicator_code` VARCHAR(50) NOT NULL COMMENT '指标代码',
     `indicator_name` VARCHAR(100) NOT NULL COMMENT '指标名称',
     `indicator_level` INT NOT NULL COMMENT '指标级别(1-一级指标，2-二级指标)',
-    `weight` DOUBLE DEFAULT 0 COMMENT '权重值',
+    `weight` DECIMAL(10,8) NOT NULL DEFAULT 0 COMMENT '权重值',
     `parent_id` BIGINT DEFAULT 0 COMMENT '父指标ID',
     `sort_order` INT DEFAULT 0 COMMENT '排序顺序',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

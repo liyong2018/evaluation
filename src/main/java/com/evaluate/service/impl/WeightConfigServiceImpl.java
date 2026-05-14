@@ -214,7 +214,7 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
 
         String trimmedOrgcode = orgcode.trim();
         List<WeightConfig> effective = getEffectiveModelYearConfigs(trimmedOrgcode, year);
-        Map<Long, String> modelIdToName = resolveDefaultModelNames();
+        Map<Long, String> modelIdToName = resolveDefaultModelNames(trimmedOrgcode);
         if (effective.size() >= modelIdToName.size()) {
             return effective;
         }
@@ -249,8 +249,9 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                 newCfg.setConfigName(modelName);
                 newCfg.setDescription(modelName + "权重配置");
                 newCfg.setDataSource(desiredDataSource);
+                newCfg.setModelId(modelId);
                 newCfg.setYear(year);
-                newCfg.setCreateTime(LocalDateTime.of(year, 1, 1, 0, 0));
+                newCfg.setCreateTime(LocalDateTime.now());
 
                 boolean saved = save(newCfg);
                 if (!saved || newCfg.getId() == null) {
@@ -275,12 +276,16 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                     updateById(patch);
                     cfg.setDataSource(desiredDataSource);
                 }
+                if (modelId != null && !Objects.equals(modelId, cfg.getModelId())) {
+                    WeightConfig patch = new WeightConfig();
+                    patch.setId(cfg.getId());
+                    patch.setModelId(modelId);
+                    updateById(patch);
+                    cfg.setModelId(modelId);
+                }
                 if (indicatorWeightService.getByConfigId(cfg.getId()).isEmpty()) {
                     indicatorWeightService.initDefaultWeights(cfg.getId());
                 }
-            }
-            if (modelId != null && modelId.equals(11L)) {
-                indicatorWeightService.ensureComprehensiveCountyWeights(cfg.getId(), cfg.getOrgcode(), year);
             }
             result.add(cfg);
         }
@@ -325,6 +330,11 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
         if (modelId.equals(4L) || modelId.equals(8L) || modelId.equals(11L)) {
             return "community";
         }
+        if (modelId.equals(12L) || modelId.equals(13L) || modelId.equals(16L)
+                || modelId.equals(17L) || modelId.equals(19L) || modelId.equals(20L)
+                || modelId.equals(21L)) {
+            return "baseline";
+        }
         return null;
     }
 
@@ -344,7 +354,7 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
             return new ArrayList<>();
         }
 
-        Map<Long, String> modelIdToName = resolveDefaultModelNames();
+        Map<Long, String> modelIdToName = resolveDefaultModelNames(trimmedOrgcode);
         Map<Long, String> legacyNameByModelId = resolveLegacyModelNames();
 
         List<WeightConfig> candidates = queryCandidatesByYear(orgcodeCandidates, year);
@@ -358,7 +368,7 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                 null
         );
 
-        if (shouldFallbackToBaseline(year, allowBaselineFallback, result)) {
+        if (shouldFallbackToBaseline(year, allowBaselineFallback, result, modelIdToName.size())) {
             List<WeightConfig> baselineCandidates = queryBaselineCandidates(orgcodeCandidates);
             List<WeightConfig> baseline = buildEffectiveConfigsFromCandidates(
                     orgcodeCandidates,
@@ -369,7 +379,10 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                     BASELINE_YEAR,
                     BASELINE_YEAR
             );
-            return baseline;
+            if (result == null || result.isEmpty()) {
+                return baseline;
+            }
+            mergeMissingBaselineConfigs(result, baseline);
         }
 
         return result;
@@ -405,7 +418,7 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
         return list(queryWrapper);
     }
 
-    private boolean shouldFallbackToBaseline(Integer year, boolean allowBaselineFallback, List<WeightConfig> result) {
+    private boolean shouldFallbackToBaseline(Integer year, boolean allowBaselineFallback, List<WeightConfig> result, int expectedModelCount) {
         if (!allowBaselineFallback) {
             return false;
         }
@@ -418,7 +431,26 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
         if (year < 2023) {
             return false;
         }
-        return result == null || result.isEmpty();
+        return result == null || result.size() < expectedModelCount;
+    }
+
+    private void mergeMissingBaselineConfigs(List<WeightConfig> result, List<WeightConfig> baseline) {
+        if (result == null || baseline == null || baseline.isEmpty()) {
+            return;
+        }
+        Map<Long, WeightConfig> existingByModelId = new HashMap<>();
+        for (WeightConfig cfg : result) {
+            if (cfg != null && cfg.getModelId() != null) {
+                existingByModelId.put(cfg.getModelId(), cfg);
+            }
+        }
+        for (WeightConfig cfg : baseline) {
+            if (cfg == null || cfg.getModelId() == null || existingByModelId.containsKey(cfg.getModelId())) {
+                continue;
+            }
+            result.add(cfg);
+            existingByModelId.put(cfg.getModelId(), cfg);
+        }
     }
 
     private List<WeightConfig> buildEffectiveConfigsFromCandidates(
@@ -448,9 +480,6 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
                 // 获取实际数据的年份（配置的原始年份）
                 Integer actualDataYear = best.getYear();
                 Integer effectiveYear = forcedYear != null ? forcedYear : resolveConfigYear(best, fallbackYearForNull);
-                if (modelName != null && modelName.contains("综合")) {
-                    indicatorWeightService.ensureComprehensiveCountyWeights(best.getId(), best.getOrgcode(), effectiveYear);
-                }
                 WeightConfig view = new WeightConfig();
                 view.setId(best.getId());
                 view.setOrgcode(best.getOrgcode());
@@ -620,7 +649,8 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
         return 0;
     }
 
-    private Map<Long, String> resolveDefaultModelNames() {
+
+    private Map<Long, String> resolveDefaultModelNames(String orgcode) {
         QueryWrapper<EvaluationModel> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("status", 1);
         queryWrapper.orderByAsc("id");
@@ -639,12 +669,31 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
             if (!modelName.contains("减灾") || !modelName.contains("评估")) {
                 continue;
             }
-            if (modelName.contains("政府") || modelName.contains("企业") || modelName.contains("社会组织")) {
+            if (isCountyOrgcode(orgcode)) {
+                if (!modelName.startsWith("区县")) {
+                    continue;
+                }
+            } else if (isCityOrgcode(orgcode)) {
+                if (!modelName.startsWith("市州")) {
+                    continue;
+                }
+                if (modelName.contains("政府") || modelName.contains("企业") || modelName.contains("社会组织")) {
+                    continue;
+                }
+            } else if (modelName.contains("政府") || modelName.contains("企业") || modelName.contains("社会组织")) {
                 continue;
             }
             map.put(model.getId(), modelName);
         }
         return map;
+    }
+
+    private boolean isCityOrgcode(String orgcode) {
+        return StringUtils.hasText(orgcode) && orgcode.trim().length() == 4;
+    }
+
+    private boolean isCountyOrgcode(String orgcode) {
+        return StringUtils.hasText(orgcode) && orgcode.trim().length() >= 6;
     }
 
     private Map<Long, String> resolveLegacyModelNames() {
