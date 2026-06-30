@@ -314,7 +314,7 @@
         <!-- 风险评估 (仅乡镇数据) -->
         <el-table-column v-if="dataType === 'township' && !isCityCapacityMode" prop="riskAssessment" label="风险评估" width="140">
           <template #default="{ row }">
-            {{ formatYesNo(row.riskAssessment) }}
+            {{ formatRiskAssessment(row.riskAssessment) }}
           </template>
         </el-table-column>
 
@@ -1299,6 +1299,18 @@ const formatYesNo = (value: any) => {
   if (normalized === '是' || normalized === 'yes' || normalized === 'true' || normalized === '1') return '是'
   if (normalized === '否' || normalized === 'no' || normalized === 'false' || normalized === '0' || normalized === '2') return '否'
   return value || '-'
+}
+
+const formatRiskAssessment = (value: any) => {
+  if (value === null || value === undefined || String(value).trim() === '') return '-'
+
+  const text = String(value).trim()
+  if (Number(searchForm.year) === 2025) {
+    if (text === '1') return '是'
+    if (text === '2') return '否'
+  }
+
+  return text
 }
 
 const MEDICAL_INSTITUTION_TYPE_LARGE_MAP: Record<string, string> = {

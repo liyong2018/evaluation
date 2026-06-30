@@ -140,10 +140,12 @@ public class GrassrootsOrganizationController {
     @GetMapping("/tree/by-county-id/{countyId}")
     public Result<List<Map<String, Object>>> getTreeByCountyId(
             @PathVariable Long countyId,
-            @RequestParam(required = false) Integer year) {
-        log.info("根据区县ID获取树形结构，区县ID: {}, 年份: {}", countyId, year);
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false, defaultValue = "false") Boolean includeChangeDetails) {
+        log.info("根据区县ID获取树形结构，区县ID: {}, 年份: {}, 显示变更详情: {}",
+                countyId, year, includeChangeDetails);
         try {
-            List<Map<String, Object>> tree = grassrootsOrganizationService.getTreeByCountyId(countyId, year);
+            List<Map<String, Object>> tree = grassrootsOrganizationService.getTreeByCountyId(countyId, year, includeChangeDetails);
             return Result.success(tree);
         } catch (Exception e) {
             log.error("根据区县ID获取树形结构失败", e);

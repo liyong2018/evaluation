@@ -100,20 +100,21 @@
             <!-- 配置列表 -->
             <el-card class="config-list">
               <!-- 数据来源提示 -->
-              <div v-if="configList.length > 0 && (configList.some(c => c.actualOrgcode && c.actualOrgcode !== selectedOrg?.code) || configList.some(c => c.actualYear !== null && c.actualYear !== orgYear))" class="data-source-notice">
+              <div v-if="configList.length > 0 && configList.some(shouldShowDataSourceNotice)" class="data-source-notice">
                 <el-alert type="warning" :closable="false">
                   <template #title>
                     <span>注意：以下配置的数据来源与当前选择不同</span>
                   </template>
                   <div class="data-source-items">
-                    <div v-for="config in configList.filter(c => (c.actualOrgcode && c.actualOrgcode !== selectedOrg?.code) || (c.actualYear !== null && c.actualYear !== orgYear))" :key="config.id" class="data-source-item">
+                    <div v-for="config in configList.filter(shouldShowDataSourceNotice)" :key="config.id" class="data-source-item">
                       <span class="config-name">{{ config.configName }}</span>
-                      <el-tag v-if="config.actualOrgcode && config.actualOrgcode !== selectedOrg?.code" type="warning" size="small">{{ config.actualOrgName || config.actualOrgcode }}</el-tag>
-                      <span v-if="config.actualYear !== null && config.actualYear !== orgYear" class="year-diff">
-                        <el-tag type="info" size="small">{{ config.actualYear }}年数据</el-tag>
-                        <span class="year-arrow">→</span>
+                      <span v-if="shouldShowYearSource(config)" class="year-diff">
                         <el-tag type="primary" size="small">请求{{ orgYear }}年</el-tag>
+                        <span class="year-arrow">→</span>
+                        <el-tag v-if="config.actualOrgcode && config.actualOrgcode !== selectedOrg?.code" type="warning" size="small">{{ config.actualOrgName || config.actualOrgcode }}</el-tag>
+                        <el-tag type="info" size="small">{{ getActualYearLabel(config) }}</el-tag>
                       </span>
+                      <el-tag v-if="!shouldShowYearSource(config) && config.actualOrgcode && config.actualOrgcode !== selectedOrg?.code" type="warning" size="small">{{ config.actualOrgName || config.actualOrgcode }}</el-tag>
                     </div>
                   </div>
                 </el-alert>
@@ -462,9 +463,9 @@
           <div class="header-info">
             <el-tag type="primary" size="small">
               <el-icon><Calendar /></el-icon>
-              {{ currentScoreConfig?.actualYear ?? currentScoreConfig?.year ?? orgYear }}年数据
+              {{ getActualYearLabel(currentScoreConfig) }}
               <span v-if="currentScoreConfig?.actualYear !== null && currentScoreConfig?.actualYear !== orgYear">
-                (请求{{ orgYear }}年，使用{{ currentScoreConfig.actualYear }}年基准)
+                (请求{{ orgYear }}年，使用{{ getActualYearLabel(currentScoreConfig) }})
               </span>
             </el-tag>
             <el-tag type="success" size="small">
@@ -652,6 +653,30 @@ const orgTreeRef = ref() // 组织机构树引用
 const orgYear = ref<number | null>(globalYearStore.selectedYear)
 const yearOptions = ref<number[]>([])
 const orgTreeRenderKey = computed(() => `orgTree-${orgYear.value ?? 'all'}`)
+const BASELINE_YEAR = 2020
+
+const isBaselineSource = (config: any) => {
+  return config?.actualYear === BASELINE_YEAR ||
+    config?.year === BASELINE_YEAR ||
+    config?.dataSource === 'baseline' ||
+    String(config?.description || '').includes('市级兜底')
+}
+
+const getActualYearLabel = (config: any) => {
+  if (isBaselineSource(config)) {
+    return '基表数据'
+  }
+  const year = config?.actualYear ?? config?.year ?? orgYear.value
+  return year ? `${year}年数据` : '数据来源未知'
+}
+
+const shouldShowYearSource = (config: any) => {
+  return isBaselineSource(config) || (config?.actualYear !== null && config?.actualYear !== orgYear.value)
+}
+
+const shouldShowDataSourceNotice = (config: any) => {
+  return (config?.actualOrgcode && config.actualOrgcode !== selectedOrg.value?.code) || shouldShowYearSource(config)
+}
 
 // 树形组件配置
 const treeProps = {

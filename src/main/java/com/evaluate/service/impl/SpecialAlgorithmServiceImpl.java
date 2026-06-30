@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 /**
  * 特殊算法标记处理服务实现类
- * 
+ *
  * @author System
  * @since 2025-10-12
  */
@@ -129,6 +129,16 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         String orgCode = toString(regionContext.get("orgCode"));
         List<String> candidateRegionCodes = resolveCandidateRegionCodes(currentRegionCode, modelKey);
 
+        // 优先从当前执行上下文的 step_ 前缀条目中查找同批次前置模型结果
+        Double contextValue = loadValueFromCurrentExecution(modelId, stepCode, fieldName, currentRegionCode, candidateRegionCodes, regionContext);
+        if (contextValue != null) {
+            if (log.isDebugEnabled()) {
+                log.debug("[LOAD_EVAL_RESULT] 从当前执行上下文命中: modelId={}, region={}, field={}, value={}",
+                        modelId, currentRegionCode, fieldName, contextValue);
+            }
+            return contextValue;
+        }
+
         EvaluationResult result;
         if (year != null) {
             result = null;
@@ -193,14 +203,12 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             return 0.0;
         }
 
-        // 根据字段名提取值
-        Double value = null;
-        // 指定stepCode时，优先从execution detail按步骤和字段精确取值（2020综合模型口径）
-        if (stepCode != null && !stepCode.trim().isEmpty()) {
+        // 标准评估结果字段以已匹配到的 evaluation_result 地区行作为准。
+        // 不能因为配置了 stepCode 就另查最新执行明细，否则可能读取到非同一条结果所属的历史执行记录。
+        Double value = extractFieldValue(result, fieldName);
+        if (value == null) {
             value = loadFromExecutionDetail(modelId, modelKey, stepCode, fieldName, year, orgCode, currentRegionCode);
-        } else {
-            value = extractFieldValue(result, fieldName);
-            if (value == null) {
+            if (value == null && stepCode != null && !stepCode.trim().isEmpty()) {
                 value = loadFromExecutionDetail(modelId, modelKey, null, fieldName, year, orgCode, currentRegionCode);
             }
         }
@@ -450,6 +458,48 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         }
     }
 
+    /**
+     * 从当前执行上下文（step_ 前缀条目）中查找前置模型的实时计算结果，
+     * 避免读取数据库中历史残留的旧结果。
+     */
+    @SuppressWarnings("unchecked")
+    private Double loadValueFromCurrentExecution(Long targetModelId, String stepCode,
+                                                  String fieldName, String currentRegionCode,
+                                                  List<String> candidateRegionCodes,
+                                                  Map<String, Object> regionContext) {
+        if (regionContext == null || targetModelId == null || fieldName == null) {
+            return null;
+        }
+
+        // 遍历所有 step_ 前缀的条目，查找包含匹配 regionCode 的 regionResults
+        for (Map.Entry<String, Object> entry : regionContext.entrySet()) {
+            String key = entry.getKey();
+            if (!key.startsWith("step_")) {
+                continue;
+            }
+            if (!(entry.getValue() instanceof Map)) {
+                continue;
+            }
+            Map<String, Object> stepResult = (Map<String, Object>) entry.getValue();
+            Object modelIdObj = stepResult.get("modelId");
+            if (modelIdObj != null && targetModelId.equals(((Number) modelIdObj).longValue())) {
+                // 匹配 modelId 后，从 regionResults 中查找
+                Object rrObj = stepResult.get("regionResults");
+                if (!(rrObj instanceof Map)) {
+                    continue;
+                }
+                Map<String, Map<String, Object>> regionResults = (Map<String, Map<String, Object>>) rrObj;
+                for (String candidateCode : candidateRegionCodes) {
+                    Map<String, Object> outputs = regionResults.get(candidateCode);
+                    if (outputs != null && outputs.containsKey(fieldName)) {
+                        return toDouble(outputs.get(fieldName));
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     private List<String> resolveCandidateRegionCodes(String currentRegionCode, String modelKey) {
         if (currentRegionCode == null || currentRegionCode.trim().isEmpty()) {
             return Collections.singletonList(currentRegionCode);
@@ -666,34 +716,34 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String indicatorName,
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
-        
-   
-        
+
+
+
         // 1. 收集所有区域的指标值
         List<Double> allValues = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> entry : allRegionData.entrySet()) {
             Object value = entry.getValue().get(indicatorName);
-       
-            
+
+
             // 特别为 riskAssessment 添加详细调试
             if ("riskAssessment".equals(indicatorName) && log.isDebugEnabled()) {
                 log.debug("[DEBUG-RISK] 地区={}的完整数据keys: {}", entry.getKey(), entry.getValue().keySet());
                 log.debug("[DEBUG-RISK] 是否包含riskAssessment: {}", entry.getValue().containsKey("riskAssessment"));
                 log.debug("[DEBUG-RISK] riskAssessment值: {}", value);
             }
-            
+
             if (value != null) {
                 allValues.add(toDouble(value));
             }
         }
-        
 
-        
+
+
         if (allValues.isEmpty()) {
             log.warn("未找到任何指标值: {}", indicatorName);
             return 0.0;
         }
-        
+
         // 2. 计算平方和的平方根：SQRT(SUMSQ(all_values))
         double sumSquares = allValues.stream()
                 .mapToDouble(v -> v * v)
@@ -713,23 +763,23 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             }
             return 0.0;
         }
-        
+
         // 3. 获取当前区域的值
         Map<String, Object> currentData = allRegionData.get(currentRegionCode);
         if (currentData == null) {
             log.warn("未找到当前区域数据: {}", currentRegionCode);
             return 0.0;
         }
-        
+
         Object currentValue = currentData.get(indicatorName);
         if (currentValue == null) {
             log.warn("未找到当前区域指标值: region={}, indicator={}", currentRegionCode, indicatorName);
             return 0.0;
         }
-        
+
         // 4. 计算归一化值
         double normalized = toDouble(currentValue) / denominator;
-     
+
         return normalized;
     }
 
@@ -738,32 +788,32 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String indicators,
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
-        
+
         log.debug("TOPSIS优解计算: indicators={}, region={}", indicators, currentRegionCode);
-        
+
         // 检查是否为单区域情况
         if (allRegionData.size() == 1) {
             log.info("[TOPSIS-DEBUG] 单区域情况，计算优解距离");
             // 对于单区域情况，计算与理论最优值的距离
             return calculateSingleRegionPositiveDistance(indicators, currentRegionCode, allRegionData);
         }
-        
+
         // 1. 解析指标列表
         String[] indicatorArray = indicators.split(",");
-        
+
         // 2. 获取当前区域数据
         Map<String, Object> currentData = allRegionData.get(currentRegionCode);
         if (currentData == null) {
             log.warn("未找到当前区域数据: {}", currentRegionCode);
             return 0.0;
         }
-        
+
         // 3. 计算每个指标的 (max_value - current_value)^2
         double sumSquares = 0.0;
-        
+
         for (String indicator : indicatorArray) {
             String trimmedIndicator = indicator.trim();
-            
+
             // 收集所有区域该指标的值
             List<Double> allValues = new ArrayList<>();
             for (Map.Entry<String, Map<String, Object>> entry : allRegionData.entrySet()) {
@@ -772,37 +822,37 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
                     allValues.add(toDouble(value));
                 }
             }
-            
+
             if (allValues.isEmpty()) {
                 log.warn("未找到指标值: {}", trimmedIndicator);
                 continue;
             }
-            
+
             // 找到最大值（正理想解）
             double maxValue = allValues.stream()
                     .mapToDouble(Double::doubleValue)
                     .max()
                     .orElse(0.0);
-            
+
             // 获取当前值
             Object currentValue = currentData.get(trimmedIndicator);
             if (currentValue == null) {
                 log.warn("当前区域未找到指标: region={}, indicator={}", currentRegionCode, trimmedIndicator);
                 continue;
             }
-            
+
             double current = toDouble(currentValue);
             double diff = maxValue - current;
             sumSquares += diff * diff;
-            
+
             log.debug("指标 {}: max={}, current={}, diff^2={}", trimmedIndicator, maxValue, current, diff * diff);
         }
-        
+
         // 4. 返回距离：SQRT(sumSquares)
         double distance = Math.sqrt(sumSquares);
-        
+
         log.debug("TOPSIS优解距离: region={}, distance={}", currentRegionCode, distance);
-        
+
         return distance;
     }
 
@@ -811,9 +861,9 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String indicators,
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
-        
+
         log.debug("TOPSIS劣解计算: indicators={}, region={}", indicators, currentRegionCode);
-        
+
         // 检查是否为单区域情况
         if (allRegionData.size() == 1) {
             log.info("[TOPSIS-DEBUG] 单区域情况，计算劣解距离");
@@ -821,23 +871,23 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             // 这里使用指标权重的平方和作为基准
             return calculateSingleRegionNegativeDistance(indicators, currentRegionCode, allRegionData);
         }
-        
+
         // 1. 解析指标列表
         String[] indicatorArray = indicators.split(",");
-        
+
         // 2. 获取当前区域数据
         Map<String, Object> currentData = allRegionData.get(currentRegionCode);
         if (currentData == null) {
             log.warn("未找到当前区域数据: {}", currentRegionCode);
             return 0.0;
         }
-        
+
         // 3. 计算每个指标的 (min_value - current_value)^2
         double sumSquares = 0.0;
-        
+
         for (String indicator : indicatorArray) {
             String trimmedIndicator = indicator.trim();
-            
+
             // 收集所有区域该指标的值
             List<Double> allValues = new ArrayList<>();
             for (Map.Entry<String, Map<String, Object>> entry : allRegionData.entrySet()) {
@@ -846,44 +896,44 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
                     allValues.add(toDouble(value));
                 }
             }
-            
+
             if (allValues.isEmpty()) {
                 log.warn("未找到指标值: {}", trimmedIndicator);
                 continue;
             }
-            
+
             // 找到最小值（负理想解）
             double minValue = allValues.stream()
                     .mapToDouble(Double::doubleValue)
                     .min()
                     .orElse(0.0);
-            
+
             // 获取当前值
             Object currentValue = currentData.get(trimmedIndicator);
             if (currentValue == null) {
                 log.warn("当前区域未找到指标: region={}, indicator={}", currentRegionCode, trimmedIndicator);
                 continue;
             }
-            
+
             double current = toDouble(currentValue);
             double diff = minValue - current;
             sumSquares += diff * diff;
-            
+
             log.debug("指标 {}: min={}, current={}, diff^2={}", trimmedIndicator, minValue, current, diff * diff);
         }
-        
+
         // 4. 返回距离：SQRT(sumSquares)
         double distance = Math.sqrt(sumSquares);
-        
+
         log.debug("TOPSIS劣解距离: region={}, distance={}", currentRegionCode, distance);
-        
+
         return distance;
     }
 
     /**
      * 计算TOPSIS得分
      * 公式：TOPSIS_SCORE = D- / (D+ + D-)
-     * 
+     *
      * @param params 参数格式："POSITIVE_IDEAL_FIELD,NEGATIVE_IDEAL_FIELD"
      * @param currentRegionCode 当前区域代码
      * @param allRegionData 所有区域数据
@@ -893,24 +943,24 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             String params,
             String currentRegionCode,
             Map<String, Map<String, Object>> allRegionData) {
-        
-        
+
+
         // 1. 解析参数：正理想解字段名,负理想解字段名
         String[] fields = params.split(",");
         if (fields.length != 2) {
             return 0.0;
         }
-        
+
         String positiveField = fields[0].trim();
         String negativeField = fields[1].trim();
-        
+
         // 2. 获取当前区域数据
         Map<String, Object> currentData = allRegionData.get(currentRegionCode);
         if (currentData == null) {
             log.warn("未找到当前区域数据: {}", currentRegionCode);
             return 0.0;
         }
-        
+
         // 3. 获取正理想解距离 D+
         Object positiveValue = currentData.get(positiveField);
         if (positiveValue == null) {
@@ -918,7 +968,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             return 0.0;
         }
         double dPositive = toDouble(positiveValue);
-        
+
         // 4. 获取负理想解距离 D-
         Object negativeValue = currentData.get(negativeField);
         if (negativeValue == null) {
@@ -926,7 +976,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             return 0.0;
         }
         double dNegative = toDouble(negativeValue);
-        
+
         // 5. 计算TOPSIS得分：D- / (D+ + D-)
         double denominator = dPositive + dNegative;
         if (denominator == 0) {
@@ -936,7 +986,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             }
             return 0.0;
         }
-        
+
         double score = dNegative / denominator;
         return score;
     }
@@ -1018,13 +1068,13 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
             log.warn("样本数量不足，无法计算标准差: {}", n);
             return handleSingleRegionGrading(scoreField, currentRegionCode, allRegionData);
         }
-        
+
         Object currentValue = currentData.get(scoreField);
         if (currentValue == null) {
             log.warn("未找到当前区域分数: region={}, field={}", currentRegionCode, scoreField);
             return "中等";
         }
-        
+
         double score = toDouble(currentValue);
 
         // 5. 根据分级规则计算等级
@@ -1046,7 +1096,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
     private Double calculateSingleRegionPositiveDistance(String indicators, String currentRegionCode, Map<String, Map<String, Object>> allRegionData) {
         String[] indicatorArray = indicators.split(",");
         Map<String, Object> currentData = allRegionData.get(currentRegionCode);
-        
+
         double sumSquares = 0.0;
         for (String indicator : indicatorArray) {
             String trimmedIndicator = indicator.trim();
@@ -1060,12 +1110,12 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
                 log.debug("[单区域优解] 指标 {}: current={}, theoreticalMax={}, diff^2={}", trimmedIndicator, current, theoreticalMax, diff * diff);
             }
         }
-        
+
         double distance = Math.sqrt(sumSquares);
         log.debug("[单区域优解] 距离: {}", distance);
         return distance;
     }
-    
+
     /**
      * 计算单区域劣解距离
      * 对于单区域情况，我们计算与理论最差值的距离
@@ -1073,7 +1123,7 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
     private Double calculateSingleRegionNegativeDistance(String indicators, String currentRegionCode, Map<String, Map<String, Object>> allRegionData) {
         String[] indicatorArray = indicators.split(",");
         Map<String, Object> currentData = allRegionData.get(currentRegionCode);
-        
+
         double sumSquares = 0.0;
         for (String indicator : indicatorArray) {
             String trimmedIndicator = indicator.trim();
@@ -1087,12 +1137,12 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
                 log.debug("[单区域劣解] 指标 {}: current={}, theoreticalMin={}, diff^2={}", trimmedIndicator, current, theoreticalMin, diff * diff);
             }
         }
-        
+
         double distance = Math.sqrt(sumSquares);
         log.debug("[单区域劣解] 距离: {}", distance);
         return distance;
     }
-    
+
     /**
      * 处理单区域分级情况
      * 对于单区域情况，由于无法进行统计分析，我们基于实际值进行分级
@@ -1104,19 +1154,19 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         if (currentData == null) {
             return "中等";
         }
-        
+
         Object scoreValue = currentData.get(scoreField);
         if (scoreValue == null) {
             return "中等";
         }
-        
+
         double score = toDouble(scoreValue);
-        
+
         // 如果分数为NaN（TOPSIS计算失败），给予保守分级
         if (Double.isNaN(score)) {
             return "中等";
         }
-        
+
         // 对于单区域情况，基于分数的绝对值进行分级
         String grade;
         if (score >= 0.8) {
@@ -1130,26 +1180,26 @@ public class SpecialAlgorithmServiceImpl implements SpecialAlgorithmService {
         } else {
             grade = "弱";
         }
-        
+
         log.info("[单区域分级] {} 分数={} 等级={}", scoreField, String.format("%.4f", score), grade);
         return grade;
     }
-    
+
     /**
      * 根据分级规则确定等级
-     * 
+     *
      * 规则：
      * 如果 μ <= 0.5σ:
      *   value >= μ+1.5σ → 强
      *   value >= μ+0.5σ → 较强
      *   否则 → 中等
-     * 
+     *
      * 如果 μ <= 1.5σ:
      *   value >= μ+1.5σ → 强
      *   value >= μ+0.5σ → 较强
      *   value >= μ-0.5σ → 中等
      *   否则 → 较弱
-     * 
+     *
      * 否则:
      *   value >= μ+1.5σ → 强
      *   value >= μ+0.5σ → 较强
@@ -1162,15 +1212,15 @@ private String determineGrade(double value, double mean, double stdev) {
         double halfStdev = 0.5 * stdev;
         double oneAndHalfStdev = 1.5 * stdev;
         double meanPlusHalf = mean + halfStdev;
-        double meanPlusOneAndHalf = mean + oneAndHalfStdev;
+        double meanPlusOneAndHalf = Math.min(1.0, mean + oneAndHalfStdev);
         double meanMinusHalf = mean - halfStdev;
         double meanMinusOneAndHalf = mean - oneAndHalfStdev;
-        
-  
-        
+
+
+
         // 确保值不小于0（根据规则中的[0,...)区间)
         value = Math.max(0, value);
-        
+
         if (mean <= halfStdev) {
             // 情况1：μ ≤ 0.5σ，分为3级
             if (value >= meanPlusOneAndHalf) {
@@ -1182,7 +1232,7 @@ private String determineGrade(double value, double mean, double stdev) {
             }
         } else if (mean <= oneAndHalfStdev) {
             // 情况2：0.5σ < μ ≤ 1.5σ，分为4级
-            
+
             if (value >= meanPlusOneAndHalf) {
                 return "强";
             } else if (value >= meanPlusHalf) {

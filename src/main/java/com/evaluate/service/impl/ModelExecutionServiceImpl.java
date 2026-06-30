@@ -122,6 +122,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
     private static final Pattern TRAILING_NUMERIC_MULTIPLIER = Pattern.compile("(?s)^(.*)\\*\\s*([0-9]+(?:\\.[0-9]+)?)\\s*$");
     private static final Pattern WEIGHT_VAR_PATTERN = Pattern.compile("\\bweight_[A-Z0-9_]+\\b");
     private static final Pattern NORM_VAR_PATTERN = Pattern.compile("\\b[A-Za-z_][A-Za-z0-9_]*(?:Norm|Normalized)\\b");
+    private static final Pattern POPULATION_VAR_PATTERN = Pattern.compile("\\b(?:resident_population|residentPopulation|population)\\b");
     private static final Map<String, String[]> LEGACY_WEIGHT_CODE_MAPPING = createLegacyWeightCodeMapping();
     private static final String[] DEFAULT_WEIGHT_CODES = new String[] {
             "L1_DISASTER_MANAGEMENT",
@@ -820,9 +821,19 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             // 聚合后的乡镇级代码不应设置社区元数据，否则会覆盖乡镇名称
             String dsType = resolveDataSourceType(modelId);
             if ("community_table".equals(dsType)) {
-                boolean isCommunityLevel = regionCode.contains("#COMMUNITY_ID_")
-                        || (regionCode.matches("\\d+") && regionCode.length() >= 12);
-                if (isCommunityLevel) {
+                boolean isTownshipAggCode = regionCode.matches("\\d{12,}") && regionCode.endsWith("000");
+                boolean isCommunityLevel = !isTownshipAggCode
+                        && (regionCode.contains("#COMMUNITY_ID_")
+                        || (regionCode.matches("\\d+") && regionCode.length() >= 12));
+                if (isTownshipAggCode) {
+                    // 乡镇聚合代码（12位且以000结尾）：按乡镇级别处理
+                    algorithmOutputs.put("_isTownship", true);
+                    String resolvedTownshipName = resolveTownshipNameForAggCode(regionCode, ctxYear);
+                    if (resolvedTownshipName != null) {
+                        algorithmOutputs.put("_townshipName", resolvedTownshipName);
+                    }
+                    algorithmOutputs.put("_firstCommunityCode", regionCode);
+                } else if (isCommunityLevel) {
                     Object communityName = regionContext.get("community_name");
                     Object townshipNameVal = regionContext.get("township_name");
                     if (communityName != null) {
@@ -1665,6 +1676,14 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         Matcher normMatcher = NORM_VAR_PATTERN.matcher(expression);
         while (normMatcher.find()) {
             String var = normMatcher.group();
+            Object v = context.get(var);
+            if (v == null) {
+                context.put(var, 0.0);
+            }
+        }
+        Matcher popMatcher = POPULATION_VAR_PATTERN.matcher(expression);
+        while (popMatcher.find()) {
+            String var = popMatcher.group();
             Object v = context.get(var);
             if (v == null) {
                 context.put(var, 0.0);
@@ -2826,10 +2845,12 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                     addMapDataToContext(context, communityDataList.get(0));
                 }
             }
+            applyCommunityPopulationSafeDivision(context);
         } else if ("survey_table".equals(dsType)) {
             SurveyData cached = surveyDataMap != null ? surveyDataMap.get(regionCode) : null;
             if (cached != null) {
                 addSurveyDataToContext(context, cached);
+                supplementSurveyVolunteerMilitiaFromCommunities(context, cached.getRegionCode(), cached.getYear() != null ? cached.getYear() : year);
             } else {
                 QueryWrapper<SurveyData> dataQuery = new QueryWrapper<>();
                 dataQuery.eq("region_code", regionCode);
@@ -2841,6 +2862,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 SurveyData surveyData = surveyDataMapper.selectOne(dataQuery);
                 if (surveyData != null) {
                     addSurveyDataToContext(context, surveyData);
+                    supplementSurveyVolunteerMilitiaFromCommunities(context, surveyData.getRegionCode(), surveyData.getYear() != null ? surveyData.getYear() : year);
                 }
             }
         }
@@ -2949,14 +2971,16 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             boolean hasTownshipResult = townshipEvalResults != null && townshipEvalResults.stream()
                     .anyMatch(r -> r.getRegionCode() != null && r.getRegionCode().startsWith(regionCode));
             if (!hasTownshipResult) {
-                return "所选年份无乡镇减灾能力评估结果（请先执行乡镇减灾能力评估模型），综合减灾能力评估需要乡镇减灾能力评估结果和社区-乡镇减灾能力评估结果";
+                return "所选年份无乡镇减灾能力评估结果（请先执行乡镇减灾能力评估模型），缺失乡镇代码：" + regionCode
+                        + "，综合减灾能力评估需要乡镇减灾能力评估结果和社区-乡镇减灾能力评估结果";
             }
             List<EvaluationResult> communityEvalResults = evaluationResultMapper
                     .selectByModelIdAndYearAndOrgCode(communityTownshipModelId, year, queryOrgCode);
             boolean hasCommunityResult = communityEvalResults != null && communityEvalResults.stream()
                     .anyMatch(r -> r.getRegionCode() != null && r.getRegionCode().startsWith(regionCode));
             if (!hasCommunityResult) {
-                return "所选年份无社区-乡镇减灾能力评估结果（请先执行社区-乡镇减灾能力评估模型），综合减灾能力评估需要乡镇减灾能力评估结果和社区-乡镇减灾能力评估结果";
+                return "所选年份无社区-乡镇减灾能力评估结果（请先执行社区-乡镇减灾能力评估模型），缺失乡镇代码：" + regionCode
+                        + "，综合减灾能力评估需要乡镇减灾能力评估结果和社区-乡镇减灾能力评估结果";
             }
             return null;
         }
@@ -3339,12 +3363,14 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         context.put("county", surveyData.getCounty());
         context.put("township", surveyData.getTownship());
         
-        // 人口数据（驼峰和下划线两种命名）
-        context.put("population", surveyData.getPopulation());
+        // 人口数据（驼峰和下划线两种命名）：空值按0处理，分母为0时由表达式执行层统一置0
+        Long population = surveyData.getPopulation();
+        context.put("population", population != null && population > 0 ? population : 0L);
         
         // 管理人员（驼峰和下划线两种命名）
-        context.put("managementStaff", surveyData.getManagementStaff());
-        context.put("management_staff", surveyData.getManagementStaff());
+        Integer managementStaff = surveyData.getManagementStaff();
+        context.put("managementStaff", managementStaff != null ? managementStaff : 0);
+        context.put("management_staff", managementStaff != null ? managementStaff : 0);
         
         // 风险评估（驼峰和下划线两种命名）
         String normalizedRiskAssessment = normalizeYesNoForCalculation(surveyData.getRiskAssessment());
@@ -3390,6 +3416,50 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         Integer shelterCapacity = surveyData.getShelterCapacity();
         context.put("shelterCapacity", shelterCapacity != null ? shelterCapacity : 0);
         context.put("shelter_capacity", shelterCapacity != null ? shelterCapacity : 0);
+    }
+
+    private void supplementSurveyVolunteerMilitiaFromCommunities(Map<String, Object> context, String regionCode, Integer year) {
+        if (!StringUtils.hasText(regionCode) || regionCode.length() < 9 || communityDataMapper == null) {
+            return;
+        }
+
+        boolean needsVolunteers = toDouble(context.get("volunteers")) <= 0.0;
+        boolean needsMilitia = toDouble(context.get("militia_reserve")) <= 0.0;
+        if (!needsVolunteers && !needsMilitia) {
+            return;
+        }
+
+        QueryWrapper<CommunityDisasterReductionCapacity> query = new QueryWrapper<>();
+        query.select(
+                "COALESCE(SUM(registered_volunteer_count),0) AS registered_volunteer_count",
+                "COALESCE(SUM(militia_reserve_count),0) AS militia_reserve_count"
+        );
+        query.likeRight("region_code", regionCode);
+        if (year != null) {
+            query.eq("year", year);
+        }
+
+        List<Map<String, Object>> rows = communityDataMapper.selectMaps(query);
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> totals = rows.get(0);
+        double volunteers = toDouble(totals.get("registered_volunteer_count"));
+        double militia = toDouble(totals.get("militia_reserve_count"));
+
+        if (needsVolunteers && volunteers > 0.0) {
+            context.put("volunteers", volunteers);
+            context.put("volunteer_count", volunteers);
+            context.put("registeredVolunteerCount", volunteers);
+            context.put("registered_volunteer_count", volunteers);
+        }
+        if (needsMilitia && militia > 0.0) {
+            context.put("militiaReserve", militia);
+            context.put("militia_reserve", militia);
+            context.put("militiaReserveCount", militia);
+            context.put("militia_reserve_count", militia);
+        }
     }
 
     private String normalizeYesNoForCalculation(String value) {
@@ -3462,6 +3532,35 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             }
         }
 
+    }
+
+    /**
+     * 社区模型人口安全除法：当常住人口为 NULL/0/<=0 时，将所有依赖人口的分子指标置零。
+     * 这确保 QL 表达式中涉及 population 的除法不会产生错误的大值。
+     */
+    private void applyCommunityPopulationSafeDivision(Map<String, Object> context) {
+        double population = toDouble(context.get("resident_population"));
+        if (population <= 0) {
+            population = toDouble(context.get("residentPopulation"));
+        }
+        if (population <= 0) {
+            population = toDouble(context.get("population"));
+        }
+        if (population <= 0) {
+            String[] populationDependentFields = {
+                    "last_year_funding_amount", "lastYearFundingAmount", "fundingAmount", "funding_amount",
+                    "materials_equipment_value", "materialsEquipmentValue", "materialValue", "material_value",
+                    "medical_service_count", "medicalServiceCount",
+                    "militia_reserve_count", "militiaReserve", "militiaReserveCount", "militia_reserve",
+                    "registered_volunteer_count", "registeredVolunteerCount", "volunteers", "volunteer_count",
+                    "last_year_training_participants", "lastYearTrainingParticipants", "trainingParticipants", "training_participants",
+                    "last_year_drill_participants", "lastYearDrillParticipants", "drillParticipants",
+                    "emergency_shelter_capacity", "emergencyShelterCapacity", "shelterCapacity", "shelter_capacity"
+            };
+            for (String field : populationDependentFields) {
+                context.put(field, 0.0);
+            }
+        }
     }
 
     private Map<String, Object> createFamilyAggregateRow(String countyCode, Map<String, Object> sampleRow) {
@@ -4896,6 +4995,7 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         // 3. 按乡镇分组收集社区数据
         Map<String, List<Map<String, Object>>> townshipGroups = new LinkedHashMap<>();
         Map<String, String> townshipToFirstRegionCode = new HashMap<>();  // 记录每个乡镇的第一个社区代码（用于后续步骤）
+        Map<String, String> townshipToOutputRegionCode = new HashMap<>();
         
         int skippedNoData = 0;
         int skippedNoTownship = 0;
@@ -4974,7 +5074,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
 
             // 记录每个乡镇的第一个社区代码
             townshipToFirstRegionCode.putIfAbsent(townshipName, communityData.getRegionCode());
+            townshipToOutputRegionCode.putIfAbsent(townshipName, deriveTownshipRegionCode(communityData.getRegionCode(), townshipName));
         }
+
+        addZeroCommunityTownshipGroups(townshipGroups, townshipToFirstRegionCode, townshipToOutputRegionCode, inputData, regionCodes, year);
         
         log.info("按乡镇分组完成，共 {} 个乡镇，跳过(无数据): {}，跳过(无乡镇名): {}", townshipGroups.size(), skippedNoData, skippedNoTownship);
         
@@ -5002,9 +5105,10 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
                 }
                 String cleanedOutputParam = outputParam.trim();
 
-                // 检查表达式是否包含SUM()函数
                 double result;
-                if (qlExpression != null && (qlExpression.contains("SUM(") || qlExpression.contains("COUNT("))) {
+                if (communityCount <= 0) {
+                    result = 0.0;
+                } else if (qlExpression != null && (qlExpression.contains("SUM(") || qlExpression.contains("COUNT("))) {
                     // 使用新的SUM表达式计算
                     result = calculateAggregationExpression(qlExpression, communities, communityCount);
                 } else {
@@ -5044,7 +5148,8 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
             // 使用"TOWNSHIP_"前缀 + 乡镇名称作为虚拟的regionCode
             // 这样可以确保每个乡镇有唯一的标识，且不会与社区代码冲突
             String firstCommunityCode = townshipToFirstRegionCode.get(townshipName);
-            String townshipRegionCode = deriveTownshipRegionCode(firstCommunityCode, townshipName);
+            String townshipRegionCode = townshipToOutputRegionCode.getOrDefault(
+                    townshipName, deriveTownshipRegionCode(firstCommunityCode, townshipName));
             townshipResults.put(townshipRegionCode, townshipOutput);
             
             // 同时在上下文中保存乡镇名称，供generateResultTable使用
@@ -5066,6 +5171,68 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         log.info("乡镇聚合完成，共 {} 个乡镇", townshipResults.size());
         
         return stepResult;
+    }
+
+    private void addZeroCommunityTownshipGroups(
+            Map<String, List<Map<String, Object>>> townshipGroups,
+            Map<String, String> townshipToFirstRegionCode,
+            Map<String, String> townshipToOutputRegionCode,
+            Map<String, Object> inputData,
+            List<String> regionCodes,
+            Integer year) {
+        String orgCode = inputData == null ? null : toString(inputData.get("orgCode"));
+        if (!StringUtils.hasText(orgCode) && regionCodes != null && !regionCodes.isEmpty()) {
+            String first = regionCodes.get(0);
+            if (StringUtils.hasText(first) && first.trim().length() >= 6) {
+                orgCode = first.trim().substring(0, 6);
+            }
+        }
+        if (!StringUtils.hasText(orgCode) || surveyDataMapper == null) {
+            return;
+        }
+        String countyCode = orgCode.trim().length() >= 6 ? orgCode.trim().substring(0, 6) : orgCode.trim();
+
+        QueryWrapper<SurveyData> townshipQuery = new QueryWrapper<>();
+        townshipQuery.likeRight("region_code", countyCode)
+                .eq("is_deleted", 0)
+                .orderByAsc("region_code");
+        if (year != null) {
+            townshipQuery.eq("year", year);
+        }
+        List<SurveyData> townships = surveyDataMapper.selectList(townshipQuery);
+        if (townships == null || townships.isEmpty()) {
+            return;
+        }
+
+        Set<String> existingTownshipNames = new HashSet<>(townshipGroups.keySet());
+        Set<String> existingTownshipCodes = townshipToOutputRegionCode.values().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .map(code -> code.length() >= 9 ? code.substring(0, 9) : code)
+                .collect(Collectors.toSet());
+
+        int added = 0;
+        for (SurveyData township : townships) {
+            if (township == null || !StringUtils.hasText(township.getRegionCode())) {
+                continue;
+            }
+            String townshipCode = township.getRegionCode().trim();
+            String townshipName = StringUtils.hasText(township.getTownship())
+                    ? township.getTownship().trim() : townshipCode;
+            String codeKey = townshipCode.length() >= 9 ? townshipCode.substring(0, 9) : townshipCode;
+            if (existingTownshipNames.contains(townshipName) || existingTownshipCodes.contains(codeKey)) {
+                continue;
+            }
+            townshipGroups.put(townshipName, Collections.emptyList());
+            townshipToFirstRegionCode.put(townshipName, townshipCode);
+            townshipToOutputRegionCode.put(townshipName, townshipCode);
+            existingTownshipNames.add(townshipName);
+            existingTownshipCodes.add(codeKey);
+            added++;
+        }
+        if (added > 0) {
+            log.info("乡镇聚合：为无社区数据乡镇补零 {} 条，orgCode={}, year={}", added, countyCode, year);
+        }
     }
     
     /**
@@ -5919,6 +6086,31 @@ public class ModelExecutionServiceImpl implements ModelExecutionService {
         }
 
         return null;
+    }
+
+    /**
+     * 根据乡镇聚合代码（12位，末尾000）解析乡镇名称。
+     * 优先通过社区数据表的前9位前缀查找乡镇名，再回退到 survey_data。
+     */
+    private String resolveTownshipNameForAggCode(String aggCode, Integer year) {
+        if (aggCode == null || aggCode.length() < 9) {
+            return null;
+        }
+        String prefix9 = aggCode.substring(0, 9);
+
+        // 优先从 community 表按 region_code LIKE prefix% 取第一条
+        String name = getTownshipNameByCommunityCode(aggCode);
+        if (name != null && !name.isEmpty()) {
+            return name;
+        }
+
+        // 回退到 survey_data
+        name = resolveSurveyTownshipNameByPrefix(prefix9, year);
+        if (name != null && !name.isEmpty()) {
+            return name;
+        }
+
+        return getSurveyTownshipName(aggCode, year);
     }
 
     private String getSurveyTownshipName(String regionCode, Integer year) {

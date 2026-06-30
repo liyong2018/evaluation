@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -357,35 +358,41 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
         Map<Long, String> modelIdToName = resolveDefaultModelNames(trimmedOrgcode);
         Map<Long, String> legacyNameByModelId = resolveLegacyModelNames();
 
-        List<WeightConfig> candidates = queryCandidatesByYear(orgcodeCandidates, year);
-        List<WeightConfig> result = buildEffectiveConfigsFromCandidates(
-                orgcodeCandidates,
-                candidates,
-                modelIdToName,
-                legacyNameByModelId,
-                year,
-                year,
-                null
-        );
-
-        if (shouldFallbackToBaseline(year, allowBaselineFallback, result, modelIdToName.size())) {
-            List<WeightConfig> baselineCandidates = queryBaselineCandidates(orgcodeCandidates);
-            List<WeightConfig> baseline = buildEffectiveConfigsFromCandidates(
-                    orgcodeCandidates,
-                    baselineCandidates,
-                    modelIdToName,
-                    legacyNameByModelId,
-                    BASELINE_YEAR,
-                    BASELINE_YEAR,
-                    BASELINE_YEAR
-            );
-            if (result == null || result.isEmpty()) {
-                return baseline;
+        if (year <= BASELINE_YEAR) {
+            if (!allowBaselineFallback) {
+                return new ArrayList<>();
             }
-            mergeMissingBaselineConfigs(result, baseline);
+            return buildBaselineConfigs(orgcodeCandidates, modelIdToName, legacyNameByModelId);
         }
 
-        return result;
+        List<Integer> fallbackYears = resolveWeightFallbackYears(year);
+        int expectedModelCount = modelIdToName.size();
+
+        for (Integer candidateYear : fallbackYears) {
+            List<WeightConfig> candidates = queryCandidatesByYear(orgcodeCandidates, candidateYear);
+            List<WeightConfig> result = buildEffectiveConfigsFromCandidates(
+                    orgcodeCandidates,
+                    candidates,
+                    modelIdToName,
+                    legacyNameByModelId,
+                    year,
+                    candidateYear,
+                    null
+            );
+            if (result == null || result.isEmpty()) {
+                continue;
+            }
+            if (allowBaselineFallback && candidateYear > BASELINE_YEAR && result.size() < expectedModelCount) {
+                List<WeightConfig> baseline = buildBaselineConfigs(orgcodeCandidates, modelIdToName, legacyNameByModelId);
+                mergeMissingBaselineConfigs(result, baseline);
+            }
+            return result;
+        }
+
+        if (!allowBaselineFallback) {
+            return new ArrayList<>();
+        }
+        return buildBaselineConfigs(orgcodeCandidates, modelIdToName, legacyNameByModelId);
     }
 
     private List<WeightConfig> queryCandidatesByYear(List<String> orgcodeCandidates, Integer year) {
@@ -396,13 +403,13 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
         queryWrapper.in("orgcode", orgcodeCandidates);
         queryWrapper.eq("is_deleted", 0);
         queryWrapper.and(w -> w.eq("year", year).or().isNull("year").apply("YEAR(create_time) = {0}", year));
+        queryWrapper.and(w -> w.isNull("data_source").or().ne("data_source", "baseline"));
+        queryWrapper.notLike("description", "市级兜底");
         queryWrapper.orderByDesc("create_time");
         return list(queryWrapper);
     }
 
     private List<WeightConfig> queryBaselineCandidates(List<String> orgcodeCandidates) {
-        // 基准数据查询只返回真正的2020年基准数据
-        // 如果数据库中没有2020年数据，返回空列表而不是用其他年份数据代替
         if (orgcodeCandidates == null || orgcodeCandidates.isEmpty()) {
             return new ArrayList<>();
         }
@@ -410,28 +417,44 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
         QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
         queryWrapper.in("orgcode", orgcodeCandidates);
         queryWrapper.eq("is_deleted", 0);
-        // 只返回2020年或者year=null且创建时间是2020年的数据
-        queryWrapper.and(wrapper -> wrapper.eq("year", BASELINE_YEAR)
-            .or(w2 -> w2.isNull("year").apply("YEAR(create_time) = {0}", BASELINE_YEAR)));
+        queryWrapper.and(wrapper -> wrapper
+                .eq("data_source", "baseline")
+                .or(w2 -> w2.eq("year", BASELINE_YEAR))
+                .or(w2 -> w2.isNull("year").apply("YEAR(create_time) = {0}", BASELINE_YEAR))
+                .or(w2 -> w2.like("description", "市级兜底")));
+        queryWrapper.orderByAsc("year");
         queryWrapper.orderByDesc("create_time");
 
         return list(queryWrapper);
     }
 
-    private boolean shouldFallbackToBaseline(Integer year, boolean allowBaselineFallback, List<WeightConfig> result, int expectedModelCount) {
-        if (!allowBaselineFallback) {
-            return false;
+    private List<Integer> resolveWeightFallbackYears(Integer requestedYear) {
+        int latestYear = requestedYear != null ? requestedYear : LocalDate.now().getYear();
+        if (latestYear < BASELINE_YEAR) {
+            latestYear = BASELINE_YEAR;
         }
-        if (year == null) {
-            return false;
+        List<Integer> years = new ArrayList<>();
+        for (int y = latestYear; y >= BASELINE_YEAR; y--) {
+            years.add(y);
         }
-        if (year <= BASELINE_YEAR) {
-            return false;
-        }
-        if (year < 2023) {
-            return false;
-        }
-        return result == null || result.size() < expectedModelCount;
+        return years;
+    }
+
+    private List<WeightConfig> buildBaselineConfigs(
+            List<String> orgcodeCandidates,
+            Map<Long, String> modelIdToName,
+            Map<Long, String> legacyNameByModelId
+    ) {
+        List<WeightConfig> baselineCandidates = queryBaselineCandidates(orgcodeCandidates);
+        return buildEffectiveConfigsFromCandidates(
+                orgcodeCandidates,
+                baselineCandidates,
+                modelIdToName,
+                legacyNameByModelId,
+                BASELINE_YEAR,
+                BASELINE_YEAR,
+                BASELINE_YEAR
+        );
     }
 
     private void mergeMissingBaselineConfigs(List<WeightConfig> result, List<WeightConfig> baseline) {
@@ -478,7 +501,7 @@ public class WeightConfigServiceImpl extends ServiceImpl<WeightConfigMapper, Wei
 
             if (best != null) {
                 // 获取实际数据的年份（配置的原始年份）
-                Integer actualDataYear = best.getYear();
+                Integer actualDataYear = forcedYear != null ? forcedYear : best.getYear();
                 Integer effectiveYear = forcedYear != null ? forcedYear : resolveConfigYear(best, fallbackYearForNull);
                 WeightConfig view = new WeightConfig();
                 view.setId(best.getId());

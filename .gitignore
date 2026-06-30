@@ -46,6 +46,12 @@ uploads/
 nul
 org_levels.txt
 org_tree.json
+tmp/
+outputs/
+deliverables/
+__pycache__/
+*.pyc
+*.pyo
 
 # Build artifacts
 frontend/evaluation-frontend.tar.gz

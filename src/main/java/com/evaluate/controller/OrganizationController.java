@@ -99,10 +99,12 @@ public class OrganizationController {
     public Result<List<Map<String, Object>>> getOrganizationTree(
             @RequestParam(required = false) Long parentId,
             @RequestParam(required = false) Integer maxLevel,
-            @RequestParam(required = false) Integer year) {
-        log.info("获取组织机构树形结构，父级ID: {}, 最大层级: {}, 年份: {}", parentId, maxLevel, year);
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false, defaultValue = "false") Boolean includeChangeDetails) {
+        log.info("获取组织机构树形结构，父级ID: {}, 最大层级: {}, 年份: {}, 显示变更详情: {}",
+                parentId, maxLevel, year, includeChangeDetails);
         try {
-            List<Map<String, Object>> tree = organizationService.getOrganizationTree(parentId, maxLevel, year);
+            List<Map<String, Object>> tree = organizationService.getOrganizationTree(parentId, maxLevel, year, includeChangeDetails);
             return Result.success(tree);
         } catch (Exception e) {
             log.error("获取组织机构树形结构失败", e);

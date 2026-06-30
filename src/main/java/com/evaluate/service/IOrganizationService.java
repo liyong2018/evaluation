@@ -59,6 +59,11 @@ public interface IOrganizationService extends IService<Organization> {
     List<Map<String, Object>> getOrganizationTree(Long parentId, Integer maxLevel, Integer year);
 
     /**
+     * 获取组织机构树形结构，可选择包含当年删除标记及详细变更类型。
+     */
+    List<Map<String, Object>> getOrganizationTree(Long parentId, Integer maxLevel, Integer year, Boolean includeChangeDetails);
+
+    /**
      * 根据父级ID获取子级组织机构
      *
      * @param parentId 父级ID

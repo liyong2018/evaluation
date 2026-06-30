@@ -47,24 +47,190 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         if (baseline == null || latest == null) {
             return false;
         }
-        String baselineName = baseline.getName();
-        String latestName = latest.getName();
-        if (!Objects.equals(baselineName, latestName)) {
+        if (!isEquivalentOrganizationName(baseline.getName(), baseline, latest.getName(), latest)) {
             return false;
         }
-        String baselineTownshipName = baseline.getTownshipName();
-        String latestTownshipName = latest.getTownshipName();
-        if (!Objects.equals(baselineTownshipName, latestTownshipName)) {
-            return false;
-        }
-        String baselineCommunityName = baseline.getCommunityName();
-        String latestCommunityName = latest.getCommunityName();
-        if (!Objects.equals(baselineCommunityName, latestCommunityName)) {
+        if (StringUtils.hasText(baseline.getCommunityName())
+                && StringUtils.hasText(latest.getCommunityName())
+                && !isEquivalentOrganizationName(baseline.getCommunityName(), baseline, latest.getCommunityName(), latest)) {
             return false;
         }
         Integer baselineLevel = baseline.getLevel();
         Integer latestLevel = latest.getLevel();
         return Objects.equals(baselineLevel, latestLevel);
+    }
+
+    private boolean isEquivalentOrganizationName(String left,
+                                                 GrassrootsOrganization leftOrg,
+                                                 String right,
+                                                 GrassrootsOrganization rightOrg) {
+        Set<String> leftNames = buildEquivalentNameSet(left, leftOrg, rightOrg);
+        Set<String> rightNames = buildEquivalentNameSet(right, rightOrg, leftOrg);
+        for (String name : leftNames) {
+            if (StringUtils.hasText(name) && rightNames.contains(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isSimilarOrganizationName(String left,
+                                              GrassrootsOrganization leftOrg,
+                                              String right,
+                                              GrassrootsOrganization rightOrg) {
+        Set<String> leftNames = buildEquivalentNameSet(left, leftOrg, rightOrg);
+        Set<String> rightNames = buildEquivalentNameSet(right, rightOrg, leftOrg);
+        for (String leftName : leftNames) {
+            for (String rightName : rightNames) {
+                if (isSimilarCanonicalName(leftName, rightName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isSimilarCanonicalName(String left, String right) {
+        if (!StringUtils.hasText(left) || !StringUtils.hasText(right) || Objects.equals(left, right)) {
+            return false;
+        }
+        int maxLength = Math.max(left.length(), right.length());
+        int minLength = Math.min(left.length(), right.length());
+        if (minLength < 2 || maxLength - minLength > 2) {
+            return false;
+        }
+        int threshold = maxLength <= 4 ? 1 : 2;
+        return levenshteinDistance(left, right, threshold) <= threshold;
+    }
+
+    private int levenshteinDistance(String left, String right, int maxDistance) {
+        int leftLength = left.length();
+        int rightLength = right.length();
+        if (Math.abs(leftLength - rightLength) > maxDistance) {
+            return maxDistance + 1;
+        }
+        int[] previous = new int[rightLength + 1];
+        int[] current = new int[rightLength + 1];
+        for (int j = 0; j <= rightLength; j++) {
+            previous[j] = j;
+        }
+        for (int i = 1; i <= leftLength; i++) {
+            current[0] = i;
+            int rowMin = current[0];
+            for (int j = 1; j <= rightLength; j++) {
+                int cost = left.charAt(i - 1) == right.charAt(j - 1) ? 0 : 1;
+                current[j] = Math.min(
+                        Math.min(current[j - 1] + 1, previous[j] + 1),
+                        previous[j - 1] + cost
+                );
+                rowMin = Math.min(rowMin, current[j]);
+            }
+            if (rowMin > maxDistance) {
+                return maxDistance + 1;
+            }
+            int[] temp = previous;
+            previous = current;
+            current = temp;
+        }
+        return previous[rightLength];
+    }
+
+    private Set<String> buildEquivalentNameSet(String name,
+                                               GrassrootsOrganization currentOrg,
+                                               GrassrootsOrganization pairedOrg) {
+        Set<String> names = new LinkedHashSet<>();
+        String canonical = canonicalOrganizationName(name);
+        if (!StringUtils.hasText(canonical)) {
+            return names;
+        }
+        names.add(canonical);
+
+        List<String> prefixes = new ArrayList<>();
+        collectNamePrefix(prefixes, currentOrg);
+        collectNamePrefix(prefixes, pairedOrg);
+        addNamesWithoutKnownPrefixes(names, canonical, prefixes);
+        return names;
+    }
+
+    private void collectNamePrefix(List<String> prefixes, GrassrootsOrganization org) {
+        if (org == null) {
+            return;
+        }
+        if (StringUtils.hasText(org.getProvinceName())) {
+            prefixes.add(org.getProvinceName());
+        }
+        if (StringUtils.hasText(org.getCityName())) {
+            prefixes.add(org.getCityName());
+        }
+        if (StringUtils.hasText(org.getCountyName())) {
+            prefixes.add(org.getCountyName());
+        }
+        if (StringUtils.hasText(org.getTownshipName())) {
+            prefixes.add(org.getTownshipName());
+        }
+    }
+
+    private void addNamesWithoutKnownPrefixes(Set<String> names, String canonical, List<String> prefixes) {
+        if (!StringUtils.hasText(canonical) || prefixes == null || prefixes.isEmpty()) {
+            return;
+        }
+        List<String> normalizedPrefixes = prefixes.stream()
+                .map(this::canonicalOrganizationName)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted((left, right) -> Integer.compare(right.length(), left.length()))
+                .collect(Collectors.toList());
+        Set<String> pending = new LinkedHashSet<>();
+        pending.add(canonical);
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            List<String> currentNames = new ArrayList<>(pending);
+            for (String name : currentNames) {
+                for (String prefix : normalizedPrefixes) {
+                    if (name.startsWith(prefix) && name.length() > prefix.length()) {
+                        String stripped = name.substring(prefix.length());
+                        if (StringUtils.hasText(stripped) && pending.add(stripped)) {
+                            names.add(stripped);
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private String canonicalOrganizationName(String value) {
+        String text = normalizeText(value);
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        text = text.replaceAll("\\s+", "");
+        text = text.replace("（", "(").replace("）", ")");
+        text = text.replace("人民政府", "");
+        if (text.endsWith("办事处")) {
+            text = text.substring(0, text.length() - "办事处".length());
+        }
+        if (text.endsWith("社区居民委员会")) {
+            text = text.substring(0, text.length() - "居民委员会".length());
+        } else if (text.endsWith("社区居委会")) {
+            text = text.substring(0, text.length() - "居委会".length());
+        } else if (text.endsWith("社区村民委员会")) {
+            text = text.substring(0, text.length() - "村民委员会".length());
+        } else if (text.endsWith("村村民委员会")) {
+            text = text.substring(0, text.length() - "村民委员会".length());
+        } else if (text.endsWith("村民委员会")) {
+            text = text.substring(0, text.length() - "民委员会".length());
+        } else if (text.endsWith("村村委会")) {
+            text = text.substring(0, text.length() - "村委会".length());
+        } else if (text.endsWith("村委会")) {
+            text = text.substring(0, text.length() - "委会".length());
+        } else if (text.endsWith("居民委员会")) {
+            text = text.substring(0, text.length() - "居民委员会".length());
+        } else if (text.endsWith("居委会")) {
+            text = text.substring(0, text.length() - "居委会".length());
+        }
+        return text;
     }
 
     private void applyYearRangeCondition(QueryWrapper<GrassrootsOrganization> queryWrapper, Integer year) {
@@ -177,13 +343,8 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             }
 
             GrassrootsOrganization latest = entry.getValue();
-            GrassrootsOrganization baseline = baselineByCode.get(code);
-            if (baseline == null && StringUtils.hasText(latest != null ? latest.getBaselineCode() : null)) {
-                baseline = baselineByCode.get(latest.getBaselineCode());
-            }
-            if (baseline == null && latest != null) {
-                baseline = findBaselineBySameName(new ArrayList<>(baselineByCode.values()), latest);
-            }
+            GrassrootsOrganization baseline = resolvePreviousRecordForChange(
+                    latest, baselineByCode, new ArrayList<>(baselineByCode.values()));
             if (latest == null) {
                 continue;
             }
@@ -322,18 +483,98 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             }
             String code = yearRecord.getCode();
             if (yearRecord.getIsDeleted() != null && yearRecord.getIsDeleted() == 1) {
+                changeTypeMap.put(code, "删除");
                 continue;
             }
-            GrassrootsOrganization prev = prevByCode.get(code);
+            GrassrootsOrganization prev = resolvePreviousRecordForChange(
+                    yearRecord, prevByCode, new ArrayList<>(prevByCode.values()));
             if (prev == null) {
                 changeTypeMap.put(code, "新增");
                 continue;
             }
-            if (!Objects.equals(prev.getCode(), yearRecord.getCode()) || !isSameAsBaseline(prev, yearRecord)) {
-                changeTypeMap.put(code, "更新");
+            boolean codeChanged = !Objects.equals(normalizeText(prev.getCode()), normalizeText(yearRecord.getCode()));
+            boolean equivalentName = isEquivalentOrganizationName(prev.getName(), prev, yearRecord.getName(), yearRecord);
+            boolean nameChanged = !equivalentName
+                    && isSimilarOrganizationName(prev.getName(), prev, yearRecord.getName(), yearRecord);
+            boolean sameCodeNameDifferent = !codeChanged && !equivalentName;
+            boolean parentChanged = yearRecord.getParentId() != null
+                    && prev.getParentId() != null
+                    && !Objects.equals(prev.getParentId(), yearRecord.getParentId());
+            if (codeChanged) {
+                changeTypeMap.put(code, "修改代码");
+            } else if (nameChanged || sameCodeNameDifferent) {
+                changeTypeMap.put(code, "修改名称");
+            } else if (parentChanged) {
+                changeTypeMap.put(code, "修改上级");
             }
         }
         return changeTypeMap;
+    }
+
+    private GrassrootsOrganization resolvePreviousRecordForChange(GrassrootsOrganization current,
+                                                                  Map<String, GrassrootsOrganization> previousByCode,
+                                                                  List<GrassrootsOrganization> previousList) {
+        if (current == null) {
+            return null;
+        }
+        GrassrootsOrganization sameCode = null;
+        if (previousByCode != null && StringUtils.hasText(current.getCode())) {
+            sameCode = previousByCode.get(current.getCode());
+        }
+        if (sameCode == null && previousByCode != null && StringUtils.hasText(current.getBaselineCode())) {
+            sameCode = previousByCode.get(current.getBaselineCode());
+        }
+
+        GrassrootsOrganization sameName = findBaselineBySameName(
+                previousList == null ? Collections.emptyList() : previousList, current);
+        if (sameCode == null) {
+            return sameName;
+        }
+        if (isEquivalentOrganizationName(sameCode.getName(), sameCode, current.getName(), current)) {
+            return sameCode;
+        }
+        if (sameName != null) {
+            return sameName;
+        }
+        return sameCode;
+    }
+
+    private Map<String, GrassrootsOrganization> buildPreviousRecordMap(List<GrassrootsOrganization> prevEffectiveList) {
+        Map<String, GrassrootsOrganization> prevByCode = new HashMap<>();
+        if (prevEffectiveList == null) {
+            return prevByCode;
+        }
+        for (GrassrootsOrganization prev : prevEffectiveList) {
+            if (prev != null && StringUtils.hasText(prev.getCode())) {
+                prevByCode.put(prev.getCode(), prev);
+            }
+        }
+        return prevByCode;
+    }
+
+    private List<GrassrootsOrganization> includeDeletedYearMarkers(List<GrassrootsOrganization> effectiveList,
+                                                                   List<GrassrootsOrganization> yearRecords) {
+        List<GrassrootsOrganization> result = new ArrayList<>(effectiveList == null ? Collections.emptyList() : effectiveList);
+        Set<String> existingCodes = result.stream()
+                .filter(Objects::nonNull)
+                .map(GrassrootsOrganization::getCode)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+        if (yearRecords == null) {
+            return result;
+        }
+        for (GrassrootsOrganization yearRecord : yearRecords) {
+            if (yearRecord == null
+                    || !StringUtils.hasText(yearRecord.getCode())
+                    || yearRecord.getIsDeleted() == null
+                    || yearRecord.getIsDeleted() != 1
+                    || existingCodes.contains(yearRecord.getCode())) {
+                continue;
+            }
+            result.add(yearRecord);
+            existingCodes.add(yearRecord.getCode());
+        }
+        return sortGrassrootsOrganizations(result);
     }
 
     private GrassrootsOrganization findBaselineBySameName(List<GrassrootsOrganization> baselineList,
@@ -348,7 +589,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         String countyName = normalizeText(yearRecord.getCountyName());
         List<GrassrootsOrganization> sameName = baselineList.stream()
                 .filter(Objects::nonNull)
-                .filter(item -> name.equals(normalizeText(item.getName())))
+                .filter(item -> isEquivalentOrganizationName(item.getName(), item, yearRecord.getName(), yearRecord))
                 .collect(Collectors.toList());
         if (sameName.isEmpty()) {
             return null;
@@ -467,7 +708,175 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
 
         List<GrassrootsOrganization> merged = mergeBaselineWithLatestYearData(new ArrayList<>(candidates), year);
         merged = pruneOrphanCommunities(merged);
+        merged = deduplicateEquivalentGrassrootsForTree(merged);
         return sortGrassrootsOrganizations(merged);
+    }
+
+    private List<GrassrootsOrganization> deduplicateEquivalentGrassrootsForTree(List<GrassrootsOrganization> organizations) {
+        if (organizations == null || organizations.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Map<String, GrassrootsOrganization> selectedTownshipByName = new LinkedHashMap<>();
+        Map<String, String> townshipCodeByName = new HashMap<>();
+        Map<Long, String> townshipNameById = new HashMap<>();
+        for (GrassrootsOrganization org : organizations) {
+            if (org == null || !Objects.equals(org.getLevel(), LEVEL_TOWNSHIP)) {
+                continue;
+            }
+            String key = buildTownshipDedupKey(org);
+            if (!StringUtils.hasText(key)) {
+                continue;
+            }
+            GrassrootsOrganization selected = selectedTownshipByName.get(key);
+            if (selected == null || compareTreePreferredRecord(org, selected) < 0) {
+                selectedTownshipByName.put(key, org);
+            }
+        }
+        for (Map.Entry<String, GrassrootsOrganization> entry : selectedTownshipByName.entrySet()) {
+            GrassrootsOrganization township = entry.getValue();
+            if (township != null && StringUtils.hasText(township.getCode())) {
+                townshipCodeByName.put(entry.getKey(), township.getCode());
+            }
+            if (township != null && township.getId() != null) {
+                townshipNameById.put(township.getId(), entry.getKey());
+            }
+        }
+
+        Map<String, GrassrootsOrganization> selectedCommunityByName = new LinkedHashMap<>();
+        List<GrassrootsOrganization> result = new ArrayList<>();
+        for (GrassrootsOrganization org : organizations) {
+            if (org == null) {
+                continue;
+            }
+            if (Objects.equals(org.getLevel(), LEVEL_TOWNSHIP)) {
+                String key = buildTownshipDedupKey(org);
+                GrassrootsOrganization selected = selectedTownshipByName.get(key);
+                if (selected == org || (selected != null && Objects.equals(selected.getCode(), org.getCode()))) {
+                    result.add(org);
+                }
+                continue;
+            }
+            if (!Objects.equals(org.getLevel(), LEVEL_COMMUNITY)) {
+                result.add(org);
+                continue;
+            }
+            String communityKey = buildCommunityDedupKey(org, townshipNameById);
+            if (!StringUtils.hasText(communityKey)) {
+                result.add(org);
+                continue;
+            }
+            GrassrootsOrganization selected = selectedCommunityByName.get(communityKey);
+            if (selected == null || compareCommunityTreePreferredRecord(org, selected, townshipCodeByName, townshipNameById) < 0) {
+                selectedCommunityByName.put(communityKey, org);
+            }
+        }
+        result.addAll(selectedCommunityByName.values());
+        return result;
+    }
+
+    private String buildTownshipDedupKey(GrassrootsOrganization org) {
+        if (org == null) {
+            return null;
+        }
+        String countyName = canonicalOrganizationName(org.getCountyName());
+        String townshipName = canonicalOrganizationName(StringUtils.hasText(org.getName()) ? org.getName() : org.getTownshipName());
+        if (!StringUtils.hasText(townshipName)) {
+            return null;
+        }
+        return (StringUtils.hasText(countyName) ? countyName : "") + "|" + townshipName;
+    }
+
+    private String buildCommunityDedupKey(GrassrootsOrganization org, Map<Long, String> townshipNameById) {
+        if (org == null) {
+            return null;
+        }
+        String townshipKey = org.getParentId() != null ? townshipNameById.get(org.getParentId()) : null;
+        if (!StringUtils.hasText(townshipKey)) {
+            townshipKey = buildTownshipNameKeyFromCommunity(org);
+        }
+        String communityName = canonicalOrganizationName(StringUtils.hasText(org.getCommunityName())
+                ? org.getCommunityName()
+                : org.getName());
+        if (!StringUtils.hasText(townshipKey) || !StringUtils.hasText(communityName)) {
+            return null;
+        }
+        return townshipKey + "|" + communityName;
+    }
+
+    private String buildTownshipNameKeyFromCommunity(GrassrootsOrganization org) {
+        String countyName = canonicalOrganizationName(org.getCountyName());
+        String townshipName = canonicalOrganizationName(org.getTownshipName());
+        if (!StringUtils.hasText(townshipName)) {
+            return null;
+        }
+        return (StringUtils.hasText(countyName) ? countyName : "") + "|" + townshipName;
+    }
+
+    private int compareCommunityTreePreferredRecord(GrassrootsOrganization left,
+                                                    GrassrootsOrganization right,
+                                                    Map<String, String> townshipCodeByName,
+                                                    Map<Long, String> townshipNameById) {
+        int leftParentScore = communityParentScore(left, townshipCodeByName, townshipNameById);
+        int rightParentScore = communityParentScore(right, townshipCodeByName, townshipNameById);
+        if (leftParentScore != rightParentScore) {
+            return Integer.compare(rightParentScore, leftParentScore);
+        }
+        return compareTreePreferredRecord(left, right);
+    }
+
+    private int communityParentScore(GrassrootsOrganization org,
+                                     Map<String, String> townshipCodeByName,
+                                     Map<Long, String> townshipNameById) {
+        if (org == null || !StringUtils.hasText(org.getCode()) || org.getCode().length() < 9) {
+            return 0;
+        }
+        String townshipKey = org.getParentId() != null ? townshipNameById.get(org.getParentId()) : null;
+        if (!StringUtils.hasText(townshipKey)) {
+            townshipKey = buildTownshipNameKeyFromCommunity(org);
+        }
+        String selectedTownshipCode = townshipCodeByName.get(townshipKey);
+        if (!StringUtils.hasText(selectedTownshipCode)) {
+            return 0;
+        }
+        return org.getCode().startsWith(selectedTownshipCode) ? 2 : 1;
+    }
+
+    private int compareTreePreferredRecord(GrassrootsOrganization left, GrassrootsOrganization right) {
+        int leftScore = treePreferredScore(left);
+        int rightScore = treePreferredScore(right);
+        if (leftScore != rightScore) {
+            return Integer.compare(rightScore, leftScore);
+        }
+        String leftCode = normalizeText(left != null ? left.getCode() : null);
+        String rightCode = normalizeText(right != null ? right.getCode() : null);
+        if (leftCode == null && rightCode == null) {
+            return 0;
+        }
+        if (leftCode == null) {
+            return 1;
+        }
+        if (rightCode == null) {
+            return -1;
+        }
+        return rightCode.compareTo(leftCode);
+    }
+
+    private int treePreferredScore(GrassrootsOrganization org) {
+        if (org == null) {
+            return 0;
+        }
+        int score = 0;
+        if (org.getParentId() != null) {
+            score += 4;
+        }
+        if (StringUtils.hasText(org.getBaselineCode()) && !Objects.equals(org.getBaselineCode(), org.getCode())) {
+            score += 2;
+        }
+        if (org.getYear() != null && org.getYear() > BASELINE_YEAR) {
+            score += 1;
+        }
+        return score;
     }
 
     private List<GrassrootsOrganization> filterGrassrootsByLevelAndPrefix(List<GrassrootsOrganization> organizations,
@@ -622,6 +1031,11 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
 
     @Override
     public List<Map<String, Object>> getTreeByCountyId(Long countyId, Integer year) {
+        return getTreeByCountyId(countyId, year, false);
+    }
+
+    @Override
+    public List<Map<String, Object>> getTreeByCountyId(Long countyId, Integer year, Boolean includeChangeDetails) {
         try {
             Long effectiveCountyId = resolveEffectiveCountyId(countyId);
             List<GrassrootsOrganization> candidates = loadCountyCandidates(effectiveCountyId, year);
@@ -640,10 +1054,15 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 prevEffective = loadEffectiveCountyOrganizations(effectiveCountyId, Math.max(prevYear, BASELINE_YEAR));
             }
             Map<String, String> changeTypeMap = buildChangeTypeMap(prevEffective, yearRecords, year);
+            Map<String, GrassrootsOrganization> previousRecordMap = buildPreviousRecordMap(prevEffective);
+
+            if (Boolean.TRUE.equals(includeChangeDetails)) {
+                all = includeDeletedYearMarkers(all, yearRecords);
+            }
 
             // 构建完整的树形结构，不需要传递parentId（null表示构建整棵树）
             // countyId已经用于过滤数据，不需要再传递给buildTree
-            List<Map<String, Object>> tree = buildTree(all, null, changeTypeMap, year);
+            List<Map<String, Object>> tree = buildTree(all, null, changeTypeMap, previousRecordMap, year);
             return tree;
         } catch (Exception e) {
             log.error("根据区县ID获取树形结构失败: countyId={}, year={}", countyId, year, e);
@@ -1404,6 +1823,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
     private List<Map<String, Object>> buildTree(List<GrassrootsOrganization> organizations,
                                                 Long parentId,
                                                 Map<String, String> changeTypeMap,
+                                                Map<String, GrassrootsOrganization> previousRecordMap,
                                                 Integer requestedYear) {
         if (organizations == null || organizations.isEmpty()) {
             return new ArrayList<>();
@@ -1426,9 +1846,9 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 idToOrgMap.put(org.getId(), org);
             }
             if (org.getLevel() != null && org.getLevel() == LEVEL_TOWNSHIP) {
-                String townshipName = normalizeText(org.getName());
+                String townshipName = canonicalOrganizationName(org.getName());
                 if (!StringUtils.hasText(townshipName)) {
-                    townshipName = normalizeText(org.getTownshipName());
+                    townshipName = canonicalOrganizationName(org.getTownshipName());
                 }
                 if (StringUtils.hasText(townshipName)) {
                     townshipByNameMap.computeIfAbsent(townshipName, k -> new ArrayList<>()).add(org);
@@ -1454,7 +1874,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                     .filter(o -> o.getId().equals(parentId))
                     .findFirst().orElse(null);
             if (parentOrg != null) {
-                return buildTreeRecursiveByCode(parentOrg.getCode(), codeParentMap, codeToOrgMap, changeTypeMap, requestedYear);
+                return buildTreeRecursiveByCode(parentOrg.getCode(), codeParentMap, codeToOrgMap, changeTypeMap, previousRecordMap, requestedYear);
             }
             return new ArrayList<>();
         } else {
@@ -1482,7 +1902,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                 if (root == null || root.getId() == null) {
                     continue;
                 }
-                Map<String, Object> node = buildNodeForGrassroots(root, codeParentMap, codeToOrgMap, changeTypeMap, requestedYear);
+                Map<String, Object> node = buildNodeForGrassroots(root, codeParentMap, codeToOrgMap, changeTypeMap, previousRecordMap, requestedYear);
                 result.add(node);
             }
 
@@ -1525,7 +1945,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                     return parentOrg.getCode();
                 }
             }
-            String townshipName = normalizeText(org.getTownshipName());
+            String townshipName = canonicalOrganizationName(org.getTownshipName());
             if (StringUtils.hasText(townshipName)) {
                 List<GrassrootsOrganization> candidates = townshipByNameMap.getOrDefault(townshipName, Collections.emptyList());
                 if (candidates.size() == 1) {
@@ -1555,6 +1975,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
                                                        Map<String, List<GrassrootsOrganization>> codeParentMap,
                                                        Map<String, GrassrootsOrganization> codeToOrgMap,
                                                        Map<String, String> changeTypeMap,
+                                                       Map<String, GrassrootsOrganization> previousRecordMap,
                                                        Integer requestedYear) {
         Map<String, Object> node = new HashMap<>();
         node.put("id", org.getId());
@@ -1577,6 +1998,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         node.put("townshipName", townshipName);
         node.put("communityName", org.getCommunityName());
         node.put("year", org.getYear());
+        node.put("isDeleted", org.getIsDeleted() != null && org.getIsDeleted() == 1);
 
         // 添加数据来源年份标识
         Integer sourceYear = org.getYear();
@@ -1584,13 +2006,27 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             sourceYear = 2020; // 底表数据默认为2020年
         }
         String changeType = changeTypeMap != null ? changeTypeMap.get(org.getCode()) : null;
+        GrassrootsOrganization previous = resolvePreviousRecordForChange(
+                org,
+                previousRecordMap,
+                previousRecordMap == null ? Collections.emptyList() : new ArrayList<>(previousRecordMap.values())
+        );
         if (StringUtils.hasText(changeType)) {
             node.put("changeType", changeType);
+            if (previous != null) {
+                node.put("oldCode", previous.getCode());
+                node.put("oldName", previous.getName());
+            }
+        } else if (sourceYear != null && sourceYear > BASELINE_YEAR
+                && previous != null
+                && Objects.equals(normalizeText(previous.getCode()), normalizeText(org.getCode()))
+                && isSameAsBaseline(previous, org)) {
+            sourceYear = previous.getYear() == null ? BASELINE_YEAR : previous.getYear();
         }
 
         // 递归构建子节点
         List<Map<String, Object>> childNodes = buildTreeRecursiveByCode(
-                org.getCode(), codeParentMap, codeToOrgMap, changeTypeMap, requestedYear);
+                org.getCode(), codeParentMap, codeToOrgMap, changeTypeMap, previousRecordMap, requestedYear);
         if (!childNodes.isEmpty()) {
             node.put("children", childNodes);
         }
@@ -1607,6 +2043,9 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             if (requestedYear != null) {
                 candidate = Math.min(requestedYear, candidate);
             }
+            if (candidate > current && !StringUtils.hasText(changeType)) {
+                node.put("changeType", "下级有变更");
+            }
             sourceYear = candidate;
         }
         node.put("sourceYear", sourceYear);
@@ -1622,6 +2061,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
             Map<String, List<GrassrootsOrganization>> codeParentMap,
             Map<String, GrassrootsOrganization> codeToOrgMap,
             Map<String, String> changeTypeMap,
+            Map<String, GrassrootsOrganization> previousRecordMap,
             Integer requestedYear
     ) {
         if (parentCode == null) {
@@ -1634,7 +2074,7 @@ public class GrassrootsOrganizationServiceImpl extends ServiceImpl<GrassrootsOrg
         }
 
         return children.stream().map(org -> buildNodeForGrassroots(
-                org, codeParentMap, codeToOrgMap, changeTypeMap, requestedYear
+                org, codeParentMap, codeToOrgMap, changeTypeMap, previousRecordMap, requestedYear
         )).sorted((a, b) -> {
             // 按code数值大小排序
             String codeA = (String) a.get("code");

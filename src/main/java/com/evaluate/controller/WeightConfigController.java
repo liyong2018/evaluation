@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -92,24 +93,21 @@ public class WeightConfigController {
             @RequestParam(required = false) Integer year
     ) {
         try {
-            QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("config_name", configName);
-            queryWrapper.eq("is_deleted", 0);
-            if (year != null) {
-                queryWrapper.and(w -> w.eq("year", year).or().isNull("year").apply("YEAR(create_time) = {0}", year));
-            }
-            queryWrapper.orderByDesc("create_time");
-            queryWrapper.last("LIMIT 1");
-
-            WeightConfig weightConfig = weightConfigService.getOne(queryWrapper, false);
-            if (weightConfig == null && year != null && year >= 2023) {
-                QueryWrapper<WeightConfig> baselineQuery = new QueryWrapper<>();
-                baselineQuery.eq("config_name", configName);
-                baselineQuery.eq("is_deleted", 0);
-                baselineQuery.and(w -> w.eq("year", BASELINE_YEAR).or().isNull("year"));
-                baselineQuery.orderByDesc("create_time");
-                baselineQuery.last("LIMIT 1");
-                weightConfig = weightConfigService.getOne(baselineQuery, false);
+            WeightConfig weightConfig;
+            if (year == null) {
+                weightConfig = findByConfigNameWithYear(configName, null);
+            } else {
+                weightConfig = null;
+                int latestYear = resolveLatestFallbackYear(year);
+                for (int fallbackYear = latestYear; fallbackYear >= BASELINE_YEAR; fallbackYear--) {
+                    weightConfig = findByConfigNameWithYear(configName, fallbackYear);
+                    if (weightConfig != null) {
+                        break;
+                    }
+                }
+                if (weightConfig == null) {
+                    weightConfig = findByConfigNameWithYear(configName, BASELINE_YEAR);
+                }
             }
             if (weightConfig == null) {
                 return Result.error("权重配置不存在");
@@ -119,6 +117,23 @@ public class WeightConfigController {
             log.error("根据名称获取权重配置失败", e);
             return Result.error("根据名称获取权重配置失败: " + e.getMessage());
         }
+    }
+
+    private WeightConfig findByConfigNameWithYear(String configName, Integer year) {
+        QueryWrapper<WeightConfig> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("config_name", configName);
+        queryWrapper.eq("is_deleted", 0);
+        if (year != null) {
+            queryWrapper.and(w -> w.eq("year", year).or().isNull("year").apply("YEAR(create_time) = {0}", year));
+        }
+        queryWrapper.orderByDesc("create_time");
+        queryWrapper.last("LIMIT 1");
+        return weightConfigService.getOne(queryWrapper, false);
+    }
+
+    private int resolveLatestFallbackYear(Integer requestedYear) {
+        int latestYear = requestedYear != null ? requestedYear : LocalDate.now().getYear();
+        return Math.max(latestYear, BASELINE_YEAR);
     }
 
     @GetMapping("/active")

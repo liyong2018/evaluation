@@ -57,6 +57,11 @@ public interface IGrassrootsOrganizationService extends IService<GrassrootsOrgan
     List<Map<String, Object>> getTreeByCountyId(Long countyId, Integer year);
 
     /**
+     * 根据区县ID获取所有下级组织，可选择包含当年删除标记及详细变更类型。
+     */
+    List<Map<String, Object>> getTreeByCountyId(Long countyId, Integer year, Boolean includeChangeDetails);
+
+    /**
      * 根据区县代码获取所有下级组织（乡镇和社区）
      *
      * @param countyCode 区县代码

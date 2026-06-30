@@ -46,7 +46,7 @@
             @node-click="handleNodeClick"
           >
             <template #default="{ data }">
-              <div class="tree-node" :class="{ 'is-county': data.level === 3 }">
+              <div class="tree-node" :class="{ 'is-county': data.level === 3, 'is-deleted': data.isDeleted }">
                 <div class="node-info">
                   <el-icon v-if="data.level === 1" color="#409eff"><OfficeBuilding /></el-icon>
                   <el-icon v-else-if="data.level === 2" color="#67c23a"><MapLocation /></el-icon>
@@ -64,7 +64,8 @@
                   <el-tag v-if="data.changeType"
                            size="small"
                            :type="getChangeTypeTagType(data.changeType)"
-                           class="change-type-tag">
+                           class="change-type-tag"
+                           :title="getChangeTypeTitle(data)">
                     {{ getChangeTypeLabel(data.changeType) }}
                   </el-tag>
                   <el-tag size="small" :type="getLevelTagType(data.level)" class="level-tag">
@@ -125,7 +126,7 @@
             @node-click="handleRightPanelNodeClick"
           >
             <template #default="{ data }">
-              <div class="tree-node grassroots-node">
+              <div class="tree-node grassroots-node" :class="{ 'is-deleted': data.isDeleted }">
                 <div class="node-info">
                   <el-icon v-if="data.level === 2" color="#67c23a"><MapLocation /></el-icon>
                   <el-icon v-else-if="data.level === 3" color="#e6a23c"><Location /></el-icon>
@@ -142,7 +143,8 @@
                   <el-tag v-if="data.changeType"
                            size="small"
                            :type="getChangeTypeTagType(data.changeType)"
-                           class="change-type-tag">
+                           class="change-type-tag"
+                           :title="getChangeTypeTitle(data)">
                     {{ getChangeTypeLabel(data.changeType) }}
                   </el-tag>
                   <el-tag size="small" :type="getLevelTagType(data.level)" class="level-tag">
@@ -640,11 +642,26 @@ const getChangeTypeLabel = (changeType: string) => {
   return changeType
 }
 
+const getChangeTypeTitle = (node: any) => {
+  if (!node?.changeType) return ''
+  const parts = [node.changeType]
+  if (node.oldName && node.oldName !== node.name) {
+    parts.push(`名称：${node.oldName} -> ${node.name}`)
+  }
+  if (node.oldCode && node.oldCode !== node.code) {
+    parts.push(`代码：${node.oldCode} -> ${node.code}`)
+  }
+  return parts.join('；')
+}
+
 const getChangeTypeTagType = (changeType: string) => {
   const types: Record<string, string> = {
     新增: 'success',
-    更新: 'warning',
-    删除: 'danger'
+    删除: 'danger',
+    修改名称: 'warning',
+    修改代码: 'warning',
+    修改上级: 'warning',
+    下级有变更: 'info'
   }
   return types[changeType] || 'info'
 }
@@ -669,7 +686,10 @@ const loadOrganizationTree = async () => {
   loading.value = true
   try {
     const response = await request.get('/api/organization/tree', {
-      params: { year: treeYear.value || undefined }
+      params: {
+        year: treeYear.value || undefined,
+        includeChangeDetails: true
+      }
     })
     if (response.success) {
       // 后端已返回构建好的树形结构，直接使用
@@ -774,7 +794,10 @@ const loadGrassrootsTree = async (countyId: number, countyCode: string) => {
   rightPanelLoading.value = true
   try {
     const response = await request.get('/api/grassroots-organization/tree/by-county-id/' + countyId, {
-      params: { year: treeYear.value || undefined }
+      params: {
+        year: treeYear.value || undefined,
+        includeChangeDetails: true
+      }
     })
     if (response.success) {
       rightPanelTree.value = response.data || []
@@ -1214,6 +1237,11 @@ watch(
   font-weight: 500;
   color: #303133;
   font-size: 14px;
+}
+
+.tree-node.is-deleted .node-name {
+  color: #909399;
+  text-decoration: line-through;
 }
 
 .level-tag {
